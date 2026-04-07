@@ -688,19 +688,28 @@ function service_cards_v14(): array
     ];
     $cards = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
+    /* Fallback images depuis l'ancienne clé si v14 n'en a pas */
+    $oldCards = get_json_setting('home_service_cards', []);
     $out = [];
     foreach ($default as $i => $fallback) {
         $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
+        $img = trim((string)($c['image'] ?? ''));
+        if ($img === '' && is_array($oldCards[$i] ?? null)) {
+            $img = trim((string)($oldCards[$i]['image'] ?? ''));
+        }
         $out[] = [
-            'title' => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
-            'image' => trim((string)($c['image'] ?? '')),
-            'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
-            'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
-            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
-            'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
+            'title'            => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
+            'image'            => $img,
+            'link'             => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
+            'badge'            => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
+            'desc'             => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            'tags'             => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
+            'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')),
         ];
     }
     return $out;
+}
+
 }
 
 /* ═══════════════════════════════════════════════════

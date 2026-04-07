@@ -340,6 +340,138 @@ if ($route === '' || $route === 'home') {
 </section>
 
 <?php render_footer(); exit; }
+/* ════ SERVICES ════ */
+if ($route === 'services') {
+    $svc  = services_page_content();
+    $cards = service_cards_v14();
+    $meta = [
+        'title'       => setting('services_meta_title', 'Nos services | '.company_name()),
+        'description' => setting('services_meta_desc',  'Électricité, plomberie, chauffage, climatisation — dépannage urgence, installation et entretien en Île-de-France et Occitanie.'),
+        'canonical'   => route_url('services'),
+    ];
+    render_head($meta); render_header(route_url('services'));
+?>
+<section class="page-hero">
+  <div class="wrap">
+    <div class="ph-eyebrow"><?= e($svc['eyebrow']) ?></div>
+    <h1 class="ph-h1"><?= e($svc['title']) ?></h1>
+    <p class="ph-lead"><?= e($svc['lead']) ?></p>
+    <div class="ph-badges">
+      <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
+      <span class="ph-badge">🆓 Devis gratuit</span>
+      <span class="ph-badge">📍 <?= e(company_regions()) ?></span>
+      <span class="ph-badge">🔒 Artisans certifiés</span>
+    </div>
+  </div>
+</section>
+
+<section class="svc-section">
+  <div class="wrap">
+    <div class="svc-header">
+      <div class="svc-label"><?= e(setting('services_section_label','Nos pôles d\'intervention')) ?></div>
+      <h2 class="svc-title"><?= e(setting('services_title','Tout ce dont vous avez')) ?> <em><?= e(setting('services_title_hl','besoin')) ?></em></h2>
+      <p class="svc-lead"><?= e(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes — un seul interlocuteur pour tous vos besoins techniques.')) ?></p>
+    </div>
+    <div class="svc-grid">
+      <?php foreach ($cards as $card):
+        $link = trim($card['link'] ?? '');
+        if (!preg_match('#^(https?:|/)#i',$link)) $link = route_url($link ?: 'services');
+        $img  = trim($card['image'] ?? '');
+        $hasImg = $img !== '' && file_exists(__DIR__.'/'.ltrim($img,'/'));
+      ?>
+      <a class="svc-card" href="<?= e($link) ?>">
+        <?php if ($hasImg): ?>
+          <div class="svc-bg" style="background-image:url(<?= e(asset_url($img)) ?>)"></div>
+        <?php else: ?>
+          <div class="svc-placeholder">
+            <div class="svc-placeholder-lines"></div>
+            <div class="svc-placeholder-icon"><?= e($card['placeholder_icon'] ?? '⚡') ?></div>
+          </div>
+        <?php endif; ?>
+        <div class="svc-overlay"></div>
+        <span class="svc-badge"><?= e($card['badge'] ?? '') ?></span>
+        <span class="svc-arrow">→</span>
+        <div class="svc-body">
+          <div class="svc-name"><?= e($card['title']) ?></div>
+          <div class="svc-desc"><?= e($card['desc'] ?? '') ?></div>
+          <div class="svc-tags"><?php foreach ((array)($card['tags']??[]) as $tag): ?><span class="svc-tag"><?= e($tag) ?></span><?php endforeach; ?></div>
+        </div>
+      </a>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec-navy">
+  <div class="wrap">
+    <div class="svc-label"><?= e(setting('services_detail_label','Le détail de nos prestations')) ?></div>
+    <h2 class="section-title"><?= e(setting('services_detail_title','4 pôles,')) ?> <em><?= e(setting('services_detail_title_hl','une seule équipe')) ?></em></h2>
+    <p class="section-lead"><?= e(setting('services_detail_lead','Chaque corps de métier dispose de ses propres techniciens certifiés. Vous avez un seul interlocuteur, nous coordonnons tout.')) ?></p>
+    <div style="display:grid;gap:2.5rem;">
+      <?php foreach ($svc['services'] as $s): ?>
+      <div style="background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:2rem;position:relative;overflow:hidden;">
+        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(180deg,<?= e($s['color']) ?>,rgba(<?= implode(',',sscanf($s['color'],'#%02x%02x%02x') ?: [240,123,29]) ?>,.2));"></div>
+        <div style="padding-left:1.2rem;">
+          <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:1rem;">
+            <span style="font-size:2rem;"><?= e($s['icon']) ?></span>
+            <div>
+              <a href="<?= e(route_url($s['slug'])) ?>" style="font-family:var(--font-h);font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:-.01em;"><?= e($s['title']) ?></a>
+              <p style="font-size:.82rem;color:var(--t2);margin:.15rem 0 0;font-weight:300;"><?= e($s['desc']) ?></p>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.45rem;">
+            <?php foreach ($s['items'] as $item): ?>
+            <div style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--t1);font-weight:300;">
+              <span style="width:6px;height:6px;border-radius:50%;background:<?= e($s['color']) ?>;flex-shrink:0;"></span><?= e($item) ?>
+            </div>
+            <?php endforeach; ?>
+          </div>
+          <div style="margin-top:1.35rem;">
+            <a class="btn btn-ghost-p btn-sm" href="<?= e(route_url($s['slug'])) ?>">Voir <?= e($s['title']) ?> →</a>
+          </div>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<section class="why-section" style="padding:5rem 0;">
+  <div class="wrap">
+    <div class="svc-label">Pourquoi choisir EMAE</div>
+    <h2 class="section-title">Un seul interlocuteur, <em>toutes compétences</em></h2>
+    <div class="why-grid" style="margin-top:2rem;">
+      <?php foreach ([
+        ['⚡','Urgence 24h/7j','Astreinte permanente. Moins de 2h en Île-de-France pour toute panne bloquante.'],
+        ['🆓','Devis gratuit','Prix annoncé avant toute intervention. Aucune surprise sur la facture.'],
+        ['🔒','Artisans certifiés','Techniciens formés, qualifiés et assurés pour chaque corps de métier.'],
+        ['🛠️','Toutes interventions','Urgence, installation, entretien, mise aux normes — tout en interne.'],
+        ['📍','Présence locale','Île-de-France et Occitanie. Réactivité garantie sur nos zones.'],
+        ['⭐','Clients satisfaits',setting('schema_rating_value','4.9').'/5 sur '.setting('schema_review_count','120').' avis vérifiés.'],
+      ] as [$ico,$t,$txt]): ?>
+      <div class="why-card">
+        <div class="why-icon"><?= $ico ?></div>
+        <div><div class="why-h"><?= e($t) ?></div><p class="why-p"><?= e($txt) ?></p></div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec-navy" style="padding:4rem 0;">
+  <div class="wrap" style="max-width:700px;text-align:center;">
+    <div class="svc-label">Démarrer</div>
+    <h2 class="section-title">Besoin d'un <em>technicien ?</em></h2>
+    <p class="section-lead" style="margin-bottom:1.75rem;"><?= e(setting('qs_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair.')) ?></p>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
+      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>">🆓 Devis gratuit en 2 min</a>
+      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    </div>
+  </div>
+</section>
+
+<?php render_footer(); exit; }
+
 
 /* ════ FAQ ════ */
 if ($route === 'faq') {

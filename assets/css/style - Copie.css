@@ -4,11 +4,11 @@
    Palette     : Marine profond #061029 + Orange vif #F07B1D + Blanc #F8FAFF
    Esthétique  : Asymétrique, industriel raffiné, micro-animations
 ═══════════════════════════════════════════════════════════════ */
- 
+
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
- 
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
- 
+
 :root{
   --p:         #F07B1D;
   --p2:        #D4650D;
@@ -24,27 +24,27 @@
   --t3:        #3D5A99;
   --line:      rgba(255,255,255,.07);
   --line-l:    rgba(6,16,41,.1);
- 
+
   --r1: 6px;
   --r2: 12px;
   --r3: 18px;
   --r4: 24px;
   --r5: 32px;
- 
+
   --sh1: 0 2px 16px rgba(6,16,41,.18);
   --sh2: 0 8px 40px rgba(6,16,41,.28);
   --sh3: 0 20px 64px rgba(6,16,41,.42);
- 
+
   --font-h: 'Syne',    'Arial Black', Arial, sans-serif;
   --font-b: 'Outfit',  'Segoe UI',    Arial, sans-serif;
   --w: 1280px;
- 
+
   /* Injectées depuis DB */
   --hero-from:   #061029;
   --hero-to:     #112559;
   --card-shade:  0.52;
 }
- 
+
 /* ─── BASE ─── */
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
 body{margin:0;font-family:var(--font-b);font-size:16px;background:var(--navy);color:var(--t1);line-height:1.65;padding-bottom:68px;overflow-x:hidden;}
@@ -53,7 +53,7 @@ a{color:inherit;text-decoration:none;}
 button,input,select,textarea{font:inherit;}
 .hp{position:absolute;left:-9999px;opacity:0;pointer-events:none;}
 .wrap{width:100%;max-width:var(--w);margin:0 auto;padding:0 1.25rem;}
- 
+
 /* ─── BOUTONS ─── */
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:.55rem;
@@ -66,7 +66,7 @@ button,input,select,textarea{font:inherit;}
 }
 .btn::after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.08),transparent);pointer-events:none;}
 .btn:active{transform:scale(.97);}
- 
+
 .btn-p{background:var(--p);color:#fff;box-shadow:0 4px 24px rgba(240,123,29,.38);}
 .btn-p:hover{background:var(--p2);box-shadow:0 8px 36px rgba(240,123,29,.52);transform:translateY(-2px);}
 .btn-outline{background:transparent;color:#fff;border:1.5px solid rgba(255,255,255,.22);}
@@ -78,10 +78,10 @@ button,input,select,textarea{font:inherit;}
 .btn-lg{min-height:58px;padding:0 2.25rem;font-size:1.02rem;font-weight:700;}
 .btn-block{width:100%;}
 .btn-sm{min-height:40px;padding:0 1.1rem;font-size:.88rem;}
- 
+
 /* ─── NAV CALL BTN ─── */
 .header-call{display:inline-flex;align-items:center;gap:.45rem;background:var(--p);color:#fff;padding:.5rem 1.1rem;border-radius:var(--r2);font-weight:700;font-size:.82rem;min-height:40px;box-shadow:0 4px 14px rgba(240,123,29,.38);}
- 
+
 /* ─── TOPBAR ─── */
 .topbar{display:none;background:#03091a;border-bottom:1px solid var(--line);font-size:.8rem;color:var(--t2);}
 .topbar-in{min-height:38px;display:flex;justify-content:space-between;align-items:center;gap:1rem;}
@@ -90,7 +90,7 @@ button,input,select,textarea{font:inherit;}
 .topbar a:hover{color:var(--p);}
 .topbar-phone{color:var(--p)!important;font-weight:700;}
 .topbar-dot{opacity:.25;}
- 
+
 /* ─── HEADER ─── */
 .site-header{
   position:sticky;top:0;z-index:200;
@@ -105,29 +105,29 @@ button,input,select,textarea{font:inherit;}
 .brand-name{font-family:var(--font-h);font-size:1.7rem;font-weight:800;color:#fff;line-height:1;letter-spacing:.06em;}
 .brand-name em{color:var(--p);font-style:normal;}
 .brand-tagline{font-size:.52rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--t2);margin-top:.12rem;}
- 
+
 .nav-toggle{display:flex;flex-direction:column;gap:5px;padding:8px 6px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .nav-toggle span{display:block;width:22px;height:2px;background:#fff;border-radius:2px;transition:all .28s;}
 .nav-toggle[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg);}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
- 
+
 .site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1.5rem 1.25rem;overflow-y:auto;z-index:190;}
 .site-nav.open{display:flex;}
 .site-nav a{color:var(--t1);font-weight:500;font-size:1.05rem;padding:.9rem 1rem;border-radius:var(--r2);border-bottom:1px solid var(--line);display:block;transition:color .15s;}
 .site-nav a:hover,.site-nav a.on{color:var(--p);}
 .site-nav .btn-sm{margin-top:1.25rem;width:100%;min-height:52px;font-size:.97rem;}
- 
+
 /* ─── CTA BAR MOBILE ─── */
 .mob-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;display:flex;height:68px;}
 .mob-bar-call{flex:1;display:flex;align-items:center;justify-content:center;gap:.5rem;background:var(--navy-2);color:#fff;font-weight:700;font-size:.88rem;border-right:1px solid var(--line);}
 .mob-bar-devis{flex:1;display:flex;align-items:center;justify-content:center;gap:.5rem;background:var(--p);color:#fff;font-weight:700;font-size:.88rem;}
- 
+
 /* ─── FLASH ─── */
 .flash{padding:.85rem 1.1rem;border-radius:var(--r2);font-weight:600;margin:.75rem 0;font-size:.92rem;}
 .flash-ok{background:#071d12;color:#4ade80;border:1px solid rgba(74,222,128,.18);}
 .flash-err{background:#1d0707;color:#f87171;border:1px solid rgba(248,113,113,.18);}
- 
+
 /* ════════════════════════════════════════════
    HERO — Layout asymétrique, premium
 ════════════════════════════════════════════ */
@@ -164,11 +164,11 @@ button,input,select,textarea{font:inherit;}
   width:1px;background:linear-gradient(180deg,transparent,rgba(255,255,255,.05),transparent);
   pointer-events:none;z-index:0;
 }
- 
+
 .hero-grid{position:relative;z-index:1;display:flex;flex-direction:column;gap:2.5rem;}
 .hero-content{order:2;}
 .hero-form{order:1;}
- 
+
 /* Badge pulsant */
 .hero-badge{
   display:inline-flex;align-items:center;gap:.6rem;
@@ -184,15 +184,12 @@ button,input,select,textarea{font:inherit;}
   animation:ping 2s ease-in-out infinite;
 }
 @keyframes ping{0%,100%{box-shadow:0 0 0 0 rgba(240,123,29,.6);}60%{box-shadow:0 0 0 7px rgba(240,123,29,0);}}
- 
+
 .hero h1{
   font-family:var(--font-h);
   font-size:clamp(2.4rem,8vw,3.2rem);
   font-weight:800;line-height:1.04;
   letter-spacing:-.025em;color:#fff;
-  font-size:clamp(2rem,6.5vw,2.9rem);
-  font-weight:800;line-height:1.1;
-  letter-spacing:-.02em;color:#fff;
   margin-bottom:1rem;
 }
 .hero h1 .hl{
@@ -201,7 +198,7 @@ button,input,select,textarea{font:inherit;}
   -webkit-background-clip:text;background-clip:text;
 }
 .hero-lead{font-size:.97rem;font-weight:300;color:rgba(240,244,255,.75);line-height:1.78;margin-bottom:1.5rem;max-width:52ch;}
- 
+
 /* Chips services */
 .chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:1.5rem;}
 .chip{
@@ -212,10 +209,10 @@ button,input,select,textarea{font:inherit;}
   color:var(--t2);transition:all .2s;
 }
 .chip.on{background:rgba(240,123,29,.12);border-color:rgba(240,123,29,.3);color:var(--p);}
- 
+
 .hero-actions{display:flex;flex-direction:column;gap:.65rem;margin-bottom:2rem;}
 .hero-actions .btn{width:100%;}
- 
+
 /* Trust pillules */
 .hero-trust{display:grid;grid-template-columns:1fr 1fr;gap:.45rem;}
 .trust-pill{
@@ -230,7 +227,7 @@ button,input,select,textarea{font:inherit;}
 .trust-pill-txt{font-size:.72rem;line-height:1.3;}
 .trust-pill-txt strong{display:block;color:#fff;font-weight:600;font-size:.77rem;}
 .trust-pill-txt span{color:var(--t2);}
- 
+
 /* ─── FORMULAIRE HERO ─── */
 .hero-card{
   background:rgba(12,30,69,.7);
@@ -251,7 +248,7 @@ button,input,select,textarea{font:inherit;}
 }
 .hero-card-tag::before{content:'';width:18px;height:1.5px;background:var(--p);border-radius:1px;}
 .hero-card h2{font-family:var(--font-h);font-size:1.45rem;font-weight:800;color:#fff;margin-bottom:1.35rem;line-height:1.15;letter-spacing:-.015em;}
- 
+
 /* Champs formulaire */
 .f-row{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-bottom:.55rem;}
 .f-field{display:flex;flex-direction:column;gap:.28rem;margin-bottom:.55rem;}
@@ -273,7 +270,7 @@ button,input,select,textarea{font:inherit;}
 .f-full{grid-column:1/-1;}
 .f-meta{text-align:center;font-size:.7rem;color:var(--t2);margin-top:.5rem;display:flex;align-items:center;justify-content:center;gap:.5rem;}
 .f-meta-dot{width:1px;height:10px;background:var(--line);}
- 
+
 /* ════════════════════════════════════════════
    STRIP URGENCE
 ════════════════════════════════════════════ */
@@ -287,7 +284,7 @@ button,input,select,textarea{font:inherit;}
 .strip-in{display:flex;align-items:center;gap:1.25rem;flex-wrap:wrap;justify-content:center;}
 .strip-item{display:flex;align-items:center;gap:.45rem;font-weight:600;font-size:.86rem;color:#fff;white-space:nowrap;}
 .strip-sep{width:3px;height:3px;background:rgba(255,255,255,.4);border-radius:50%;flex-shrink:0;}
- 
+
 /* ════════════════════════════════════════════
    SERVICES — Cartes image zoom + placeholder
 ════════════════════════════════════════════ */
@@ -300,12 +297,11 @@ button,input,select,textarea{font:inherit;}
 }
 .svc-label::before{content:'';width:28px;height:1.5px;background:var(--p);}
 .svc-title{font-family:var(--font-h);font-size:clamp(2rem,5vw,3rem);font-weight:800;color:#fff;line-height:1.06;letter-spacing:-.025em;margin-bottom:.75rem;}
-.svc-title{font-family:var(--font-h);font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;color:#fff;line-height:1.1;letter-spacing:-.02em;margin-bottom:.75rem;}
 .svc-title em{color:var(--p);font-style:normal;}
 .svc-lead{font-size:.95rem;font-weight:300;color:var(--t2);max-width:52ch;line-height:1.75;}
- 
+
 .svc-grid{display:grid;grid-template-columns:1fr 1fr;gap:.85rem;}
- 
+
 /* Carte service */
 .svc-card{
   position:relative;overflow:hidden;
@@ -318,7 +314,7 @@ button,input,select,textarea{font:inherit;}
   transition:border-color .3s,transform .3s;
 }
 .svc-card:hover{border-color:rgba(240,123,29,.4);transform:translateY(-4px);}
- 
+
 /* Image de fond avec zoom */
 .svc-bg{
   position:absolute;inset:0;
@@ -327,7 +323,7 @@ button,input,select,textarea{font:inherit;}
   transform-origin:center;
 }
 .svc-card:hover .svc-bg{transform:scale(1.1);}
- 
+
 /* Placeholder premium quand pas d'image */
 .svc-placeholder{
   position:absolute;inset:0;
@@ -354,7 +350,7 @@ button,input,select,textarea{font:inherit;}
   font-size:3.5rem;opacity:.18;
   filter:grayscale(1);
 }
- 
+
 /* Overlay dégradé */
 .svc-overlay{
   position:absolute;inset:0;
@@ -366,7 +362,7 @@ button,input,select,textarea{font:inherit;}
   transition:opacity .3s;
 }
 .svc-card:hover .svc-overlay{opacity:.88;}
- 
+
 /* Badge */
 .svc-badge{
   position:absolute;top:14px;left:14px;z-index:3;
@@ -376,7 +372,7 @@ button,input,select,textarea{font:inherit;}
   font-size:.65rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
   backdrop-filter:blur(8px);
 }
- 
+
 /* Flèche */
 .svc-arrow{
   position:absolute;top:14px;right:14px;z-index:3;
@@ -388,7 +384,7 @@ button,input,select,textarea{font:inherit;}
   transition:all .25s;
 }
 .svc-card:hover .svc-arrow{background:var(--p);border-color:var(--p);transform:rotate(45deg);}
- 
+
 /* Body de la carte */
 .svc-body{position:relative;z-index:3;padding:1.25rem 1.35rem;}
 .svc-name{font-family:var(--font-h);font-size:1.15rem;font-weight:800;color:#fff;margin-bottom:.3rem;line-height:1.15;letter-spacing:-.01em;}
@@ -399,7 +395,7 @@ button,input,select,textarea{font:inherit;}
   background:rgba(240,123,29,.15);color:var(--p);
   border:1px solid rgba(240,123,29,.2);letter-spacing:.04em;
 }
- 
+
 /* ════════════════════════════════════════════
    POURQUOI NOUS — Design asymétrique
 ════════════════════════════════════════════ */
@@ -444,7 +440,7 @@ button,input,select,textarea{font:inherit;}
 .why-icon img{width:100%;height:100%;object-fit:cover;}
 .why-h{font-family:var(--font-h);font-size:.97rem;font-weight:800;color:#fff;margin-bottom:.28rem;letter-spacing:-.01em;}
 .why-p{font-size:.82rem;font-weight:300;color:var(--t2);margin:0;line-height:1.65;}
- 
+
 /* ════════════════════════════════════════════
    STATS BAND
 ════════════════════════════════════════════ */
@@ -469,7 +465,7 @@ button,input,select,textarea{font:inherit;}
   display:block;line-height:1;margin-bottom:.3rem;
 }
 .stat-l{font-size:.72rem;font-weight:600;color:var(--t2);text-transform:uppercase;letter-spacing:.1em;}
- 
+
 /* ════════════════════════════════════════════
    PROCESSUS — Timeline horizontale
 ════════════════════════════════════════════ */
@@ -497,7 +493,7 @@ button,input,select,textarea{font:inherit;}
 }
 .process-h{font-family:var(--font-h);font-size:.97rem;font-weight:800;color:#fff;margin-bottom:.3rem;letter-spacing:-.01em;}
 .process-p{font-size:.83rem;font-weight:300;color:var(--t2);margin:0;line-height:1.65;}
- 
+
 /* ════════════════════════════════════════════
    RÉALISATIONS
 ════════════════════════════════════════════ */
@@ -516,7 +512,7 @@ button,input,select,textarea{font:inherit;}
 .real-svc{font-size:.68rem;font-weight:700;color:var(--p);text-transform:uppercase;letter-spacing:.1em;margin-bottom:.28rem;}
 .real-h{font-size:.92rem;font-weight:600;color:#fff;margin:0 0 .25rem;}
 .real-city{font-size:.78rem;color:var(--t2);font-weight:300;}
- 
+
 /* ════════════════════════════════════════════
    AVIS CLIENTS
 ════════════════════════════════════════════ */
@@ -557,7 +553,7 @@ button,input,select,textarea{font:inherit;}
 }
 .rv-name{font-weight:600;font-size:.88rem;color:#fff;display:block;}
 .rv-svc{font-size:.74rem;color:var(--p);font-weight:300;}
- 
+
 /* ════════════════════════════════════════════
    DEVIS SECTION
 ════════════════════════════════════════════ */
@@ -588,7 +584,7 @@ button,input,select,textarea{font:inherit;}
   position:relative;overflow:hidden;
 }
 .qs-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--p),#FFB066,transparent);}
- 
+
 /* ════════════════════════════════════════════
    ZONES
 ════════════════════════════════════════════ */
@@ -606,7 +602,7 @@ button,input,select,textarea{font:inherit;}
 .zone-text{font-size:.85rem;font-weight:300;color:var(--t2);line-height:1.7;margin:0 0 .9rem;padding-left:.85rem;}
 .zone-chips{display:flex;flex-wrap:wrap;gap:.35rem;padding-left:.85rem;}
 .zone-chip{padding:.26rem .65rem;border-radius:999px;font-size:.72rem;font-weight:500;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--t2);}
- 
+
 /* ════════════════════════════════════════════
    PAGE HERO
 ════════════════════════════════════════════ */
@@ -624,7 +620,7 @@ button,input,select,textarea{font:inherit;}
 .ph-badges{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1.25rem;}
 .ph-badge{padding:.35rem .8rem;border-radius:999px;font-size:.74rem;font-weight:500;background:var(--card);border:1px solid var(--line);color:var(--t2);}
 .ph-badge.hl{background:rgba(240,123,29,.1);border-color:rgba(240,123,29,.3);color:var(--p);}
- 
+
 /* ════════════════════════════════════════════
    FORMULAIRE CONTACT
 ════════════════════════════════════════════ */
@@ -654,7 +650,7 @@ button,input,select,textarea{font:inherit;}
 .c-urgency-p{font-size:.83rem;font-weight:300;color:var(--t2);margin-bottom:.9rem;line-height:1.65;}
 .zone-tags-grid{display:grid;grid-template-columns:1fr 1fr;gap:.35rem;margin-top:.65rem;}
 .zone-tag-sm{padding:.38rem .55rem;background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:var(--r1);font-size:.72rem;font-weight:500;color:var(--t2);text-align:center;}
- 
+
 /* ════════════════════════════════════════════
    FAQ
 ════════════════════════════════════════════ */
@@ -675,7 +671,7 @@ button,input,select,textarea{font:inherit;}
 .faq-cta p{font-size:.9rem;font-weight:300;color:var(--t2);margin-bottom:1.75rem;}
 .faq-cta .acts{display:flex;flex-direction:column;gap:.6rem;}
 .faq-cta .acts .btn{width:100%;}
- 
+
 /* ════════════════════════════════════════════
    SERVICE PAGES
 ════════════════════════════════════════════ */
@@ -695,7 +691,7 @@ button,input,select,textarea{font:inherit;}
 .sfaq-item summary{padding:.95rem 1.15rem;font-weight:500;font-size:.88rem;color:var(--t1);cursor:pointer;list-style:none;}
 .sfaq-item summary::-webkit-details-marker{display:none;}
 .sfaq-item p{padding:0 1.15rem 1rem;font-size:.84rem;font-weight:300;color:var(--t2);line-height:1.72;margin:0;}
- 
+
 /* ════════════════════════════════════════════
    FOOTER
 ════════════════════════════════════════════ */
@@ -720,14 +716,13 @@ button,input,select,textarea{font:inherit;}
 .footer-bottom-links{display:flex;gap:.85rem;flex-wrap:wrap;}
 .footer-bottom-links a{font-size:.74rem;color:rgba(255,255,255,.2);}
 .footer-bottom-links a:hover{color:var(--p);}
- 
+
 /* ════════════════════════════════════════════
    UTILITAIRES
 ════════════════════════════════════════════ */
 .section-label{display:inline-flex;align-items:center;gap:.6rem;font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--p);margin-bottom:.65rem;}
 .section-label::before{content:'';width:28px;height:1.5px;background:var(--p);}
 .section-title{font-family:var(--font-h);font-size:clamp(1.9rem,5vw,2.8rem);font-weight:800;color:#fff;line-height:1.06;letter-spacing:-.025em;margin-bottom:.7rem;}
-.section-title{font-family:var(--font-h);font-size:clamp(1.7rem,3.8vw,2.4rem);font-weight:800;color:#fff;line-height:1.1;letter-spacing:-.02em;margin-bottom:.7rem;}
 .section-title em{color:var(--p);font-style:normal;}
 .section-lead{font-size:.95rem;font-weight:300;color:var(--t2);max-width:60ch;line-height:1.78;margin-bottom:2.5rem;}
 .btn-row{display:flex;flex-direction:column;gap:.6rem;}
@@ -744,7 +739,7 @@ button,input,select,textarea{font:inherit;}
 .sec-navy{background:var(--navy);}
 .sec-card{background:var(--card);}
 .sec-navy2{background:var(--navy-2);}
- 
+
 /* ════════════════════════════════════════════
    TABLET 640px+
 ════════════════════════════════════════════ */
@@ -801,307 +796,8 @@ button,input,select,textarea{font:inherit;}
   .hero{padding:7rem 0 5.5rem;}
   .hero-grid{grid-template-columns:1.1fr .9fr;gap:5rem;}
   .hero h1{font-size:clamp(3rem,4vw,4rem);}
-  .hero h1{font-size:clamp(2.7rem,3.4vw,3.5rem);}
   .why-grid{grid-template-columns:repeat(4,1fr);}
   .reals-grid{grid-template-columns:repeat(3,1fr);}
   .contact-layout{grid-template-columns:1fr 380px;}
 }
 @media print{.mob-bar,.site-header,.topbar{display:none!important;}body{padding-bottom:0;background:#fff;color:#000;}}
- 
-/* ═══════════════════════════════════════════════════════════════
-   V15 REFINEMENTS — Fonds blancs, typographie, design premium
-═══════════════════════════════════════════════════════════════ */
- 
-/* ── SECTION SERVICES — deux tons (dark header → blanc cartes) ── */
-.svc-section{
-  background:#ffffff;
-  padding:0 0 5rem;
-  position:relative;
-}
-.svc-section::before{
-  content:'';
-  position:absolute;
-  top:0;left:0;right:0;
-  height:52%;
-  min-height:200px;
-  max-height:340px;
-  background:var(--navy);
-  clip-path:polygon(0 0,100% 0,100% calc(100% - 2.5rem),0 100%);
-  z-index:0;
-  pointer-events:none;
-}
-.svc-section>.wrap{
-  position:relative;
-  z-index:1;
-  padding-top:5rem;
-}
-/* Le titre section reste sur fond sombre → texte blanc OK */
-.svc-header{margin-bottom:2.5rem;}
-/* Cartes reçoivent une ombre forte pour sortir du blanc */
-.svc-card{
-  box-shadow:0 16px 48px rgba(6,16,41,.26),0 4px 16px rgba(6,16,41,.14);
-}
-.svc-card:hover{
-  box-shadow:0 24px 64px rgba(6,16,41,.32),0 8px 24px rgba(6,16,41,.18);
-}
- 
-/* ── SECTION POURQUOI NOUS — fond blanc ── */
-.why-section{
-  background:#F8FAFF;
-  position:relative;
-}
-.why-section::before{display:none;}/* retire le glow sur fond blanc */
-.why-section .svc-label{/* orange reste lisible */}
-.why-section .section-title{color:var(--navy);}
-.why-section .section-lead{color:#455a7a;}
-.why-card{
-  background:#ffffff;
-  border:1px solid rgba(6,16,41,.08);
-  box-shadow:0 2px 12px rgba(6,16,41,.06);
-}
-.why-card:hover{
-  background:#ffffff;
-  border-color:rgba(240,123,29,.22);
-  box-shadow:0 8px 32px rgba(6,16,41,.1);
-}
-.why-card::before{
-  background:linear-gradient(180deg,transparent,var(--p),transparent);
-}
-.why-h{color:var(--navy);}
-.why-p{color:#4a5e80;}
- 
-/* ── SECTION PROCESSUS — fond gris pâle ── */
-.process-section{background:#F2F5FB;}
-.process-section .svc-label{/* orange OK */}
-.process-section .section-title{color:var(--navy);}
-.process-section .section-title em{color:var(--p);}
-.process-step{
-  background:#ffffff;
-  border:1px solid rgba(6,16,41,.08);
-  box-shadow:0 2px 16px rgba(6,16,41,.07);
-}
-.process-step:hover{box-shadow:0 8px 32px rgba(6,16,41,.12);}
-.process-step::after{
-  background:linear-gradient(90deg,var(--p),rgba(240,123,29,.2));
-}
-.process-h{color:var(--navy);}
-.process-p{color:#4a5e80;}
- 
-/* ── SECTION ZONES — fond blanc ── */
-.zones-section{background:#ffffff;}
-.zones-section .svc-label{/* orange OK */}
-.zones-section .section-title{color:var(--navy);}
-.zones-section .section-title em{color:var(--p);}
-.zones-section .section-lead{color:#455a7a;}
-.zone-card{
-  background:#F8FAFF;
-  border:1px solid rgba(6,16,41,.1);
-  box-shadow:0 2px 16px rgba(6,16,41,.07);
-}
-.zone-card:hover{
-  border-color:rgba(240,123,29,.22);
-  box-shadow:0 8px 28px rgba(6,16,41,.11);
-}
-.zone-card::before{
-  background:linear-gradient(180deg,var(--p),rgba(240,123,29,.2));
-}
-.zone-name{color:var(--navy);}
-.zone-text{color:#4a5e80;}
-.zone-chip{
-  background:rgba(6,16,41,.05);
-  border:1px solid rgba(6,16,41,.1);
-  color:#4a5e80;
-}
- 
-/* ── HERO LEAD — meilleure lisibilité ── */
-.hero-lead{font-size:.95rem;line-height:1.8;}
- 
-/* ── HERO CARD — titre plus lisible ── */
-.hero-card h2{font-size:1.35rem;line-height:1.2;}
- 
-/* ── TITRES h2 interne svc-title et section-title ── */
-.svc-title em{color:var(--p);}
- 
-/* ── STATS BAND — séparateur visuel amélioré ── */
-.stats-band{background:linear-gradient(135deg,var(--navy-2) 0%,var(--navy-3) 100%);}
- 
-/* ── DIVIDER entre sections blanc/sombre ── */
-.zones-section+.site-footer,
-.zones-section{border-bottom:1px solid rgba(6,16,41,.06);}
- 
-/* ── REVIEWS — léger accent sur fond sombre ── */
-.reviews-section{background:var(--navy-2);}
- 
-/* ── DEVIS — transition douce ── */
-.quote-section{background:var(--navy);}
- 
-/* ── PROCESS section: label inherit ── */
-.process-section .svc-label::before{background:var(--p);}
- 
-/* ── Bouton zones sur blanc ── */
-.zones-section .btn-p{box-shadow:0 8px 24px rgba(240,123,29,.32);}
- 
-/* ── RÉALISATIONS sur fond neutre ── */
-.sec-navy{background:var(--navy-2);}
-.real-card{background:var(--navy);border-color:rgba(255,255,255,.08);}
- 
-/* ── PAGE HERO — titres secondaires ── */
-.ph-h1{font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.12;letter-spacing:-.018em;}
- 
-/* ── QUOTE SECTION title ── */
-.qs-info h2{font-size:clamp(1.7rem,3.8vw,2.4rem);line-height:1.12;}
- 
-/* ── HERO H1 — poids 700 (moins large que 800) + tailles réduites ── */
-.hero h1{
-  font-weight:700;
-  font-size:clamp(1.85rem,5.5vw,2.55rem);
-  line-height:1.13;
-  letter-spacing:-.015em;
-}
-@media(min-width:640px){
-  .hero h1{font-size:2.3rem;}
-}
-@media(min-width:1024px){
-  .hero h1{font-size:clamp(2.4rem,2.9vw,3rem);}
-}
- 
-/* ── HERO actions — boutons plus aérés ── */
-.hero-actions{gap:.75rem;}
- 
-/* ── STRIP URGENCE — léger séparateur avant svc-section ── */
-.strip{box-shadow:0 4px 20px rgba(240,123,29,.22);}
- 
-/* ── STATS chiffres — lisibilité ── */
-.stat-n{font-size:2.2rem;}
-/* ── TYPOGRAPHIE GLOBALE — weight 700 sur tous les grands titres ── */
-.svc-title{font-weight:700;}
-.section-title{font-weight:700;}
-.ph-h1{font-weight:700;letter-spacing:-.015em;}
-.svc-name{font-weight:700;}
-.why-h{font-weight:700;}
-.process-h{font-weight:700;}
-.zone-name{font-weight:700;}
-.cbox-h{font-weight:700;}
-.ft-brand-name{font-weight:700;}
-.brand-name{font-weight:700;}
-.stat-n{font-weight:700;}
-.rs-num{font-weight:700;}
-.faq-cta h2{font-weight:700;}
-.cta-block h2{font-weight:700;}
-.qs-info h2{font-weight:700;}
-/* Taille svc-title réduite */
-.svc-title{font-size:clamp(1.6rem,3.2vw,2.2rem);}
-/* Taille section-title réduite */
-.section-title{font-size:clamp(1.5rem,3vw,2rem);}
- 
-/* ── REVIEW section — fond légèrement plus clair ── */
-.reviews-section{background:#0C1B3F;}
- 
-/* ── WHY section — label ── */
-.why-section .svc-label{margin-top:.25rem;}
- 
-/* ── ZONE SECTION — transition de couleur vers footer ── */
-.zones-section{padding-bottom:5.5rem;}
- 
-/* ── GLOBAL — body background harmonisé ── */
-body{background:var(--navy-2);}
- 
-/* ── CARDS: min-height légèrement augmenté pour plus d'impact ── */
-@media(min-width:640px){
-  .svc-card{min-height:310px;}
-}
-@media(min-width:1024px){
-  .svc-card{min-height:340px;}
-  .svc-section::before{height:50%;max-height:320px;}
-}
- /* ═══════════════════════════════════════════════════════════════
-   V15 REFINEMENTS — Fonds blancs, typographie, design premium
-═══════════════════════════════════════════════════════════════ */
-
-/* ── HERO H1 — poids 700 + tailles réduites ── */
-.hero h1{font-weight:700;font-size:clamp(1.85rem,5.5vw,2.55rem);line-height:1.13;letter-spacing:-.015em;}
-@media(min-width:640px){.hero h1{font-size:2.3rem;}}
-@media(min-width:1024px){.hero h1{font-size:clamp(2.4rem,2.9vw,3rem);}}
-
-/* ── TYPOGRAPHIE GLOBALE — weight 700 sur tous les grands titres ── */
-.svc-title{font-weight:700;font-size:clamp(1.6rem,3.2vw,2.2rem);}
-.section-title{font-weight:700;font-size:clamp(1.5rem,3vw,2rem);}
-.ph-h1{font-weight:700;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.12;letter-spacing:-.015em;}
-.qs-info h2{font-weight:700;font-size:clamp(1.7rem,3.8vw,2.4rem);line-height:1.12;}
-.svc-name{font-weight:700;}
-.why-h{font-weight:700;}
-.process-h{font-weight:700;}
-.zone-name{font-weight:700;}
-.cbox-h{font-weight:700;}
-.ft-brand-name{font-weight:700;}
-.brand-name{font-weight:700;}
-.stat-n{font-size:2.2rem;font-weight:700;}
-.rs-num{font-weight:700;}
-.faq-cta h2{font-weight:700;}
-.cta-block h2{font-weight:700;}
-
-/* ── SECTION SERVICES — deux tons (dark header → blanc cartes) ── */
-.svc-section{background:#ffffff;padding:0 0 5rem;position:relative;}
-.svc-section::before{content:'';position:absolute;top:0;left:0;right:0;height:52%;min-height:200px;max-height:340px;background:var(--navy);clip-path:polygon(0 0,100% 0,100% calc(100% - 2.5rem),0 100%);z-index:0;pointer-events:none;}
-.svc-section>.wrap{position:relative;z-index:1;padding-top:5rem;}
-.svc-header{margin-bottom:2.5rem;}
-.svc-card{box-shadow:0 16px 48px rgba(6,16,41,.26),0 4px 16px rgba(6,16,41,.14);}
-.svc-card:hover{box-shadow:0 24px 64px rgba(6,16,41,.32),0 8px 24px rgba(6,16,41,.18);}
-@media(min-width:640px){.svc-card{min-height:310px;}}
-@media(min-width:1024px){.svc-card{min-height:340px;}.svc-section::before{height:50%;max-height:320px;}}
-
-/* ── SECTION POURQUOI NOUS — fond blanc ── */
-.why-section{background:#F8FAFF;position:relative;}
-.why-section::before{display:none;}
-.why-section .section-title{color:var(--navy);}
-.why-section .section-lead{color:#455a7a;}
-.why-card{background:#ffffff;border:1px solid rgba(6,16,41,.08);box-shadow:0 2px 12px rgba(6,16,41,.06);}
-.why-card:hover{border-color:rgba(240,123,29,.22);box-shadow:0 8px 32px rgba(6,16,41,.1);}
-.why-h{color:var(--navy);}
-.why-p{color:#4a5e80;}
-
-/* ── SECTION PROCESSUS — fond gris pâle ── */
-.process-section{background:#F2F5FB;}
-.process-section .section-title{color:var(--navy);}
-.process-section .section-title em{color:var(--p);}
-.process-step{background:#ffffff;border:1px solid rgba(6,16,41,.08);box-shadow:0 2px 16px rgba(6,16,41,.07);}
-.process-step:hover{box-shadow:0 8px 32px rgba(6,16,41,.12);}
-.process-h{color:var(--navy);}
-.process-p{color:#4a5e80;}
-
-/* ── SECTION ZONES — fond blanc ── */
-.zones-section{background:#ffffff;padding-bottom:5.5rem;}
-.zones-section .section-title{color:var(--navy);}
-.zones-section .section-title em{color:var(--p);}
-.zones-section .section-lead{color:#455a7a;}
-.zone-card{background:#F8FAFF;border:1px solid rgba(6,16,41,.1);box-shadow:0 2px 16px rgba(6,16,41,.07);}
-.zone-card:hover{border-color:rgba(240,123,29,.22);box-shadow:0 8px 28px rgba(6,16,41,.11);}
-.zone-name{color:var(--navy);}
-.zone-text{color:#4a5e80;}
-.zone-chip{background:rgba(6,16,41,.05);border:1px solid rgba(6,16,41,.1);color:#4a5e80;}
-
-/* ── HERO LEAD ── */
-.hero-lead{font-size:.95rem;line-height:1.8;}
-.hero-card h2{font-size:1.35rem;line-height:1.2;}
-.hero-actions{gap:.75rem;}
-
-/* ── STATS BAND ── */
-.stats-band{background:linear-gradient(135deg,var(--navy-2) 0%,var(--navy-3) 100%);}
-
-/* ── REVIEWS ── */
-.reviews-section{background:#0C1B3F;}
-
-/* ── DEVIS ── */
-.quote-section{background:var(--navy);}
-
-/* ── RÉALISATIONS ── */
-.sec-navy{background:var(--navy-2);}
-.real-card{background:var(--navy);border-color:rgba(255,255,255,.08);}
-
-/* ── STRIP ── */
-.strip{box-shadow:0 4px 20px rgba(240,123,29,.22);}
-
-/* ── GLOBAL ── */
-body{background:var(--navy-2);}
-.zones-section{border-bottom:1px solid rgba(6,16,41,.06);}
-.zones-section .btn-p{box-shadow:0 8px 24px rgba(240,123,29,.32);}
