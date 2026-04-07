@@ -1,0 +1,3 @@
+<?php
+$adminSection = 'design'; require __DIR__ . '/partials/header.php'; ?>
+<div class="admin-page-toolbar"><div><div class="admin-breadcrumb">Vue d’ensemble</div><h1 class="admin-page-title">Hub design</h1><p class="admin-page-subtitle">Espace de raccourcis pour le design.</p></div></div><section class="admin-panel"><div class="admin-panel__head"><h2>Information</h2></div><div class="admin-panel__body"><p>Cette section peut être enrichie ensuite sans casser la base corrigée.</p></div></section><?php require __DIR__ . '/partials/footer.php'; ?>
