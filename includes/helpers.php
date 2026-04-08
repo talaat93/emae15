@@ -677,22 +677,21 @@ function why_us_settings(): array
 function service_cards_v14(): array
 {
     $default = [
-        ['title'=>'Électricité',          'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
+        ['title'=>'Électricité',       'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
          'tags'=>['Dépannage','Installation','Mise aux normes']],
-        ['title'=>'Plomberie',            'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
+        ['title'=>'Plomberie',         'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
          'tags'=>['Fuite','Sanitaires','Entretien']],
-        ['title'=>'Chauffage & PAC',      'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
+        ['title'=>'Chauffage & PAC',   'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
          'tags'=>['Chaudière','PAC','Entretien annuel']],
-        ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
+        ['title'=>'Climatisation CVC', 'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
          'tags'=>['Clim','CVC','Installation']],
     ];
-    $cards = get_json_setting('home_service_cards_v14', $default);
+    $cards    = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
-    /* Fallback images depuis l'ancienne clé si v14 n'en a pas */
     $oldCards = get_json_setting('home_service_cards', []);
     $out = [];
     foreach ($default as $i => $fallback) {
-        $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
+        $c   = is_array($cards[$i] ?? null) ? $cards[$i] : [];
         $img = trim((string)($c['image'] ?? ''));
         if ($img === '' && is_array($oldCards[$i] ?? null)) {
             $img = trim((string)($oldCards[$i]['image'] ?? ''));
@@ -710,7 +709,7 @@ function service_cards_v14(): array
     return $out;
 }
 
-}
+
 
 /* ═══════════════════════════════════════════════════
    DESIGN SETTINGS (opacités, couleurs avancées)
