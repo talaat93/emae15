@@ -18,6 +18,13 @@ function render_head(array $meta): void
     echo '<meta property="og:description" content="'.e($meta['description']).'">';
     echo '<meta property="og:type" content="website">';
     echo '<meta property="og:url" content="'.e($meta['canonical']).'">';
+    $ogImg = $meta['og_image'] ?? setting('og_default_image','');
+    if ($ogImg !== '') echo '<meta property="og:image" content="'.e(asset_url($ogImg)).'">';
+    // Favicons
+    if (file_exists(__DIR__.'/../favicon.png'))
+        echo '<link rel="icon" type="image/png" href="'.e(asset_url('favicon.png')).'">';
+    if (file_exists(__DIR__.'/../apple-touch-icon.png'))
+        echo '<link rel="apple-touch-icon" href="'.e(asset_url('apple-touch-icon.png')).'">';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     
@@ -75,7 +82,6 @@ function render_header(string $active = ''): void
     <a class="brand" href="<?= e(route_url('')) ?>">
       <?php
         $logo = site_logo_path();
-        // Auto-detect real PNG logo
         $pngLogo = 'storage/uploads/logos/logo-emae.png';
         if ($logo === '' || $logo === 'storage/uploads/logos/logo-emae-default.svg') {
             if (file_exists(__DIR__.'/../'.$pngLogo)) $logo = $pngLogo;
@@ -98,7 +104,7 @@ function render_header(string $active = ''): void
       <span></span><span></span><span></span>
     </button>
 
-    <nav class="site-nav" id="main-nav" id="main-nav">
+    <nav class="site-nav" id="main-nav">
       <?php foreach (nav_items() as $item): ?>
         <a class="<?= $active === $item['url'] ? 'on' : '' ?>" href="<?= e($item['url']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>

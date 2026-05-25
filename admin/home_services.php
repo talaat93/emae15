@@ -2,21 +2,21 @@
 $adminSection = 'home_services';
 require __DIR__ . '/partials/header.php';
 
-/* Charge les cartes V14 — celles affichées sur la homepage */
 $cards = service_cards_v14();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
-    $newCards = [];
     $raw = $_POST['cards'] ?? [];
+    $newCards = [];
+
     foreach ($raw as $index => $row) {
         $title = trim((string) ($row['title'] ?? ''));
         if ($title === '') continue;
 
-        $current = trim((string) ($row['current_image'] ?? ''));
+        $current     = trim((string) ($row['current_image'] ?? ''));
         $uploadField = 'card_image_' . $index;
-        $uploaded = upload_image_field($uploadField, 'services');
-        $image = $uploaded ?: $current;
+        $uploaded    = upload_image_field($uploadField, 'services');
+        $image       = $uploaded ?: $current;
 
         /* Tags : chaîne séparée par virgule → tableau */
         $tagsRaw = trim((string) ($row['tags'] ?? ''));
@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'placeholder_icon' => trim((string) ($row['placeholder_icon'] ?? '')),
         ];
     }
+
     if (count($newCards) > 0) {
         set_json_setting('home_service_cards_v14', $newCards);
         flash('success', 'Cartes services enregistrées.');
