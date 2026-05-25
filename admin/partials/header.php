@@ -52,6 +52,10 @@ function admin_is_active(array $files, string $section = ''): string {
     <a class="<?= admin_is_active(['reviews.php']) ?>" href="<?= e(url_for('admin/reviews.php')) ?>">⭐ Avis clients</a>
     <a class="<?= admin_is_active(['faq_contact.php'],'faq_contact') ?>" href="<?= e(url_for('admin/faq_contact.php')) ?>">❓ FAQ & Contact</a>
 
+    <div class="admin-menu__group-label">Pages spéciales</div>
+    <a class="<?= admin_is_active(['zones.php'],'zones') ?>" href="<?= e(url_for('admin/zones.php')) ?>">🗺️ Zones d'intervention</a>
+    <a class="<?= admin_is_active(['services_hero_images.php'],'services_hero_images') ?>" href="<?= e(url_for('admin/services_hero_images.php')) ?>">🖼️ Images hero services</a>
+
     <div class="admin-menu__group-label">Leads</div>
     <a class="<?= admin_is_active(['quotes.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes de devis</a>
 

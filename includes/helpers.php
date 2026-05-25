@@ -201,11 +201,13 @@ function schema_local_business(): string
 function nav_items(): array
 {
     return [
-        ['label'=>setting('nav_home','Accueil'),      'url'=>route_url('')],
-        ['label'=>setting('nav_services','Services'), 'url'=>route_url('services')],
+        ['label'=>setting('nav_home','Accueil'),           'url'=>route_url('')],
+        ['label'=>setting('nav_services','Services'),      'url'=>route_url('services')],
+        ['label'=>setting('nav_zones','Nos zones'),        'url'=>route_url('zones')],
+        ['label'=>setting('nav_avis','Avis clients'),      'url'=>route_url('avis')],
         ['label'=>setting('nav_realisations','Réalisations'), 'url'=>route_url('realisations')],
-        ['label'=>setting('nav_faq','FAQ'),           'url'=>route_url('faq')],
-        ['label'=>setting('nav_contact','Contact'),   'url'=>route_url('contact')],
+        ['label'=>setting('nav_faq','FAQ'),                'url'=>route_url('faq')],
+        ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact')],
     ];
 }
 
@@ -231,6 +233,94 @@ function quote_form_options(): array
         'success_message'=> setting('form_success_message','Votre demande a bien été envoyée. Nous vous recontactons rapidement.'),
         'mail_to'        => setting('form_email_to',        company_email()),
     ];
+}
+function send_quote_notification(array $data): bool
+{
+    $to = setting('form_email_to', company_email());
+    if (trim($to) === '') return false;
+
+    $name    = trim($data['full_name']   ?? '');
+    $phone   = trim($data['phone']       ?? '');
+    $email   = trim($data['email']       ?? '');
+    $city    = trim($data['city']        ?? '');
+    $service = trim($data['service_type']?? '');
+    $message = trim($data['message']     ?? '');
+    $urgency = trim($data['urgency']     ?? 'Normale');
+    $source  = trim($data['source']      ?? '');
+    $site    = company_name();
+    $now     = date('d/m/Y à H:i');
+
+    $urgencyColor = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#c0392b' : '#1a7ab5';
+    $urgencyBg    = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#fdf2f2' : '#f0f7ff';
+
+    $subject = '=?UTF-8?B?'.base64_encode('🔔 Nouvelle demande — '.$name.' ('.$urgency.')').'?=';
+
+    $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+  <tr><td style="background:#061029;padding:28px 36px;">
+    <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">'.$site.'</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Nouvelle demande de devis</p>
+  </td></tr>
+  <tr><td style="padding:20px 36px 0;">
+    <span style="display:inline-block;background:'.$urgencyBg.';color:'.$urgencyColor.';border:1px solid '.$urgencyColor.';border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;">⚡ Urgence : '.$urgency.'</span>
+    <span style="display:inline-block;margin-left:10px;color:#888;font-size:13px;">'.$now.'</span>
+  </td></tr>
+  <tr><td style="padding:20px 36px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:14px 18px;background:#e8edf8;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">Coordonnées du client</td></tr>
+      <tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;width:160px;border-bottom:1px solid #eef0f7;">👤 Nom complet</td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#061029;border-bottom:1px solid #eef0f7;">'.$name.'</td>
+      </tr>
+      <tr style="background:#fff;">
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📞 Téléphone</td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/\s+/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
+      </tr>
+      '.($email !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">✉️ Email</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;"><a href="mailto:'.$email.'" style="color:#1a7ab5;">'.$email.'</a></td>
+      </tr>' : '').'
+      '.($city !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Ville</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.$city.'</td>
+      </tr>' : '').'
+      '.($service !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">🔧 Service</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.$service.'</td>
+      </tr>' : '').'
+      '.($source !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;">📣 Source</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;">'.$source.'</td>
+      </tr>' : '').'
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 28px;">
+    <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">💬 Message du client</p>
+    <div style="background:#f8faff;border-left:4px solid #F07B1D;border-radius:6px;padding:16px 18px;font-size:14px;color:#222;line-height:1.7;">'.nl2br(htmlspecialchars($message, ENT_QUOTES)).'</div>
+  </td></tr>
+  <tr><td style="padding:0 36px 32px;text-align:center;">
+    <a href="'.site_base_url().'/admin/quotes.php" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir dans l\'admin →</a>
+  </td></tr>
+  <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#888;">Email automatique — '.$site.' · Ne pas répondre</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>';
+
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
+    $fromEmail = 'noreply@'.preg_replace('#^www\.#','',parse_url(site_base_url(),PHP_URL_HOST) ?: 'emae.fr');
+    $replyTo   = $email !== '' ? $email : $to;
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
+    $headers .= "Reply-To: {$replyTo}\r\n";
+    $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+
+    return @mail($to, $subject, $html, $headers);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -462,6 +552,42 @@ function contact_page_settings(): array
     ];
 }
 
+function zones_page_settings(): array
+{
+    $default = [
+        'eyebrow'  => 'Zones d\'intervention',
+        'title'    => 'Nous intervenons partout en',
+        'title_hl' => 'Île-de-France & Occitanie',
+        'lead'     => 'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.',
+        'regions'  => [
+            [
+                'name'  => 'Île-de-France',
+                'icon'  => '🗼',
+                'color' => '#1a7ab5',
+                'depts' => ['Paris (75)','Hauts-de-Seine (92)','Seine-Saint-Denis (93)','Val-de-Marne (94)','Seine-et-Marne (77)','Yvelines (78)','Essonne (91)','Val-d\'Oise (95)'],
+                'cities'=> ['Paris','Boulogne-Billancourt','Saint-Denis','Montreuil','Argenteuil','Créteil','Versailles','Nanterre','Colombes','Saint-Maur-des-Fossés','Champigny-sur-Marne','Meaux','Évry','Cergy'],
+                'delay' => 'Moins de 2h en urgence',
+            ],
+            [
+                'name'  => 'Occitanie',
+                'icon'  => '☀️',
+                'color' => '#E8921A',
+                'depts' => ['Haute-Garonne (31)','Hérault (34)','Gard (30)','Pyrénées-Orientales (66)','Aude (11)','Tarn (81)','Aveyron (12)','Gers (32)','Ariège (09)','Lot (46)'],
+                'cities'=> ['Toulouse','Montpellier','Nîmes','Perpignan','Carcassonne','Albi','Rodez','Auch','Foix','Cahors','Montauban','Béziers','Sète'],
+                'delay' => 'Intervention sous 4h',
+            ],
+        ],
+    ];
+    $saved = get_json_setting('zones_page_settings', []);
+    return array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
+}
+
+function all_published_reviews(): array
+{
+    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1 ORDER BY sort_order ASC, id DESC'); }
+    catch (Throwable $e) { return []; }
+}
+
 /* ═══════════════════════════════════════════════════
    REALISATIONS
 ═══════════════════════════════════════════════════ */
@@ -677,39 +803,31 @@ function why_us_settings(): array
 function service_cards_v14(): array
 {
     $default = [
-        ['title'=>'Électricité',       'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
+        ['title'=>'Électricité',          'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
          'tags'=>['Dépannage','Installation','Mise aux normes']],
-        ['title'=>'Plomberie',         'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
+        ['title'=>'Plomberie',            'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
          'tags'=>['Fuite','Sanitaires','Entretien']],
-        ['title'=>'Chauffage & PAC',   'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
+        ['title'=>'Chauffage & PAC',      'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
          'tags'=>['Chaudière','PAC','Entretien annuel']],
-        ['title'=>'Climatisation CVC', 'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
+        ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
          'tags'=>['Clim','CVC','Installation']],
     ];
-    $cards    = get_json_setting('home_service_cards_v14', $default);
+    $cards = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
-    $oldCards = get_json_setting('home_service_cards', []);
     $out = [];
     foreach ($default as $i => $fallback) {
-        $c   = is_array($cards[$i] ?? null) ? $cards[$i] : [];
-        $img = trim((string)($c['image'] ?? ''));
-        if ($img === '' && is_array($oldCards[$i] ?? null)) {
-            $img = trim((string)($oldCards[$i]['image'] ?? ''));
-        }
+        $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
         $out[] = [
-            'title'            => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
-            'image'            => $img,
-            'link'             => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
-            'badge'            => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
-            'desc'             => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
-            'tags'             => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
-            'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')),
+            'title' => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
+            'image' => trim((string)($c['image'] ?? '')),
+            'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
+            'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
+            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
         ];
     }
     return $out;
 }
-
-
 
 /* ═══════════════════════════════════════════════════
    DESIGN SETTINGS (opacités, couleurs avancées)

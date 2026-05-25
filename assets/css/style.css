@@ -112,11 +112,11 @@ button,input,select,textarea{font:inherit;}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
-.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1.5rem 1.25rem;overflow-y:auto;z-index:190;}
-.site-nav.open{display:flex;}
-.site-nav a{color:var(--t1);font-weight:500;font-size:1.05rem;padding:.9rem 1rem;border-radius:var(--r2);border-bottom:1px solid var(--line);display:block;transition:color .15s;}
-.site-nav a:hover,.site-nav a.on{color:var(--p);}
-.site-nav .btn-sm{margin-top:1.25rem;width:100%;min-height:52px;font-size:.97rem;}
+.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:190;}
+.site-nav.open{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:.5rem;}
+.site-nav a{color:var(--t1);font-weight:600;font-size:.95rem;padding:.72rem .85rem;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
+.site-nav a:hover,.site-nav a.on{color:var(--p);border-color:rgba(240,123,29,.28);background:rgba(240,123,29,.07);}
+.site-nav .btn--cta{grid-column:1/-1;background:var(--p);color:#fff!important;border-color:var(--p);font-weight:700;min-height:50px;font-size:1rem;}
  
 /* ─── CTA BAR MOBILE ─── */
 .mob-bar{position:fixed;bottom:0;left:0;right:0;z-index:300;display:flex;height:68px;}
@@ -493,7 +493,7 @@ button,input,select,textarea{font:inherit;}
   font-family:var(--font-h);font-size:2.8rem;font-weight:800;
   background:linear-gradient(135deg,var(--p),rgba(240,123,29,.3));
   -webkit-background-clip:text;background-clip:text;color:transparent;
-  line-height:1;flex-shrink:0;width:50px;letter-spacing:-.04em;
+  line-height:1;flex-shrink:0;min-width:44px;letter-spacing:-.04em;
 }
 .process-h{font-family:var(--font-h);font-size:.97rem;font-weight:800;color:#fff;margin-bottom:.3rem;letter-spacing:-.01em;}
 .process-p{font-size:.83rem;font-weight:300;color:var(--t2);margin:0;line-height:1.65;}
@@ -687,7 +687,7 @@ button,input,select,textarea{font:inherit;}
 .interv-p{font-size:.78rem;font-weight:300;color:var(--t2);margin:0;line-height:1.6;}
 .steps-grid{display:grid;gap:.75rem;}
 .step-card{display:flex;gap:1rem;align-items:flex-start;padding:1.35rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r2);}
-.step-num{font-family:var(--font-h);font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,var(--p),rgba(240,123,29,.3));-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;flex-shrink:0;width:42px;letter-spacing:-.04em;}
+.step-num{font-family:var(--font-h);font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,var(--p),rgba(240,123,29,.3));-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;flex-shrink:0;min-width:38px;letter-spacing:-.04em;}
 .step-h{font-family:var(--font-h);font-size:.92rem;font-weight:800;color:#fff;margin-bottom:.28rem;text-transform:uppercase;letter-spacing:.03em;}
 .step-p{font-size:.82rem;font-weight:300;color:var(--t2);margin:0;line-height:1.65;}
 .sfaq-list{display:grid;gap:.5rem;}
@@ -1005,7 +1005,7 @@ button,input,select,textarea{font:inherit;}
  
 /* ── GLOBAL — body background harmonisé ── */
 body{background:var(--navy-2);}
- 
+
 /* ── CARDS: min-height légèrement augmenté pour plus d'impact ── */
 @media(min-width:640px){
   .svc-card{min-height:310px;}
@@ -1014,94 +1014,11 @@ body{background:var(--navy-2);}
   .svc-card{min-height:340px;}
   .svc-section::before{height:50%;max-height:320px;}
 }
- /* ═══════════════════════════════════════════════════════════════
-   V15 REFINEMENTS — Fonds blancs, typographie, design premium
-═══════════════════════════════════════════════════════════════ */
 
-/* ── HERO H1 — poids 700 + tailles réduites ── */
-.hero h1{font-weight:700;font-size:clamp(1.85rem,5.5vw,2.55rem);line-height:1.13;letter-spacing:-.015em;}
-@media(min-width:640px){.hero h1{font-size:2.3rem;}}
-@media(min-width:1024px){.hero h1{font-size:clamp(2.4rem,2.9vw,3rem);}}
+/* ── HERO IMAGE FOND — pages service ── */
+.svc-hero-img{position:relative;overflow:hidden;}
+.svc-hero-overlay{position:absolute;inset:0;background:rgba(6,16,41,.80);z-index:0;}
 
-/* ── TYPOGRAPHIE GLOBALE — weight 700 sur tous les grands titres ── */
-.svc-title{font-weight:700;font-size:clamp(1.6rem,3.2vw,2.2rem);}
-.section-title{font-weight:700;font-size:clamp(1.5rem,3vw,2rem);}
-.ph-h1{font-weight:700;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.12;letter-spacing:-.015em;}
-.qs-info h2{font-weight:700;font-size:clamp(1.7rem,3.8vw,2.4rem);line-height:1.12;}
-.svc-name{font-weight:700;}
-.why-h{font-weight:700;}
-.process-h{font-weight:700;}
-.zone-name{font-weight:700;}
-.cbox-h{font-weight:700;}
-.ft-brand-name{font-weight:700;}
-.brand-name{font-weight:700;}
-.stat-n{font-size:2.2rem;font-weight:700;}
-.rs-num{font-weight:700;}
-.faq-cta h2{font-weight:700;}
-.cta-block h2{font-weight:700;}
-
-/* ── SECTION SERVICES — deux tons (dark header → blanc cartes) ── */
-.svc-section{background:#ffffff;padding:0 0 5rem;position:relative;}
-.svc-section::before{content:'';position:absolute;top:0;left:0;right:0;height:52%;min-height:200px;max-height:340px;background:var(--navy);clip-path:polygon(0 0,100% 0,100% calc(100% - 2.5rem),0 100%);z-index:0;pointer-events:none;}
-.svc-section>.wrap{position:relative;z-index:1;padding-top:5rem;}
-.svc-header{margin-bottom:2.5rem;}
-.svc-card{box-shadow:0 16px 48px rgba(6,16,41,.26),0 4px 16px rgba(6,16,41,.14);}
-.svc-card:hover{box-shadow:0 24px 64px rgba(6,16,41,.32),0 8px 24px rgba(6,16,41,.18);}
-@media(min-width:640px){.svc-card{min-height:310px;}}
-@media(min-width:1024px){.svc-card{min-height:340px;}.svc-section::before{height:50%;max-height:320px;}}
-
-/* ── SECTION POURQUOI NOUS — fond blanc ── */
-.why-section{background:#F8FAFF;position:relative;}
-.why-section::before{display:none;}
-.why-section .section-title{color:var(--navy);}
-.why-section .section-lead{color:#455a7a;}
-.why-card{background:#ffffff;border:1px solid rgba(6,16,41,.08);box-shadow:0 2px 12px rgba(6,16,41,.06);}
-.why-card:hover{border-color:rgba(240,123,29,.22);box-shadow:0 8px 32px rgba(6,16,41,.1);}
-.why-h{color:var(--navy);}
-.why-p{color:#4a5e80;}
-
-/* ── SECTION PROCESSUS — fond gris pâle ── */
-.process-section{background:#F2F5FB;}
-.process-section .section-title{color:var(--navy);}
-.process-section .section-title em{color:var(--p);}
-.process-step{background:#ffffff;border:1px solid rgba(6,16,41,.08);box-shadow:0 2px 16px rgba(6,16,41,.07);}
-.process-step:hover{box-shadow:0 8px 32px rgba(6,16,41,.12);}
-.process-h{color:var(--navy);}
-.process-p{color:#4a5e80;}
-
-/* ── SECTION ZONES — fond blanc ── */
-.zones-section{background:#ffffff;padding-bottom:5.5rem;}
-.zones-section .section-title{color:var(--navy);}
-.zones-section .section-title em{color:var(--p);}
-.zones-section .section-lead{color:#455a7a;}
-.zone-card{background:#F8FAFF;border:1px solid rgba(6,16,41,.1);box-shadow:0 2px 16px rgba(6,16,41,.07);}
-.zone-card:hover{border-color:rgba(240,123,29,.22);box-shadow:0 8px 28px rgba(6,16,41,.11);}
-.zone-name{color:var(--navy);}
-.zone-text{color:#4a5e80;}
-.zone-chip{background:rgba(6,16,41,.05);border:1px solid rgba(6,16,41,.1);color:#4a5e80;}
-
-/* ── HERO LEAD ── */
-.hero-lead{font-size:.95rem;line-height:1.8;}
-.hero-card h2{font-size:1.35rem;line-height:1.2;}
-.hero-actions{gap:.75rem;}
-
-/* ── STATS BAND ── */
-.stats-band{background:linear-gradient(135deg,var(--navy-2) 0%,var(--navy-3) 100%);}
-
-/* ── REVIEWS ── */
-.reviews-section{background:#0C1B3F;}
-
-/* ── DEVIS ── */
-.quote-section{background:var(--navy);}
-
-/* ── RÉALISATIONS ── */
-.sec-navy{background:var(--navy-2);}
-.real-card{background:var(--navy);border-color:rgba(255,255,255,.08);}
-
-/* ── STRIP ── */
-.strip{box-shadow:0 4px 20px rgba(240,123,29,.22);}
-
-/* ── GLOBAL ── */
-body{background:var(--navy-2);}
-.zones-section{border-bottom:1px solid rgba(6,16,41,.06);}
-.zones-section .btn-p{box-shadow:0 8px 24px rgba(240,123,29,.32);}
+/* ── PAGE AVIS — classes complémentaires ── */
+.rv-head{display:flex;align-items:center;gap:.85rem;}
+.rv-body{font-size:.85rem;color:var(--t2);line-height:1.65;flex:1;}

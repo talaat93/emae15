@@ -18,7 +18,7 @@ function admin_logged_in(): bool
 function require_admin(): void
 {
     if (!admin_logged_in()) {
-        flash('error', 'Connectez-vous pour accéder à l’administration.');
+        flash('error', "Connectez-vous pour accéder à l'administration.");
         redirect_to('admin/login.php');
     }
 }

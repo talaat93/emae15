@@ -12,6 +12,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'contact_hero_eyebrow','contact_hero_title','contact_hero_lead',
         'contact_form_title','contact_form_subtitle',
         'contact_info_title','contact_urgency_title','contact_urgency_text','contact_zones_title',
+        'google_mybusiness_url',
+        'avis_meta_title','avis_meta_desc',
     ] as $f) {
         set_setting($f, trim((string) ($_POST[$f] ?? '')));
     }
@@ -76,6 +78,7 @@ $contactCfg = contact_page_settings();
   <button class="admin-tab-btn" type="button" data-admin-tab="contact-hero">Contact – Hero</button>
   <button class="admin-tab-btn" type="button" data-admin-tab="contact-form">Contact – Formulaire</button>
   <button class="admin-tab-btn" type="button" data-admin-tab="contact-seo">Contact – SEO</button>
+  <button class="admin-tab-btn" type="button" data-admin-tab="avis-gmb">Avis & GMB</button>
 </div>
 
 <!-- ── FAQ HERO ── -->
@@ -187,6 +190,35 @@ $contactCfg = contact_page_settings();
     <div class="admin-panel__body admin-form-grid admin-form-grid--2">
       <label class="admin-field"><span>Meta title</span><input type="text" name="contact_meta_title" value="<?= e(setting('contact_meta_title', 'Contact | ' . company_name())) ?>"></label>
       <label class="admin-field"><span>Meta description</span><input type="text" name="contact_meta_description" value="<?= e(setting('contact_meta_description', '')) ?>"></label>
+    </div>
+  </section>
+</div>
+
+<!-- ── AVIS & GMB ── -->
+<div class="admin-tab-panel" data-admin-panel="avis-gmb">
+  <section class="admin-panel">
+    <div class="admin-panel__head"><h2>Google My Business</h2><p>Lien vers votre fiche Google pour la page /avis.</p></div>
+    <div class="admin-panel__body">
+      <label class="admin-field">
+        <span>URL Google My Business (fiche avis)</span>
+        <input type="url" name="google_mybusiness_url" value="<?= e(setting('google_mybusiness_url','')) ?>" placeholder="https://g.page/r/...">
+      </label>
+      <p class="admin-panel__helper" style="font-size:.8rem;color:var(--t2,#7B92CC);">Ce lien apparaît sur la page /avis : bouton "Voir sur Google" et "Laisser un avis sur Google".</p>
+    </div>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel__head"><h2>SEO de la page Avis</h2><p>Balises meta pour la page /avis.</p></div>
+    <div class="admin-panel__body admin-form-grid admin-form-grid--2">
+      <label class="admin-field"><span>Meta title</span><input type="text" name="avis_meta_title" value="<?= e(setting('avis_meta_title','Avis clients | '.company_name())) ?>"></label>
+      <label class="admin-field"><span>Meta description</span><input type="text" name="avis_meta_desc" value="<?= e(setting('avis_meta_desc','')) ?>"></label>
+    </div>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel__head"><h2>Note globale affichée</h2><p>La note et le nombre d'avis viennent de <strong>SEO & Google Ads</strong> (schema_rating_value / schema_review_count).</p></div>
+    <div class="admin-panel__body">
+      <div class="admin-panel__helper">
+        <a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/seo.php')) ?>">Modifier la note globale →</a>
+      </div>
     </div>
   </section>
 </div>

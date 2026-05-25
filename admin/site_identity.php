@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach ([
         'company_name','company_phone','company_phone_link','company_email','company_regions','company_hours','company_address','company_siret',
-        'site_logo_width','site_logo_height','site_logo_position'
+        'form_email_to','site_logo_width','site_logo_height','site_logo_position'
     ] as $field) {
         set_setting($field, trim((string) ($_POST[$field] ?? '')));
     }
@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 ?>
 <div class="admin-page-toolbar">
-  <div><div class="admin-breadcrumb">Identité</div><h1 class="admin-page-title">Identité & coordonnées</h1><p class="admin-page-subtitle">Tout ce qui s’affiche dans la topbar, le footer et le logo.</p></div>
+  <div><div class="admin-breadcrumb">Identité</div><h1 class="admin-page-title">Identité & coordonnées</h1><p class="admin-page-subtitle">Tout ce qui s'affiche dans la topbar, le footer et le logo.</p></div>
 </div>
 
 <form method="post" enctype="multipart/form-data" class="admin-stack">
@@ -36,10 +36,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <div class="admin-form-grid admin-form-grid--2">
       <label class="admin-field"><span>Lien téléphone</span><input type="text" name="company_phone_link" value="<?= e(company_phone_link()) ?>"></label>
-      <label class="admin-field"><span>Email</span><input type="email" name="company_email" value="<?= e(company_email()) ?>"></label>
+      <label class="admin-field"><span>Email affiché sur le site</span><input type="email" name="company_email" value="<?= e(company_email()) ?>"></label>
     </div>
     <div class="admin-form-grid admin-form-grid--2">
-      <label class="admin-field"><span>Zones d’intervention</span><input type="text" name="company_regions" value="<?= e(company_regions()) ?>"></label>
+      <label class="admin-field">
+        <span>📬 Email de réception des devis <strong style="color:#e07b00;">(notifications)</strong></span>
+        <input type="email" name="form_email_to" value="<?= e(setting('form_email_to', company_email())) ?>" placeholder="<?= e(company_email()) ?>">
+        <small style="color:#888;font-size:.78rem;margin-top:.3rem;display:block;">Chaque demande de devis sera envoyée à cette adresse. Si vide = même email que ci-dessus.</small>
+      </label>
+      <div style="background:#fff8ec;border:1px solid #f0c060;border-radius:8px;padding:1rem;font-size:.82rem;color:#7a5200;line-height:1.6;align-self:end;">
+        ℹ️ Fonctionne si votre hébergeur autorise <code>mail()</code> PHP. Sur XAMPP local, pas d'envoi réel.
+      </div>
+    </div>
+    <div class="admin-form-grid admin-form-grid--2">
+      <label class="admin-field"><span>Zones d'intervention</span><input type="text" name="company_regions" value="<?= e(company_regions()) ?>"></label>
       <label class="admin-field"><span>Horaires</span><input type="text" name="company_hours" value="<?= e(company_hours()) ?>"></label>
     </div>
     <div class="admin-form-grid admin-form-grid--2">
