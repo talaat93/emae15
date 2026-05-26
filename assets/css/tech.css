@@ -1,0 +1,71 @@
+/* ── EMAE Technicien — Mobile First ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f4f7fc;color:#13254c;min-height:100vh;}
+a{color:inherit;text-decoration:none;}
+img{display:block;max-width:100%;height:auto;}
+button,input,select,textarea{font:inherit;}
+
+.tech-header{background:linear-gradient(135deg,#061029,#112559);padding:1rem 1.25rem;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.3);}
+.tech-header-brand{font-size:1.4rem;font-weight:800;color:#fff;letter-spacing:.03em;}
+.tech-header-brand span{color:#F07B1D;}
+.tech-header-user{color:rgba(255,255,255,.75);font-size:.8rem;text-align:right;}
+.tech-header-logout{color:rgba(255,255,255,.5);font-size:.78rem;text-decoration:underline;}
+
+.tech-main{padding:1.1rem;max-width:640px;margin:0 auto;}
+.tech-title{font-size:1.25rem;font-weight:800;color:#061029;margin-bottom:.85rem;}
+
+.tech-card{background:#fff;border-radius:16px;border:1px solid #dde5f3;box-shadow:0 4px 16px rgba(11,22,65,.07);overflow:hidden;margin-bottom:.85rem;}
+.tech-card-head{padding:.9rem 1.1rem;border-bottom:1px solid #edf2f8;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;}
+.tech-card-body{padding:.9rem 1.1rem;}
+.tech-card-id{font-size:.72rem;color:#8a9ab8;font-weight:700;margin-bottom:.15rem;}
+.tech-card-name{font-size:1rem;font-weight:700;color:#13254c;margin:.1rem 0;}
+.tech-card-addr{font-size:.83rem;color:#445;line-height:1.5;}
+.tech-card-link{display:inline-flex;align-items:center;background:#061029;color:#fff;padding:.55rem 1.1rem;border-radius:10px;font-weight:700;font-size:.88rem;margin-top:.75rem;text-decoration:none;}
+
+.badge{display:inline-block;padding:.22rem .7rem;border-radius:8px;font-size:.76rem;font-weight:700;white-space:nowrap;}
+.badge-nouveau{background:#e8f4ff;color:#0f6298;}
+.badge-contact{background:#fff8e0;color:#8a6000;}
+.badge-planifié{background:#edf0ff;color:#1a3baa;}
+.badge-en-cours{background:#fff3e0;color:#b84700;}
+.badge-terminé{background:#e6fff2;color:#14653a;}
+.badge-annulé{background:#fff0f0;color:#8c2424;}
+
+.tech-field{display:grid;gap:.4rem;margin-bottom:.85rem;}
+.tech-field label{font-size:.79rem;font-weight:700;color:#5a6a8a;text-transform:uppercase;letter-spacing:.05em;}
+.tech-field input,.tech-field textarea,.tech-field select{width:100%;border:1.5px solid #d8e1ef;border-radius:10px;padding:.75rem .9rem;font-size:.95rem;color:#13254c;background:#fff;outline:none;-webkit-appearance:none;}
+.tech-field input:focus,.tech-field textarea:focus{border-color:#F07B1D;box-shadow:0 0 0 3px rgba(240,123,29,.12);}
+.tech-field textarea{min-height:120px;resize:vertical;padding:.75rem .9rem;}
+
+.tech-photo-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem;margin-top:.5rem;}
+.tech-photo-item{aspect-ratio:1;border-radius:8px;overflow:hidden;background:#f0f4ff;}
+.tech-photo-item img{width:100%;height:100%;object-fit:cover;}
+
+.tech-btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:52px;border:none;border-radius:12px;font-weight:700;font-size:.95rem;cursor:pointer;margin-top:.5rem;-webkit-tap-highlight-color:transparent;}
+.tech-btn-primary{background:#F07B1D;color:#fff;}
+.tech-btn-complete{background:#14653a;color:#fff;}
+.tech-btn-secondary{background:#f0f4ff;color:#1a3baa;border:1.5px solid #c0ccee;}
+.tech-btn:active{opacity:.88;}
+
+.tech-info-row{display:flex;gap:.75rem;padding:.6rem 0;border-bottom:1px solid #edf2f8;}
+.tech-info-row:last-child{border-bottom:none;}
+.tech-info-label{font-size:.79rem;font-weight:700;color:#8a9ab8;width:110px;flex-shrink:0;padding-top:.05rem;}
+.tech-info-value{font-size:.88rem;color:#13254c;font-weight:600;flex:1;}
+
+.tech-section-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#8a9ab8;margin:.85rem 0 .45rem;}
+
+.tech-upload-area{border:2px dashed #c0ccee;border-radius:10px;padding:1.25rem;text-align:center;cursor:pointer;background:#f8faff;position:relative;}
+.tech-upload-area:active{border-color:#F07B1D;background:#fff8f0;}
+.tech-upload-label{font-size:.88rem;color:#445;line-height:1.6;pointer-events:none;}
+.tech-upload-label strong{color:#F07B1D;}
+
+.tech-flash-ok{background:#e6fff2;border:1px solid #70d49a;color:#14653a;padding:.75rem 1rem;border-radius:10px;font-size:.88rem;margin-bottom:.85rem;font-weight:700;}
+.tech-flash-err{background:#fff0f0;border:1px solid #fcc;color:#8c2424;padding:.75rem 1rem;border-radius:10px;font-size:.88rem;margin-bottom:.85rem;font-weight:700;}
+
+.tech-login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:1.5rem;background:linear-gradient(135deg,#061029,#112559);}
+.tech-login-box{background:#fff;border-radius:20px;padding:2rem;width:100%;max-width:360px;box-shadow:0 24px 60px rgba(0,0,0,.45);}
+.tech-login-logo{text-align:center;margin-bottom:.5rem;font-size:2.2rem;font-weight:800;color:#061029;letter-spacing:.03em;}
+.tech-login-logo span{color:#F07B1D;}
+.tech-login-title{font-size:.92rem;color:#7b8aa8;text-align:center;margin-bottom:1.5rem;}
+
+.tech-empty{text-align:center;color:#8a9ab8;padding:2.5rem 1rem;}
+.tech-empty-icon{font-size:2.5rem;margin-bottom:.5rem;}

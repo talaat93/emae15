@@ -32,3 +32,27 @@ if (!file_exists($_mf2)) {
     unset($_me, $__sqls, $__sql);
 }
 unset($_mf2);
+// Auto-migration v15.3 — table techniciens + colonnes suivi
+$_mf3 = __DIR__.'/../storage/.mig_v15_tech';
+if (!file_exists($_mf3)) {
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS technicians (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(120) NOT NULL,
+            email VARCHAR(190) NOT NULL UNIQUE,
+            phone VARCHAR(80) NULL,
+            password_hash VARCHAR(255) NOT NULL,
+            status VARCHAR(40) NOT NULL DEFAULT 'actif',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $_me) {}
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN technician_id INT NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_report TEXT NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_photos TEXT NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_completed_at DATETIME NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf3, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf3);

@@ -430,6 +430,93 @@ function send_quote_confirmation_to_client(array $data): bool
 }
 
 /* ═══════════════════════════════════════════════════
+   SMS OVH
+═══════════════════════════════════════════════════ */
+function send_sms_ovh(string $to, string $message): bool
+{
+    $appKey      = setting('ovh_app_key', '');
+    $appSecret   = setting('ovh_app_secret', '');
+    $consumerKey = setting('ovh_consumer_key', '');
+    $serviceName = setting('ovh_service_name', '');
+    if ($appKey === '' || $appSecret === '' || $consumerKey === '' || $serviceName === '') return false;
+
+    $to = preg_replace('/[\s\.\-\(\)]/', '', $to);
+    if (preg_match('/^0[67][0-9]{8}$/', $to)) $to = '+33'.substr($to, 1);
+    if (!preg_match('/^\+[1-9][0-9]{6,14}$/', $to)) { error_log('[EMAE SMS] format invalide: '.$to); return false; }
+
+    $url  = 'https://eu.api.ovh.com/1.0/sms/'.rawurlencode($serviceName).'/jobs/';
+    $body = json_encode([
+        'charset'           => 'UTF-8',
+        'class'             => 'phoneDisplay',
+        'coding'            => '7bit',
+        'message'           => mb_substr($message, 0, 160),
+        'noStopClause'      => false,
+        'priority'          => 'high',
+        'receivers'         => [$to],
+        'senderForResponse' => true,
+        'validityPeriod'    => 2880,
+    ]);
+    $ts  = time();
+    $sig = '$1$'.sha1(implode('+', [$appSecret, $consumerKey, 'POST', $url, $body, $ts]));
+
+    $ctx = stream_context_create(['http' => [
+        'method'        => 'POST',
+        'header'        => "Content-Type: application/json\r\nX-Ovh-Application: $appKey\r\nX-Ovh-Consumer: $consumerKey\r\nX-Ovh-Timestamp: $ts\r\nX-Ovh-Signature: $sig",
+        'content'       => $body,
+        'timeout'       => 8,
+        'ignore_errors' => true,
+    ]]);
+    $res = @file_get_contents($url, false, $ctx);
+    if ($res === false) { error_log('[EMAE SMS] OVH connexion échouée'); return false; }
+    $data = json_decode($res, true);
+    $ok = !empty($data['ids']);
+    if (!$ok) error_log('[EMAE SMS] OVH: '.$res);
+    return $ok;
+}
+
+/* ═══════════════════════════════════════════════════
+   TECHNICIENS
+═══════════════════════════════════════════════════ */
+function all_technicians(): array
+{
+    try { return db_fetch_all("SELECT id, name, email, phone, status FROM technicians ORDER BY name"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_tech_by_id(int $id): ?array
+{
+    try { $r = db_fetch("SELECT id, name, email, phone, status FROM technicians WHERE id = ?", [$id]); return $r ?: null; }
+    catch (Throwable $e) { return null; }
+}
+
+function tech_login_check(string $email, string $password): ?array
+{
+    try {
+        $r = db_fetch("SELECT * FROM technicians WHERE email = ? AND status = 'actif'", [trim($email)]);
+        if (!$r) return null;
+        return password_verify($password, (string)$r['password_hash']) ? $r : null;
+    } catch (Throwable $e) { return null; }
+}
+
+function require_tech_auth(): array
+{
+    boot_session();
+    if (empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/login.php')); exit; }
+    try {
+        $t = db_fetch("SELECT * FROM technicians WHERE id = ? AND status = 'actif'", [(int)$_SESSION['tech_id']]);
+    } catch (Throwable $e) { $t = null; }
+    if (!$t) { unset($_SESSION['tech_id']); header('Location: '.url_for('tech/login.php')); exit; }
+    return $t;
+}
+
+function quote_tech_photos(array $q): array
+{
+    if (empty($q['tech_photos'])) return [];
+    $p = json_decode((string)$q['tech_photos'], true);
+    return is_array($p) ? $p : [];
+}
+
+/* ═══════════════════════════════════════════════════
    IMAGE UPLOAD
 ═══════════════════════════════════════════════════ */
 function public_asset_exists(string $path): bool
@@ -733,8 +820,12 @@ function visible_reviews(int $limit = 6): array
 
 function all_quotes(bool $archived = false): array
 {
-    try { return db_fetch_all('SELECT * FROM quotes WHERE archived = ? ORDER BY created_at DESC', [(int)$archived]); }
-    catch (Throwable $e) { return []; }
+    try {
+        return db_fetch_all('SELECT q.*, t.name AS tech_name FROM quotes q LEFT JOIN technicians t ON t.id = q.technician_id WHERE q.archived = ? ORDER BY q.created_at DESC', [(int)$archived]);
+    } catch (Throwable $e) {
+        try { return db_fetch_all('SELECT * FROM quotes WHERE archived = ? ORDER BY created_at DESC', [(int)$archived]); }
+        catch (Throwable $e2) { return []; }
+    }
 }
 function count_quotes_by_status(): array
 {

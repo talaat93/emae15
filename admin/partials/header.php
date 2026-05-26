@@ -59,6 +59,12 @@ function admin_is_active(array $files, string $section = ''): string {
     <div class="admin-menu__group-label">Leads & Interventions</div>
     <a class="<?= admin_is_active(['quotes.php','dossier.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes & Interventions</a>
 
+    <div class="admin-menu__group-label">Équipe</div>
+    <a class="<?= admin_is_active(['technicians.php'],'technicians') ?>" href="<?= e(url_for('admin/technicians.php')) ?>">👷 Techniciens</a>
+
+    <div class="admin-menu__group-label">Notifications</div>
+    <a class="<?= admin_is_active(['sms.php'],'sms') ?>" href="<?= e(url_for('admin/sms.php')) ?>">📱 SMS — OVH</a>
+
     <div class="admin-menu__group-label">Marketing</div>
     <a class="<?= admin_is_active(['seo.php']) ?>" href="<?= e(url_for('admin/seo.php')) ?>">🔍 SEO & Google Ads</a>
     <a class="<?= admin_is_active(['design.php'],'design') ?>" href="<?= e(url_for('admin/design.php')) ?>">🎨 Design & Couleurs</a>
