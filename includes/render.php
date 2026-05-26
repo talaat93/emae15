@@ -207,6 +207,21 @@ function render_footer(): void
 </div>
 <?php endif; ?>
 
+<?php if (setting_bool('popup_enabled', false)): ?>
+<div class="urgency-popup" id="urgency-popup"
+     data-delay="<?= e(setting('popup_delay', '15')) ?>">
+  <div class="urgency-popup__overlay" id="urgency-overlay"></div>
+  <div class="urgency-popup__box">
+    <button class="urgency-popup__close" id="urgency-close" aria-label="Fermer">✕</button>
+    <div class="urgency-popup__badge">⚡ Disponible 24h/7j</div>
+    <h2 class="urgency-popup__title"><?= e(setting('popup_title', 'Urgence ? On intervient dans l\'heure !')) ?></h2>
+    <p class="urgency-popup__text"><?= e(setting('popup_text', 'Nos techniciens sont disponibles maintenant pour votre dépannage urgence.')) ?></p>
+    <a class="urgency-popup__phone" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    <a class="urgency-popup__cta" href="<?= e(route_url('quote')) ?>">Devis gratuit →</a>
+  </div>
+</div>
+<?php endif; ?>
+
 </body></html>
 <?php
 }

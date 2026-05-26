@@ -733,7 +733,17 @@ if ($route === 'landing') {
 if ($route === 'faq') {
     $faq  = faq_page_settings();
     $meta = ['title'=>setting('faq_meta_title','FAQ | '.company_name()),'description'=>setting('faq_meta_description','Questions fréquentes.'),'canonical'=>route_url('faq')];
-    render_head($meta); render_header(route_url('faq'));
+    render_head($meta);
+    // FAQPage schema — rich snippets Google
+    $faqSchema = [];
+    foreach ($faq['groups'] as $g) {
+        foreach ($g['items'] ?? [] as $item) {
+            if (($item['q'] ?? '') !== '' && ($item['a'] ?? '') !== '')
+                $faqSchema[] = ['@type'=>'Question','name'=>$item['q'],'acceptedAnswer'=>['@type'=>'Answer','text'=>$item['a']]];
+        }
+    }
+    if (!empty($faqSchema)) echo '<script type="application/ld+json">'.json_encode(['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$faqSchema],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES).'</script>';
+    render_header(route_url('faq'));
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Questions fréquentes</div>
   <h1 class="ph-h1"><?= e($faq['hero_title']) ?></h1>
