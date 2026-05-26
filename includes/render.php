@@ -32,19 +32,19 @@ function render_head(array $meta): void
     echo theme_css_variables();
     // Schema.org
     echo '<script type="application/ld+json">'.schema_local_business().'</script>';
-    // Google Analytics
-    if ($gaId !== '') {
-        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($gaId).'"></script>';
-        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","'.e($gaId).'");</script>';
+    // Google Analytics + Ads — un seul chargement de gtag.js
+    $firstId = $gaId !== '' ? $gaId : ($gAdsId !== '' ? $gAdsId : '');
+    if ($firstId !== '') {
+        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($firstId).'"></script>';
+        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());';
+        if ($gaId !== '')   echo 'gtag("config","'.e($gaId).'");';
+        if ($gAdsId !== '') echo 'gtag("config","'.e($gAdsId).'");';
+        echo '</script>';
     }
-    // Google Ads
-    if ($gAdsId !== '') {
-        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($gAdsId).'"></script>';
-        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","'.e($gAdsId).'");</script>';
-    }
-    // Pass IDs to JS
+    // Pass IDs to JS — _gAdsCv is an array to support multiple conversion labels (comma-separated)
     if ($gAdsId !== '' || $gAdsCv !== '') {
-        echo '<script>window._gAdsId="'.e($gAdsId).'";window._gAdsCv="'.e($gAdsCv).'";</script>';
+        $labels = array_values(array_filter(array_map('trim', explode(',', $gAdsCv))));
+        echo '<script>window._gAdsId="'.e($gAdsId).'";window._gAdsCv='.json_encode($labels).';</script>';
     }
     echo '<script defer src="'.e(asset_url('assets/js/site.js')).'"></script>';
     echo '</head><body>';
@@ -182,6 +182,31 @@ function render_footer(): void
     </div>
   </div>
 </footer>
+
+<?php if (setting_bool('chatbot_enabled', false)): ?>
+<div class="chat-widget" id="chat-widget"
+     data-endpoint="<?= e(url_for('api/chat.php')) ?>"
+     data-welcome="<?= e(setting('chatbot_welcome','Bonjour ! Je suis l\'assistant EMAE. Comment puis-je vous aider ?')) ?>">
+  <div class="chat-box" id="chat-box">
+    <div class="chat-head">
+      <div class="chat-head-info">
+        <span class="chat-head-dot"></span>
+        <span class="chat-head-name">Assistant <?= e(company_name()) ?></span>
+      </div>
+      <button class="chat-close" id="chat-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chat-input" type="text" placeholder="Votre question…" maxlength="500" autocomplete="off">
+      <button class="chat-send" id="chat-send">→</button>
+    </div>
+  </div>
+  <button class="chat-btn" id="chat-btn" aria-label="Ouvrir le chat">
+    <?= e(setting('chatbot_btn_label','💬')) ?>
+  </button>
+</div>
+<?php endif; ?>
+
 </body></html>
 <?php
 }

@@ -830,6 +830,144 @@ function service_cards_v14(): array
 }
 
 /* ═══════════════════════════════════════════════════
+   GÉOLOCALISATION IP — Phase 3
+═══════════════════════════════════════════════════ */
+
+function geo_display(): array
+{
+    boot_session();
+    static $map = [
+        'jura'             =>['nom'=>'Jura',             'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
+        'doubs'            =>['nom'=>'Doubs',            'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
+        'cote-dor'         =>['nom'=>"Côte-d'Or",        'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
+        'ain'              =>['nom'=>'Ain',              'code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
+        'isere'            =>['nom'=>'Isère',            'code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
+        'rhone'            =>['nom'=>'Rhône',            'code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
+        'loire'            =>['nom'=>'Loire',            'code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
+        'savoie'           =>['nom'=>'Savoie',           'code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-savoie'     =>['nom'=>'Haute-Savoie',    'code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
+        'drome'            =>['nom'=>'Drôme',            'code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
+        'puy-de-dome'      =>['nom'=>'Puy-de-Dôme',     'code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-loire'      =>['nom'=>'Haute-Loire',     'code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
+        'allier'           =>['nom'=>'Allier',           'code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
+        'ardeche'          =>['nom'=>'Ardèche',          'code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
+        'cantal'           =>['nom'=>'Cantal',           'code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
+        'paris'            =>['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France'],
+        'seine-et-marne'   =>['nom'=>'Seine-et-Marne',  'code'=>'77','region'=>'Île-de-France'],
+        'yvelines'         =>['nom'=>'Yvelines',         'code'=>'78','region'=>'Île-de-France'],
+        'essonne'          =>['nom'=>'Essonne',          'code'=>'91','region'=>'Île-de-France'],
+        'hauts-de-seine'   =>['nom'=>'Hauts-de-Seine',  'code'=>'92','region'=>'Île-de-France'],
+        'seine-saint-denis'=>['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France'],
+        'val-de-marne'     =>['nom'=>'Val-de-Marne',    'code'=>'94','region'=>'Île-de-France'],
+        'val-d-oise'       =>['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France'],
+    ];
+    $key  = $_SESSION['geo_dept'] ?? '';
+    $city = $_SESSION['geo_city'] ?? '';
+    if ($key === '' || !isset($map[$key])) return [];
+    $d = $map[$key];
+    return [
+        'ville'    => $city ?: $d['nom'],
+        'dept_nom' => $d['nom'],
+        'dept_code'=> $d['code'],
+        'region'   => $d['region'],
+    ];
+}
+
+function geo_replace(string $text): string
+{
+    // S'assurer que la session geo est initialisée avant de lire
+    if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
+
+    $geo = geo_display();
+
+    if (!empty($geo)) {
+        // Geo détectée — remplacement par la zone visiteur
+        $text = str_replace(
+            ['{ville}', '{dept}', '{dept_code}', '{region}'],
+            [$geo['ville'], $geo['dept_nom'], $geo['dept_code'], $geo['region']],
+            $text
+        );
+        // Auto-remplacement de company_regions() dans le texte
+        $zones = company_regions();
+        if ($zones !== '' && mb_strpos($text, $zones) !== false) {
+            $loc = ($geo['ville'] !== $geo['dept_nom'])
+                ? $geo['ville'].' et alentours ('.$geo['region'].')'
+                : $geo['dept_nom'].' ('.$geo['dept_code'].')';
+            $text = str_replace($zones, $loc, $text);
+        }
+    } else {
+        // Pas de géo — fallback sur les valeurs par défaut configurées en admin
+        $defRegion = setting('geo_default_region', 'Bourgogne-Franche-Comté et Auvergne-Rhône-Alpes');
+        $defVille  = setting('geo_default_ville',  'votre région');
+        $defDept   = setting('geo_default_dept',   $defRegion);
+        $text = str_replace(
+            ['{ville}', '{dept}', '{dept_code}', '{region}'],
+            [$defVille, $defDept, '', $defRegion],
+            $text
+        );
+    }
+
+    return $text;
+}
+
+function geo_detect_dept(): ?string
+{
+    boot_session();
+
+    if (array_key_exists('geo_dept', $_SESSION)) return $_SESSION['geo_dept'] ?: null;
+
+    $dept_map = [
+        // Bourgogne-Franche-Comté
+        '39' => 'jura',       '25' => 'doubs',       '21' => 'cote-dor',
+        '70' => 'doubs',      '90' => 'doubs',        '71' => 'cote-dor', // BFC périphérie → depts proches
+        // Auvergne-Rhône-Alpes (complet)
+        '01' => 'ain',        '38' => 'isere',        '69' => 'rhone',
+        '42' => 'loire',      '73' => 'savoie',       '74' => 'haute-savoie',
+        '26' => 'drome',      '07' => 'ardeche',      '03' => 'allier',
+        '15' => 'cantal',     '43' => 'haute-loire',  '63' => 'puy-de-dome',
+        // Île-de-France
+        '75' => 'paris',      '77' => 'seine-et-marne', '78' => 'yvelines',
+        '91' => 'essonne',    '92' => 'hauts-de-seine',  '93' => 'seine-saint-denis',
+        '94' => 'val-de-marne', '95' => 'val-d-oise',
+    ];
+
+    // IP réelle (Cloudflare > proxy > direct)
+    $ip = '';
+    foreach (['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','HTTP_X_REAL_IP','REMOTE_ADDR'] as $k) {
+        if (!empty($_SERVER[$k])) { $ip = trim(explode(',', $_SERVER[$k])[0]); break; }
+    }
+
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
+    }
+
+    // ip-api.com — ajout countryCode pour le fallback France
+    $ctx  = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+    $json = @file_get_contents('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,zip,city,countryCode&lang=fr', false, $ctx);
+
+    if ($json === false) { $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null; }
+
+    $data = json_decode($json, true);
+    if (!is_array($data) || ($data['status'] ?? '') !== 'success') {
+        $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
+    }
+
+    $zip     = (string)($data['zip']         ?? '');
+    $city    = (string)($data['city']        ?? '');
+    $country = (string)($data['countryCode'] ?? '');
+    $code    = substr($zip, 0, 2);
+    $result  = $dept_map[$code] ?? '';
+
+    // Fallback : IP française hors zone → Paris (IDF)
+    if ($result === '' && $country === 'FR') $result = 'paris';
+
+    $_SESSION['geo_dept'] = $result;
+    $_SESSION['geo_city'] = $city;
+
+    return $result !== '' ? $result : null;
+}
+
+/* ═══════════════════════════════════════════════════
    DESIGN SETTINGS (opacités, couleurs avancées)
 ═══════════════════════════════════════════════════ */
 function design_settings(): array

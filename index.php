@@ -40,6 +40,21 @@ if ($route === '' || $route === 'home') {
     $btn2url = setting('home_button2_url','') ?: company_phone_link();
     if ($btn2url !== '' && !preg_match('#^(https?:|tel:|mailto:|/)#i',$btn2url)) $btn2url = route_url($btn2url);
 
+    // Toujours détecter la géo (pour geo_replace() sur toute la page)
+    if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
+
+    // Phase 3 — Redirect une seule fois vers la landing dept
+    if (!isset($_SESSION['geo_redirected']) && !isset($_GET['noredirect'])) {
+        $_SESSION['geo_redirected'] = true;
+        if (($_SESSION['geo_dept'] ?? '') !== '') {
+            $geo_city = urlencode($_SESSION['geo_city'] ?? '');
+            $geo_url  = url_for('index.php?route=landing&dept=' . $_SESSION['geo_dept'] . '&metier=electricite');
+            if ($geo_city !== '') $geo_url .= '&ville=' . $geo_city;
+            header('Location: ' . $geo_url);
+            exit;
+        }
+    }
+
     render_head($meta);
     render_header(route_url(''));
 ?>
@@ -50,13 +65,13 @@ if ($route === '' || $route === 'home') {
   <div class="wrap hero-grid">
 
     <div class="hero-content">
-      <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(setting('home_eyebrow','Disponible '.company_hours())) ?></div>
+      <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(geo_replace(setting('home_eyebrow','Disponible '.company_hours()))) ?></div>
       <h1><?php
         $ht = setting('home_title','Votre expert multitechnique');
         $ht2 = setting('home_title_hl','en urgence');
         echo e($ht).' <span class="hl">'.e($ht2).'</span>';
       ?></h1>
-      <p class="hero-lead"><?= e(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en Île-de-France et Occitanie. Intervention rapide, devis gratuit, artisans qualifiés.')) ?></p>
+      <p class="hero-lead"><?= e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.company_regions().'. Intervention rapide, devis gratuit, artisans qualifiés.'))) ?></p>
 
       <div class="chips">
         <?php foreach (array_filter([
@@ -102,10 +117,10 @@ if ($route === '' || $route === 'home') {
 <div class="strip">
   <div class="wrap strip-in">
     <?php foreach (array_filter([
-      setting('strip_1','⚡ Urgence électrique 24h/24'),
-      setting('strip_2','💧 Fuite d\'eau — intervention immédiate'),
-      setting('strip_3','🔥 Panne chauffage / PAC'),
-      setting('strip_4','❄️ Climatisation en panne'),
+      geo_replace(setting('strip_1','⚡ Urgence électrique 24h/24')),
+      geo_replace(setting('strip_2','💧 Fuite d\'eau — intervention immédiate')),
+      geo_replace(setting('strip_3','🔥 Panne chauffage / PAC')),
+      geo_replace(setting('strip_4','❄️ Climatisation en panne')),
       '📞 '.company_phone(),
     ], fn($v)=>trim($v)!=='') as $i=>$item): ?>
       <?php if ($i>0): ?><span class="strip-sep"></span><?php endif; ?>
@@ -120,7 +135,7 @@ if ($route === '' || $route === 'home') {
     <div class="svc-header">
       <div class="svc-label"><?= e(setting('services_section_label','Nos pôles d\'intervention')) ?></div>
       <h2 class="svc-title"><?= e(setting('services_title','Tout ce dont vous avez')) ?> <em><?= e(setting('services_title_hl','besoin')) ?></em></h2>
-      <p class="svc-lead"><?= e(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes — un seul interlocuteur pour tous vos besoins techniques.')) ?></p>
+      <p class="svc-lead"><?= e(geo_replace(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes en '.company_regions().' — un seul interlocuteur pour tous vos besoins techniques.'))) ?></p>
     </div>
     <div class="svc-grid">
       <?php foreach ($cards as $card):
@@ -318,8 +333,8 @@ if ($route === '' || $route === 'home') {
 <section class="zones-section">
   <div class="wrap">
     <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
-    <h2 class="section-title"><?= e(setting('zones_title','Nous intervenons')) ?> <em><?= e(setting('zones_title_hl','près de chez vous')) ?></em></h2>
-    <p class="section-lead"><?= e(setting('zones_lead','Île-de-France et Occitanie — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.')) ?></p>
+    <h2 class="section-title"><?= e(setting('zones_title','Nous intervenons')) ?> <em><?php $geo=geo_display(); echo $geo ? e('à '.$geo['ville']) : e(setting('zones_title_hl','près de chez vous')); ?></em></h2>
+    <p class="section-lead"><?= e(geo_replace(setting('zones_lead',company_regions().' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
     <div class="zones-grid">
       <?php $zoneCards = get_json_setting('home_zone_cards', [
         ['title'=>'🗺️ Île-de-France','text'=>setting('zone_idf_text','Paris, Meaux, Versailles, Évry, Nanterre, Saint-Denis, Créteil, Cergy et toute la région.'),'cities'=>setting('zone_idf_cities','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Marne-la-Vallée|Melun|Pontoise')],
@@ -491,6 +506,227 @@ if ($route === 'avis') {
     <?php endif; ?>
   </div>
 </section>
+<?php render_footer(); exit; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   LANDING PAGE DYNAMIQUE — ?route=landing&ville=X&dept=Y&metier=Z
+   Utilisée pour les campagnes Google Ads géolocalisées.
+   Zones : Bourgogne-Franche-Comté, Auvergne-Rhône-Alpes, Île-de-France
+════════════════════════════════════════════════════════════════ */
+if ($route === 'landing') {
+
+    /* ── Données départements ── */
+    $landing_depts = [
+        /* Bourgogne-Franche-Comté */
+        'jura'     => ['nom'=>'Jura',       'code'=>'39','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Lons-le-Saunier',
+                       'villes'=>['Lons-le-Saunier','Dole','Saint-Claude','Champagnole','Morez','Poligny','Orgelet','Arbois']],
+        'doubs'    => ['nom'=>'Doubs',      'code'=>'25','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Besançon',
+                       'villes'=>['Besançon','Montbéliard','Pontarlier','Audincourt','Morteau','Valentigney','Baume-les-Dames','Maîche']],
+        'cote-dor' => ['nom'=>"Côte-d'Or",  'code'=>'21','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Dijon',
+                       'villes'=>['Dijon','Beaune','Chenôve','Longvic','Quetigny','Talant','Auxonne','Montbard']],
+        /* Auvergne-Rhône-Alpes */
+        'ain'         => ['nom'=>'Ain',          'code'=>'01','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Bourg-en-Bresse',
+                          'villes'=>['Bourg-en-Bresse','Oyonnax','Ambérieu-en-Bugey','Bellegarde-sur-Valserine','Gex','Miribel','Ferney-Voltaire','Pont-d\'Ain']],
+        'isere'       => ['nom'=>'Isère',        'code'=>'38','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Grenoble',
+                          'villes'=>['Grenoble','Vienne','Bourgoin-Jallieu','Échirolles','Voiron','Crolles','Vizille','Romans-sur-Isère']],
+        'rhone'       => ['nom'=>'Rhône',        'code'=>'69','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Lyon',
+                          'villes'=>['Lyon','Villeurbanne','Vénissieux','Caluire-et-Cuire','Bron','Saint-Priest','Décines-Charpieu','Rillieux-la-Pape']],
+        'loire'       => ['nom'=>'Loire',        'code'=>'42','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Saint-Étienne',
+                          'villes'=>['Saint-Étienne','Roanne','Andrézieux-Bouthéon','Saint-Chamond','Firminy','Montbrison','Le Chambon-Feugerolles']],
+        'savoie'      => ['nom'=>'Savoie',       'code'=>'73','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Chambéry',
+                          'villes'=>['Chambéry','Aix-les-Bains','Albertville','Moûtiers','Bourg-Saint-Maurice','Modane']],
+        'haute-savoie'=> ['nom'=>'Haute-Savoie', 'code'=>'74','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Annecy',
+                          'villes'=>['Annecy','Thonon-les-Bains','Annemasse','Sallanches','Cluses','Évian-les-Bains','Bonneville']],
+        'drome'       => ['nom'=>'Drôme',        'code'=>'26','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Valence',
+                          'villes'=>['Valence','Romans-sur-Isère','Montélimar','Bourg-lès-Valence','Pierrelatte','Die']],
+        'puy-de-dome' => ['nom'=>'Puy-de-Dôme',  'code'=>'63','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Clermont-Ferrand',
+                          'villes'=>['Clermont-Ferrand','Thiers','Riom','Issoire','Ambert','Vichy','Cusset']],
+        'haute-loire' => ['nom'=>'Haute-Loire',  'code'=>'43','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Le Puy-en-Velay',
+                          'villes'=>['Le Puy-en-Velay','Brioude','Yssingeaux','Monistrol-sur-Loire','La Chaise-Dieu']],
+        'allier'      => ['nom'=>'Allier',       'code'=>'03','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Moulins',
+                          'villes'=>['Moulins','Vichy','Montluçon','Cusset','Gannat','Thiers']],
+        'ardeche'     => ['nom'=>'Ardèche',      'code'=>'07','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Privas',
+                          'villes'=>['Privas','Aubenas','Annonay','Tournon-sur-Rhône','Guilherand-Granges']],
+        'cantal'      => ['nom'=>'Cantal',       'code'=>'15','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Aurillac',
+                          'villes'=>['Aurillac','Saint-Flour','Mauriac','Riom-ès-Montagnes']],
+        /* Île-de-France */
+        'paris'       => ['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France','chef_lieu'=>'Paris',
+                          'villes'=>['Paris','Boulogne-Billancourt','Vincennes','Neuilly-sur-Seine','Montrouge','Ivry-sur-Seine']],
+        'seine-et-marne' => ['nom'=>'Seine-et-Marne','code'=>'77','region'=>'Île-de-France','chef_lieu'=>'Melun',
+                          'villes'=>['Melun','Meaux','Chelles','Pontault-Combault','Savigny-le-Temple','Marne-la-Vallée','Fontainebleau']],
+        'yvelines'    => ['nom'=>'Yvelines',          'code'=>'78','region'=>'Île-de-France','chef_lieu'=>'Versailles',
+                          'villes'=>['Versailles','Mantes-la-Jolie','Sartrouville','Trappes','Poissy','Saint-Germain-en-Laye']],
+        'essonne'     => ['nom'=>'Essonne',            'code'=>'91','region'=>'Île-de-France','chef_lieu'=>'Évry-Courcouronnes',
+                          'villes'=>['Évry','Corbeil-Essonnes','Massy','Palaiseau','Viry-Châtillon','Longjumeau']],
+        'hauts-de-seine' => ['nom'=>'Hauts-de-Seine', 'code'=>'92','region'=>'Île-de-France','chef_lieu'=>'Nanterre',
+                          'villes'=>['Nanterre','Boulogne-Billancourt','Colombes','Rueil-Malmaison','Levallois-Perret','Issy-les-Moulineaux']],
+        'seine-saint-denis' => ['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France','chef_lieu'=>'Bobigny',
+                          'villes'=>['Saint-Denis','Montreuil','Aubervilliers','Vitry-sur-Seine','Noisy-le-Grand','Bobigny']],
+        'val-de-marne'  => ['nom'=>'Val-de-Marne',   'code'=>'94','region'=>'Île-de-France','chef_lieu'=>'Créteil',
+                          'villes'=>['Créteil','Vitry-sur-Seine','Champigny-sur-Marne','Saint-Maur-des-Fossés','Vincennes','Ivry-sur-Seine']],
+        'val-d-oise'    => ['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France','chef_lieu'=>'Cergy',
+                          'villes'=>['Cergy','Argenteuil','Sarcelles','Osny','Pontoise','Saint-Ouen-l\'Aumône']],
+    ];
+
+    /* ── Données métiers ── */
+    $landing_metiers = [
+        'electricite' => [
+            'label'    => 'Électricité',
+            'label_pro'=> 'Électricien',
+            'icon'     => '⚡',
+            'urgence'  => 'Panne électrique, disjoncteur, court-circuit',
+            'desc'     => 'Dépannage électrique d\'urgence, mise aux normes NF C 15-100, installation tableau, prises et circuits.',
+            'services' => ['Dépannage panne électrique','Remplacement tableau électrique','Mise aux normes NF C 15-100','Ajout prises et circuits','Éclairage intérieur/extérieur','Rénovation électrique complète'],
+        ],
+        'plomberie' => [
+            'label'    => 'Plomberie',
+            'label_pro'=> 'Plombier',
+            'icon'     => '💧',
+            'urgence'  => 'Fuite d\'eau, dégât des eaux, canalisation bouchée',
+            'desc'     => 'Recherche et réparation de fuites, débouchage, remplacement sanitaires, chauffe-eau.',
+            'services' => ['Recherche et réparation de fuites','Débouchage canalisations','Remplacement robinetterie','Chauffe-eau — diagnostic et remplacement','Installation sanitaires','Entretien préventif réseau'],
+        ],
+        'chauffage' => [
+            'label'    => 'Chauffage & PAC',
+            'label_pro'=> 'Technicien chauffage',
+            'icon'     => '🔥',
+            'urgence'  => 'Panne chaudière, chauffage en panne, PAC HS',
+            'desc'     => 'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien annuel réglementaire.',
+            'services' => ['Dépannage chaudière gaz, fioul, électrique','Entretien annuel réglementaire','Pompe à chaleur air/air et air/eau','Installation chaudière ou PAC neuve','Réglage thermostat et programmation','Urgence chauffage hiver'],
+        ],
+        'climatisation' => [
+            'label'    => 'Climatisation & CVC',
+            'label_pro'=> 'Technicien climatisation',
+            'icon'     => '❄️',
+            'urgence'  => 'Climatisation en panne, entretien saisonnier',
+            'desc'     => 'Installation, dépannage et entretien de climatisation split, multi-split, gainable et CVC.',
+            'services' => ['Dépannage climatiseur (split, multi-split)','Installation climatisation neuve','Entretien saisonnier (nettoyage, réglages)','Recharge fluide frigorigène','VMC et ventilation mécanique','Étude et conseil avant installation'],
+        ],
+    ];
+
+    /* ── Lecture et validation des paramètres GET ── */
+    $p_dept   = strtolower(trim((string)($_GET['dept']   ?? '')));
+    $p_metier = strtolower(trim((string)($_GET['metier'] ?? '')));
+    $p_ville  = trim((string)($_GET['ville'] ?? ''));
+
+    /* Valider dept contre la whitelist */
+    if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';
+
+    /* Valider métier contre la whitelist */
+    if (!isset($landing_metiers[$p_metier])) $p_metier = 'electricite';
+
+    /* Valider la ville — doit appartenir au département ou être vide */
+    $dept_data   = $landing_depts[$p_dept];
+    $metier_data = $landing_metiers[$p_metier];
+
+    /* Nettoyer la ville : uniquement lettres, espaces, tirets, apostrophes */
+    $p_ville = preg_replace('/[^a-zA-ZÀ-ÿ0-9 \'\-]/u', '', $p_ville);
+    $p_ville = mb_convert_case(trim($p_ville), MB_CASE_TITLE, 'UTF-8');
+
+    /* Fallback sur le chef-lieu si ville vide ou inconnue */
+    $villes_dept = $dept_data['villes'];
+    $ville_in_list = $p_ville !== '' && in_array($p_ville, $villes_dept, true);
+    if ($p_ville === '' || !$ville_in_list) {
+        $p_ville = $dept_data['chef_lieu'];
+    }
+
+    /* ── Construction des textes dynamiques ── */
+    $h1      = $metier_data['label_pro'].' urgence à '.$p_ville.' ('.$dept_data['nom'].' '.$dept_data['code'].')';
+    $meta_t  = $metier_data['label_pro'].' à '.$p_ville.' — Urgence 24h/7j | '.company_name();
+    $meta_d  = company_name().' — '.$metier_data['label_pro'].' d\'urgence à '.$p_ville.' dans le '.$dept_data['nom'].' ('.$dept_data['code'].'). Intervention rapide, devis gratuit, disponible 24h/7j.';
+    $canonical = route_url('landing').'&dept='.urlencode($p_dept).'&metier='.urlencode($p_metier).'&ville='.urlencode($p_ville);
+
+    $cards = service_cards_v14();
+    $meta  = ['title'=>$meta_t, 'description'=>$meta_d, 'canonical'=>$canonical];
+    render_head($meta);
+    render_header('');
+?>
+
+<!-- HERO LANDING -->
+<section class="page-hero" style="padding:3rem 0 2.5rem;">
+  <div class="wrap">
+    <div class="ph-eyebrow">// <?= e($metier_data['icon']) ?> <?= e($metier_data['label']) ?> — <?= e($dept_data['region']) ?></div>
+    <h1 class="ph-h1"><?= e($h1) ?></h1>
+    <p class="ph-lead"><?= e($metier_data['desc']) ?> Disponible <?= e(company_hours()) ?>.</p>
+    <div class="ph-badges">
+      <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
+      <span class="ph-badge hl"><?= e($metier_data['urgence']) ?></span>
+      <span class="ph-badge">🆓 Devis gratuit</span>
+      <span class="ph-badge">🔒 Artisans certifiés</span>
+      <span class="ph-badge">📍 <?= e($p_ville) ?> et alentours</span>
+    </div>
+    <div class="btn-row" style="margin-top:1.75rem;">
+      <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+      <a class="btn btn-outline btn-lg" href="#lp-form">📋 Devis gratuit</a>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES DU MÉTIER -->
+<section class="sec sec-card">
+  <div class="wrap">
+    <div class="svc-label">Nos interventions</div>
+    <h2 class="section-title"><?= e($metier_data['label_pro']) ?> à <em><?= e($p_ville) ?></em></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.6rem;margin-top:1.75rem;">
+      <?php foreach ($metier_data['services'] as $svc): ?>
+      <div class="qs-perk"><?= e($svc) ?></div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- VILLES DU DÉPARTEMENT -->
+<section class="sec sec-navy">
+  <div class="wrap">
+    <div class="svc-label">Zone d'intervention</div>
+    <h2 class="section-title">Interventions dans le <em><?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)</em></h2>
+    <p class="section-lead">Nous intervenons à <?= e($p_ville) ?> et dans toutes les communes du département <?= e($dept_data['nom']) ?> (<?= e($dept_data['region']) ?>).</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.25rem;">
+      <?php foreach ($villes_dept as $v): ?>
+      <span class="zone-chip" style="<?= $v===$p_ville ? 'background:rgba(240,123,29,.15);border-color:rgba(240,123,29,.4);color:var(--p);font-weight:600;' : '' ?>">
+        📍 <?= e($v) ?>
+      </span>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- POURQUOI NOUS -->
+<section class="sec sec-card">
+  <div class="wrap">
+    <div class="svc-label">Pourquoi EMAE</div>
+    <h2 class="section-title">Votre <?= e(mb_strtolower($metier_data['label_pro'],'UTF-8')) ?> de confiance à <em><?= e($p_ville) ?></em></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem;margin-top:1.75rem;">
+      <?php foreach ([
+        ['⚡','Intervention rapide','Moins de 2h en urgence dans le '.$dept_data['nom'].'.'],
+        ['🆓','Devis 100% gratuit','Sans engagement, tarif annoncé avant intervention.'],
+        ['🔒','Artisans certifiés','Techniciens qualifiés et assurés.'],
+        ['📞','Disponible 24h/7j',company_hours().' — même les jours fériés.'],
+      ] as [$ico,$t,$d]): ?>
+      <div class="why-card">
+        <div class="why-icon"><?= $ico ?></div>
+        <div><div class="why-h"><?= e($t) ?></div><p class="why-p"><?= e($d) ?></p></div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- FORMULAIRE DEVIS -->
+<section class="sec sec-navy" id="lp-form">
+  <div class="wrap" style="max-width:700px;">
+    <div class="svc-label">Devis gratuit — <?= e($metier_data['label']) ?> à <?= e($p_ville) ?></div>
+    <div class="qs-card">
+      <div class="hero-card-tag"><?= e($metier_data['icon']) ?> <?= e($metier_data['label_pro']) ?> à <?= e($p_ville) ?></div>
+      <h2 style="font-family:var(--font-h);font-size:1.35rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">
+        Intervention rapide dans le <?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)
+      </h2>
+      <?php render_quote_form($cards, 'landing_'.$p_metier.'_'.$p_dept); ?>
+    </div>
+  </div>
+</section>
+
 <?php render_footer(); exit; }
 
 /* ════ FAQ ════ */
@@ -719,7 +955,7 @@ if ($page) {
   <div class="wrap" style="position:relative;z-index:1;">
   <div class="ph-eyebrow">// <?= e($tpl['label']) ?></div>
   <h1 class="ph-h1"><?= e($page['title']) ?></h1>
-  <p class="ph-lead"><?= e($page['excerpt'] ?: $tpl['desc']) ?></p>
+  <p class="ph-lead"><?= e(geo_replace($page['excerpt'] ?: $tpl['desc'])) ?></p>
   <div class="ph-badges">
     <?php foreach ($tpl['badges'] as $b): ?><span class="ph-badge hl"><?= e($b) ?></span><?php endforeach; ?>
     <span class="ph-badge"><?= e(company_hours()) ?></span>
