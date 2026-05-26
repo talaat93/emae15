@@ -332,7 +332,7 @@ function send_quote_notification(array $data): bool
 </body></html>';
 
     $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
-    $fromEmail = 'noreply@'.preg_replace('#^www\.#','',parse_url(site_base_url(),PHP_URL_HOST) ?: 'emae.fr');
+    $fromEmail = company_email();
     $replyTo   = $email !== '' ? $email : $to;
 
     $headers  = "MIME-Version: 1.0\r\n";
@@ -341,7 +341,9 @@ function send_quote_notification(array $data): bool
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
 
-    return @mail($to, $subject, $html, $headers);
+    $ok = mail($to, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.$fromEmail);
+    return $ok;
 }
 
 function send_quote_confirmation_to_client(array $data): bool
@@ -413,8 +415,7 @@ function send_quote_confirmation_to_client(array $data): bool
 </body></html>';
 
     $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Confirmation').'?=';
-    $domain    = preg_replace('#^www\.#', '', parse_url(site_base_url(), PHP_URL_HOST) ?: 'emae.fr');
-    $fromEmail = 'noreply@'.$domain;
+    $fromEmail = company_email();
     $replyTo   = setting('form_email_to', company_email());
 
     $headers  = "MIME-Version: 1.0\r\n";
@@ -423,7 +424,9 @@ function send_quote_confirmation_to_client(array $data): bool
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
 
-    return @mail($email, $subject, $html, $headers);
+    $ok = mail($email, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_confirmation_to_client failed — to='.$email.' from='.$fromEmail);
+    return $ok;
 }
 
 /* ═══════════════════════════════════════════════════
