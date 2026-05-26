@@ -56,8 +56,8 @@ function admin_is_active(array $files, string $section = ''): string {
     <a class="<?= admin_is_active(['zones.php'],'zones') ?>" href="<?= e(url_for('admin/zones.php')) ?>">🗺️ Zones d'intervention</a>
     <a class="<?= admin_is_active(['services_hero_images.php'],'services_hero_images') ?>" href="<?= e(url_for('admin/services_hero_images.php')) ?>">🖼️ Images hero services</a>
 
-    <div class="admin-menu__group-label">Leads</div>
-    <a class="<?= admin_is_active(['quotes.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes de devis</a>
+    <div class="admin-menu__group-label">Leads & Interventions</div>
+    <a class="<?= admin_is_active(['quotes.php','dossier.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes & Interventions</a>
 
     <div class="admin-menu__group-label">Marketing</div>
     <a class="<?= admin_is_active(['seo.php']) ?>" href="<?= e(url_for('admin/seo.php')) ?>">🔍 SEO & Google Ads</a>
@@ -67,6 +67,7 @@ function admin_is_active(array $files, string $section = ''): string {
 
     <div class="admin-menu__group-label">Compte</div>
     <a class="<?= admin_is_active(['profile.php']) ?>" href="<?= e(url_for('admin/profile.php')) ?>">👤 Mon profil</a>
+    <a class="<?= admin_is_active(['mail_test.php']) ?>" href="<?= e(url_for('admin/mail_test.php')) ?>">📧 Test email</a>
     <a href="<?= e(route_url('')) ?>" target="_blank">🌐 Voir le site</a>
     <a href="<?= e(url_for('admin/logout.php')) ?>">🚪 Déconnexion</a>
   </nav>

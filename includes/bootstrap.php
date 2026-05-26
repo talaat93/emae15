@@ -14,3 +14,21 @@ if (!file_exists($_mf)) {
     unset($_me);
 }
 unset($_mf);
+// Auto-migration v15.2 — champs intervention & archivage sur quotes
+$_mf2 = __DIR__.'/../storage/.mig_v15_intervention';
+if (!file_exists($_mf2)) {
+    $__sqls = [
+        "ALTER TABLE quotes ADD COLUMN intervention_date DATETIME NULL",
+        "ALTER TABLE quotes ADD COLUMN technician VARCHAR(120) NULL",
+        "ALTER TABLE quotes ADD COLUMN duration VARCHAR(60) NULL",
+        "ALTER TABLE quotes ADD COLUMN amount_ht DECIMAL(10,2) NULL",
+        "ALTER TABLE quotes ADD COLUMN solution TEXT NULL",
+        "ALTER TABLE quotes ADD COLUMN materials TEXT NULL",
+        "ALTER TABLE quotes ADD COLUMN notes_admin TEXT NULL",
+        "ALTER TABLE quotes ADD COLUMN archived TINYINT(1) NOT NULL DEFAULT 0",
+    ];
+    foreach ($__sqls as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf2, date('c'));
+    unset($_me, $__sqls, $__sql);
+}
+unset($_mf2);

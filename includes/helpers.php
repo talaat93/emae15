@@ -731,10 +731,27 @@ function visible_reviews(int $limit = 6): array
     catch (Throwable $e) { return []; }
 }
 
-function all_quotes(): array
+function all_quotes(bool $archived = false): array
 {
-    try { return db_fetch_all('SELECT * FROM quotes ORDER BY created_at DESC'); }
+    try { return db_fetch_all('SELECT * FROM quotes WHERE archived = ? ORDER BY created_at DESC', [(int)$archived]); }
     catch (Throwable $e) { return []; }
+}
+function count_quotes_by_status(): array
+{
+    try {
+        $rows = db_fetch_all('SELECT status, archived, COUNT(*) as n FROM quotes GROUP BY status, archived');
+        $out = ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0];
+        foreach ($rows as $r) {
+            if (!(int)$r['archived']) {
+                $out['actifs'] += (int)$r['n'];
+                if ((string)$r['status'] === 'nouveau') $out['nouveaux'] += (int)$r['n'];
+                if (in_array((string)$r['status'], ['planifié','en cours'])) $out['en_cours'] += (int)$r['n'];
+            } else {
+                $out['archivés'] += (int)$r['n'];
+            }
+        }
+        return $out;
+    } catch (Throwable $e) { return ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0]; }
 }
 
 /* ═══════════════════════════════════════════════════
