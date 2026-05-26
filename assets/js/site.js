@@ -142,6 +142,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   })();
 
+  // WhatsApp tracking
+  var waBtn = document.querySelector('.wa-btn');
+  if (waBtn) {
+    waBtn.addEventListener('click', function () {
+      if (typeof gtag !== 'undefined') gtag('event', 'whatsapp_click', {'event_category': 'contact'});
+      gads_fire(window._gAdsCv || []);
+    });
+  }
+
   // Popup urgence
   (function () {
     var popup = document.getElementById('urgency-popup');
