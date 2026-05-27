@@ -171,4 +171,26 @@ document.addEventListener('DOMContentLoaded', function () {
     if (overlay)  overlay.addEventListener('click', closePopup);
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePopup(); });
   })();
+
+  /* ── Scroll Reveal — IntersectionObserver ── */
+  (function () {
+    var targets = document.querySelectorAll(
+      '.svc-card, .why-card, .process-step, .review-card, ' +
+      '.zone-card, .real-card, .interv-card, .step-card'
+    );
+    if (!targets.length || !('IntersectionObserver' in window)) {
+      targets.forEach(function (el) { el.classList.add('reveal', 'visible'); });
+      return;
+    }
+    targets.forEach(function (el) { el.classList.add('reveal'); });
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+    targets.forEach(function (el) { observer.observe(el); });
+  })();
 });

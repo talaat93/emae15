@@ -1074,3 +1074,155 @@ body{background:var(--navy-2);}
 .wa-btn svg{width:28px;height:28px;min-width:28px;min-height:28px;max-width:28px;max-height:28px;fill:#fff;flex-shrink:0;}
 @media(min-width:769px){.wa-btn{bottom:1.5rem;right:1.5rem;width:56px;height:56px;}
 .wa-btn svg{width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;}}
+
+/* ══════════════════════════════════════════════
+   V15 PREMIUM UPGRADE — polish visuel global
+   ══════════════════════════════════════════════ */
+
+/* ── Boutons : shimmer + glow au survol ── */
+@keyframes shimmer-sweep{
+  0%{transform:translateX(-100%) skewX(-18deg);}
+  100%{transform:translateX(220%) skewX(-18deg);}
+}
+.btn-p{position:relative;overflow:hidden;}
+.btn-p::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.22) 50%,transparent 100%);
+  transform:translateX(-100%) skewX(-18deg);
+  transition:none;pointer-events:none;
+}
+.btn-p:hover::before{animation:shimmer-sweep .65s ease forwards;}
+.btn-p:hover{
+  box-shadow:0 0 0 4px rgba(240,123,29,.18),0 8px 36px rgba(240,123,29,.52);
+  transform:translateY(-2px);
+}
+
+/* ── Cartes services ── */
+.svc-card:hover{
+  transform:translateY(-5px);
+  box-shadow:0 28px 72px rgba(6,16,41,.34);
+  border-color:rgba(240,123,29,.28);
+}
+.svc-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s,border-color .28s;}
+
+/* ── Cartes pourquoi / avantages ── */
+.why-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s,border-color .28s;}
+.why-card:hover{
+  transform:translateY(-5px);
+  box-shadow:0 24px 60px rgba(6,16,41,.3);
+  border-color:rgba(240,123,29,.22);
+}
+.why-icon{transition:transform .32s cubic-bezier(.22,.68,0,1.6);}
+.why-card:hover .why-icon{transform:scale(1.12) rotate(-6deg);}
+
+/* ── Étapes processus ── */
+.process-step{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s;}
+.process-step:hover{transform:translateY(-4px);box-shadow:0 20px 52px rgba(6,16,41,.28);}
+
+/* ── Avis clients ── */
+.review-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s,border-color .28s;}
+.review-card:hover{transform:translateY(-4px);box-shadow:0 20px 52px rgba(6,16,41,.28);border-color:rgba(240,123,29,.2);}
+
+/* ── Zones & réalisations ── */
+.zone-card{transition:transform .25s cubic-bezier(.22,.68,0,1.2),box-shadow .25s;}
+.zone-card:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(6,16,41,.28);}
+.real-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s;}
+.real-card:hover{transform:translateY(-4px);box-shadow:0 20px 52px rgba(6,16,41,.32);}
+
+/* ── Interventions / étapes ── */
+.interv-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s,border-color .28s;}
+.interv-card:hover{transform:translateY(-4px);box-shadow:0 18px 44px rgba(6,16,41,.26);border-color:rgba(240,123,29,.2);}
+.step-card{transition:transform .28s cubic-bezier(.22,.68,0,1.2),box-shadow .28s;}
+.step-card:hover{transform:translateY(-4px);box-shadow:0 16px 40px rgba(6,16,41,.26);}
+
+/* ── Trust pills ── */
+.trust-pill{transition:background .2s,border-color .2s,transform .2s;}
+.trust-pill:hover{background:rgba(240,123,29,.09);border-color:rgba(240,123,29,.22);transform:translateY(-1px);}
+
+/* ── Liens footer ── */
+.footer-links a,.footer-col a{transition:color .18s,transform .18s;}
+.footer-links a:hover,.footer-col a:hover{transform:translateX(4px);}
+
+/* ── Bandeau mobile devis : shimmer animé ── */
+@keyframes mob-shimmer{
+  0%{background-position:200% center;}
+  100%{background-position:-200% center;}
+}
+.mob-bar-devis{
+  background-size:200% auto;
+  animation:mob-shimmer 3.5s linear infinite;
+}
+
+/* ── Bande promo strip : sweep lumineux ── */
+@keyframes strip-sweep{
+  0%{left:-60%;}100%{left:120%;}
+}
+.strip{position:relative;overflow:hidden;}
+.strip::after{
+  content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.12),transparent);
+  animation:strip-sweep 4s ease-in-out infinite;
+  pointer-events:none;
+}
+
+/* ── Textures grille industrielle ── */
+.stats-band{position:relative;overflow:hidden;}
+.stats-band::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(240,123,29,.025) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(240,123,29,.025) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+.reviews-section{position:relative;overflow:hidden;}
+.reviews-section::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(rgba(240,123,29,.02) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(240,123,29,.02) 1px,transparent 1px);
+  background-size:28px 28px;
+}
+
+/* ── Profondeur : halos oranges doux ── */
+.why-section{position:relative;overflow:hidden;}
+.why-section::after{
+  content:'';position:absolute;bottom:-120px;right:-80px;
+  width:520px;height:520px;pointer-events:none;
+  background:radial-gradient(circle,rgba(240,123,29,.06) 0%,transparent 68%);
+}
+.process-section{position:relative;overflow:hidden;}
+.process-section::after{
+  content:'';position:absolute;top:-100px;left:-60px;
+  width:480px;height:480px;pointer-events:none;
+  background:radial-gradient(circle,rgba(240,123,29,.05) 0%,transparent 65%);
+}
+
+/* ── Glassmorphisme carte héro (desktop) ── */
+@media(min-width:1024px){
+  .hero-card{
+    backdrop-filter:blur(28px);-webkit-backdrop-filter:blur(28px);
+    background:rgba(12,30,69,.58);
+  }
+}
+
+/* ── Typographie : respiration et hiérarchie ── */
+.section-lead{line-height:1.85;}
+.section-label{letter-spacing:.22em;}
+
+/* ── FAQ hover ── */
+.faq-item{transition:border-color .2s,box-shadow .2s;}
+.faq-item:hover{border-color:rgba(240,123,29,.2);box-shadow:0 3px 14px rgba(6,16,41,.12);}
+
+/* ── Scroll Reveal : classes utilitaires ── */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .55s ease,transform .55s ease;}
+.reveal.visible{opacity:1;transform:translateY(0);}
+
+/* ── Mobile premium ── */
+@media(max-width:639px){
+  .svc-card,.why-card,.process-step,.review-card,.interv-card,.step-card{
+    padding:1.5rem 1.1rem;
+  }
+  .zone-card{padding:1.2rem 1rem;}
+  .section-lead{font-size:.97rem;line-height:1.75;}
+  .hero-title{font-size:clamp(1.8rem,7vw,2.6rem);}
+  .section-title{font-size:clamp(1.4rem,5.5vw,2rem);}
+  .stats-band .stat-value{font-size:clamp(1.8rem,7vw,2.4rem);}
+}
