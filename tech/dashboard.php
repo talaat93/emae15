@@ -200,9 +200,9 @@ $apiUrl = htmlspecialchars(url_for('dispatcher/api.php'), ENT_QUOTES);
         <button class="t-btn-sm t-btn-surplace" onclick="updateStatus(<?= (int)$iv['id'] ?>, 'sur_place', this)">📍 Sur place</button>
         <?php endif; ?>
         <?php if (in_array($stKey, ['en_route','sur_place','assigné'])): ?>
-        <a href="<?= $e(url_for('tech/intervention_complete.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-done">✅ Clôturer</a>
+        <a href="<?= $e(url_for('tech/disp_intervention.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-done">✅ Clôturer</a>
         <?php endif; ?>
-        <a href="<?= $e(url_for('dispatcher/intervention_view.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view" target="_blank">Fiche →</a>
+        <a href="<?= $e(url_for('tech/disp_intervention.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view">Fiche →</a>
       </div>
     </div>
   </div>
@@ -247,7 +247,7 @@ $apiUrl = htmlspecialchars(url_for('dispatcher/api.php'), ENT_QUOTES);
             </span>
           </td>
           <td style="text-align:right;">
-            <a href="<?= $e(url_for('dispatcher/intervention_view.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view" style="font-size:.7rem;padding:.3rem .65rem;" target="_blank">Voir</a>
+            <a href="<?= $e(url_for('tech/disp_intervention.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view" style="font-size:.7rem;padding:.3rem .65rem;" target="_blank">Voir</a>
           </td>
         </tr>
         <?php endforeach; ?>
@@ -279,7 +279,7 @@ $apiUrl = htmlspecialchars(url_for('dispatcher/api.php'), ENT_QUOTES);
             <td><span style="color:<?= $e($catC2['color']) ?>;font-weight:700;font-size:.72rem;"><?= $e($catC2['icon'].' '.$catC2['label']) ?></span></td>
             <td style="color:var(--t2);font-size:.78rem;"><?= $e($schedDate) ?></td>
             <td><span class="badge <?= $e($statusBadgeClass[$stK] ?? 'badge-annulé') ?>" style="font-size:.68rem;"><?= $e($stConf[$stK]['label'] ?? $stK) ?></span></td>
-            <td style="text-align:right;"><a href="<?= $e(url_for('dispatcher/intervention_view.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view" style="font-size:.7rem;padding:.3rem .65rem;" target="_blank">Voir</a></td>
+            <td style="text-align:right;"><a href="<?= $e(url_for('tech/disp_intervention.php?id='.(int)$iv['id'])) ?>" class="t-btn-sm t-btn-view" style="font-size:.7rem;padding:.3rem .65rem;" target="_blank">Voir</a></td>
           </tr>
           <?php endforeach; ?>
         </tbody>
@@ -322,11 +322,6 @@ $apiUrl = htmlspecialchars(url_for('dispatcher/api.php'), ENT_QUOTES);
   <?php endforeach; ?>
   <?php endif; ?>
 
-  <!-- Lien espace dispatcher -->
-  <div style="margin-top:1.5rem;text-align:center;padding:1rem;background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);">
-    <div style="font-size:.75rem;color:var(--t2);margin-bottom:.5rem;">Vous avez accès au portail dispatcher</div>
-    <a href="<?= $e(url_for('dispatcher/index.php')) ?>" class="t-btn-sm t-btn-route" style="display:inline-flex;">🖥️ Ouvrir l'espace dispatcher →</a>
-  </div>
 
 </div>
 

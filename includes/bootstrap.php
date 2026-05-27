@@ -176,3 +176,20 @@ if (!file_exists($_mf8)) {
     unset($_me);
 }
 unset($_mf8);
+// Auto-migration v15.9 — champs compte rendu technicien (Praxedo-style)
+$_mf9 = __DIR__.'/../storage/.mig_v15_cr';
+if (!file_exists($_mf9)) {
+    foreach ([
+        "ALTER TABLE interventions ADD COLUMN tech_fault_label VARCHAR(255) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_realizable TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_bad_use TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_device_number VARCHAR(120) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_elevator_restored TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_ticket_time TIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_close_time TIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_notes_extra TEXT NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf9, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf9);
