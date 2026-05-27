@@ -7,11 +7,14 @@ document.addEventListener('DOMContentLoaded', function () {
       var open = toggle.getAttribute('aria-expanded') === 'true';
       toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
       nav.classList.toggle('open');
-      document.body.style.overflow = nav.classList.contains('open') ? 'hidden' : '';
+      var isOpen = nav.classList.contains('open');
+      document.body.style.overflow = isOpen ? 'hidden' : '';
+      document.body.classList.toggle('nav-open', isOpen);
     });
     nav.querySelectorAll('a').forEach(function(a){
       a.addEventListener('click', function(){
         nav.classList.remove('open');
+        document.body.classList.remove('nav-open');
         toggle.setAttribute('aria-expanded','false');
         document.body.style.overflow='';
       });
