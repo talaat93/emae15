@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/../includes/bootstrap.php';
-if (!empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/index.php')); exit; }
+if (!empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/dashboard.php')); exit; }
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($tech) {
         $_SESSION['tech_id']   = (int)$tech['id'];
         $_SESSION['tech_name'] = $tech['name'];
-        header('Location: '.url_for('tech/index.php')); exit;
+        header('Location: '.url_for('tech/dashboard.php')); exit;
     }
     $error = 'Email ou mot de passe incorrect.';
 }

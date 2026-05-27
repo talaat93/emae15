@@ -33,7 +33,7 @@ function base_path(): string
     $b = site_base_url();
     if ($b !== '') { $p = parse_url($b, PHP_URL_PATH) ?: ''; return rtrim((string)$p, '/'); }
     $s = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-    foreach (['/admin', '/tech'] as $_strip) {
+    foreach (['/admin', '/tech', '/dispatcher'] as $_strip) {
         if (str_ends_with($s, $_strip)) { $s = substr($s, 0, -strlen($_strip)); break; }
     }
     return ($s === '/' || $s === '.' || $s === '\\') ? '' : rtrim($s, '/');
@@ -1214,4 +1214,328 @@ function design_settings(): array
         'font_heading'          => setting('font_heading',           'Montserrat'),
         'font_body'             => setting('font_body',              'Inter'),
     ];
+}
+
+/* ═══════════════════════════════════════════════════
+   DISPATCHER AUTH
+═══════════════════════════════════════════════════ */
+function require_dispatcher_auth(): array
+{
+    boot_session();
+    if (empty($_SESSION['disp_id'])) { redirect_to('dispatcher/login.php'); }
+    try {
+        $d = db_fetch("SELECT * FROM dispatchers WHERE id = ? AND status = 'actif'", [(int)$_SESSION['disp_id']]);
+    } catch (Throwable $e) { $d = null; }
+    if (!$d) { unset($_SESSION['disp_id'], $_SESSION['disp_name']); redirect_to('dispatcher/login.php'); }
+    return $d;
+}
+
+function dispatcher_login_check(string $email, string $password): ?array
+{
+    try {
+        $r = db_fetch("SELECT * FROM dispatchers WHERE email = ? AND status = 'actif'", [trim($email)]);
+        if ($r && password_verify($password, (string)$r['password_hash'])) return $r;
+    } catch (Throwable $e) {}
+    return null;
+}
+
+function all_dispatchers(): array
+{
+    try { return db_fetch_all("SELECT id, name, email, phone, status FROM dispatchers ORDER BY name"); }
+    catch (Throwable $e) { return []; }
+}
+
+/* ═══════════════════════════════════════════════════
+   CLIENTS
+═══════════════════════════════════════════════════ */
+function all_clients_list(int $limit = 200, int $offset = 0): array
+{
+    try { return db_fetch_all("SELECT * FROM clients ORDER BY lastname, firstname LIMIT ? OFFSET ?", [$limit, $offset]); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_client_by_id(int $id): ?array
+{
+    try { $r = db_fetch("SELECT * FROM clients WHERE id = ?", [$id]); return $r ?: null; }
+    catch (Throwable $e) { return null; }
+}
+
+function search_clients(string $q): array
+{
+    if (trim($q) === '') return [];
+    $like = '%' . $q . '%';
+    try { return db_fetch_all("SELECT * FROM clients WHERE lastname LIKE ? OR firstname LIKE ? OR phone LIKE ? OR city LIKE ? ORDER BY lastname LIMIT 20", [$like, $like, $like, $like]); }
+    catch (Throwable $e) { return []; }
+}
+
+function create_client(array $data): int
+{
+    db_execute("INSERT INTO clients (lastname, firstname, phone, email, address, postal_code, city, floor, digicode, access_info, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)", [
+        trim((string)($data['lastname'] ?? '')), trim((string)($data['firstname'] ?? '')),
+        trim((string)($data['phone'] ?? '')), trim((string)($data['email'] ?? '')),
+        trim((string)($data['address'] ?? '')), trim((string)($data['postal_code'] ?? '')),
+        trim((string)($data['city'] ?? '')), trim((string)($data['floor'] ?? '')),
+        trim((string)($data['digicode'] ?? '')), trim((string)($data['access_info'] ?? '')),
+        trim((string)($data['notes'] ?? '')),
+    ]);
+    return db_last_id();
+}
+
+function update_client(int $id, array $data): void
+{
+    db_execute("UPDATE clients SET lastname=?,firstname=?,phone=?,email=?,address=?,postal_code=?,city=?,floor=?,digicode=?,access_info=?,notes=? WHERE id=?", [
+        trim((string)($data['lastname'] ?? '')), trim((string)($data['firstname'] ?? '')),
+        trim((string)($data['phone'] ?? '')), trim((string)($data['email'] ?? '')),
+        trim((string)($data['address'] ?? '')), trim((string)($data['postal_code'] ?? '')),
+        trim((string)($data['city'] ?? '')), trim((string)($data['floor'] ?? '')),
+        trim((string)($data['digicode'] ?? '')), trim((string)($data['access_info'] ?? '')),
+        trim((string)($data['notes'] ?? '')), $id,
+    ]);
+}
+
+function client_intervention_count(int $client_id): int
+{
+    try { return (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE client_id = ?", [$client_id])['c'] ?? 0); }
+    catch (Throwable $e) { return 0; }
+}
+
+/* ═══════════════════════════════════════════════════
+   INTERVENTION CONFIG
+═══════════════════════════════════════════════════ */
+function intervention_status_config(): array
+{
+    return [
+        'nouveau'      => ['label' => 'Nouveau',      'color' => '#3b82f6', 'bg' => 'rgba(59,130,246,.15)'],
+        'confirmé'     => ['label' => 'Confirmé',     'color' => '#8b5cf6', 'bg' => 'rgba(139,92,246,.15)'],
+        'assigné'      => ['label' => 'Assigné',      'color' => '#f59e0b', 'bg' => 'rgba(245,158,11,.15)'],
+        'en_route'     => ['label' => 'En route',     'color' => '#06b6d4', 'bg' => 'rgba(6,182,212,.15)'],
+        'sur_place'    => ['label' => 'Sur place',    'color' => '#10b981', 'bg' => 'rgba(16,185,129,.15)'],
+        'terminé'      => ['label' => 'Terminé',      'color' => '#22c55e', 'bg' => 'rgba(34,197,94,.15)'],
+        'devis_envoyé' => ['label' => 'Devis envoyé', 'color' => '#f97316', 'bg' => 'rgba(249,115,22,.15)'],
+        'facturé'      => ['label' => 'Facturé',      'color' => '#ec4899', 'bg' => 'rgba(236,72,153,.15)'],
+        'payé'         => ['label' => 'Payé',         'color' => '#14b8a6', 'bg' => 'rgba(20,184,166,.15)'],
+        'annulé'       => ['label' => 'Annulé',       'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.15)'],
+    ];
+}
+
+function intervention_category_config(): array
+{
+    return [
+        'electricite'    => ['label' => 'Électricité',   'icon' => '⚡', 'color' => '#fbbf24'],
+        'plomberie'      => ['label' => 'Plomberie',     'icon' => '💧', 'color' => '#60a5fa'],
+        'chauffage'      => ['label' => 'Chauffage',     'icon' => '🔥', 'color' => '#f87171'],
+        'climatisation'  => ['label' => 'Climatisation', 'icon' => '❄️', 'color' => '#34d399'],
+        'multitechnique' => ['label' => 'Multitechnique','icon' => '🔧', 'color' => '#a78bfa'],
+        'ascenseur'      => ['label' => 'Ascenseur',     'icon' => '🛗', 'color' => '#fb923c'],
+        'maintenance'    => ['label' => 'Maintenance',   'icon' => '🔩', 'color' => '#94a3b8'],
+        'depannage'      => ['label' => 'Dépannage',     'icon' => '🛠️', 'color' => '#f472b6'],
+        'renovation'     => ['label' => 'Rénovation',    'icon' => '🏗️', 'color' => '#6ee7b7'],
+    ];
+}
+
+function intervention_status_badge(string $status): string
+{
+    $cfg = intervention_status_config();
+    $c = $cfg[$status] ?? ['label' => $status, 'color' => '#8fa0c4', 'bg' => 'rgba(143,160,196,.15)'];
+    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .7rem;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.04em;color:'.$c['color'].';background:'.$c['bg'].';border:1px solid '.$c['color'].'55;">'
+        . '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;"></span>'
+        . e($c['label']) . '</span>';
+}
+
+function intervention_category_badge(string $cat): string
+{
+    $cfg = intervention_category_config();
+    $c = $cfg[$cat] ?? ['label' => $cat, 'icon' => '🔧', 'color' => '#8fa0c4'];
+    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:8px;font-size:.72rem;font-weight:700;color:'.$c['color'].';background:'.$c['color'].'22;border:1px solid '.$c['color'].'44;">'
+        . $c['icon'] . ' ' . e($c['label']) . '</span>';
+}
+
+/* ═══════════════════════════════════════════════════
+   INTERVENTIONS CRUD
+═══════════════════════════════════════════════════ */
+function all_interventions(array $filters = []): array
+{
+    $where = ['1=1']; $params = [];
+    if (!empty($filters['status'])) { $where[] = 'i.status = ?'; $params[] = $filters['status']; }
+    if (!empty($filters['technician_id'])) { $where[] = 'i.technician_id = ?'; $params[] = (int)$filters['technician_id']; }
+    if (!empty($filters['dispatcher_id'])) { $where[] = 'i.dispatcher_id = ?'; $params[] = (int)$filters['dispatcher_id']; }
+    if (!empty($filters['category'])) { $where[] = 'i.category = ?'; $params[] = $filters['category']; }
+    if (!empty($filters['urgency'])) { $where[] = 'i.urgency = 1'; }
+    if (!empty($filters['date'])) { $where[] = 'i.scheduled_date = ?'; $params[] = $filters['date']; }
+    if (!empty($filters['search'])) {
+        $like = '%' . $filters['search'] . '%';
+        $where[] = '(c.lastname LIKE ? OR c.firstname LIKE ? OR c.phone LIKE ? OR c.city LIKE ? OR i.ref LIKE ? OR i.type_label LIKE ?)';
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+    $sql = "SELECT i.*, c.lastname, c.firstname, c.phone AS client_phone, c.address, c.city AS client_city, c.postal_code,
+                   t.name AS tech_name, t.phone AS tech_phone, d.name AS disp_name
+            FROM interventions i
+            LEFT JOIN clients c ON c.id = i.client_id
+            LEFT JOIN technicians t ON t.id = i.technician_id
+            LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY i.urgency DESC, COALESCE(i.scheduled_date,'9999-12-31') ASC, i.id DESC";
+    try { return db_fetch_all($sql, $params); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_intervention_by_id(int $id): ?array
+{
+    try {
+        $r = db_fetch(
+            "SELECT i.*, c.lastname, c.firstname, c.phone AS client_phone, c.email AS client_email,
+                    c.address, c.city AS client_city, c.postal_code, c.floor, c.digicode, c.access_info,
+                    t.name AS tech_name, t.phone AS tech_phone, t.email AS tech_email,
+                    d.name AS disp_name
+             FROM interventions i
+             LEFT JOIN clients c ON c.id = i.client_id
+             LEFT JOIN technicians t ON t.id = i.technician_id
+             LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
+             WHERE i.id = ?", [$id]);
+        return $r ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function create_intervention(array $data): int
+{
+    $ref = 'INT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+    db_execute(
+        "INSERT INTO interventions (ref,client_id,dispatcher_id,technician_id,scheduled_date,scheduled_time,
+         duration_estimate,urgency,priority,category,type_label,installation_type,description,fault_reported,
+         materials_needed,notes_admin,quote_accepted,amount_ht,amount_ttc,deposit,remaining,payment_method,
+         status,latitude,longitude) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            $ref,
+            (int)($data['client_id'] ?? 0),
+            !empty($data['dispatcher_id']) ? (int)$data['dispatcher_id'] : null,
+            !empty($data['technician_id']) ? (int)$data['technician_id'] : null,
+            $data['scheduled_date'] ?: null,
+            $data['scheduled_time'] ?: null,
+            (int)($data['duration_estimate'] ?? 60),
+            (int)($data['urgency'] ?? 0),
+            $data['priority'] ?? 'normale',
+            $data['category'] ?: null,
+            $data['type_label'] ?: null,
+            $data['installation_type'] ?: null,
+            $data['description'] ?: null,
+            $data['fault_reported'] ?: null,
+            $data['materials_needed'] ?: null,
+            $data['notes_admin'] ?: null,
+            (int)($data['quote_accepted'] ?? 0),
+            !empty($data['amount_ht']) ? (float)$data['amount_ht'] : null,
+            !empty($data['amount_ttc']) ? (float)$data['amount_ttc'] : null,
+            !empty($data['deposit']) ? (float)$data['deposit'] : null,
+            !empty($data['remaining']) ? (float)$data['remaining'] : null,
+            $data['payment_method'] ?: null,
+            $data['status'] ?? 'nouveau',
+            !empty($data['latitude']) ? (float)$data['latitude'] : null,
+            !empty($data['longitude']) ? (float)$data['longitude'] : null,
+        ]
+    );
+    return db_last_id();
+}
+
+function update_intervention(int $id, array $data): void
+{
+    $allowed = ['technician_id','dispatcher_id','scheduled_date','scheduled_time','duration_estimate',
+                'urgency','priority','category','type_label','installation_type','description','fault_reported',
+                'materials_needed','notes_admin','quote_accepted','amount_ht','amount_ttc','deposit','remaining',
+                'payment_method','status','tech_report','tech_photos','tech_materials_used','tech_time_spent',
+                'tech_signature','tech_client_name','tech_started_at','tech_arrived_at','tech_completed_at',
+                'latitude','longitude'];
+    $sets = []; $params = [];
+    foreach ($allowed as $f) {
+        if (array_key_exists($f, $data)) { $sets[] = "$f = ?"; $params[] = $data[$f]; }
+    }
+    if (empty($sets)) return;
+    $params[] = $id;
+    db_execute("UPDATE interventions SET " . implode(', ', $sets) . " WHERE id = ?", $params);
+}
+
+function log_intervention_history(int $id, ?string $from, string $to, string $actor_type, int $actor_id, string $actor_name, string $note = ''): void
+{
+    try {
+        db_execute("INSERT INTO intervention_history (intervention_id,status_from,status_to,actor_type,actor_id,actor_name,note) VALUES (?,?,?,?,?,?,?)",
+            [$id, $from, $to, $actor_type, $actor_id, $actor_name, $note]);
+    } catch (Throwable $e) {}
+}
+
+function get_intervention_history(int $id): array
+{
+    try { return db_fetch_all("SELECT * FROM intervention_history WHERE intervention_id = ? ORDER BY created_at ASC", [$id]); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_client_interventions(int $client_id): array
+{
+    try { return db_fetch_all("SELECT i.*, t.name AS tech_name FROM interventions i LEFT JOIN technicians t ON t.id=i.technician_id WHERE i.client_id=? ORDER BY i.created_at DESC", [$client_id]); }
+    catch (Throwable $e) { return []; }
+}
+
+/* ═══════════════════════════════════════════════════
+   DISPATCHER KPIs
+═══════════════════════════════════════════════════ */
+function dispatcher_kpis(): array
+{
+    $today = date('Y-m-d');
+    $ws    = date('Y-m-d', strtotime('monday this week'));
+    $ms    = date('Y-m-01');
+    $zero  = ['today_total'=>0,'waiting'=>0,'assigned'=>0,'in_progress'=>0,'done_today'=>0,'urgent'=>0,'late'=>0,'techs_active'=>0,'ca_today'=>0.0,'ca_week'=>0.0,'ca_month'=>0.0,'total'=>0];
+    try {
+        return [
+            'today_total'  => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date=?",[$today])['c']??0),
+            'waiting'      => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0),
+            'assigned'     => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='assigné'")['c']??0),
+            'in_progress'  => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('en_route','sur_place')")['c']??0),
+            'done_today'   => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='terminé' AND DATE(tech_completed_at)=?",[$today])['c']??0),
+            'urgent'       => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN ('terminé','annulé','payé')")['c']??0),
+            'late'         => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date<? AND scheduled_date IS NOT NULL AND status NOT IN ('terminé','annulé','payé','facturé')",[$today])['c']??0),
+            'techs_active' => (int)(db_fetch("SELECT COUNT(*) AS c FROM technicians WHERE status='actif'")['c']??0),
+            'ca_today'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND DATE(tech_completed_at)=?",[$today])['s']??0),
+            'ca_week'      => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ws])['s']??0),
+            'ca_month'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ms])['s']??0),
+            'total'        => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions")['c']??0),
+        ];
+    } catch (Throwable $e) { return $zero; }
+}
+
+/* ═══════════════════════════════════════════════════
+   SMS DISPATCHER
+═══════════════════════════════════════════════════ */
+function send_sms_dispatcher(string $to, string $message): bool
+{
+    $apiUrl = setting('sms_api_url', '');
+    $apiKey = setting('sms_api_key', '');
+    $sender = setting('sms_sender',  'EMAE');
+    if ($apiUrl === '' || $apiKey === '') return false;
+    $to = preg_replace('/\s+/', '', $to);
+    if (!preg_match('/^\+?[0-9]{8,15}$/', $to)) return false;
+    try {
+        $payload = json_encode(['to'=>$to,'message'=>$message,'sender'=>$sender,'api_key'=>$apiKey]);
+        $ctx = stream_context_create(['http'=>[
+            'method'=>'POST',
+            'header'=>"Content-Type: application/json\r\nAuthorization: Bearer $apiKey\r\n",
+            'content'=>$payload,'timeout'=>5,'ignore_errors'=>true,
+        ]]);
+        @file_get_contents($apiUrl, false, $ctx);
+        return true;
+    } catch (Throwable $e) { return false; }
+}
+
+/* ═══════════════════════════════════════════════════
+   GEOCODING (Nominatim)
+═══════════════════════════════════════════════════ */
+function geocode_address(string $address, string $city = '', string $postal = ''): array
+{
+    $q   = trim($address . ' ' . $postal . ' ' . $city . ' France');
+    $url = 'https://nominatim.openstreetmap.org/search?q=' . rawurlencode($q) . '&format=json&limit=1&countrycodes=fr';
+    $ctx = stream_context_create(['http'=>['timeout'=>3,'ignore_errors'=>true,'header'=>"User-Agent: EMAE-Dispatcher/1.0\r\n"]]);
+    try {
+        $json = @file_get_contents($url, false, $ctx);
+        if ($json !== false) {
+            $data = json_decode($json, true);
+            if (is_array($data) && !empty($data[0])) return ['lat'=>(float)$data[0]['lat'],'lng'=>(float)$data[0]['lon']];
+        }
+    } catch (Throwable $e) {}
+    return ['lat'=>null,'lng'=>null];
 }

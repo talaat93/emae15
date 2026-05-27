@@ -62,6 +62,10 @@ function admin_is_active(array $files, string $section = ''): string {
     <div class="admin-menu__group-label">Équipe</div>
     <a class="<?= admin_is_active(['technicians.php'],'technicians') ?>" href="<?= e(url_for('admin/technicians.php')) ?>">👷 Techniciens</a>
 
+    <div class="admin-menu__group-label">Dispatchers</div>
+    <a class="<?= admin_is_active(['dispatchers.php'],'dispatchers') ?>" href="<?= e(url_for('admin/dispatchers.php')) ?>">🗂️ Dispatchers</a>
+    <a href="<?= e(url_for('dispatcher/index.php')) ?>" target="_blank">🚀 Espace Dispatcher</a>
+
     <div class="admin-menu__group-label">Notifications</div>
     <a class="<?= admin_is_active(['sms.php'],'sms') ?>" href="<?= e(url_for('admin/sms.php')) ?>">📱 SMS — OVH</a>
 
