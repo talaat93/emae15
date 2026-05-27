@@ -28,7 +28,8 @@ function render_head(array $meta): void
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     
-    echo '<link rel="stylesheet" href="'.e(asset_url('assets/css/style.css')).'">';
+    $cssV = @filemtime(__DIR__.'/../assets/css/style.css') ?: time();
+    echo '<link rel="stylesheet" href="'.e(asset_url('assets/css/style.css')).'?v='.$cssV.'">';
     echo theme_css_variables();
     // Schema.org
     echo '<script type="application/ld+json">'.schema_local_business().'</script>';

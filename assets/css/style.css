@@ -106,15 +106,15 @@ button,input,select,textarea{font:inherit;}
 .brand-name em{color:var(--p);font-style:normal;}
 .brand-tagline{font-size:.52rem;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--t2);margin-top:.12rem;}
  
-.nav-toggle{display:flex;flex-direction:column;gap:5px;padding:8px 6px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-.nav-toggle span{display:block;width:22px;height:2px;background:#fff;border-radius:2px;transition:all .28s;}
+.nav-toggle{display:flex;flex-direction:column;gap:6px;padding:10px 8px;border:none;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.nav-toggle span{display:block;width:30px;height:3px;background:#fff;border-radius:2px;transition:all .28s;}
 .nav-toggle[aria-expanded="true"] span:nth-child(1){transform:translateY(7px) rotate(45deg);}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
 .site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:#030918;padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;-webkit-transform:translateZ(0);transform:translateZ(0);}
 .site-nav.open{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:.5rem;}
-.site-nav a{color:var(--t1);font-weight:600;font-size:.95rem;padding:.72rem .85rem;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
+.site-nav a{color:var(--t1);font-weight:600;font-size:1.08rem;padding:1.4rem 1rem;min-height:72px;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
 .site-nav a:hover,.site-nav a.on{color:var(--p);border-color:rgba(240,123,29,.28);background:rgba(240,123,29,.07);}
 .site-nav .btn--cta{grid-column:1/-1;background:var(--p);color:#fff!important;border-color:var(--p);font-weight:700;min-height:50px;font-size:1rem;}
  
