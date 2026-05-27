@@ -112,7 +112,7 @@ button,input,select,textarea{font:inherit;}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
-.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:190;}
+.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;}
 .site-nav.open{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:.5rem;}
 .site-nav a{color:var(--t1);font-weight:600;font-size:.95rem;padding:.72rem .85rem;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
 .site-nav a:hover,.site-nav a.on{color:var(--p);border-color:rgba(240,123,29,.28);background:rgba(240,123,29,.07);}

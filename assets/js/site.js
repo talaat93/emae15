@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     nav.querySelectorAll('a').forEach(function(a){
       a.addEventListener('click', function(){
-        nav.classList.remove('is-open');
+        nav.classList.remove('open');
         toggle.setAttribute('aria-expanded','false');
         document.body.style.overflow='';
       });

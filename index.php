@@ -129,21 +129,6 @@ if ($route === '' || $route === 'home') {
   </div>
 </section>
 
-<!-- STRIP URGENCE -->
-<div class="strip">
-  <div class="wrap strip-in">
-    <?php foreach (array_filter([
-      geo_replace(setting('strip_1','⚡ Urgence électrique 24h/24')),
-      geo_replace(setting('strip_2','💧 Fuite d\'eau — intervention immédiate')),
-      geo_replace(setting('strip_3','🔥 Panne chauffage / PAC')),
-      geo_replace(setting('strip_4','❄️ Climatisation en panne')),
-      '📞 '.company_phone(),
-    ], fn($v)=>trim($v)!=='') as $i=>$item): ?>
-      <?php if ($i>0): ?><span class="strip-sep"></span><?php endif; ?>
-      <span class="strip-item"><?= e($item) ?></span>
-    <?php endforeach; ?>
-  </div>
-</div>
 
 <!-- NOS SERVICES -->
 <section class="svc-section">
@@ -231,16 +216,16 @@ if ($route === '' || $route === 'home') {
     <div class="svc-label"><?= e(setting('process_label','Comment ça marche')) ?></div>
     <h2 class="section-title"><?= e(setting('process_title','Votre intervention en')) ?> <em><?= e(setting('process_title_hl','3 étapes')) ?></em></h2>
     <div class="process-grid">
-      <?php foreach ([
-        [setting('process_1_num','01'), setting('process_1_title','Vous nous contactez'),        setting('process_1_text','Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.')],
-        [setting('process_2_num','02'), setting('process_2_title','Nous organisons l\'intervention'), setting('process_2_text','Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.')],
-        [setting('process_3_num','03'), setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
-      ] as [$num,$title,$text]): ?>
+      <?php $_pn=0; foreach ([
+        [setting('process_1_title','Vous nous contactez'),        setting('process_1_text','Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.')],
+        [setting('process_2_title','Nous organisons l\'intervention'), setting('process_2_text','Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.')],
+        [setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
+      ] as [$title,$text]): $_pn++; ?>
       <div class="process-step">
-        <div class="process-num"><?= e($num) ?></div>
+        <div class="process-num"><?= str_pad((string)$_pn,2,'0',STR_PAD_LEFT) ?></div>
         <div><div class="process-h"><?= e($title) ?></div><p class="process-p"><?= e($text) ?></p></div>
       </div>
-      <?php endforeach; ?>
+      <?php endforeach; unset($_pn); ?>
     </div>
   </div>
 </section>
