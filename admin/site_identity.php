@@ -7,7 +7,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     foreach ([
         'company_name','company_phone','company_phone_link','company_email','company_regions','company_hours','company_address','company_siret',
-        'form_email_to','site_logo_width','site_logo_height','site_logo_position'
+        'company_whatsapp','cancellation_fee','form_email_to','site_logo_width','site_logo_height','site_logo_position'
     ] as $field) {
         set_setting($field, trim((string) ($_POST[$field] ?? '')));
     }
@@ -55,6 +55,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="admin-form-grid admin-form-grid--2">
       <label class="admin-field"><span>Adresse / zone</span><input type="text" name="company_address" value="<?= e(company_address()) ?>"></label>
       <label class="admin-field"><span>SIRET</span><input type="text" name="company_siret" value="<?= e(company_siret()) ?>"></label>
+    </div>
+    <div class="admin-form-grid admin-form-grid--2">
+      <label class="admin-field">
+        <span>💬 WhatsApp (numéro international)</span>
+        <input type="text" name="company_whatsapp" value="<?= e(setting('company_whatsapp', '')) ?>" placeholder="Ex : +33612345678">
+        <small style="color:#888;font-size:.78rem;margin-top:.3rem;display:block;">Active le bouton WhatsApp flottant sur le site. Laisser vide pour désactiver.</small>
+      </label>
+      <label class="admin-field">
+        <span>💰 Frais d'annulation (montant en €)</span>
+        <input type="text" name="cancellation_fee" value="<?= e(setting('cancellation_fee', '')) ?>" placeholder="Ex : 50">
+        <small style="color:#888;font-size:.78rem;margin-top:.3rem;display:block;">Montant affiché dans l'email de confirmation d'annulation. Laisser vide pour ne pas préciser le montant.</small>
+      </label>
     </div>
   </div>
 </section>

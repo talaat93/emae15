@@ -1049,3 +1049,26 @@ body{background:var(--navy-2);}
 .chat-send{background:var(--p,#F07B1D);border:none;border-radius:8px;color:#fff;font-weight:700;padding:.4rem .65rem;cursor:pointer;font-size:.85rem;transition:background .15s;}
 .chat-send:hover{background:var(--p-h,#c95f0b);}
 .chat-send:disabled{opacity:.5;cursor:default;}
+
+/* ── POPUP URGENCE ── */
+.urgency-popup{display:none;position:fixed;inset:0;z-index:10000;align-items:center;justify-content:center;}
+.urgency-popup.show{display:flex;}
+.urgency-popup__overlay{position:absolute;inset:0;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);}
+.urgency-popup__box{position:relative;background:linear-gradient(135deg,#07102a 0%,#152555 100%);border:1px solid rgba(240,123,29,.35);border-radius:20px;padding:2.5rem 2rem 2rem;max-width:420px;width:90%;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,.6);animation:popIn .35s ease;z-index:1;}
+@keyframes popIn{from{transform:scale(.88) translateY(12px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
+.urgency-popup__close{position:absolute;top:.75rem;right:.85rem;background:none;border:none;color:rgba(255,255,255,.45);font-size:1.15rem;cursor:pointer;line-height:1;padding:.25rem .4rem;border-radius:4px;transition:color .15s;}
+.urgency-popup__close:hover{color:#fff;}
+.urgency-popup__badge{display:inline-block;background:rgba(240,123,29,.15);color:#F07B1D;border:1px solid rgba(240,123,29,.35);border-radius:99px;font-size:.7rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:.28rem .75rem;margin-bottom:1rem;}
+.urgency-popup__title{color:#fff;font-size:1.4rem;font-weight:800;line-height:1.25;margin:0 0 .65rem;}
+.urgency-popup__text{color:rgba(232,236,245,.65);font-size:.88rem;line-height:1.6;margin:0 0 1.4rem;}
+.urgency-popup__phone{display:block;color:#F07B1D;font-size:1.55rem;font-weight:800;text-decoration:none;margin-bottom:1rem;letter-spacing:.02em;transition:color .15s;}
+.urgency-popup__phone:hover{color:#c95f0b;}
+.urgency-popup__cta{display:inline-flex;align-items:center;background:var(--p,#F07B1D);color:#fff;font-weight:700;font-size:.92rem;padding:.6rem 1.5rem;border-radius:8px;text-decoration:none;transition:background .15s;}
+.urgency-popup__cta:hover{background:var(--p-h,#c95f0b);}
+
+/* ── BOUTON WHATSAPP FLOTTANT ── */
+.wa-btn{position:fixed;bottom:5.5rem;right:1.25rem;z-index:9980;width:56px;height:56px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(37,211,102,.45);transition:transform .2s,box-shadow .2s;text-decoration:none;}
+.wa-btn:hover{transform:scale(1.1);box-shadow:0 8px 32px rgba(37,211,102,.6);}
+.wa-btn svg{width:30px;height:30px;fill:#fff;}
+@media(min-width:769px){.wa-btn{bottom:1.5rem;right:5.5rem;}}
+@media(max-width:640px){.wa-btn{width:52px;height:52px;}}

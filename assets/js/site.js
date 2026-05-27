@@ -141,4 +141,31 @@ document.addEventListener('DOMContentLoaded', function () {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); doSend(); }
     });
   })();
+
+  // WhatsApp tracking
+  var waBtn = document.querySelector('.wa-btn');
+  if (waBtn) {
+    waBtn.addEventListener('click', function () {
+      if (typeof gtag !== 'undefined') gtag('event', 'whatsapp_click', {'event_category': 'contact'});
+      gads_fire(window._gAdsCv || []);
+    });
+  }
+
+  // Popup urgence
+  (function () {
+    var popup = document.getElementById('urgency-popup');
+    if (!popup) return;
+    if (sessionStorage.getItem('urgency_shown')) return;
+    var delay = parseInt(popup.dataset.delay || '15', 10) * 1000;
+    setTimeout(function () {
+      popup.classList.add('show');
+      sessionStorage.setItem('urgency_shown', '1');
+    }, delay);
+    function closePopup() { popup.classList.remove('show'); }
+    var closeBtn = document.getElementById('urgency-close');
+    var overlay  = document.getElementById('urgency-overlay');
+    if (closeBtn) closeBtn.addEventListener('click', closePopup);
+    if (overlay)  overlay.addEventListener('click', closePopup);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePopup(); });
+  })();
 });

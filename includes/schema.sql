@@ -37,6 +37,8 @@ CREATE TABLE IF NOT EXISTS quotes (
   phone VARCHAR(80) NOT NULL,
   email VARCHAR(190) NULL,
   city VARCHAR(190) NULL,
+  address VARCHAR(255) NULL,
+  postal_code VARCHAR(10) NULL,
   service_type VARCHAR(190) NULL,
   message TEXT NOT NULL,
   urgency VARCHAR(80) NOT NULL DEFAULT 'Normale',

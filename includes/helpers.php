@@ -164,6 +164,7 @@ function company_hours(): string { return setting('company_hours', '24h/24 — 7
 function company_address(): string { return setting('company_address', 'Île-de-France et Occitanie'); }
 function company_siret(): string { return setting('company_siret', ''); }
 function company_slogan(): string { return setting('company_slogan', 'Dépannage & installation multitechnique'); }
+function company_whatsapp(): string { return setting('company_whatsapp', ''); }
 function site_logo_path(): string { return setting('site_logo', 'storage/uploads/logos/logo-emae-default.svg'); }
 function site_logo_url(): string { return asset_url(site_logo_path()); }
 function site_logo_width(): string { return css_value(setting('site_logo_width', '180'), '180px'); }
@@ -177,21 +178,39 @@ function site_logo_position(): string { $p = setting('site_logo_position', 'left
 
 function schema_local_business(): string
 {
+    $addr = company_address();
+    $wa   = company_whatsapp();
     $data = [
-        '@context' => 'https://schema.org',
-        '@type'    => 'LocalBusiness',
-        'name'     => company_name(),
-        'telephone'=> company_phone(),
-        'email'    => company_email(),
-        'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien.'),
+        '@context'    => 'https://schema.org',
+        '@type'       => 'ElectricalContractor',
+        'name'        => company_name(),
+        'telephone'   => company_phone(),
+        'email'       => company_email(),
+        'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.'),
         'areaServed'  => array_map('trim', explode(',', company_regions())),
-        'openingHours'=> company_hours(),
-        'url'         => site_base_url() !== '' ? site_base_url() : route_url(''),
+        'openingHoursSpecification' => [[
+            '@type'     => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+            'opens'     => '00:00',
+            'closes'    => '23:59',
+        ]],
+        'url'        => site_base_url() !== '' ? site_base_url() : route_url(''),
+        'priceRange' => '€€',
     ];
-    if (company_siret() !== '') $data['identifier'] = company_siret();
+    if ($addr !== '') {
+        $data['address'] = ['@type'=>'PostalAddress','streetAddress'=>$addr,'addressCountry'=>'FR'];
+    }
+    if (company_siret() !== '') {
+        $data['identifier'] = ['@type'=>'PropertyValue','name'=>'SIRET','value'=>company_siret()];
+    }
     $rv = setting('schema_rating_value', '');
     $rc = setting('schema_review_count', '');
-    if ($rv !== '' && $rc !== '') $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc];
+    if ($rv !== '' && $rc !== '') {
+        $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc,'bestRating'=>5,'worstRating'=>1];
+    }
+    if ($wa !== '') {
+        $data['sameAs'] = ['https://wa.me/'.preg_replace('/[^0-9]/', '', $wa)];
+    }
     return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }
 
@@ -239,14 +258,16 @@ function send_quote_notification(array $data): bool
     $to = setting('form_email_to', company_email());
     if (trim($to) === '') return false;
 
-    $name    = trim($data['full_name']   ?? '');
-    $phone   = trim($data['phone']       ?? '');
-    $email   = trim($data['email']       ?? '');
-    $city    = trim($data['city']        ?? '');
-    $service = trim($data['service_type']?? '');
-    $message = trim($data['message']     ?? '');
-    $urgency = trim($data['urgency']     ?? 'Normale');
-    $source  = trim($data['source']      ?? '');
+    $name       = trim($data['full_name']    ?? '');
+    $phone      = trim($data['phone']        ?? '');
+    $email      = trim($data['email']        ?? '');
+    $city       = trim($data['city']         ?? '');
+    $address    = trim($data['address']      ?? '');
+    $postalCode = trim($data['postal_code']  ?? '');
+    $service    = trim($data['service_type'] ?? '');
+    $message    = trim($data['message']      ?? '');
+    $urgency    = trim($data['urgency']      ?? 'Normale');
+    $source     = trim($data['source']       ?? '');
     $site    = company_name();
     $now     = date('d/m/Y à H:i');
 
@@ -282,9 +303,9 @@ function send_quote_notification(array $data): bool
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">✉️ Email</td>
         <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;"><a href="mailto:'.$email.'" style="color:#1a7ab5;">'.$email.'</a></td>
       </tr>' : '').'
-      '.($city !== '' ? '<tr>
-        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Ville</td>
-        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.$city.'</td>
+      '.($address !== '' || $postalCode !== '' || $city !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Adresse</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.($address !== '' ? $address.'<br>' : '').($postalCode !== '' ? $postalCode.' ' : '').($city !== '' ? $city : '').'</td>
       </tr>' : '').'
       '.($service !== '' ? '<tr>
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">🔧 Service</td>
@@ -311,7 +332,7 @@ function send_quote_notification(array $data): bool
 </body></html>';
 
     $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
-    $fromEmail = 'noreply@'.preg_replace('#^www\.#','',parse_url(site_base_url(),PHP_URL_HOST) ?: 'emae.fr');
+    $fromEmail = company_email();
     $replyTo   = $email !== '' ? $email : $to;
 
     $headers  = "MIME-Version: 1.0\r\n";
@@ -320,7 +341,179 @@ function send_quote_notification(array $data): bool
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
 
-    return @mail($to, $subject, $html, $headers);
+    $ok = mail($to, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.$fromEmail);
+    return $ok;
+}
+
+function send_quote_confirmation_to_client(array $data): bool
+{
+    $email = trim($data['email'] ?? '');
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+
+    $name       = trim($data['full_name']    ?? '');
+    $phone      = trim($data['phone']        ?? '');
+    $city       = trim($data['city']         ?? '');
+    $address    = trim($data['address']      ?? '');
+    $postalCode = trim($data['postal_code']  ?? '');
+    $service    = trim($data['service_type'] ?? '');
+    $urgency    = trim($data['urgency']      ?? 'Normale');
+    $site       = company_name();
+    $sitePhone  = company_phone();
+    $sitePhoneLink = company_phone_link();
+    $now        = date('d/m/Y à H:i');
+    $fee        = setting('cancellation_fee', '');
+
+    $locationParts = array_filter([$address, trim($postalCode.' '.$city)]);
+    $locationLine  = implode(', ', $locationParts);
+    $feeText = $fee !== '' ? 'de <strong>'.$fee.' €</strong>' : 'de déplacement';
+
+    $subject = '=?UTF-8?B?'.base64_encode('✅ Confirmation de votre demande — '.$site).'?=';
+
+    $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+  <tr><td style="background:#061029;padding:28px 36px;text-align:center;">
+    <p style="margin:0;font-size:24px;font-weight:700;color:#ffffff;">'.$site.'</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Confirmation de votre demande</p>
+  </td></tr>
+  <tr><td style="padding:32px 36px 20px;">
+    <p style="margin:0 0 10px;font-size:19px;font-weight:700;color:#061029;">Bonjour '.htmlspecialchars($name, ENT_QUOTES).' ✅</p>
+    <p style="margin:0;font-size:15px;color:#444;line-height:1.7;">Nous avons bien reçu votre demande et vous recontacterons <strong>dans les plus brefs délais</strong>.</p>
+  </td></tr>
+  <tr><td style="padding:0 36px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 18px;background:#e8edf8;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">Récapitulatif de votre demande</td></tr>
+      '.($service !== '' ? '<tr><td style="padding:10px 18px;font-size:13px;color:#555;width:160px;border-bottom:1px solid #eef0f7;">🔧 Service</td><td style="padding:10px 18px;font-size:14px;font-weight:600;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($service, ENT_QUOTES).'</td></tr>' : '').'
+      <tr><td style="padding:10px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">⚡ Urgence</td><td style="padding:10px 18px;font-size:14px;font-weight:600;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($urgency, ENT_QUOTES).'</td></tr>
+      '.($locationLine !== '' ? '<tr><td style="padding:10px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Adresse</td><td style="padding:10px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($locationLine, ENT_QUOTES).'</td></tr>' : '').'
+      <tr><td style="padding:10px 18px;font-size:13px;color:#555;">📅 Envoyé le</td><td style="padding:10px 18px;font-size:14px;color:#555;">'.$now.'</td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 28px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8ec;border:2px solid #f0b429;border-radius:8px;overflow:hidden;">
+      <tr><td style="padding:14px 18px;background:#fef3c7;border-bottom:1px solid #f0b429;">
+        <p style="margin:0;font-size:13px;font-weight:700;color:#92400e;">⚠️ Politique d\'annulation — À lire attentivement</p>
+      </td></tr>
+      <tr><td style="padding:16px 18px;font-size:13px;color:#78350f;line-height:1.8;">
+        <p style="margin:0 0 10px;">Toute annulation ou report d\'intervention communiqué <strong>moins de 2 heures avant</strong> le créneau confirmé entraînera la facturation des <strong>frais '.$feeText.'</strong>.</p>
+        <p style="margin:0;">Pour annuler ou modifier votre rendez-vous, merci de nous contacter <strong>au moins 2 heures à l\'avance</strong> par téléphone.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 32px;text-align:center;">
+    <p style="margin:0 0 16px;font-size:14px;color:#555;">Notre équipe est disponible <strong>24h/24, 7j/7</strong> :</p>
+    <a href="'.$sitePhoneLink.'" style="display:inline-block;background:#F07B1D;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;letter-spacing:.02em;">📞 '.$sitePhone.'</a>
+  </td></tr>
+  <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#888;">'.$site.' — '.htmlspecialchars(company_slogan(), ENT_QUOTES).' — '.htmlspecialchars(company_regions(), ENT_QUOTES).'</p>
+    <p style="margin:4px 0 0;font-size:11px;color:#aaa;">Cet email est automatique, merci de ne pas y répondre directement.</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>';
+
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Confirmation').'?=';
+    $fromEmail = company_email();
+    $replyTo   = setting('form_email_to', company_email());
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
+    $headers .= "Reply-To: {$replyTo}\r\n";
+    $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+
+    $ok = mail($email, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_confirmation_to_client failed — to='.$email.' from='.$fromEmail);
+    return $ok;
+}
+
+/* ═══════════════════════════════════════════════════
+   SMS OVH
+═══════════════════════════════════════════════════ */
+function send_sms_ovh(string $to, string $message): bool
+{
+    $appKey      = setting('ovh_app_key', '');
+    $appSecret   = setting('ovh_app_secret', '');
+    $consumerKey = setting('ovh_consumer_key', '');
+    $serviceName = setting('ovh_service_name', '');
+    if ($appKey === '' || $appSecret === '' || $consumerKey === '' || $serviceName === '') return false;
+
+    $to = preg_replace('/[\s\.\-\(\)]/', '', $to);
+    if (preg_match('/^0[67][0-9]{8}$/', $to)) $to = '+33'.substr($to, 1);
+    if (!preg_match('/^\+[1-9][0-9]{6,14}$/', $to)) { error_log('[EMAE SMS] format invalide: '.$to); return false; }
+
+    $url  = 'https://eu.api.ovh.com/1.0/sms/'.rawurlencode($serviceName).'/jobs/';
+    $body = json_encode([
+        'charset'           => 'UTF-8',
+        'class'             => 'phoneDisplay',
+        'coding'            => '7bit',
+        'message'           => mb_substr($message, 0, 160),
+        'noStopClause'      => false,
+        'priority'          => 'high',
+        'receivers'         => [$to],
+        'senderForResponse' => true,
+        'validityPeriod'    => 2880,
+    ]);
+    $ts  = time();
+    $sig = '$1$'.sha1(implode('+', [$appSecret, $consumerKey, 'POST', $url, $body, $ts]));
+
+    $ctx = stream_context_create(['http' => [
+        'method'        => 'POST',
+        'header'        => "Content-Type: application/json\r\nX-Ovh-Application: $appKey\r\nX-Ovh-Consumer: $consumerKey\r\nX-Ovh-Timestamp: $ts\r\nX-Ovh-Signature: $sig",
+        'content'       => $body,
+        'timeout'       => 8,
+        'ignore_errors' => true,
+    ]]);
+    $res = @file_get_contents($url, false, $ctx);
+    if ($res === false) { error_log('[EMAE SMS] OVH connexion échouée'); return false; }
+    $data = json_decode($res, true);
+    $ok = !empty($data['ids']);
+    if (!$ok) error_log('[EMAE SMS] OVH: '.$res);
+    return $ok;
+}
+
+/* ═══════════════════════════════════════════════════
+   TECHNICIENS
+═══════════════════════════════════════════════════ */
+function all_technicians(): array
+{
+    try { return db_fetch_all("SELECT id, name, email, phone, status FROM technicians ORDER BY name"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_tech_by_id(int $id): ?array
+{
+    try { $r = db_fetch("SELECT id, name, email, phone, status FROM technicians WHERE id = ?", [$id]); return $r ?: null; }
+    catch (Throwable $e) { return null; }
+}
+
+function tech_login_check(string $email, string $password): ?array
+{
+    try {
+        $r = db_fetch("SELECT * FROM technicians WHERE email = ? AND status = 'actif'", [trim($email)]);
+        if (!$r) return null;
+        return password_verify($password, (string)$r['password_hash']) ? $r : null;
+    } catch (Throwable $e) { return null; }
+}
+
+function require_tech_auth(): array
+{
+    boot_session();
+    if (empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/login.php')); exit; }
+    try {
+        $t = db_fetch("SELECT * FROM technicians WHERE id = ? AND status = 'actif'", [(int)$_SESSION['tech_id']]);
+    } catch (Throwable $e) { $t = null; }
+    if (!$t) { unset($_SESSION['tech_id']); header('Location: '.url_for('tech/login.php')); exit; }
+    return $t;
+}
+
+function quote_tech_photos(array $q): array
+{
+    if (empty($q['tech_photos'])) return [];
+    $p = json_decode((string)$q['tech_photos'], true);
+    return is_array($p) ? $p : [];
 }
 
 /* ═══════════════════════════════════════════════════
@@ -625,10 +818,31 @@ function visible_reviews(int $limit = 6): array
     catch (Throwable $e) { return []; }
 }
 
-function all_quotes(): array
+function all_quotes(bool $archived = false): array
 {
-    try { return db_fetch_all('SELECT * FROM quotes ORDER BY created_at DESC'); }
-    catch (Throwable $e) { return []; }
+    try {
+        return db_fetch_all('SELECT q.*, t.name AS tech_name FROM quotes q LEFT JOIN technicians t ON t.id = q.technician_id WHERE q.archived = ? ORDER BY q.created_at DESC', [(int)$archived]);
+    } catch (Throwable $e) {
+        try { return db_fetch_all('SELECT * FROM quotes WHERE archived = ? ORDER BY created_at DESC', [(int)$archived]); }
+        catch (Throwable $e2) { return []; }
+    }
+}
+function count_quotes_by_status(): array
+{
+    try {
+        $rows = db_fetch_all('SELECT status, archived, COUNT(*) as n FROM quotes GROUP BY status, archived');
+        $out = ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0];
+        foreach ($rows as $r) {
+            if (!(int)$r['archived']) {
+                $out['actifs'] += (int)$r['n'];
+                if ((string)$r['status'] === 'nouveau') $out['nouveaux'] += (int)$r['n'];
+                if (in_array((string)$r['status'], ['planifié','en cours'])) $out['en_cours'] += (int)$r['n'];
+            } else {
+                $out['archivés'] += (int)$r['n'];
+            }
+        }
+        return $out;
+    } catch (Throwable $e) { return ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0]; }
 }
 
 /* ═══════════════════════════════════════════════════

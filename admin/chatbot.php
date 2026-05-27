@@ -13,11 +13,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     set_setting('geo_default_ville',      trim((string)($_POST['geo_default_ville']       ?? '')));
     set_setting('geo_default_dept',       trim((string)($_POST['geo_default_dept']        ?? '')));
 
+    // Popup urgence
+    set_setting('popup_enabled', isset($_POST['popup_enabled']) ? '1' : '0');
+    set_setting('popup_delay',   trim((string)($_POST['popup_delay']   ?? '15')));
+    set_setting('popup_title',   trim((string)($_POST['popup_title']   ?? '')));
+    set_setting('popup_text',    trim((string)($_POST['popup_text']    ?? '')));
+
     // API key : enregistrer seulement si non vide (ne pas écraser par une chaîne vide)
     $newKey = trim((string)($_POST['claude_api_key'] ?? ''));
     if ($newKey !== '') set_setting('claude_api_key', $newKey);
 
-    flash('success', 'Chatbot enregistré.');
+    flash('success', 'Paramètres enregistrés.');
     redirect_to('admin/chatbot.php');
 }
 
@@ -29,6 +35,10 @@ $hasKey        = setting('claude_api_key', '') !== '';
 $geoRegion     = setting('geo_default_region', 'Bourgogne-Franche-Comté et Auvergne-Rhône-Alpes');
 $geoVille      = setting('geo_default_ville',  'votre région');
 $geoDept       = setting('geo_default_dept',   '');
+$popupEnabled  = setting_bool('popup_enabled', false);
+$popupDelay    = setting('popup_delay',  '15');
+$popupTitle    = setting('popup_title',  'Urgence ? On intervient dans l\'heure !');
+$popupText     = setting('popup_text',   'Nos techniciens sont disponibles maintenant pour votre dépannage urgence.');
 ?>
 
 <div class="admin-page-toolbar">
@@ -148,6 +158,37 @@ Téléphone : <?= e(company_phone()) ?>.
     <div class="admin-panel__helper" style="margin-top:.75rem;font-size:.8rem;color:var(--t2,#7B92CC);">
       <strong>Comment utiliser :</strong> dans n'importe quel texte admin, tapez <code>{region}</code> pour afficher la région détectée (ou la valeur par défaut ci-dessus). Exemples : "Nous intervenons en <code>{region}</code>" — "Urgence à <code>{ville}</code>".
     </div>
+  </div>
+</section>
+
+<!-- POPUP URGENCE -->
+<section class="admin-panel">
+  <div class="admin-panel__head">
+    <h2>🚨 Popup urgence</h2>
+    <p>Fenêtre qui apparaît automatiquement après quelques secondes sur toutes les pages publiques.</p>
+  </div>
+  <div class="admin-panel__body">
+    <label class="admin-field" style="flex-direction:row;align-items:center;gap:1rem;cursor:pointer;">
+      <input type="checkbox" name="popup_enabled" value="1" <?= $popupEnabled ? 'checked' : '' ?> style="width:1.1rem;height:1.1rem;accent-color:var(--primary,#ee7d1a);">
+      <span>Activer le popup urgence</span>
+    </label>
+    <div class="admin-form-grid admin-form-grid--2" style="margin-top:1rem;">
+      <label class="admin-field">
+        <span>Délai avant apparition (secondes)</span>
+        <input type="number" name="popup_delay" value="<?= e($popupDelay) ?>" min="5" max="120" placeholder="15">
+      </label>
+      <label class="admin-field">
+        <span>Titre du popup</span>
+        <input type="text" name="popup_title" value="<?= e($popupTitle) ?>" placeholder="Urgence ? On intervient dans l'heure !">
+      </label>
+    </div>
+    <label class="admin-field" style="margin-top:.75rem;">
+      <span>Texte du popup</span>
+      <textarea name="popup_text" rows="2"><?= e($popupText) ?></textarea>
+    </label>
+    <p class="admin-panel__helper" style="font-size:.78rem;color:var(--t2,#7B92CC);margin-top:.5rem;">
+      Le popup s'affiche une seule fois par session. Le numéro de téléphone et le bouton "Devis gratuit" sont ajoutés automatiquement.
+    </p>
   </div>
 </section>
 

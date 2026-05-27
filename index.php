@@ -11,15 +11,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
     if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to('index.php?route='.$route); }
     if (trim((string)($_POST['website'] ?? '')) !== '') { redirect_to('index.php?route='.$route); }
     $fn=$_POST['full_name']??''; $ph=$_POST['phone']??''; $em=$_POST['email']??'';
-    $ci=$_POST['city']??''; $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
+    $ci=$_POST['city']??''; $ad=$_POST['address']??''; $pc=$_POST['postal_code']??'';
+    $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
     $ur=$_POST['urgency']??'Normale'; $so=$_POST['source']??'';
     if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to('index.php?route='.$route); }
+    try {
+        db_execute('INSERT INTO quotes (full_name,phone,email,city,address,postal_code,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            [trim($fn),trim($ph),trim($em),trim($ci),trim($ad),trim($pc),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+    } catch (Throwable $_qe) {
         db_execute('INSERT INTO quotes (full_name,phone,email,city,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?)',
-        [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
-    send_quote_notification([
-        'full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,
-        'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so,
-    ]);
+            [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+        unset($_qe);
+    }
+    $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so];
+    send_quote_notification($qData);
+    if (trim($em) !== '') send_quote_confirmation_to_client($qData);
     flash('success', quote_form_options()['success_message']);
     redirect_to('index.php?route='.($route ?: 'home'));
 }
@@ -733,7 +739,17 @@ if ($route === 'landing') {
 if ($route === 'faq') {
     $faq  = faq_page_settings();
     $meta = ['title'=>setting('faq_meta_title','FAQ | '.company_name()),'description'=>setting('faq_meta_description','Questions fréquentes.'),'canonical'=>route_url('faq')];
-    render_head($meta); render_header(route_url('faq'));
+    render_head($meta);
+    // FAQPage schema — rich snippets Google
+    $faqSchema = [];
+    foreach ($faq['groups'] as $g) {
+        foreach ($g['items'] ?? [] as $item) {
+            if (($item['q'] ?? '') !== '' && ($item['a'] ?? '') !== '')
+                $faqSchema[] = ['@type'=>'Question','name'=>$item['q'],'acceptedAnswer'=>['@type'=>'Answer','text'=>$item['a']]];
+        }
+    }
+    if (!empty($faqSchema)) echo '<script type="application/ld+json">'.json_encode(['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$faqSchema],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES).'</script>';
+    render_header(route_url('faq'));
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Questions fréquentes</div>
   <h1 class="ph-h1"><?= e($faq['hero_title']) ?></h1>
