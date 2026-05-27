@@ -234,7 +234,7 @@ function render_footer(): void
 /* ── FORMULAIRE RÉUTILISABLE ── */
 function render_quote_form(array $cards, string $source = 'form'): void
 {
-    $placeholder = setting('home_quote_city_placeholder','Ex : Meaux, Paris, Toulouse');
+    $placeholder = geo_replace(setting('home_quote_city_placeholder','Ex : Meaux, Paris, Toulouse'));
     $submitLabel = quote_form_options()['submit_label'] ?? 'Envoyer ma demande';
     ?>
 <form action="<?= e(route_url('quote')) ?>" method="post">
