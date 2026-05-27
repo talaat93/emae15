@@ -112,7 +112,7 @@ button,input,select,textarea{font:inherit;}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
-.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:rgba(3,9,26,.98);padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;}
+.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:#030918;padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;-webkit-transform:translateZ(0);transform:translateZ(0);}
 .site-nav.open{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:.5rem;}
 .site-nav a{color:var(--t1);font-weight:600;font-size:.95rem;padding:.72rem .85rem;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
 .site-nav a:hover,.site-nav a.on{color:var(--p);border-color:rgba(240,123,29,.28);background:rgba(240,123,29,.07);}
@@ -233,14 +233,16 @@ button,input,select,textarea{font:inherit;}
  
 /* ─── FORMULAIRE HERO ─── */
 .hero-card{
-  background:rgba(12,30,69,.7);
+  background:rgba(12,30,69,.92);
   border:1px solid rgba(240,123,29,.18);
   border-radius:var(--r4);
   padding:1.75rem 1.5rem;
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
   position:relative;overflow:hidden;
 }
+@media(min-width:769px){
+  .hero-card{background:rgba(12,30,69,.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);}
+}
+body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;}
 .hero-card::before{
   content:'';position:absolute;top:0;left:0;right:0;height:2px;
   background:linear-gradient(90deg,transparent,var(--p),#FFB066,transparent);
@@ -1067,7 +1069,8 @@ body{background:var(--navy-2);}
 .urgency-popup__cta:hover{background:var(--p-h,#c95f0b);}
 
 /* ── BOUTON WHATSAPP FLOTTANT ── */
-.wa-btn{position:fixed;bottom:1.5rem;right:1.25rem;z-index:9980;width:56px;height:56px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 20px rgba(37,211,102,.45);transition:transform .2s,box-shadow .2s;text-decoration:none;flex-shrink:0;}
+.wa-btn{position:fixed;bottom:calc(68px + 1rem);right:1.25rem;z-index:9980;width:50px;height:50px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 20px rgba(37,211,102,.45);transition:transform .2s,box-shadow .2s;text-decoration:none;flex-shrink:0;}
 .wa-btn:hover{transform:scale(1.1);box-shadow:0 8px 32px rgba(37,211,102,.6);}
-.wa-btn svg{width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;fill:#fff;flex-shrink:0;}
-@media(min-width:769px){.wa-btn{bottom:1.5rem;right:1.5rem;}}
+.wa-btn svg{width:28px;height:28px;min-width:28px;min-height:28px;max-width:28px;max-height:28px;fill:#fff;flex-shrink:0;}
+@media(min-width:769px){.wa-btn{bottom:1.5rem;right:1.5rem;width:56px;height:56px;}
+.wa-btn svg{width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;}}
