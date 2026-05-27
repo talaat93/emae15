@@ -33,7 +33,9 @@ function base_path(): string
     $b = site_base_url();
     if ($b !== '') { $p = parse_url($b, PHP_URL_PATH) ?: ''; return rtrim((string)$p, '/'); }
     $s = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-    if (str_ends_with($s, '/admin')) $s = substr($s, 0, -6);
+    foreach (['/admin', '/tech'] as $_strip) {
+        if (str_ends_with($s, $_strip)) { $s = substr($s, 0, -strlen($_strip)); break; }
+    }
     return ($s === '/' || $s === '.' || $s === '\\') ? '' : rtrim($s, '/');
 }
 
