@@ -56,3 +56,14 @@ if (!file_exists($_mf3)) {
     unset($_me, $__sql);
 }
 unset($_mf3);
+// Auto-migration v15.4 — checklist technicien (réalisable, mauvaise utilisation)
+$_mf4 = __DIR__.'/../storage/.mig_v15_checklist';
+if (!file_exists($_mf4)) {
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN tech_realizable TINYINT(1) NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_bad_use TINYINT(1) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf4, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf4);
