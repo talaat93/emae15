@@ -1067,8 +1067,7 @@ body{background:var(--navy-2);}
 .urgency-popup__cta:hover{background:var(--p-h,#c95f0b);}
 
 /* ── BOUTON WHATSAPP FLOTTANT ── */
-.wa-btn{position:fixed;bottom:5.5rem;right:1.25rem;z-index:9980;width:56px;height:56px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 4px 20px rgba(37,211,102,.45);transition:transform .2s,box-shadow .2s;text-decoration:none;}
+.wa-btn{position:fixed;bottom:1.5rem;right:1.25rem;z-index:9980;width:56px;height:56px;border-radius:50%;background:#25D366;color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden;box-shadow:0 4px 20px rgba(37,211,102,.45);transition:transform .2s,box-shadow .2s;text-decoration:none;flex-shrink:0;}
 .wa-btn:hover{transform:scale(1.1);box-shadow:0 8px 32px rgba(37,211,102,.6);}
-.wa-btn svg{width:30px;height:30px;fill:#fff;}
-@media(min-width:769px){.wa-btn{bottom:1.5rem;right:5.5rem;}}
-@media(max-width:640px){.wa-btn{width:52px;height:52px;}}
+.wa-btn svg{width:30px;height:30px;min-width:30px;min-height:30px;max-width:30px;max-height:30px;fill:#fff;flex-shrink:0;}
+@media(min-width:769px){.wa-btn{bottom:1.5rem;right:1.5rem;}}
