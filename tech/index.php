@@ -26,16 +26,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
     $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so];
     send_quote_notification($qData);
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
-    if (setting_bool('sms_notify_admin')) {
-        $adminPhone = setting('sms_admin_phone','');
-        if ($adminPhone !== '') {
-            $smsMsg = 'Nouvelle demande '.company_name().' — '.trim($fn).' ('.trim($ph).')'.
-                      (trim($sv)!=='' ? ' — '.trim($sv) : '').
-                      (trim($ci)!=='' ? ' — '.trim($ci) : '').
-                      ' — '.date('d/m H:i');
-            send_sms_ovh($adminPhone, $smsMsg);
-        }
-    }
     flash('success', quote_form_options()['success_message']);
     redirect_to('index.php?route='.($route ?: 'home'));
 }
@@ -222,7 +212,7 @@ if ($route === '' || $route === 'home') {
         [setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
       ] as [$title,$text]): $_pn++; ?>
       <div class="process-step">
-        <div class="process-num"><?= str_pad((string)$_pn,2,'0',STR_PAD_LEFT) ?></div>
+        <div class="process-num"><?= $_pn ?></div>
         <div><div class="process-h"><?= e($title) ?></div><p class="process-p"><?= e($text) ?></p></div>
       </div>
       <?php endforeach; unset($_pn); ?>
@@ -1005,9 +995,9 @@ if ($page) {
   <div class="svc-label"><?= e(setting('svc_process_label','Notre méthode')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_process_title','Intervention en')) ?> <em><?= e(setting('svc_process_title_hl','3 étapes')) ?></em></h2>
   <div class="steps-grid" style="margin-top:1.75rem;">
-    <div class="step-card"><div class="step-num"><?= e(setting('process_1_num','01')) ?></div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num"><?= e(setting('process_2_num','02')) ?></div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num"><?= e(setting('process_3_num','03')) ?></div><div><div class="step-h"><?= e(setting('process_3_title','Intervention & rapport')) ?></div><p class="step-p"><?= e(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu et facture détaillés.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">1</div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">2</div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">3</div><div><div class="step-h"><?= e(setting('process_3_title','Intervention & rapport')) ?></div><p class="step-p"><?= e(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu et facture détaillés.')) ?></p></div></div>
   </div>
 </div></section>
 
