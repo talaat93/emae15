@@ -490,7 +490,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     </div>
   </div>
 
-  <a href="<?= $e(url_for('tech/pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
+  <a href="<?= $e(url_for('dispatcher/rapport_pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
 
 </div><!-- /tab-details -->
 
@@ -556,7 +556,7 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     </div>
   </div>
 
-  <a href="<?= $e(url_for('tech/pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
+  <a href="<?= $e(url_for('dispatcher/rapport_pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
 
 <?php else: ?>
   <!-- EDITABLE mode -->
