@@ -532,6 +532,224 @@ $post = $_POST;
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  /* ── Presets — type d'intervention ── */
+  var categorySelect   = document.getElementById('category-select');
+  var typeLabelSelect  = document.getElementById('type_label_select');
+  var typeLabelCustom  = document.getElementById('type_label_custom');
+  var btnAddType       = document.getElementById('btn-add-type-preset');
+
+  function loadTypePresets(cat) {
+    if (!typeLabelSelect) return;
+    typeLabelSelect.innerHTML = '<option value="">— Chargement… —</option>';
+    if (!cat) {
+      typeLabelSelect.innerHTML = '<option value="">— Choisir la catégorie d\'abord —</option>';
+      return;
+    }
+    fetch(apiBase + '?action=get_presets&type=intervention_type&category=' + encodeURIComponent(cat))
+      .then(function(r){ return r.json(); })
+      .then(function(data){
+        typeLabelSelect.innerHTML = '<option value="">— Choisir —</option>';
+        if (Array.isArray(data) && data.length > 0) {
+          data.forEach(function(p){
+            var opt = document.createElement('option');
+            opt.value = p.label;
+            opt.textContent = p.label;
+            typeLabelSelect.appendChild(opt);
+          });
+        }
+        var otherOpt = document.createElement('option');
+        otherOpt.value = '__autre__';
+        otherOpt.textContent = 'Autre…';
+        typeLabelSelect.appendChild(otherOpt);
+      })
+      .catch(function(){
+        typeLabelSelect.innerHTML = '<option value="">— Erreur chargement —</option>';
+      });
+  }
+
+  if (categorySelect) {
+    categorySelect.addEventListener('change', function(){
+      loadTypePresets(this.value);
+      typeLabelCustom.style.display = 'none';
+      typeLabelCustom.value = '';
+    });
+    // Charge au démarrage si catégorie déjà sélectionnée
+    if (categorySelect.value) loadTypePresets(categorySelect.value);
+  }
+
+  if (typeLabelSelect) {
+    typeLabelSelect.addEventListener('change', function(){
+      if (this.value === '__autre__') {
+        typeLabelCustom.style.display = 'block';
+        typeLabelCustom.focus();
+      } else {
+        typeLabelCustom.style.display = 'none';
+        typeLabelCustom.value = '';
+      }
+    });
+  }
+
+  if (btnAddType) {
+    btnAddType.addEventListener('click', function(){
+      var cat   = categorySelect ? categorySelect.value : '';
+      var label = typeLabelCustom && typeLabelCustom.style.display !== 'none'
+                    ? typeLabelCustom.value.trim()
+                    : (typeLabelSelect ? typeLabelSelect.value : '');
+      if (!label || label === '__autre__') {
+        alert('Saisissez ou choisissez un type d\'intervention à ajouter.');
+        return;
+      }
+      var fd = new FormData();
+      fd.append('action', 'save_preset');
+      fd.append('type', 'intervention_type');
+      fd.append('label', label);
+      fd.append('category', cat);
+      fetch(apiBase, { method:'POST', body:fd })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          if (d.success) {
+            alert('Preset "'+label+'" ajouté.');
+            if (cat) loadTypePresets(cat);
+          }
+        });
+    });
+  }
+
+  /* ── Matériaux dynamiques ── */
+  var materialsContainer = document.getElementById('materials-container');
+  var materialsJsonInp   = document.getElementById('materials_json');
+  var materialPresets    = [];
+  var materialRows       = [];
+
+  // Charger les presets matériaux
+  fetch(apiBase + '?action=get_presets&type=material')
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (Array.isArray(data)) materialPresets = data; })
+    .catch(function(){});
+
+  function renderMaterialRows() {
+    if (!materialsContainer) return;
+    materialsContainer.innerHTML = '';
+    materialRows.forEach(function(row, idx){
+      var div = document.createElement('div');
+      div.style.cssText = 'display:flex;gap:.5rem;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;';
+      // Sélect matériau
+      var sel = document.createElement('select');
+      sel.className = 'd-input';
+      sel.style.flex = '2';
+      sel.innerHTML = '<option value="">— Choisir —</option>';
+      materialPresets.forEach(function(p){
+        var opt = document.createElement('option');
+        opt.value = p.label;
+        opt.textContent = p.label;
+        if (p.label === row.name) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      var otherOpt2 = document.createElement('option');
+      otherOpt2.value = '__autre__';
+      otherOpt2.textContent = 'Autre…';
+      if (row.name && !materialPresets.find(function(p){ return p.label===row.name; })) {
+        otherOpt2.selected = true;
+      }
+      sel.appendChild(otherOpt2);
+      sel.addEventListener('change', function(){
+        if (this.value !== '__autre__') {
+          materialRows[idx].name = this.value;
+          customInput.style.display = 'none';
+          customInput.value = '';
+        } else {
+          customInput.style.display = 'block';
+        }
+        syncMaterialsJson();
+      });
+      // Custom input
+      var customInput = document.createElement('input');
+      customInput.type = 'text';
+      customInput.className = 'd-input';
+      customInput.placeholder = 'Nom du matériau';
+      customInput.style.flex = '2';
+      customInput.value = '';
+      // Si le nom actuel n'est pas dans les presets, afficher le champ
+      var isCustom = row.name && !materialPresets.find(function(p){ return p.label===row.name; });
+      customInput.style.display = isCustom ? 'block' : 'none';
+      if (isCustom) customInput.value = row.name;
+      customInput.addEventListener('input', function(){
+        materialRows[idx].name = this.value;
+        syncMaterialsJson();
+      });
+      // Quantité
+      var qtyInput = document.createElement('input');
+      qtyInput.type = 'number';
+      qtyInput.className = 'd-input';
+      qtyInput.min = '0';
+      qtyInput.step = '0.1';
+      qtyInput.placeholder = 'Qté';
+      qtyInput.style.width = '80px';
+      qtyInput.value = row.qty || '';
+      qtyInput.addEventListener('input', function(){
+        materialRows[idx].qty = this.value;
+        syncMaterialsJson();
+      });
+      // Unité
+      var unitSel = document.createElement('select');
+      unitSel.className = 'd-input';
+      unitSel.style.width = '90px';
+      ['pièce','m','ml','kg','L','boîte'].forEach(function(u){
+        var o = document.createElement('option');
+        o.value = u; o.textContent = u;
+        if (u === row.unit) o.selected = true;
+        unitSel.appendChild(o);
+      });
+      unitSel.addEventListener('change', function(){
+        materialRows[idx].unit = this.value;
+        syncMaterialsJson();
+      });
+      // Supprimer
+      var delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.textContent = '✕';
+      delBtn.className = 'd-btn d-btn--ghost d-btn--sm';
+      delBtn.style.cssText = 'color:#ef4444;flex-shrink:0;';
+      delBtn.addEventListener('click', function(){
+        materialRows.splice(idx, 1);
+        renderMaterialRows();
+        syncMaterialsJson();
+      });
+      div.appendChild(sel);
+      div.appendChild(customInput);
+      div.appendChild(qtyInput);
+      div.appendChild(unitSel);
+      div.appendChild(delBtn);
+      materialsContainer.appendChild(div);
+    });
+  }
+
+  function syncMaterialsJson() {
+    if (!materialsJsonInp) return;
+    var arr = materialRows.filter(function(r){ return r.name; });
+    materialsJsonInp.value = JSON.stringify(arr);
+  }
+
+  window.addMaterialRow = function() {
+    // Si les presets ne sont pas encore chargés, on attend 300ms et réessaie
+    materialRows.push({ name:'', qty:'1', unit:'pièce' });
+    renderMaterialRows();
+    syncMaterialsJson();
+  };
+
+  // Restaurer les lignes si repopulation après erreur
+  (function(){
+    var existing = materialsJsonInp ? materialsJsonInp.value : '[]';
+    try {
+      var parsed = JSON.parse(existing);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        materialRows = parsed;
+        // Attendre que les presets soient chargés
+        setTimeout(renderMaterialRows, 400);
+      }
+    } catch(e){}
+  })();
+
   /* ── Validation formulaire ── */
   var form = document.getElementById('form-new-interv');
   if(form){
