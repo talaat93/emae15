@@ -1525,6 +1525,82 @@ function send_sms_dispatcher(string $to, string $message): bool
 /* ═══════════════════════════════════════════════════
    GEOCODING (Nominatim)
 ═══════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════
+   TASKS / REMINDERS
+═══════════════════════════════════════════════════ */
+function all_tasks(array $filters = []): array
+{
+    $where = ['1=1']; $params = [];
+    if (!empty($filters['technician_id'])) { $where[] = 't2.id = ?'; $params[] = (int)$filters['technician_id']; }
+    if (!empty($filters['urgent'])) { $where[] = 'tk.urgent = 1'; }
+    if (!empty($filters['status'])) { $where[] = 'tk.status = ?'; $params[] = $filters['status']; }
+    $sql = "SELECT tk.*, t2.name AS tech_name, d.name AS disp_name
+            FROM tasks tk
+            LEFT JOIN technicians t2 ON t2.id = tk.technician_id
+            LEFT JOIN dispatchers d  ON d.id  = tk.dispatcher_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY tk.urgent DESC, tk.due_date ASC, tk.due_time ASC, tk.id DESC";
+    try { return db_fetch_all($sql, $params); }
+    catch (Throwable $e) { return []; }
+}
+
+function create_task(array $data): int
+{
+    db_execute(
+        "INSERT INTO tasks (dispatcher_id, technician_id, title, description, due_date, due_time, urgent, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [
+            !empty($data['dispatcher_id']) ? (int)$data['dispatcher_id'] : null,
+            !empty($data['technician_id']) ? (int)$data['technician_id'] : null,
+            (string)$data['title'],
+            $data['description'] ?: null,
+            $data['due_date'] ?: null,
+            $data['due_time'] ?: null,
+            (int)($data['urgent'] ?? 0),
+            $data['status'] ?? 'pending',
+        ]
+    );
+    return db_last_id();
+}
+
+function update_task(int $id, array $data): void
+{
+    $allowed = ['technician_id','dispatcher_id','title','description','due_date','due_time','urgent','status'];
+    $sets = []; $params = [];
+    foreach ($allowed as $f) {
+        if (array_key_exists($f, $data)) { $sets[] = "$f = ?"; $params[] = $data[$f]; }
+    }
+    if (empty($sets)) return;
+    $params[] = $id;
+    db_execute("UPDATE tasks SET " . implode(', ', $sets) . " WHERE id = ?", $params);
+}
+
+function delete_task(int $id): void
+{
+    try { db_execute("DELETE FROM tasks WHERE id = ?", [$id]); }
+    catch (Throwable $e) {}
+}
+
+function get_pending_tasks_for_tech(int $techId): array
+{
+    try {
+        return db_fetch_all(
+            "SELECT tk.*, d.name AS disp_name FROM tasks tk
+             LEFT JOIN dispatchers d ON d.id = tk.dispatcher_id
+             WHERE tk.technician_id = ? AND tk.status = 'pending'
+             ORDER BY tk.urgent DESC, tk.due_date ASC, tk.due_time ASC, tk.id DESC",
+            [$techId]
+        );
+    } catch (Throwable $e) { return []; }
+}
+
+function dispatcher_pending_tasks_count(): int
+{
+    try {
+        return (int)(db_fetch("SELECT COUNT(*) AS c FROM tasks WHERE status = 'pending'")['c'] ?? 0);
+    } catch (Throwable $e) { return 0; }
+}
+
 function geocode_address(string $address, string $city = '', string $postal = ''): array
 {
     $q   = trim($address . ' ' . $postal . ' ' . $city . ' France');
@@ -1538,4 +1614,44 @@ function geocode_address(string $address, string $city = '', string $postal = ''
         }
     } catch (Throwable $e) {}
     return ['lat'=>null,'lng'=>null];
+}
+
+/* ═══════════════════════════════════════════════════
+   PRESET ITEMS
+═══════════════════════════════════════════════════ */
+function get_presets(string $type, string $category = ''): array
+{
+    try {
+        if ($category !== '') {
+            return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND (category=? OR category='') AND active=1 ORDER BY sort_order,label", [$type, $category]);
+        }
+        return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND active=1 ORDER BY sort_order,label", [$type]);
+    } catch (Throwable $e) { return []; }
+}
+
+function save_preset(string $type, string $label, string $category = ''): int
+{
+    $existing = db_fetch("SELECT id FROM preset_items WHERE type=? AND label=? AND (category=? OR category='')", [$type, $label, $category]);
+    if ($existing) return (int)$existing['id'];
+    db_execute("INSERT INTO preset_items (type, category, label) VALUES (?,?,?)", [$type, $category, $label]);
+    return (int)db_last_id();
+}
+
+function delete_preset(int $id): void
+{
+    try { db_execute("DELETE FROM preset_items WHERE id = ?", [$id]); }
+    catch (Throwable $e) {}
+}
+
+function all_presets_grouped(): array
+{
+    $out = ['intervention_type' => [], 'material' => [], 'photo_type' => []];
+    try {
+        $rows = db_fetch_all("SELECT * FROM preset_items WHERE active=1 ORDER BY type, category, sort_order, label");
+        foreach ($rows as $row) {
+            $t = (string)($row['type'] ?? '');
+            if (isset($out[$t])) $out[$t][] = $row;
+        }
+    } catch (Throwable $e) {}
+    return $out;
 }

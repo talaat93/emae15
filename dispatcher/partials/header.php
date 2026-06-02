@@ -13,6 +13,7 @@ function disp_is_active(array $files, string $section = ''): string {
 // Count urgent interventions for badge
 try { $urgentCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN ('terminé','annulé','payé')")['c']??0); } catch(Throwable $e) { $urgentCount=0; }
 try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0); } catch(Throwable $e) { $waitingCount=0; }
+$tasksBadge = dispatcher_pending_tasks_count();
 ?><!DOCTYPE html>
 <html lang="fr"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -68,6 +69,14 @@ try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WH
     <div class="d-nav-group">Clients</div>
     <a class="d-nav-item <?= disp_is_active(['clients.php'],'clients') ?>" href="<?= e(url_for('dispatcher/clients.php')) ?>">
       <span class="nav-ico">👥</span> Clients
+    </a>
+
+    <div class="d-nav-group">Tâches</div>
+    <a class="d-nav-item <?= disp_is_active(['tasks.php'],'tasks') ?>" href="<?= e(url_for('dispatcher/tasks.php')) ?>">
+      <span class="nav-ico">📋</span> Tâches &amp; Rappels
+      <?php if ($tasksBadge > 0): ?>
+        <span class="d-badge"><?= $tasksBadge ?></span>
+      <?php endif; ?>
     </a>
 
     <div class="d-nav-group">Équipe</div>
