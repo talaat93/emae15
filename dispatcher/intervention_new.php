@@ -59,11 +59,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'urgency'            => $urgencyVal,
             'priority'           => trim((string)($_POST['priority']           ?? 'normale')),
             'category'           => trim((string)($_POST['category']           ?? '')),
-            'type_label'         => trim((string)($_POST['type_label']         ?? '')),
+            'type_label'         => trim((string)($_POST['type_label_custom'] ?? $_POST['type_label'] ?? '')),
             'installation_type'  => trim((string)($_POST['installation_type']  ?? '')),
             'fault_reported'     => trim((string)($_POST['fault_reported']     ?? '')),
             'description'        => trim((string)($_POST['description']        ?? '')),
-            'materials_needed'   => trim((string)($_POST['materials_needed']   ?? '')),
+            'materials_needed'   => trim((string)($_POST['materials_json'] ?? $_POST['materials_needed'] ?? '')),
             'notes_admin'        => trim((string)($_POST['notes_admin']        ?? '')),
             'quote_accepted'     => $quoteAccepted,
             'amount_ht'          => $amountHt !== '' ? $amountHt : null,
@@ -308,7 +308,7 @@ $post = $_POST;
       <div class="d-grid-2">
         <div class="d-field">
           <label>Catégorie</label>
-          <select name="category">
+          <select name="category" id="category-select">
             <option value="">Choisir une catégorie</option>
             <?php $catSel = $post['category'] ?? '';
             foreach ($catsCfg as $ck => $cv): ?>
@@ -318,10 +318,22 @@ $post = $_POST;
             <?php endforeach; ?>
           </select>
         </div>
-        <div class="d-field">
-          <label>Type d'intervention</label>
-          <input type="text" name="type_label" value="<?= e($post['type_label'] ?? '') ?>"
-                 placeholder="Ex: Remplacement disjoncteur">
+        <div style="display:flex;gap:.5rem;align-items:flex-end;">
+          <div class="d-field" style="flex:1;margin-bottom:0;">
+            <label>Type d'intervention</label>
+            <select name="type_label" id="type_label_select" class="d-input">
+              <option value="">— Choisir —</option>
+              <?php if (!empty($post['type_label'])): ?>
+                <option value="<?= e($post['type_label']) ?>" selected><?= e($post['type_label']) ?></option>
+              <?php endif; ?>
+            </select>
+            <input type="text" name="type_label_custom" id="type_label_custom" class="d-input"
+                   placeholder="Saisir un type personnalisé…"
+                   style="display:none;margin-top:.35rem;"
+                   value="">
+          </div>
+          <button type="button" class="d-btn d-btn--ghost" id="btn-add-type-preset"
+                  style="margin-bottom:0;flex-shrink:0;padding:.55rem .9rem;" title="Ajouter ce type aux presets">＋</button>
         </div>
       </div>
       <div class="d-field">
@@ -337,9 +349,14 @@ $post = $_POST;
         <label>Description détaillée</label>
         <textarea name="description" placeholder="Informations complémentaires, contexte, historique…"><?= e($post['description'] ?? '') ?></textarea>
       </div>
-      <div class="d-field">
-        <label>Matériel nécessaire</label>
-        <textarea name="materials_needed" placeholder="Pièces, références, quantités…" style="min-height:70px;"><?= e($post['materials_needed'] ?? '') ?></textarea>
+      <!-- Matériaux prévus -->
+      <div class="d-form-section-title">🔩 Matériaux prévus</div>
+      <div id="materials-container"></div>
+      <button type="button" onclick="addMaterialRow()" class="d-btn d-btn--ghost d-btn--sm" style="margin-bottom:.75rem;">➕ Ajouter un matériau</button>
+      <input type="hidden" name="materials_json" id="materials_json" value="<?= e($post['materials_json'] ?? '[]') ?>">
+      <!-- Champ texte libre pour compatibilité -->
+      <div class="d-field" style="display:none;">
+        <textarea name="materials_needed" id="materials_needed_hidden"><?= e($post['materials_needed'] ?? '') ?></textarea>
       </div>
     </div>
   </div>

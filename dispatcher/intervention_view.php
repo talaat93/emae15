@@ -152,7 +152,7 @@ function fmt_dur(int $mins): string {
   </div>
   <div class="d-topbar-actions">
     <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">← Retour</a>
-    <a href="<?= e(url_for('dispatcher/pdf.php')).'?id='.$id ?>" target="_blank" class="d-btn d-btn--secondary d-btn--sm">📄 PDF</a>
+    <a href="<?= e(url_for('dispatcher/rapport_pdf.php')).'?id='.$id ?>" target="_blank" class="d-btn d-btn--secondary d-btn--sm">📄 PDF</a>
     <button type="button" id="btn-toggle-edit" class="d-btn d-btn--primary d-btn--sm">✏️ Modifier</button>
   </div>
 </div>
@@ -694,7 +694,7 @@ function fmt_dur(int $mins): string {
           </button>
 
           <!-- PDF -->
-          <a href="<?= e(url_for('dispatcher/pdf.php')).'?id='.$id ?>" target="_blank"
+          <a href="<?= e(url_for('dispatcher/rapport_pdf.php')).'?id='.$id ?>" target="_blank"
              class="d-btn d-btn--secondary d-btn--sm" style="width:100%;justify-content:center;">
             📄 Télécharger PDF
           </a>

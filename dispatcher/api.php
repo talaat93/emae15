@@ -212,6 +212,34 @@ try {
             echo json_encode(dispatcher_kpis());
             break;
 
+        // ── Presets — lecture ──────────────────────────────────
+        case 'get_presets':
+            $type = trim((string)($_GET['type'] ?? ''));
+            $cat  = trim((string)($_GET['category'] ?? ''));
+            if ($type === '') { echo json_encode([]); break; }
+            echo json_encode(get_presets($type, $cat));
+            break;
+
+        // ── Presets — sauvegarde ───────────────────────────────
+        case 'save_preset':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error'=>'POST requis']); break; }
+            $type  = trim((string)($_POST['type'] ?? ''));
+            $label = trim((string)($_POST['label'] ?? ''));
+            $cat   = trim((string)($_POST['category'] ?? ''));
+            if ($type === '' || $label === '') { echo json_encode(['error'=>'Paramètres manquants']); break; }
+            $newId = save_preset($type, $label, $cat);
+            echo json_encode(['success' => true, 'id' => $newId, 'label' => $label]);
+            break;
+
+        // ── Presets — suppression ──────────────────────────────
+        case 'delete_preset':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['error'=>'POST requis']); break; }
+            $pid = (int)($_POST['id'] ?? 0);
+            if ($pid <= 0) { echo json_encode(['error'=>'ID invalide']); break; }
+            delete_preset($pid);
+            echo json_encode(['success' => true]);
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Action inconnue: ' . $action]);

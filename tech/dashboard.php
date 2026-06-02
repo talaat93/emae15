@@ -209,6 +209,48 @@ $apiUrl = htmlspecialchars(url_for('dispatcher/api.php'), ENT_QUOTES);
   <?php endforeach; ?>
   <?php endif; ?>
 
+  <!-- Tâches & Rappels dispatcher -->
+  <?php
+  $pendingTasks = get_pending_tasks_for_tech($techId);
+  ?>
+  <?php if (!empty($pendingTasks)): ?>
+  <div class="section-title">📌 Tâches &amp; Rappels du dispatcher</div>
+  <?php foreach ($pendingTasks as $tk): ?>
+  <?php
+    $tkUrgent = !empty($tk['urgent']);
+    $tkDueStr = '';
+    if (!empty($tk['due_date'])) {
+      $tkDueStr = date('d/m/Y', strtotime($tk['due_date']));
+      if (!empty($tk['due_time'])) $tkDueStr .= ' à ' . date('H:i', strtotime($tk['due_time']));
+    }
+  ?>
+  <div style="background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden;margin-bottom:.6rem;border-left:4px solid <?= $tkUrgent ? '#ef4444' : 'var(--p)' ?>;">
+    <div style="padding:.75rem 1rem .65rem;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:.65rem;">
+        <div style="flex:1;min-width:0;">
+          <?php if ($tkUrgent): ?>
+          <span style="background:#ef4444;color:#fff;font-size:.6rem;font-weight:800;padding:.12rem .45rem;border-radius:20px;text-transform:uppercase;letter-spacing:.05em;margin-right:.4rem;">🚨 URGENT</span>
+          <?php endif; ?>
+          <span style="font-weight:800;color:var(--t1);font-size:.92rem;"><?= $e($tk['title']) ?></span>
+          <?php if (!empty($tk['description'])): ?>
+          <div style="font-size:.78rem;color:var(--t2);margin-top:.35rem;"><?= $e($tk['description']) ?></div>
+          <?php endif; ?>
+          <?php if ($tkDueStr !== ''): ?>
+          <div style="font-size:.72rem;color:var(--t2);margin-top:.3rem;">📅 <?= $e($tkDueStr) ?></div>
+          <?php endif; ?>
+        </div>
+        <form method="post" action="<?= $e(url_for('tech/tasks_action.php')) ?>" style="flex-shrink:0;">
+          <input type="hidden" name="csrf_token" value="<?= csrf_token() ?>">
+          <input type="hidden" name="action" value="complete">
+          <input type="hidden" name="task_id" value="<?= (int)$tk['id'] ?>">
+          <button type="submit" class="t-btn-sm t-btn-done" style="font-size:.72rem;">✅ Marquer fait</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <?php endforeach; ?>
+  <?php endif; ?>
+
   <!-- Toutes mes interventions dispatcher -->
   <div class="section-title">📋 Missions dispatcher (toutes)</div>
 

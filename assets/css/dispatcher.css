@@ -174,6 +174,15 @@ body.d-body {
   background: rgba(239,68,68,.2);
   color: #ef4444;
 }
+span.d-badge {
+  background: #ef4444;
+  color: #fff;
+  font-size: .65rem;
+  font-weight: 800;
+  padding: .1rem .4rem;
+  border-radius: 20px;
+  margin-left: auto;
+}
 
 /* ─── MAIN ─── */
 .d-main {

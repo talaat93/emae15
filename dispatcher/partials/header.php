@@ -75,7 +75,7 @@ $tasksBadge = dispatcher_pending_tasks_count();
     <a class="d-nav-item <?= disp_is_active(['tasks.php'],'tasks') ?>" href="<?= e(url_for('dispatcher/tasks.php')) ?>">
       <span class="nav-ico">📋</span> Tâches &amp; Rappels
       <?php if ($tasksBadge > 0): ?>
-        <span class="d-badge"><?= $tasksBadge ?></span>
+        <span class="d-nav-badge red"><?= $tasksBadge ?></span>
       <?php endif; ?>
     </a>
 
