@@ -43,20 +43,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'report') {
-        $photos = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
-        if (!is_array($photos)) $photos = [];
+        // Photos — migration vers format structuré {type, path}
+        $photosRaw = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
+        if (!is_array($photosRaw)) $photosRaw = [];
+        // Normaliser en tableau structuré
+        $photos = [];
+        foreach ($photosRaw as $ph) {
+            if (is_array($ph) && isset($ph['path'])) { $photos[] = $ph; }
+            elseif (is_string($ph) && $ph !== '') { $photos[] = ['type'=>'', 'path'=>$ph]; }
+        }
         if (!empty($_FILES['photos']['name'][0])) {
             $dir = __DIR__.'/../storage/uploads/interventions/'.$id.'/';
             if (!is_dir($dir)) mkdir($dir, 0775, true);
             $mime_map = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+            $photoType = trim((string)($_POST['photo_type_label'] ?? ''));
             foreach ($_FILES['photos']['tmp_name'] as $i => $tmp) {
                 if (($_FILES['photos']['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
                 $mt = mime_content_type($tmp) ?: '';
                 if (!isset($mime_map[$mt])) continue;
                 $fn = 'tech_'.$id.'_'.date('YmdHis').'_'.bin2hex(random_bytes(3)).'.'.$mime_map[$mt];
-                if (move_uploaded_file($tmp, $dir.$fn)) $photos[] = 'storage/uploads/interventions/'.$id.'/'.$fn;
+                if (move_uploaded_file($tmp, $dir.$fn)) {
+                    $photos[] = ['type'=>$photoType, 'path'=>'storage/uploads/interventions/'.$id.'/'.$fn];
+                }
             }
         }
+        // Matériaux utilisés
+        $matsJson = trim((string)($_POST['tech_materials_used'] ?? '[]'));
+        if ($matsJson === '' || $matsJson === 'null') $matsJson = '[]';
+        // Validation JSON basique
+        $matsDecoded = json_decode($matsJson, true);
+        if (!is_array($matsDecoded)) $matsJson = '[]';
+
         $real  = ($_POST['tech_realizable']        ?? '') === '' ? null : (int)$_POST['tech_realizable'];
         $bad   = ($_POST['tech_bad_use']            ?? '') === '' ? null : (int)$_POST['tech_bad_use'];
         $elev  = ($_POST['tech_elevator_restored']  ?? '') === '' ? null : (int)$_POST['tech_elevator_restored'];
@@ -71,6 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_bad_use'           => $bad,
             'tech_elevator_restored' => $elev,
             'tech_photos'            => json_encode($photos),
+            'tech_materials_used'    => $matsJson,
         ];
         if (!empty($_POST['mark_complete'])) {
             $upd['status'] = 'terminé';
@@ -602,18 +620,47 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
         <div class="cr-field-body"><textarea name="tech_report" class="cr-textarea" placeholder="Décrivez la panne constatée et les travaux réalisés…"><?= $e($iv['tech_report'] ?? '') ?></textarea></div>
 
         <div class="cr-field-hd"><div class="cr-field-icon grey">📋</div><div class="cr-field-label">Informations complémentaires</div></div>
-        <div class="cr-field-body"><textarea name="tech_notes_extra" class="cr-textarea" placeholder="Informations supplémentaires, matériaux utilisés…"><?= $e($iv['tech_notes_extra'] ?? '') ?></textarea></div>
+        <div class="cr-field-body"><textarea name="tech_notes_extra" class="cr-textarea" placeholder="Informations supplémentaires…"><?= $e($iv['tech_notes_extra'] ?? '') ?></textarea></div>
+
+        <!-- Matériaux utilisés -->
+        <div class="cr-field-hd"><div class="cr-field-icon orange">🔩</div><div class="cr-field-label">Matériaux utilisés</div></div>
+        <div class="cr-field-body">
+          <div id="materials-cr-container"></div>
+          <button type="button" onclick="addMaterialCrRow()" style="margin-top:.5rem;padding:.4rem .85rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:.82rem;cursor:pointer;">➕ Ajouter matériau</button>
+          <input type="hidden" name="tech_materials_used" id="tech_materials_used_json" value="<?= $e(is_string($iv['tech_materials_used'] ?? null) ? (string)$iv['tech_materials_used'] : '[]') ?>">
+        </div>
 
         <!-- Photos -->
         <div class="cr-field-hd"><div class="cr-field-icon purple">📷</div><div class="cr-field-label">Photos complémentaires</div></div>
-        <?php if (!empty($photos)): ?>
+        <?php
+        $photosStructured = [];
+        foreach ($photos as $ph) {
+            if (is_array($ph)) { $photosStructured[] = $ph; }
+            else { $photosStructured[] = ['type'=>'', 'path'=>(string)$ph]; }
+        }
+        ?>
+        <?php if (!empty($photosStructured)): ?>
         <div class="prx-photos">
-          <?php foreach ($photos as $ph): ?>
-            <div class="prx-photo"><img src="<?= $e(asset_url($ph)) ?>" alt="" loading="lazy"></div>
+          <?php foreach ($photosStructured as $ph): ?>
+            <div class="prx-photo" style="position:relative;">
+              <?php if (!empty($ph['type'])): ?>
+                <div style="font-size:.68rem;text-align:center;padding:.15rem .3rem;background:rgba(0,0,0,.45);color:#fff;position:absolute;bottom:0;left:0;right:0;"><?= $e($ph['type']) ?></div>
+              <?php endif; ?>
+              <img src="<?= $e(asset_url($ph['path'])) ?>" alt="" loading="lazy">
+            </div>
           <?php endforeach; ?>
         </div>
         <?php endif; ?>
         <div class="cr-field-body">
+          <div style="margin-bottom:.5rem;">
+            <label style="font-size:.78rem;color:#64748b;display:block;margin-bottom:.3rem;">Type de photo</label>
+            <select id="photo-type-select" class="cr-input">
+              <option value="">— Optionnel —</option>
+              <?php foreach (get_presets('photo_type') as $pt): ?>
+                <option value="<?= $e($pt['label']) ?>"><?= $e($pt['label']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
           <input type="file" id="photo-input" name="photos[]" multiple accept="image/*" capture="environment" style="display:none;" onchange="updatePhotoLabel(this)">
           <div class="prx-photo-add" onclick="document.getElementById('photo-input').click();" style="height:80px;border-radius:10px;aspect-ratio:unset;">
             <span style="font-size:1.4rem;">📷</span>
@@ -818,6 +865,119 @@ window.addEventListener('load', function(){
     window.scrollTo(0,0);
   }
 });
+
+/* ── Matériaux utilisés (compte rendu tech) ── */
+var crMaterialPresets = [];
+var crMaterialRows    = [];
+
+(function(){
+  // Charger les presets matériaux via l'API dispatcher
+  var apiBase = <?= json_encode(url_for('dispatcher/api.php')) ?>;
+  fetch(apiBase + '?action=get_presets&type=material')
+    .then(function(r){ return r.json(); })
+    .then(function(data){ if (Array.isArray(data)) { crMaterialPresets = data; renderCrMaterials(); } })
+    .catch(function(){});
+
+  // Restaurer depuis le champ caché
+  var jsonInp = document.getElementById('tech_materials_used_json');
+  if (jsonInp && jsonInp.value && jsonInp.value !== '[]') {
+    try {
+      var parsed = JSON.parse(jsonInp.value);
+      if (Array.isArray(parsed)) { crMaterialRows = parsed; }
+    } catch(e){}
+  }
+})();
+
+function renderCrMaterials() {
+  var container = document.getElementById('materials-cr-container');
+  if (!container) return;
+  container.innerHTML = '';
+  crMaterialRows.forEach(function(row, idx) {
+    var div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;';
+    // Sélect
+    var sel = document.createElement('select');
+    sel.style.cssText = 'flex:2;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;background:#fff;';
+    sel.innerHTML = '<option value="">— Choisir —</option>';
+    crMaterialPresets.forEach(function(p){
+      var opt = document.createElement('option');
+      opt.value = p.label; opt.textContent = p.label;
+      if (p.label === row.name) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    var otherOpt = document.createElement('option');
+    otherOpt.value = '__autre__'; otherOpt.textContent = 'Autre…';
+    if (row.name && !crMaterialPresets.find(function(p){ return p.label===row.name; })) otherOpt.selected = true;
+    sel.appendChild(otherOpt);
+    // Custom input
+    var customInp = document.createElement('input');
+    customInp.type = 'text'; customInp.placeholder = 'Nom matériau';
+    customInp.style.cssText = 'flex:2;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;';
+    var isCustom = row.name && !crMaterialPresets.find(function(p){ return p.label===row.name; });
+    customInp.style.display = isCustom ? 'block' : 'none';
+    customInp.value = isCustom ? row.name : '';
+    sel.addEventListener('change', function(){
+      if (this.value === '__autre__') { customInp.style.display = 'block'; crMaterialRows[idx].name = ''; }
+      else { customInp.style.display = 'none'; crMaterialRows[idx].name = this.value; customInp.value = ''; }
+      syncCrMatsJson();
+    });
+    customInp.addEventListener('input', function(){ crMaterialRows[idx].name = this.value; syncCrMatsJson(); });
+    // Qty
+    var qtyInp = document.createElement('input');
+    qtyInp.type = 'number'; qtyInp.min = '0'; qtyInp.step = '0.1'; qtyInp.placeholder = 'Qté';
+    qtyInp.style.cssText = 'width:70px;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;';
+    qtyInp.value = row.qty || '';
+    qtyInp.addEventListener('input', function(){ crMaterialRows[idx].qty = this.value; syncCrMatsJson(); });
+    // Unit
+    var unitSel = document.createElement('select');
+    unitSel.style.cssText = 'width:80px;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;background:#fff;';
+    ['pièce','m','ml','kg','L','boîte'].forEach(function(u){
+      var o = document.createElement('option');
+      o.value = u; o.textContent = u;
+      if (u === row.unit) o.selected = true;
+      unitSel.appendChild(o);
+    });
+    unitSel.addEventListener('change', function(){ crMaterialRows[idx].unit = this.value; syncCrMatsJson(); });
+    // Delete
+    var delBtn = document.createElement('button');
+    delBtn.type = 'button'; delBtn.textContent = '✕';
+    delBtn.style.cssText = 'background:#fee2e2;border:none;color:#dc2626;border-radius:8px;padding:.35rem .6rem;cursor:pointer;font-size:.85rem;';
+    delBtn.addEventListener('click', function(){ crMaterialRows.splice(idx,1); renderCrMaterials(); syncCrMatsJson(); });
+    div.appendChild(sel); div.appendChild(customInp); div.appendChild(qtyInp); div.appendChild(unitSel); div.appendChild(delBtn);
+    container.appendChild(div);
+  });
+}
+
+function syncCrMatsJson() {
+  var jsonInp = document.getElementById('tech_materials_used_json');
+  if (!jsonInp) return;
+  var arr = crMaterialRows.filter(function(r){ return r.name; });
+  jsonInp.value = JSON.stringify(arr);
+}
+
+window.addMaterialCrRow = function() {
+  crMaterialRows.push({ name:'', qty:'1', unit:'pièce' });
+  renderCrMaterials();
+  syncCrMatsJson();
+};
+
+/* ── Type de photo — envoyer dans un champ caché avant upload ── */
+var photoTypeSelect = document.getElementById('photo-type-select');
+if (photoTypeSelect) {
+  photoTypeSelect.addEventListener('change', function(){
+    // Ajouter un input caché pour le type de photo
+    var existing = document.getElementById('_photo_type_hidden');
+    if (!existing) {
+      existing = document.createElement('input');
+      existing.type = 'hidden';
+      existing.id = '_photo_type_hidden';
+      existing.name = 'photo_type_label';
+      var formCr = document.getElementById('form-cr');
+      if (formCr) formCr.appendChild(existing);
+    }
+    existing.value = this.value;
+  });
+}
 </script>
 </body>
 </html>

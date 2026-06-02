@@ -59,7 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'urgency'            => $urgencyVal,
             'priority'           => trim((string)($_POST['priority']           ?? 'normale')),
             'category'           => trim((string)($_POST['category']           ?? '')),
-            'type_label'         => trim((string)($_POST['type_label_custom'] ?? $_POST['type_label'] ?? '')),
+            'type_label'         => (function() {
+                $custom = trim((string)($_POST['type_label_custom'] ?? ''));
+                $sel    = trim((string)($_POST['type_label'] ?? ''));
+                if ($custom !== '') return $custom;
+                return ($sel !== '' && $sel !== '__autre__') ? $sel : '';
+            })(),
             'installation_type'  => trim((string)($_POST['installation_type']  ?? '')),
             'fault_reported'     => trim((string)($_POST['fault_reported']     ?? '')),
             'description'        => trim((string)($_POST['description']        ?? '')),

@@ -89,6 +89,11 @@ $tasksBadge = dispatcher_pending_tasks_count();
     </div>
     <?php endif;?>
 
+    <div class="d-nav-group">Paramètres</div>
+    <a class="d-nav-item <?= disp_is_active(['presets.php'],'presets') ?>" href="<?= e(url_for('dispatcher/presets.php')) ?>">
+      <span class="nav-ico">⚙️</span> Presets
+    </a>
+
     <div class="d-nav-group">Compte</div>
     <a class="d-nav-item" href="<?= e(url_for('')) ?>" target="_blank"><span class="nav-ico">🌐</span> Voir le site</a>
     <a class="d-nav-item" href="<?= e(url_for('dispatcher/logout.php')) ?>"><span class="nav-ico">🚪</span> Déconnexion</a>
