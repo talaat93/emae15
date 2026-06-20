@@ -71,6 +71,7 @@ function admin_is_active(array $files, string $section = ''): string {
 
     <div class="admin-menu__group-label">Marketing</div>
     <a class="<?= admin_is_active(['seo.php']) ?>" href="<?= e(url_for('admin/seo.php')) ?>">🔍 SEO & Google Ads</a>
+    <a class="<?= admin_is_active(['geo_targeting.php'],'geo_targeting') ?>" href="<?= e(url_for('admin/geo_targeting.php')) ?>">🎯 Ciblage géo</a>
     <a class="<?= admin_is_active(['design.php'],'design') ?>" href="<?= e(url_for('admin/design.php')) ?>">🎨 Design & Couleurs</a>
     <a class="<?= admin_is_active(['gallery.php']) ?>" href="<?= e(url_for('admin/gallery.php')) ?>">🖼️ Galerie médias</a>
     <a class="<?= admin_is_active(['chatbot.php'],'chatbot') ?>" href="<?= e(url_for('admin/chatbot.php')) ?>">🤖 Chatbot IA</a>

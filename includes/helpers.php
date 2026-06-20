@@ -1049,33 +1049,101 @@ function service_cards_v14(): array
    GÉOLOCALISATION IP — Phase 3
 ═══════════════════════════════════════════════════ */
 
+function geo_targeting_config(): array
+{
+    static $cfg = null;
+    if ($cfg !== null) return $cfg;
+    $default = [
+        'active_depts'      => ['25','39','21'],
+        'fallback_redirect' => false,
+        'fallback_slug'     => 'bfc',
+        'redirect_metier'   => 'electricite',
+    ];
+    try { $stored = get_json_setting('geo_targeting_config', $default); } catch (Throwable $e) { $stored = []; }
+    $cfg = array_merge($default, is_array($stored) ? $stored : []);
+    return $cfg;
+}
+
+function geo_dept_slug_map(): array
+{
+    return [
+        // Bourgogne-Franche-Comté
+        '21'=>'cote-dor', '25'=>'doubs', '39'=>'jura',
+        '58'=>'nievre',   '70'=>'haute-saone', '71'=>'saone-et-loire',
+        '89'=>'yonne',    '90'=>'territoire-de-belfort',
+        // Auvergne-Rhône-Alpes
+        '01'=>'ain','03'=>'allier','07'=>'ardeche','15'=>'cantal',
+        '26'=>'drome','38'=>'isere','42'=>'loire','43'=>'haute-loire',
+        '63'=>'puy-de-dome','69'=>'rhone','73'=>'savoie','74'=>'haute-savoie',
+        // Île-de-France
+        '75'=>'paris','77'=>'seine-et-marne','78'=>'yvelines',
+        '91'=>'essonne','92'=>'hauts-de-seine','93'=>'seine-saint-denis',
+        '94'=>'val-de-marne','95'=>'val-d-oise',
+        // PACA
+        '04'=>'alpes-hte-provence','05'=>'hautes-alpes','06'=>'alpes-maritimes',
+        '13'=>'bouches-du-rhone','83'=>'var','84'=>'vaucluse',
+        // Occitanie
+        '09'=>'ariege','11'=>'aude','12'=>'aveyron','30'=>'gard',
+        '31'=>'haute-garonne','32'=>'gers','34'=>'herault','46'=>'lot',
+        '48'=>'lozere','65'=>'hautes-pyrenees','66'=>'pyrenees-orientales','81'=>'tarn','82'=>'tarn-et-garonne',
+        // Grand Est
+        '08'=>'ardennes','10'=>'aube','51'=>'marne','52'=>'haute-marne',
+        '54'=>'meurthe-et-moselle','55'=>'meuse','57'=>'moselle',
+        '67'=>'bas-rhin','68'=>'haut-rhin','88'=>'vosges',
+        // Normandie
+        '14'=>'calvados','27'=>'eure','50'=>'manche','61'=>'orne','76'=>'seine-maritime',
+        // Bretagne
+        '22'=>'cotes-darmor','29'=>'finistere','35'=>'ille-et-vilaine','56'=>'morbihan',
+        // Pays de la Loire
+        '44'=>'loire-atlantique','49'=>'maine-et-loire','53'=>'mayenne','72'=>'sarthe','85'=>'vendee',
+        // Nouvelle-Aquitaine
+        '16'=>'charente','17'=>'charente-maritime','19'=>'correze','23'=>'creuse',
+        '24'=>'dordogne','33'=>'gironde','40'=>'landes','47'=>'lot-et-garonne',
+        '64'=>'pyrenees-atlantiques','79'=>'deux-sevres','86'=>'vienne','87'=>'haute-vienne',
+        // Centre-Val de Loire
+        '18'=>'cher','28'=>'eure-et-loir','36'=>'indre','37'=>'indre-et-loire',
+        '41'=>'loir-et-cher','45'=>'loiret',
+        // Hauts-de-France
+        '02'=>'aisne','59'=>'nord','60'=>'oise','62'=>'pas-de-calais','80'=>'somme',
+    ];
+}
+
 function geo_display(): array
 {
     boot_session();
     static $map = [
-        'jura'             =>['nom'=>'Jura',             'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
-        'doubs'            =>['nom'=>'Doubs',            'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
-        'cote-dor'         =>['nom'=>"Côte-d'Or",        'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
-        'ain'              =>['nom'=>'Ain',              'code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
-        'isere'            =>['nom'=>'Isère',            'code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
-        'rhone'            =>['nom'=>'Rhône',            'code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
-        'loire'            =>['nom'=>'Loire',            'code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
-        'savoie'           =>['nom'=>'Savoie',           'code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
-        'haute-savoie'     =>['nom'=>'Haute-Savoie',    'code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
-        'drome'            =>['nom'=>'Drôme',            'code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
-        'puy-de-dome'      =>['nom'=>'Puy-de-Dôme',     'code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
-        'haute-loire'      =>['nom'=>'Haute-Loire',     'code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
-        'allier'           =>['nom'=>'Allier',           'code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
-        'ardeche'          =>['nom'=>'Ardèche',          'code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
-        'cantal'           =>['nom'=>'Cantal',           'code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
-        'paris'            =>['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France'],
-        'seine-et-marne'   =>['nom'=>'Seine-et-Marne',  'code'=>'77','region'=>'Île-de-France'],
-        'yvelines'         =>['nom'=>'Yvelines',         'code'=>'78','region'=>'Île-de-France'],
-        'essonne'          =>['nom'=>'Essonne',          'code'=>'91','region'=>'Île-de-France'],
-        'hauts-de-seine'   =>['nom'=>'Hauts-de-Seine',  'code'=>'92','region'=>'Île-de-France'],
+        // Bourgogne-Franche-Comté
+        'doubs'                 =>['nom'=>'Doubs',                  'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
+        'jura'                  =>['nom'=>'Jura',                   'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
+        'cote-dor'              =>['nom'=>"Côte-d'Or",              'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
+        'nievre'                =>['nom'=>'Nièvre',                 'code'=>'58','region'=>'Bourgogne-Franche-Comté'],
+        'haute-saone'           =>['nom'=>'Haute-Saône',            'code'=>'70','region'=>'Bourgogne-Franche-Comté'],
+        'saone-et-loire'        =>['nom'=>'Saône-et-Loire',         'code'=>'71','region'=>'Bourgogne-Franche-Comté'],
+        'yonne'                 =>['nom'=>'Yonne',                  'code'=>'89','region'=>'Bourgogne-Franche-Comté'],
+        'territoire-de-belfort' =>['nom'=>'Territoire de Belfort',  'code'=>'90','region'=>'Bourgogne-Franche-Comté'],
+        'bfc'                   =>['nom'=>'Bourgogne-Franche-Comté','code'=>'',  'region'=>'Bourgogne-Franche-Comté'],
+        // Auvergne-Rhône-Alpes
+        'ain'=>['nom'=>'Ain','code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
+        'isere'=>['nom'=>'Isère','code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
+        'rhone'=>['nom'=>'Rhône','code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
+        'loire'=>['nom'=>'Loire','code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
+        'savoie'=>['nom'=>'Savoie','code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-savoie'=>['nom'=>'Haute-Savoie','code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
+        'drome'=>['nom'=>'Drôme','code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
+        'puy-de-dome'=>['nom'=>'Puy-de-Dôme','code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-loire'=>['nom'=>'Haute-Loire','code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
+        'allier'=>['nom'=>'Allier','code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
+        'ardeche'=>['nom'=>'Ardèche','code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
+        'cantal'=>['nom'=>'Cantal','code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
+        // Île-de-France
+        'paris'=>['nom'=>'Paris','code'=>'75','region'=>'Île-de-France'],
+        'seine-et-marne'=>['nom'=>'Seine-et-Marne','code'=>'77','region'=>'Île-de-France'],
+        'yvelines'=>['nom'=>'Yvelines','code'=>'78','region'=>'Île-de-France'],
+        'essonne'=>['nom'=>'Essonne','code'=>'91','region'=>'Île-de-France'],
+        'hauts-de-seine'=>['nom'=>'Hauts-de-Seine','code'=>'92','region'=>'Île-de-France'],
         'seine-saint-denis'=>['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France'],
-        'val-de-marne'     =>['nom'=>'Val-de-Marne',    'code'=>'94','region'=>'Île-de-France'],
-        'val-d-oise'       =>['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France'],
+        'val-de-marne'=>['nom'=>'Val-de-Marne','code'=>'94','region'=>'Île-de-France'],
+        'val-d-oise'=>['nom'=>"Val-d'Oise",'code'=>'95','region'=>'Île-de-France'],
     ];
     $key  = $_SESSION['geo_dept'] ?? '';
     $city = $_SESSION['geo_city'] ?? '';
@@ -1132,20 +1200,10 @@ function geo_detect_dept(): ?string
 
     if (array_key_exists('geo_dept', $_SESSION)) return $_SESSION['geo_dept'] ?: null;
 
-    $dept_map = [
-        // Bourgogne-Franche-Comté
-        '39' => 'jura',       '25' => 'doubs',       '21' => 'cote-dor',
-        '70' => 'doubs',      '90' => 'doubs',        '71' => 'cote-dor', // BFC périphérie → depts proches
-        // Auvergne-Rhône-Alpes (complet)
-        '01' => 'ain',        '38' => 'isere',        '69' => 'rhone',
-        '42' => 'loire',      '73' => 'savoie',       '74' => 'haute-savoie',
-        '26' => 'drome',      '07' => 'ardeche',      '03' => 'allier',
-        '15' => 'cantal',     '43' => 'haute-loire',  '63' => 'puy-de-dome',
-        // Île-de-France
-        '75' => 'paris',      '77' => 'seine-et-marne', '78' => 'yvelines',
-        '91' => 'essonne',    '92' => 'hauts-de-seine',  '93' => 'seine-saint-denis',
-        '94' => 'val-de-marne', '95' => 'val-d-oise',
-    ];
+    // Config admin : quels départements cibler
+    $cfg         = geo_targeting_config();
+    $activeDepts = $cfg['active_depts'] ?? ['25','39','21'];
+    $slugMap     = geo_dept_slug_map();
 
     // IP réelle (Cloudflare > proxy > direct)
     $ip = '';
@@ -1157,7 +1215,6 @@ function geo_detect_dept(): ?string
         $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
     }
 
-    // ip-api.com — ajout countryCode pour le fallback France
     $ctx  = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
     $json = @file_get_contents('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,zip,city,countryCode&lang=fr', false, $ctx);
 
@@ -1172,10 +1229,18 @@ function geo_detect_dept(): ?string
     $city    = (string)($data['city']        ?? '');
     $country = (string)($data['countryCode'] ?? '');
     $code    = substr($zip, 0, 2);
-    $result  = $dept_map[$code] ?? '';
 
-    // Fallback : IP française hors zone → Paris (IDF)
-    if ($result === '' && $country === 'FR') $result = 'paris';
+    if (in_array($code, $activeDepts, true) && isset($slugMap[$code])) {
+        // Département ciblé → landing spécifique avec ville détectée
+        $result = $slugMap[$code];
+    } elseif ($country === 'FR' && ($cfg['fallback_redirect'] ?? false)) {
+        // IP française hors zone → fallback configuré (ex: 'bfc')
+        $result = (string)($cfg['fallback_slug'] ?? 'bfc');
+        $city   = ''; // pas de ville spécifique
+    } else {
+        // Hors cible → pas de redirection, page accueil générique
+        $result = '';
+    }
 
     $_SESSION['geo_dept'] = $result;
     $_SESSION['geo_city'] = $city;
