@@ -1,8 +1,5 @@
 <?php
 declare(strict_types=1);
-if (file_exists(__DIR__.'/../vendor/autoload.php')) {
-    require_once __DIR__.'/../vendor/autoload.php';
-}
 require_once __DIR__ . '/helpers.php';
 if (!app_installed() && basename($_SERVER['PHP_SELF'] ?? '') !== 'install.php') { redirect_to('install.php'); }
 require_once __DIR__ . '/db.php';
@@ -179,86 +176,40 @@ if (!file_exists($_mf8)) {
     unset($_me);
 }
 unset($_mf8);
-// Auto-migration v15.9 — champs compte rendu technicien (Praxedo-style)
-$_mf9 = __DIR__.'/../storage/.mig_v15_cr';
-if (!file_exists($_mf9)) {
-    foreach ([
-        "ALTER TABLE interventions ADD COLUMN tech_fault_label VARCHAR(255) NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_realizable TINYINT(1) NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_bad_use TINYINT(1) NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_device_number VARCHAR(120) NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_elevator_restored TINYINT(1) NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_ticket_time TIME NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_close_time TIME NULL",
-        "ALTER TABLE interventions ADD COLUMN tech_notes_extra TEXT NULL",
-    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
-    @file_put_contents($_mf9, date('c'));
-    unset($_me, $__sql);
-}
-unset($_mf9);
-// Auto-migration v15.10 — table tasks (rappels/tâches dispatcher)
-$_mf10 = __DIR__.'/../storage/.mig_v15_tasks';
-if (!file_exists($_mf10)) {
+// Auto-migration v15.12 — table zones (système multi-zones)
+$_mf12 = __DIR__.'/../storage/.mig_v15_zones';
+if (!file_exists($_mf12)) {
     try {
-        db_execute("CREATE TABLE IF NOT EXISTS tasks (
+        db_execute("CREATE TABLE IF NOT EXISTS zones (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            dispatcher_id INT NULL,
-            technician_id INT NULL,
-            title VARCHAR(255) NOT NULL,
-            description TEXT NULL,
-            due_date DATE NULL,
-            due_time TIME NULL,
-            urgent TINYINT(1) NOT NULL DEFAULT 0,
-            status VARCHAR(40) NOT NULL DEFAULT 'pending',
+            slug VARCHAR(80) NOT NULL UNIQUE,
+            name VARCHAR(120) NOT NULL,
+            status TINYINT(1) NOT NULL DEFAULT 1,
+            meta_title VARCHAR(160) NULL,
+            meta_description VARCHAR(320) NULL,
+            hero_h1 VARCHAR(255) NULL,
+            hero_subtitle TEXT NULL,
+            hero_cta_label VARCHAR(80) NULL,
+            cities TEXT NULL,
+            postal_codes TEXT NULL,
+            faq JSON NULL,
+            mentions_legales TEXT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-    } catch (Throwable $_me) {}
-    @file_put_contents($_mf10, date('c'));
-    unset($_me);
-}
-unset($_mf10);
-// Auto-migration v15.11 — preset_items (types interventions, matériaux, photos)
-$_mf11 = __DIR__.'/../storage/.mig_v15_presets';
-if (!file_exists($_mf11)) {
-    try {
-        db_execute("CREATE TABLE IF NOT EXISTS preset_items (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            type VARCHAR(60) NOT NULL,
-            category VARCHAR(60) NULL,
-            label VARCHAR(255) NOT NULL,
-            sort_order INT NOT NULL DEFAULT 0,
-            active TINYINT(1) NOT NULL DEFAULT 1,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_type_cat (type, category)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
-        $seeds = [
-            ['intervention_type','ascenseur','Dépannage urgent'],
-            ['intervention_type','ascenseur','Maintenance préventive'],
-            ['intervention_type','ascenseur','Remplacement pièces'],
-            ['intervention_type','electricite','Remplacement disjoncteur'],
-            ['intervention_type','electricite','Mise aux normes tableau'],
-            ['intervention_type','electricite','Installation prise/éclairage'],
-            ['intervention_type','plomberie','Fuite d\'eau'],
-            ['intervention_type','plomberie','Débouchage canalisation'],
-            ['intervention_type','chauffage','Entretien chaudière'],
-            ['intervention_type','chauffage','Remplacement vanne'],
-            ['material','','Câble électrique'],
-            ['material','','Disjoncteur'],
-            ['material','','Joint'],
-            ['material','','Vanne'],
-            ['material','','Courroi'],
-            ['photo_type','','Photo plaque signalétique'],
-            ['photo_type','','Photo avant intervention'],
-            ['photo_type','','Photo après intervention'],
-            ['photo_type','','Photo tableau électrique'],
-            ['photo_type','','Photo pièce défectueuse'],
+        $__zd = [
+            ['paris-ile-de-france','Paris / Île-de-France','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','75,77,78,91,92,93,94,95',0],
+            ['cote-dor','Côte-d\'Or','Dijon|Beaune|Auxonne|Montbard|Nuits-Saint-Georges','21',1],
+            ['jura','Jura','Lons-le-Saunier|Dole|Saint-Claude|Morez|Champagnole','39',2],
+            ['doubs','Doubs','Besançon|Pontarlier|Montbéliard|Morteau|Baume-les-Dames','25',3],
+            ['seine-saint-denis','Seine-Saint-Denis','Saint-Denis|Bobigny|Montreuil|Aubervilliers|Pantin|Noisy-le-Grand','93',4],
         ];
-        foreach ($seeds as [$_st,$_sc,$_sl]) {
-            try { db_execute("INSERT INTO preset_items (type,category,label) VALUES (?,?,?)", [$_st,$_sc,$_sl]); } catch (Throwable $_me) {}
+        foreach ($__zd as [$__sl,$__nm,$__ci,$__pc,$__so]) {
+            try { db_execute("INSERT IGNORE INTO zones (slug,name,status,cities,postal_codes,sort_order) VALUES (?,?,1,?,?,?)",[$__sl,$__nm,$__ci,$__pc,$__so]); } catch (Throwable $_me) {}
         }
-        unset($_st,$_sc,$_sl,$seeds);
+        unset($__zd,$__sl,$__nm,$__ci,$__pc,$__so);
     } catch (Throwable $_me) {}
-    @file_put_contents($_mf11, date('c'));
+    @file_put_contents($_mf12, date('c'));
     unset($_me);
 }
-unset($_mf11);
+unset($_mf12);

@@ -1049,101 +1049,33 @@ function service_cards_v14(): array
    GÉOLOCALISATION IP — Phase 3
 ═══════════════════════════════════════════════════ */
 
-function geo_targeting_config(): array
-{
-    static $cfg = null;
-    if ($cfg !== null) return $cfg;
-    $default = [
-        'active_depts'      => ['25','39','21'],
-        'fallback_redirect' => false,
-        'fallback_slug'     => 'bfc',
-        'redirect_metier'   => 'electricite',
-    ];
-    try { $stored = get_json_setting('geo_targeting_config', $default); } catch (Throwable $e) { $stored = []; }
-    $cfg = array_merge($default, is_array($stored) ? $stored : []);
-    return $cfg;
-}
-
-function geo_dept_slug_map(): array
-{
-    return [
-        // Bourgogne-Franche-Comté
-        '21'=>'cote-dor', '25'=>'doubs', '39'=>'jura',
-        '58'=>'nievre',   '70'=>'haute-saone', '71'=>'saone-et-loire',
-        '89'=>'yonne',    '90'=>'territoire-de-belfort',
-        // Auvergne-Rhône-Alpes
-        '01'=>'ain','03'=>'allier','07'=>'ardeche','15'=>'cantal',
-        '26'=>'drome','38'=>'isere','42'=>'loire','43'=>'haute-loire',
-        '63'=>'puy-de-dome','69'=>'rhone','73'=>'savoie','74'=>'haute-savoie',
-        // Île-de-France
-        '75'=>'paris','77'=>'seine-et-marne','78'=>'yvelines',
-        '91'=>'essonne','92'=>'hauts-de-seine','93'=>'seine-saint-denis',
-        '94'=>'val-de-marne','95'=>'val-d-oise',
-        // PACA
-        '04'=>'alpes-hte-provence','05'=>'hautes-alpes','06'=>'alpes-maritimes',
-        '13'=>'bouches-du-rhone','83'=>'var','84'=>'vaucluse',
-        // Occitanie
-        '09'=>'ariege','11'=>'aude','12'=>'aveyron','30'=>'gard',
-        '31'=>'haute-garonne','32'=>'gers','34'=>'herault','46'=>'lot',
-        '48'=>'lozere','65'=>'hautes-pyrenees','66'=>'pyrenees-orientales','81'=>'tarn','82'=>'tarn-et-garonne',
-        // Grand Est
-        '08'=>'ardennes','10'=>'aube','51'=>'marne','52'=>'haute-marne',
-        '54'=>'meurthe-et-moselle','55'=>'meuse','57'=>'moselle',
-        '67'=>'bas-rhin','68'=>'haut-rhin','88'=>'vosges',
-        // Normandie
-        '14'=>'calvados','27'=>'eure','50'=>'manche','61'=>'orne','76'=>'seine-maritime',
-        // Bretagne
-        '22'=>'cotes-darmor','29'=>'finistere','35'=>'ille-et-vilaine','56'=>'morbihan',
-        // Pays de la Loire
-        '44'=>'loire-atlantique','49'=>'maine-et-loire','53'=>'mayenne','72'=>'sarthe','85'=>'vendee',
-        // Nouvelle-Aquitaine
-        '16'=>'charente','17'=>'charente-maritime','19'=>'correze','23'=>'creuse',
-        '24'=>'dordogne','33'=>'gironde','40'=>'landes','47'=>'lot-et-garonne',
-        '64'=>'pyrenees-atlantiques','79'=>'deux-sevres','86'=>'vienne','87'=>'haute-vienne',
-        // Centre-Val de Loire
-        '18'=>'cher','28'=>'eure-et-loir','36'=>'indre','37'=>'indre-et-loire',
-        '41'=>'loir-et-cher','45'=>'loiret',
-        // Hauts-de-France
-        '02'=>'aisne','59'=>'nord','60'=>'oise','62'=>'pas-de-calais','80'=>'somme',
-    ];
-}
-
 function geo_display(): array
 {
     boot_session();
     static $map = [
-        // Bourgogne-Franche-Comté
-        'doubs'                 =>['nom'=>'Doubs',                  'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
-        'jura'                  =>['nom'=>'Jura',                   'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
-        'cote-dor'              =>['nom'=>"Côte-d'Or",              'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
-        'nievre'                =>['nom'=>'Nièvre',                 'code'=>'58','region'=>'Bourgogne-Franche-Comté'],
-        'haute-saone'           =>['nom'=>'Haute-Saône',            'code'=>'70','region'=>'Bourgogne-Franche-Comté'],
-        'saone-et-loire'        =>['nom'=>'Saône-et-Loire',         'code'=>'71','region'=>'Bourgogne-Franche-Comté'],
-        'yonne'                 =>['nom'=>'Yonne',                  'code'=>'89','region'=>'Bourgogne-Franche-Comté'],
-        'territoire-de-belfort' =>['nom'=>'Territoire de Belfort',  'code'=>'90','region'=>'Bourgogne-Franche-Comté'],
-        'bfc'                   =>['nom'=>'Bourgogne-Franche-Comté','code'=>'',  'region'=>'Bourgogne-Franche-Comté'],
-        // Auvergne-Rhône-Alpes
-        'ain'=>['nom'=>'Ain','code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
-        'isere'=>['nom'=>'Isère','code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
-        'rhone'=>['nom'=>'Rhône','code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
-        'loire'=>['nom'=>'Loire','code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
-        'savoie'=>['nom'=>'Savoie','code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
-        'haute-savoie'=>['nom'=>'Haute-Savoie','code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
-        'drome'=>['nom'=>'Drôme','code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
-        'puy-de-dome'=>['nom'=>'Puy-de-Dôme','code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
-        'haute-loire'=>['nom'=>'Haute-Loire','code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
-        'allier'=>['nom'=>'Allier','code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
-        'ardeche'=>['nom'=>'Ardèche','code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
-        'cantal'=>['nom'=>'Cantal','code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
-        // Île-de-France
-        'paris'=>['nom'=>'Paris','code'=>'75','region'=>'Île-de-France'],
-        'seine-et-marne'=>['nom'=>'Seine-et-Marne','code'=>'77','region'=>'Île-de-France'],
-        'yvelines'=>['nom'=>'Yvelines','code'=>'78','region'=>'Île-de-France'],
-        'essonne'=>['nom'=>'Essonne','code'=>'91','region'=>'Île-de-France'],
-        'hauts-de-seine'=>['nom'=>'Hauts-de-Seine','code'=>'92','region'=>'Île-de-France'],
+        'jura'             =>['nom'=>'Jura',             'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
+        'doubs'            =>['nom'=>'Doubs',            'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
+        'cote-dor'         =>['nom'=>"Côte-d'Or",        'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
+        'ain'              =>['nom'=>'Ain',              'code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
+        'isere'            =>['nom'=>'Isère',            'code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
+        'rhone'            =>['nom'=>'Rhône',            'code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
+        'loire'            =>['nom'=>'Loire',            'code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
+        'savoie'           =>['nom'=>'Savoie',           'code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-savoie'     =>['nom'=>'Haute-Savoie',    'code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
+        'drome'            =>['nom'=>'Drôme',            'code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
+        'puy-de-dome'      =>['nom'=>'Puy-de-Dôme',     'code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-loire'      =>['nom'=>'Haute-Loire',     'code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
+        'allier'           =>['nom'=>'Allier',           'code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
+        'ardeche'          =>['nom'=>'Ardèche',          'code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
+        'cantal'           =>['nom'=>'Cantal',           'code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
+        'paris'            =>['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France'],
+        'seine-et-marne'   =>['nom'=>'Seine-et-Marne',  'code'=>'77','region'=>'Île-de-France'],
+        'yvelines'         =>['nom'=>'Yvelines',         'code'=>'78','region'=>'Île-de-France'],
+        'essonne'          =>['nom'=>'Essonne',          'code'=>'91','region'=>'Île-de-France'],
+        'hauts-de-seine'   =>['nom'=>'Hauts-de-Seine',  'code'=>'92','region'=>'Île-de-France'],
         'seine-saint-denis'=>['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France'],
-        'val-de-marne'=>['nom'=>'Val-de-Marne','code'=>'94','region'=>'Île-de-France'],
-        'val-d-oise'=>['nom'=>"Val-d'Oise",'code'=>'95','region'=>'Île-de-France'],
+        'val-de-marne'     =>['nom'=>'Val-de-Marne',    'code'=>'94','region'=>'Île-de-France'],
+        'val-d-oise'       =>['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France'],
     ];
     $key  = $_SESSION['geo_dept'] ?? '';
     $city = $_SESSION['geo_city'] ?? '';
@@ -1200,10 +1132,20 @@ function geo_detect_dept(): ?string
 
     if (array_key_exists('geo_dept', $_SESSION)) return $_SESSION['geo_dept'] ?: null;
 
-    // Config admin : quels départements cibler
-    $cfg         = geo_targeting_config();
-    $activeDepts = $cfg['active_depts'] ?? ['25','39','21'];
-    $slugMap     = geo_dept_slug_map();
+    $dept_map = [
+        // Bourgogne-Franche-Comté
+        '39' => 'jura',       '25' => 'doubs',       '21' => 'cote-dor',
+        '70' => 'doubs',      '90' => 'doubs',        '71' => 'cote-dor', // BFC périphérie → depts proches
+        // Auvergne-Rhône-Alpes (complet)
+        '01' => 'ain',        '38' => 'isere',        '69' => 'rhone',
+        '42' => 'loire',      '73' => 'savoie',       '74' => 'haute-savoie',
+        '26' => 'drome',      '07' => 'ardeche',      '03' => 'allier',
+        '15' => 'cantal',     '43' => 'haute-loire',  '63' => 'puy-de-dome',
+        // Île-de-France
+        '75' => 'paris',      '77' => 'seine-et-marne', '78' => 'yvelines',
+        '91' => 'essonne',    '92' => 'hauts-de-seine',  '93' => 'seine-saint-denis',
+        '94' => 'val-de-marne', '95' => 'val-d-oise',
+    ];
 
     // IP réelle (Cloudflare > proxy > direct)
     $ip = '';
@@ -1215,6 +1157,7 @@ function geo_detect_dept(): ?string
         $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
     }
 
+    // ip-api.com — ajout countryCode pour le fallback France
     $ctx  = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
     $json = @file_get_contents('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,zip,city,countryCode&lang=fr', false, $ctx);
 
@@ -1229,18 +1172,10 @@ function geo_detect_dept(): ?string
     $city    = (string)($data['city']        ?? '');
     $country = (string)($data['countryCode'] ?? '');
     $code    = substr($zip, 0, 2);
+    $result  = $dept_map[$code] ?? '';
 
-    if (in_array($code, $activeDepts, true) && isset($slugMap[$code])) {
-        // Département ciblé → landing spécifique avec ville détectée
-        $result = $slugMap[$code];
-    } elseif ($country === 'FR' && ($cfg['fallback_redirect'] ?? false)) {
-        // IP française hors zone → fallback configuré (ex: 'bfc')
-        $result = (string)($cfg['fallback_slug'] ?? 'bfc');
-        $city   = ''; // pas de ville spécifique
-    } else {
-        // Hors cible → pas de redirection, page accueil générique
-        $result = '';
-    }
+    // Fallback : IP française hors zone → Paris (IDF)
+    if ($result === '' && $country === 'FR') $result = 'paris';
 
     $_SESSION['geo_dept'] = $result;
     $_SESSION['geo_city'] = $city;
@@ -1590,82 +1525,6 @@ function send_sms_dispatcher(string $to, string $message): bool
 /* ═══════════════════════════════════════════════════
    GEOCODING (Nominatim)
 ═══════════════════════════════════════════════════ */
-/* ═══════════════════════════════════════════════════
-   TASKS / REMINDERS
-═══════════════════════════════════════════════════ */
-function all_tasks(array $filters = []): array
-{
-    $where = ['1=1']; $params = [];
-    if (!empty($filters['technician_id'])) { $where[] = 't2.id = ?'; $params[] = (int)$filters['technician_id']; }
-    if (!empty($filters['urgent'])) { $where[] = 'tk.urgent = 1'; }
-    if (!empty($filters['status'])) { $where[] = 'tk.status = ?'; $params[] = $filters['status']; }
-    $sql = "SELECT tk.*, t2.name AS tech_name, d.name AS disp_name
-            FROM tasks tk
-            LEFT JOIN technicians t2 ON t2.id = tk.technician_id
-            LEFT JOIN dispatchers d  ON d.id  = tk.dispatcher_id
-            WHERE " . implode(' AND ', $where) . "
-            ORDER BY tk.urgent DESC, tk.due_date ASC, tk.due_time ASC, tk.id DESC";
-    try { return db_fetch_all($sql, $params); }
-    catch (Throwable $e) { return []; }
-}
-
-function create_task(array $data): int
-{
-    db_execute(
-        "INSERT INTO tasks (dispatcher_id, technician_id, title, description, due_date, due_time, urgent, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [
-            !empty($data['dispatcher_id']) ? (int)$data['dispatcher_id'] : null,
-            !empty($data['technician_id']) ? (int)$data['technician_id'] : null,
-            (string)$data['title'],
-            $data['description'] ?: null,
-            $data['due_date'] ?: null,
-            $data['due_time'] ?: null,
-            (int)($data['urgent'] ?? 0),
-            $data['status'] ?? 'pending',
-        ]
-    );
-    return db_last_id();
-}
-
-function update_task(int $id, array $data): void
-{
-    $allowed = ['technician_id','dispatcher_id','title','description','due_date','due_time','urgent','status'];
-    $sets = []; $params = [];
-    foreach ($allowed as $f) {
-        if (array_key_exists($f, $data)) { $sets[] = "$f = ?"; $params[] = $data[$f]; }
-    }
-    if (empty($sets)) return;
-    $params[] = $id;
-    db_execute("UPDATE tasks SET " . implode(', ', $sets) . " WHERE id = ?", $params);
-}
-
-function delete_task(int $id): void
-{
-    try { db_execute("DELETE FROM tasks WHERE id = ?", [$id]); }
-    catch (Throwable $e) {}
-}
-
-function get_pending_tasks_for_tech(int $techId): array
-{
-    try {
-        return db_fetch_all(
-            "SELECT tk.*, d.name AS disp_name FROM tasks tk
-             LEFT JOIN dispatchers d ON d.id = tk.dispatcher_id
-             WHERE tk.technician_id = ? AND tk.status = 'pending'
-             ORDER BY tk.urgent DESC, tk.due_date ASC, tk.due_time ASC, tk.id DESC",
-            [$techId]
-        );
-    } catch (Throwable $e) { return []; }
-}
-
-function dispatcher_pending_tasks_count(): int
-{
-    try {
-        return (int)(db_fetch("SELECT COUNT(*) AS c FROM tasks WHERE status = 'pending'")['c'] ?? 0);
-    } catch (Throwable $e) { return 0; }
-}
-
 function geocode_address(string $address, string $city = '', string $postal = ''): array
 {
     $q   = trim($address . ' ' . $postal . ' ' . $city . ' France');
@@ -1682,41 +1541,96 @@ function geocode_address(string $address, string $city = '', string $postal = ''
 }
 
 /* ═══════════════════════════════════════════════════
-   PRESET ITEMS
+   ZONES MULTI-ZONES
 ═══════════════════════════════════════════════════ */
-function get_presets(string $type, string $category = ''): array
+function all_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function all_active_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones WHERE status=1 ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_zone_by_slug(string $slug): ?array
+{
+    if ($slug === '') return null;
+    try {
+        $z = db_fetch("SELECT * FROM zones WHERE slug=? LIMIT 1", [$slug]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function get_zone_by_id(int $id): ?array
 {
     try {
-        if ($category !== '') {
-            return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND (category=? OR category='') AND active=1 ORDER BY sort_order,label", [$type, $category]);
-        }
-        return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND active=1 ORDER BY sort_order,label", [$type]);
-    } catch (Throwable $e) { return []; }
+        $z = db_fetch("SELECT * FROM zones WHERE id=? LIMIT 1", [$id]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
 }
 
-function save_preset(string $type, string $label, string $category = ''): int
+function zone_field(array $zone, string $field, string $default = ''): string
 {
-    $existing = db_fetch("SELECT id FROM preset_items WHERE type=? AND label=? AND (category=? OR category='')", [$type, $label, $category]);
-    if ($existing) return (int)$existing['id'];
-    db_execute("INSERT INTO preset_items (type, category, label) VALUES (?,?,?)", [$type, $category, $label]);
-    return (int)db_last_id();
+    $val = trim((string)($zone[$field] ?? ''));
+    return $val !== '' ? $val : $default;
 }
 
-function delete_preset(int $id): void
+function zone_faq(array $zone): array
 {
-    try { db_execute("DELETE FROM preset_items WHERE id = ?", [$id]); }
-    catch (Throwable $e) {}
+    $raw = $zone['faq'] ?? null;
+    if ($raw === null || $raw === '') return [];
+    $decoded = json_decode((string)$raw, true);
+    return is_array($decoded) ? $decoded : [];
 }
 
-function all_presets_grouped(): array
+function zone_cities(array $zone): array
 {
-    $out = ['intervention_type' => [], 'material' => [], 'photo_type' => []];
-    try {
-        $rows = db_fetch_all("SELECT * FROM preset_items WHERE active=1 ORDER BY type, category, sort_order, label");
-        foreach ($rows as $row) {
-            $t = (string)($row['type'] ?? '');
-            if (isset($out[$t])) $out[$t][] = $row;
-        }
-    } catch (Throwable $e) {}
-    return $out;
+    $raw = trim((string)($zone['cities'] ?? ''));
+    if ($raw === '') return [];
+    return array_values(array_filter(array_map('trim', explode('|', $raw))));
+}
+
+function zone_url(string $slug, string $page = ''): string
+{
+    $base = url_for($slug . '/');
+    if ($page === '' || $page === 'home') return $base;
+    return rtrim($base, '/') . '/' . ltrim($page, '/');
+}
+
+function create_zone(array $data): int
+{
+    db_execute(
+        "INSERT INTO zones (slug,name,status,meta_title,meta_description,hero_h1,hero_subtitle,hero_cta_label,cities,postal_codes,faq,mentions_legales,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0)]
+    );
+    return db_last_id();
+}
+
+function update_zone(int $id, array $data): void
+{
+    db_execute(
+        "UPDATE zones SET slug=?,name=?,status=?,meta_title=?,meta_description=?,hero_h1=?,hero_subtitle=?,hero_cta_label=?,cities=?,postal_codes=?,faq=?,mentions_legales=?,sort_order=? WHERE id=?",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0),$id]
+    );
+}
+
+function toggle_zone_status(int $id): void
+{
+    db_execute("UPDATE zones SET status = 1 - status WHERE id=?", [$id]);
+}
+
+function delete_zone(int $id): void
+{
+    db_execute("DELETE FROM zones WHERE id=?", [$id]);
 }
