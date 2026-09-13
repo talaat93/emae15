@@ -33,7 +33,9 @@ function base_path(): string
     $b = site_base_url();
     if ($b !== '') { $p = parse_url($b, PHP_URL_PATH) ?: ''; return rtrim((string)$p, '/'); }
     $s = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-    if (str_ends_with($s, '/admin')) $s = substr($s, 0, -6);
+    foreach (['/admin', '/tech', '/dispatcher'] as $_strip) {
+        if (str_ends_with($s, $_strip)) { $s = substr($s, 0, -strlen($_strip)); break; }
+    }
     return ($s === '/' || $s === '.' || $s === '\\') ? '' : rtrim($s, '/');
 }
 
@@ -164,6 +166,7 @@ function company_hours(): string { return setting('company_hours', '24h/24 — 7
 function company_address(): string { return setting('company_address', 'Île-de-France et Occitanie'); }
 function company_siret(): string { return setting('company_siret', ''); }
 function company_slogan(): string { return setting('company_slogan', 'Dépannage & installation multitechnique'); }
+function company_whatsapp(): string { return setting('company_whatsapp', ''); }
 function site_logo_path(): string { return setting('site_logo', 'storage/uploads/logos/logo-emae-default.svg'); }
 function site_logo_url(): string { return asset_url(site_logo_path()); }
 function site_logo_width(): string { return css_value(setting('site_logo_width', '180'), '180px'); }
@@ -177,21 +180,39 @@ function site_logo_position(): string { $p = setting('site_logo_position', 'left
 
 function schema_local_business(): string
 {
+    $addr = company_address();
+    $wa   = company_whatsapp();
     $data = [
-        '@context' => 'https://schema.org',
-        '@type'    => 'LocalBusiness',
-        'name'     => company_name(),
-        'telephone'=> company_phone(),
-        'email'    => company_email(),
-        'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien.'),
+        '@context'    => 'https://schema.org',
+        '@type'       => 'ElectricalContractor',
+        'name'        => company_name(),
+        'telephone'   => company_phone(),
+        'email'       => company_email(),
+        'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.'),
         'areaServed'  => array_map('trim', explode(',', company_regions())),
-        'openingHours'=> company_hours(),
-        'url'         => site_base_url() !== '' ? site_base_url() : route_url(''),
+        'openingHoursSpecification' => [[
+            '@type'     => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+            'opens'     => '00:00',
+            'closes'    => '23:59',
+        ]],
+        'url'        => site_base_url() !== '' ? site_base_url() : route_url(''),
+        'priceRange' => '€€',
     ];
-    if (company_siret() !== '') $data['identifier'] = company_siret();
+    if ($addr !== '') {
+        $data['address'] = ['@type'=>'PostalAddress','streetAddress'=>$addr,'addressCountry'=>'FR'];
+    }
+    if (company_siret() !== '') {
+        $data['identifier'] = ['@type'=>'PropertyValue','name'=>'SIRET','value'=>company_siret()];
+    }
     $rv = setting('schema_rating_value', '');
     $rc = setting('schema_review_count', '');
-    if ($rv !== '' && $rc !== '') $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc];
+    if ($rv !== '' && $rc !== '') {
+        $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc,'bestRating'=>5,'worstRating'=>1];
+    }
+    if ($wa !== '') {
+        $data['sameAs'] = ['https://wa.me/'.preg_replace('/[^0-9]/', '', $wa)];
+    }
     return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }
 
@@ -201,11 +222,13 @@ function schema_local_business(): string
 function nav_items(): array
 {
     return [
-        ['label'=>setting('nav_home','Accueil'),      'url'=>route_url('')],
-        ['label'=>setting('nav_services','Services'), 'url'=>route_url('services')],
+        ['label'=>setting('nav_home','Accueil'),           'url'=>route_url('')],
+        ['label'=>setting('nav_services','Services'),      'url'=>route_url('services')],
+        ['label'=>setting('nav_zones','Nos zones'),        'url'=>route_url('zones')],
+        ['label'=>setting('nav_avis','Avis clients'),      'url'=>route_url('avis')],
         ['label'=>setting('nav_realisations','Réalisations'), 'url'=>route_url('realisations')],
-        ['label'=>setting('nav_faq','FAQ'),           'url'=>route_url('faq')],
-        ['label'=>setting('nav_contact','Contact'),   'url'=>route_url('contact')],
+        ['label'=>setting('nav_faq','FAQ'),                'url'=>route_url('faq')],
+        ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact')],
     ];
 }
 
@@ -231,6 +254,268 @@ function quote_form_options(): array
         'success_message'=> setting('form_success_message','Votre demande a bien été envoyée. Nous vous recontactons rapidement.'),
         'mail_to'        => setting('form_email_to',        company_email()),
     ];
+}
+function send_quote_notification(array $data): bool
+{
+    $to = setting('form_email_to', company_email());
+    if (trim($to) === '') return false;
+
+    $name       = trim($data['full_name']    ?? '');
+    $phone      = trim($data['phone']        ?? '');
+    $email      = trim($data['email']        ?? '');
+    $city       = trim($data['city']         ?? '');
+    $address    = trim($data['address']      ?? '');
+    $postalCode = trim($data['postal_code']  ?? '');
+    $service    = trim($data['service_type'] ?? '');
+    $message    = trim($data['message']      ?? '');
+    $urgency    = trim($data['urgency']      ?? 'Normale');
+    $source     = trim($data['source']       ?? '');
+    $site    = company_name();
+    $now     = date('d/m/Y à H:i');
+
+    $urgencyColor = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#c0392b' : '#1a7ab5';
+    $urgencyBg    = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#fdf2f2' : '#f0f7ff';
+
+    $subject = '=?UTF-8?B?'.base64_encode('🔔 Nouvelle demande — '.$name.' ('.$urgency.')').'?=';
+
+    $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+  <tr><td style="background:#061029;padding:28px 36px;">
+    <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">'.$site.'</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Nouvelle demande de devis</p>
+  </td></tr>
+  <tr><td style="padding:20px 36px 0;">
+    <span style="display:inline-block;background:'.$urgencyBg.';color:'.$urgencyColor.';border:1px solid '.$urgencyColor.';border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;">⚡ Urgence : '.$urgency.'</span>
+    <span style="display:inline-block;margin-left:10px;color:#888;font-size:13px;">'.$now.'</span>
+  </td></tr>
+  <tr><td style="padding:20px 36px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:14px 18px;background:#e8edf8;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">Coordonnées du client</td></tr>
+      <tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;width:160px;border-bottom:1px solid #eef0f7;">👤 Nom complet</td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#061029;border-bottom:1px solid #eef0f7;">'.$name.'</td>
+      </tr>
+      <tr style="background:#fff;">
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📞 Téléphone</td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/\s+/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
+      </tr>
+      '.($email !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">✉️ Email</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;"><a href="mailto:'.$email.'" style="color:#1a7ab5;">'.$email.'</a></td>
+      </tr>' : '').'
+      '.($address !== '' || $postalCode !== '' || $city !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Adresse</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.($address !== '' ? $address.'<br>' : '').($postalCode !== '' ? $postalCode.' ' : '').($city !== '' ? $city : '').'</td>
+      </tr>' : '').'
+      '.($service !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">🔧 Service</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.$service.'</td>
+      </tr>' : '').'
+      '.($source !== '' ? '<tr>
+        <td style="padding:12px 18px;font-size:13px;color:#555;">📣 Source</td>
+        <td style="padding:12px 18px;font-size:14px;color:#061029;">'.$source.'</td>
+      </tr>' : '').'
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 28px;">
+    <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">💬 Message du client</p>
+    <div style="background:#f8faff;border-left:4px solid #F07B1D;border-radius:6px;padding:16px 18px;font-size:14px;color:#222;line-height:1.7;">'.nl2br(htmlspecialchars($message, ENT_QUOTES)).'</div>
+  </td></tr>
+  <tr><td style="padding:0 36px 32px;text-align:center;">
+    <a href="'.site_base_url().'/admin/quotes.php" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir dans l\'admin →</a>
+  </td></tr>
+  <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#888;">Email automatique — '.$site.' · Ne pas répondre</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>';
+
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
+    $fromEmail = company_email();
+    $replyTo   = $email !== '' ? $email : $to;
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
+    $headers .= "Reply-To: {$replyTo}\r\n";
+    $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+
+    $ok = mail($to, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.$fromEmail);
+    return $ok;
+}
+
+function send_quote_confirmation_to_client(array $data): bool
+{
+    $email = trim($data['email'] ?? '');
+    if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) return false;
+
+    $name       = trim($data['full_name']    ?? '');
+    $phone      = trim($data['phone']        ?? '');
+    $city       = trim($data['city']         ?? '');
+    $address    = trim($data['address']      ?? '');
+    $postalCode = trim($data['postal_code']  ?? '');
+    $service    = trim($data['service_type'] ?? '');
+    $urgency    = trim($data['urgency']      ?? 'Normale');
+    $site       = company_name();
+    $sitePhone  = company_phone();
+    $sitePhoneLink = company_phone_link();
+    $now        = date('d/m/Y à H:i');
+    $fee        = setting('cancellation_fee', '');
+
+    $locationParts = array_filter([$address, trim($postalCode.' '.$city)]);
+    $locationLine  = implode(', ', $locationParts);
+    $feeText = $fee !== '' ? 'de <strong>'.$fee.' €</strong>' : 'de déplacement';
+
+    $subject = '=?UTF-8?B?'.base64_encode('✅ Confirmation de votre demande — '.$site).'?=';
+
+    $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
+  <tr><td style="background:#061029;padding:28px 36px;text-align:center;">
+    <p style="margin:0;font-size:24px;font-weight:700;color:#ffffff;">'.$site.'</p>
+    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Confirmation de votre demande</p>
+  </td></tr>
+  <tr><td style="padding:32px 36px 20px;">
+    <p style="margin:0 0 10px;font-size:19px;font-weight:700;color:#061029;">Bonjour '.htmlspecialchars($name, ENT_QUOTES).' ✅</p>
+    <p style="margin:0;font-size:15px;color:#444;line-height:1.7;">Nous avons bien reçu votre demande et vous recontacterons <strong>dans les plus brefs délais</strong>.</p>
+  </td></tr>
+  <tr><td style="padding:0 36px 24px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border-radius:8px;overflow:hidden;">
+      <tr><td colspan="2" style="padding:12px 18px;background:#e8edf8;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">Récapitulatif de votre demande</td></tr>
+      '.($service !== '' ? '<tr><td style="padding:10px 18px;font-size:13px;color:#555;width:160px;border-bottom:1px solid #eef0f7;">🔧 Service</td><td style="padding:10px 18px;font-size:14px;font-weight:600;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($service, ENT_QUOTES).'</td></tr>' : '').'
+      <tr><td style="padding:10px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">⚡ Urgence</td><td style="padding:10px 18px;font-size:14px;font-weight:600;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($urgency, ENT_QUOTES).'</td></tr>
+      '.($locationLine !== '' ? '<tr><td style="padding:10px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📍 Adresse</td><td style="padding:10px 18px;font-size:14px;color:#061029;border-bottom:1px solid #eef0f7;">'.htmlspecialchars($locationLine, ENT_QUOTES).'</td></tr>' : '').'
+      <tr><td style="padding:10px 18px;font-size:13px;color:#555;">📅 Envoyé le</td><td style="padding:10px 18px;font-size:14px;color:#555;">'.$now.'</td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 28px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#fff8ec;border:2px solid #f0b429;border-radius:8px;overflow:hidden;">
+      <tr><td style="padding:14px 18px;background:#fef3c7;border-bottom:1px solid #f0b429;">
+        <p style="margin:0;font-size:13px;font-weight:700;color:#92400e;">⚠️ Politique d\'annulation — À lire attentivement</p>
+      </td></tr>
+      <tr><td style="padding:16px 18px;font-size:13px;color:#78350f;line-height:1.8;">
+        <p style="margin:0 0 10px;">Toute annulation ou report d\'intervention communiqué <strong>moins de 2 heures avant</strong> le créneau confirmé entraînera la facturation des <strong>frais '.$feeText.'</strong>.</p>
+        <p style="margin:0;">Pour annuler ou modifier votre rendez-vous, merci de nous contacter <strong>au moins 2 heures à l\'avance</strong> par téléphone.</p>
+      </td></tr>
+    </table>
+  </td></tr>
+  <tr><td style="padding:0 36px 32px;text-align:center;">
+    <p style="margin:0 0 16px;font-size:14px;color:#555;">Notre équipe est disponible <strong>24h/24, 7j/7</strong> :</p>
+    <a href="'.$sitePhoneLink.'" style="display:inline-block;background:#F07B1D;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:16px;font-weight:700;letter-spacing:.02em;">📞 '.$sitePhone.'</a>
+  </td></tr>
+  <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
+    <p style="margin:0;font-size:12px;color:#888;">'.$site.' — '.htmlspecialchars(company_slogan(), ENT_QUOTES).' — '.htmlspecialchars(company_regions(), ENT_QUOTES).'</p>
+    <p style="margin:4px 0 0;font-size:11px;color:#aaa;">Cet email est automatique, merci de ne pas y répondre directement.</p>
+  </td></tr>
+</table>
+</td></tr></table>
+</body></html>';
+
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Confirmation').'?=';
+    $fromEmail = company_email();
+    $replyTo   = setting('form_email_to', company_email());
+
+    $headers  = "MIME-Version: 1.0\r\n";
+    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
+    $headers .= "Reply-To: {$replyTo}\r\n";
+    $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+
+    $ok = mail($email, $subject, $html, $headers);
+    if (!$ok) error_log('[EMAE] send_quote_confirmation_to_client failed — to='.$email.' from='.$fromEmail);
+    return $ok;
+}
+
+/* ═══════════════════════════════════════════════════
+   SMS OVH
+═══════════════════════════════════════════════════ */
+function send_sms_ovh(string $to, string $message): bool
+{
+    $appKey      = setting('ovh_app_key', '');
+    $appSecret   = setting('ovh_app_secret', '');
+    $consumerKey = setting('ovh_consumer_key', '');
+    $serviceName = setting('ovh_service_name', '');
+    if ($appKey === '' || $appSecret === '' || $consumerKey === '' || $serviceName === '') return false;
+
+    $to = preg_replace('/[\s\.\-\(\)]/', '', $to);
+    if (preg_match('/^0[67][0-9]{8}$/', $to)) $to = '+33'.substr($to, 1);
+    if (!preg_match('/^\+[1-9][0-9]{6,14}$/', $to)) { error_log('[EMAE SMS] format invalide: '.$to); return false; }
+
+    $url  = 'https://eu.api.ovh.com/1.0/sms/'.rawurlencode($serviceName).'/jobs/';
+    $body = json_encode([
+        'charset'           => 'UTF-8',
+        'class'             => 'phoneDisplay',
+        'coding'            => '7bit',
+        'message'           => mb_substr($message, 0, 160),
+        'noStopClause'      => false,
+        'priority'          => 'high',
+        'receivers'         => [$to],
+        'senderForResponse' => true,
+        'validityPeriod'    => 2880,
+    ]);
+    $ts  = time();
+    $sig = '$1$'.sha1(implode('+', [$appSecret, $consumerKey, 'POST', $url, $body, $ts]));
+
+    $ctx = stream_context_create(['http' => [
+        'method'        => 'POST',
+        'header'        => "Content-Type: application/json\r\nX-Ovh-Application: $appKey\r\nX-Ovh-Consumer: $consumerKey\r\nX-Ovh-Timestamp: $ts\r\nX-Ovh-Signature: $sig",
+        'content'       => $body,
+        'timeout'       => 8,
+        'ignore_errors' => true,
+    ]]);
+    $res = @file_get_contents($url, false, $ctx);
+    if ($res === false) { error_log('[EMAE SMS] OVH connexion échouée'); return false; }
+    $data = json_decode($res, true);
+    $ok = !empty($data['ids']);
+    if (!$ok) error_log('[EMAE SMS] OVH: '.$res);
+    return $ok;
+}
+
+/* ═══════════════════════════════════════════════════
+   TECHNICIENS
+═══════════════════════════════════════════════════ */
+function all_technicians(): array
+{
+    try { return db_fetch_all("SELECT id, name, email, phone, status FROM technicians ORDER BY name"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_tech_by_id(int $id): ?array
+{
+    try { $r = db_fetch("SELECT id, name, email, phone, status FROM technicians WHERE id = ?", [$id]); return $r ?: null; }
+    catch (Throwable $e) { return null; }
+}
+
+function tech_login_check(string $email, string $password): ?array
+{
+    try {
+        $r = db_fetch("SELECT * FROM technicians WHERE email = ? AND status = 'actif'", [trim($email)]);
+        if (!$r) return null;
+        return password_verify($password, (string)$r['password_hash']) ? $r : null;
+    } catch (Throwable $e) { return null; }
+}
+
+function require_tech_auth(): array
+{
+    boot_session();
+    if (empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/login.php')); exit; }
+    try {
+        $t = db_fetch("SELECT * FROM technicians WHERE id = ? AND status = 'actif'", [(int)$_SESSION['tech_id']]);
+    } catch (Throwable $e) { $t = null; }
+    if (!$t) { unset($_SESSION['tech_id']); header('Location: '.url_for('tech/login.php')); exit; }
+    return $t;
+}
+
+function quote_tech_photos(array $q): array
+{
+    if (empty($q['tech_photos'])) return [];
+    $p = json_decode((string)$q['tech_photos'], true);
+    return is_array($p) ? $p : [];
 }
 
 /* ═══════════════════════════════════════════════════
@@ -462,6 +747,42 @@ function contact_page_settings(): array
     ];
 }
 
+function zones_page_settings(): array
+{
+    $default = [
+        'eyebrow'  => 'Zones d\'intervention',
+        'title'    => 'Nous intervenons partout en',
+        'title_hl' => 'Île-de-France & Occitanie',
+        'lead'     => 'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.',
+        'regions'  => [
+            [
+                'name'  => 'Île-de-France',
+                'icon'  => '🗼',
+                'color' => '#1a7ab5',
+                'depts' => ['Paris (75)','Hauts-de-Seine (92)','Seine-Saint-Denis (93)','Val-de-Marne (94)','Seine-et-Marne (77)','Yvelines (78)','Essonne (91)','Val-d\'Oise (95)'],
+                'cities'=> ['Paris','Boulogne-Billancourt','Saint-Denis','Montreuil','Argenteuil','Créteil','Versailles','Nanterre','Colombes','Saint-Maur-des-Fossés','Champigny-sur-Marne','Meaux','Évry','Cergy'],
+                'delay' => 'Moins de 2h en urgence',
+            ],
+            [
+                'name'  => 'Occitanie',
+                'icon'  => '☀️',
+                'color' => '#E8921A',
+                'depts' => ['Haute-Garonne (31)','Hérault (34)','Gard (30)','Pyrénées-Orientales (66)','Aude (11)','Tarn (81)','Aveyron (12)','Gers (32)','Ariège (09)','Lot (46)'],
+                'cities'=> ['Toulouse','Montpellier','Nîmes','Perpignan','Carcassonne','Albi','Rodez','Auch','Foix','Cahors','Montauban','Béziers','Sète'],
+                'delay' => 'Intervention sous 4h',
+            ],
+        ],
+    ];
+    $saved = get_json_setting('zones_page_settings', []);
+    return array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
+}
+
+function all_published_reviews(): array
+{
+    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1 ORDER BY sort_order ASC, id DESC'); }
+    catch (Throwable $e) { return []; }
+}
+
 /* ═══════════════════════════════════════════════════
    REALISATIONS
 ═══════════════════════════════════════════════════ */
@@ -499,10 +820,31 @@ function visible_reviews(int $limit = 6): array
     catch (Throwable $e) { return []; }
 }
 
-function all_quotes(): array
+function all_quotes(bool $archived = false): array
 {
-    try { return db_fetch_all('SELECT * FROM quotes ORDER BY created_at DESC'); }
-    catch (Throwable $e) { return []; }
+    try {
+        return db_fetch_all('SELECT q.*, t.name AS tech_name FROM quotes q LEFT JOIN technicians t ON t.id = q.technician_id WHERE q.archived = ? ORDER BY q.created_at DESC', [(int)$archived]);
+    } catch (Throwable $e) {
+        try { return db_fetch_all('SELECT * FROM quotes WHERE archived = ? ORDER BY created_at DESC', [(int)$archived]); }
+        catch (Throwable $e2) { return []; }
+    }
+}
+function count_quotes_by_status(): array
+{
+    try {
+        $rows = db_fetch_all('SELECT status, archived, COUNT(*) as n FROM quotes GROUP BY status, archived');
+        $out = ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0];
+        foreach ($rows as $r) {
+            if (!(int)$r['archived']) {
+                $out['actifs'] += (int)$r['n'];
+                if ((string)$r['status'] === 'nouveau') $out['nouveaux'] += (int)$r['n'];
+                if (in_array((string)$r['status'], ['planifié','en cours'])) $out['en_cours'] += (int)$r['n'];
+            } else {
+                $out['archivés'] += (int)$r['n'];
+            }
+        }
+        return $out;
+    } catch (Throwable $e) { return ['actifs'=>0,'archivés'=>0,'nouveaux'=>0,'en_cours'=>0]; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -677,39 +1019,169 @@ function why_us_settings(): array
 function service_cards_v14(): array
 {
     $default = [
-        ['title'=>'Électricité',       'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
+        ['title'=>'Électricité',          'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
          'tags'=>['Dépannage','Installation','Mise aux normes']],
-        ['title'=>'Plomberie',         'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
+        ['title'=>'Plomberie',            'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
          'tags'=>['Fuite','Sanitaires','Entretien']],
-        ['title'=>'Chauffage & PAC',   'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
+        ['title'=>'Chauffage & PAC',      'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
          'tags'=>['Chaudière','PAC','Entretien annuel']],
-        ['title'=>'Climatisation CVC', 'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
+        ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
          'tags'=>['Clim','CVC','Installation']],
     ];
-    $cards    = get_json_setting('home_service_cards_v14', $default);
+    $cards = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
-    $oldCards = get_json_setting('home_service_cards', []);
     $out = [];
     foreach ($default as $i => $fallback) {
-        $c   = is_array($cards[$i] ?? null) ? $cards[$i] : [];
-        $img = trim((string)($c['image'] ?? ''));
-        if ($img === '' && is_array($oldCards[$i] ?? null)) {
-            $img = trim((string)($oldCards[$i]['image'] ?? ''));
-        }
+        $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
         $out[] = [
-            'title'            => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
-            'image'            => $img,
-            'link'             => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
-            'badge'            => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
-            'desc'             => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
-            'tags'             => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
-            'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')),
+            'title' => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
+            'image' => trim((string)($c['image'] ?? '')),
+            'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
+            'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
+            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
         ];
     }
     return $out;
 }
 
+/* ═══════════════════════════════════════════════════
+   GÉOLOCALISATION IP — Phase 3
+═══════════════════════════════════════════════════ */
 
+function geo_display(): array
+{
+    boot_session();
+    static $map = [
+        'jura'             =>['nom'=>'Jura',             'code'=>'39','region'=>'Bourgogne-Franche-Comté'],
+        'doubs'            =>['nom'=>'Doubs',            'code'=>'25','region'=>'Bourgogne-Franche-Comté'],
+        'cote-dor'         =>['nom'=>"Côte-d'Or",        'code'=>'21','region'=>'Bourgogne-Franche-Comté'],
+        'ain'              =>['nom'=>'Ain',              'code'=>'01','region'=>'Auvergne-Rhône-Alpes'],
+        'isere'            =>['nom'=>'Isère',            'code'=>'38','region'=>'Auvergne-Rhône-Alpes'],
+        'rhone'            =>['nom'=>'Rhône',            'code'=>'69','region'=>'Auvergne-Rhône-Alpes'],
+        'loire'            =>['nom'=>'Loire',            'code'=>'42','region'=>'Auvergne-Rhône-Alpes'],
+        'savoie'           =>['nom'=>'Savoie',           'code'=>'73','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-savoie'     =>['nom'=>'Haute-Savoie',    'code'=>'74','region'=>'Auvergne-Rhône-Alpes'],
+        'drome'            =>['nom'=>'Drôme',            'code'=>'26','region'=>'Auvergne-Rhône-Alpes'],
+        'puy-de-dome'      =>['nom'=>'Puy-de-Dôme',     'code'=>'63','region'=>'Auvergne-Rhône-Alpes'],
+        'haute-loire'      =>['nom'=>'Haute-Loire',     'code'=>'43','region'=>'Auvergne-Rhône-Alpes'],
+        'allier'           =>['nom'=>'Allier',           'code'=>'03','region'=>'Auvergne-Rhône-Alpes'],
+        'ardeche'          =>['nom'=>'Ardèche',          'code'=>'07','region'=>'Auvergne-Rhône-Alpes'],
+        'cantal'           =>['nom'=>'Cantal',           'code'=>'15','region'=>'Auvergne-Rhône-Alpes'],
+        'paris'            =>['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France'],
+        'seine-et-marne'   =>['nom'=>'Seine-et-Marne',  'code'=>'77','region'=>'Île-de-France'],
+        'yvelines'         =>['nom'=>'Yvelines',         'code'=>'78','region'=>'Île-de-France'],
+        'essonne'          =>['nom'=>'Essonne',          'code'=>'91','region'=>'Île-de-France'],
+        'hauts-de-seine'   =>['nom'=>'Hauts-de-Seine',  'code'=>'92','region'=>'Île-de-France'],
+        'seine-saint-denis'=>['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France'],
+        'val-de-marne'     =>['nom'=>'Val-de-Marne',    'code'=>'94','region'=>'Île-de-France'],
+        'val-d-oise'       =>['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France'],
+    ];
+    $key  = $_SESSION['geo_dept'] ?? '';
+    $city = $_SESSION['geo_city'] ?? '';
+    if ($key === '' || !isset($map[$key])) return [];
+    $d = $map[$key];
+    return [
+        'ville'    => $city ?: $d['nom'],
+        'dept_nom' => $d['nom'],
+        'dept_code'=> $d['code'],
+        'region'   => $d['region'],
+    ];
+}
+
+function geo_replace(string $text): string
+{
+    // S'assurer que la session geo est initialisée avant de lire
+    if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
+
+    $geo = geo_display();
+
+    if (!empty($geo)) {
+        // Geo détectée — remplacement par la zone visiteur
+        $text = str_replace(
+            ['{ville}', '{dept}', '{dept_code}', '{region}'],
+            [$geo['ville'], $geo['dept_nom'], $geo['dept_code'], $geo['region']],
+            $text
+        );
+        // Auto-remplacement de company_regions() dans le texte
+        $zones = company_regions();
+        if ($zones !== '' && mb_strpos($text, $zones) !== false) {
+            $loc = ($geo['ville'] !== $geo['dept_nom'])
+                ? $geo['ville'].' et alentours ('.$geo['region'].')'
+                : $geo['dept_nom'].' ('.$geo['dept_code'].')';
+            $text = str_replace($zones, $loc, $text);
+        }
+    } else {
+        // Pas de géo — fallback sur les valeurs par défaut configurées en admin
+        $defRegion = setting('geo_default_region', 'Bourgogne-Franche-Comté et Auvergne-Rhône-Alpes');
+        $defVille  = setting('geo_default_ville',  'votre région');
+        $defDept   = setting('geo_default_dept',   $defRegion);
+        $text = str_replace(
+            ['{ville}', '{dept}', '{dept_code}', '{region}'],
+            [$defVille, $defDept, '', $defRegion],
+            $text
+        );
+    }
+
+    return $text;
+}
+
+function geo_detect_dept(): ?string
+{
+    boot_session();
+
+    if (array_key_exists('geo_dept', $_SESSION)) return $_SESSION['geo_dept'] ?: null;
+
+    $dept_map = [
+        // Bourgogne-Franche-Comté
+        '39' => 'jura',       '25' => 'doubs',       '21' => 'cote-dor',
+        '70' => 'doubs',      '90' => 'doubs',        '71' => 'cote-dor', // BFC périphérie → depts proches
+        // Auvergne-Rhône-Alpes (complet)
+        '01' => 'ain',        '38' => 'isere',        '69' => 'rhone',
+        '42' => 'loire',      '73' => 'savoie',       '74' => 'haute-savoie',
+        '26' => 'drome',      '07' => 'ardeche',      '03' => 'allier',
+        '15' => 'cantal',     '43' => 'haute-loire',  '63' => 'puy-de-dome',
+        // Île-de-France
+        '75' => 'paris',      '77' => 'seine-et-marne', '78' => 'yvelines',
+        '91' => 'essonne',    '92' => 'hauts-de-seine',  '93' => 'seine-saint-denis',
+        '94' => 'val-de-marne', '95' => 'val-d-oise',
+    ];
+
+    // IP réelle (Cloudflare > proxy > direct)
+    $ip = '';
+    foreach (['HTTP_CF_CONNECTING_IP','HTTP_X_FORWARDED_FOR','HTTP_X_REAL_IP','REMOTE_ADDR'] as $k) {
+        if (!empty($_SERVER[$k])) { $ip = trim(explode(',', $_SERVER[$k])[0]); break; }
+    }
+
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+        $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
+    }
+
+    // ip-api.com — ajout countryCode pour le fallback France
+    $ctx  = stream_context_create(['http' => ['timeout' => 2, 'ignore_errors' => true]]);
+    $json = @file_get_contents('http://ip-api.com/json/' . rawurlencode($ip) . '?fields=status,zip,city,countryCode&lang=fr', false, $ctx);
+
+    if ($json === false) { $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null; }
+
+    $data = json_decode($json, true);
+    if (!is_array($data) || ($data['status'] ?? '') !== 'success') {
+        $_SESSION['geo_dept'] = ''; $_SESSION['geo_city'] = ''; return null;
+    }
+
+    $zip     = (string)($data['zip']         ?? '');
+    $city    = (string)($data['city']        ?? '');
+    $country = (string)($data['countryCode'] ?? '');
+    $code    = substr($zip, 0, 2);
+    $result  = $dept_map[$code] ?? '';
+
+    // Fallback : IP française hors zone → Paris (IDF)
+    if ($result === '' && $country === 'FR') $result = 'paris';
+
+    $_SESSION['geo_dept'] = $result;
+    $_SESSION['geo_city'] = $city;
+
+    return $result !== '' ? $result : null;
+}
 
 /* ═══════════════════════════════════════════════════
    DESIGN SETTINGS (opacités, couleurs avancées)
@@ -742,4 +1214,423 @@ function design_settings(): array
         'font_heading'          => setting('font_heading',           'Montserrat'),
         'font_body'             => setting('font_body',              'Inter'),
     ];
+}
+
+/* ═══════════════════════════════════════════════════
+   DISPATCHER AUTH
+═══════════════════════════════════════════════════ */
+function require_dispatcher_auth(): array
+{
+    boot_session();
+    if (empty($_SESSION['disp_id'])) { redirect_to('dispatcher/login.php'); }
+    try {
+        $d = db_fetch("SELECT * FROM dispatchers WHERE id = ? AND status = 'actif'", [(int)$_SESSION['disp_id']]);
+    } catch (Throwable $e) { $d = null; }
+    if (!$d) { unset($_SESSION['disp_id'], $_SESSION['disp_name']); redirect_to('dispatcher/login.php'); }
+    return $d;
+}
+
+function dispatcher_login_check(string $email, string $password): ?array
+{
+    try {
+        $r = db_fetch("SELECT * FROM dispatchers WHERE email = ? AND status = 'actif'", [trim($email)]);
+        if ($r && password_verify($password, (string)$r['password_hash'])) return $r;
+    } catch (Throwable $e) {}
+    return null;
+}
+
+function all_dispatchers(): array
+{
+    try { return db_fetch_all("SELECT id, name, email, phone, status FROM dispatchers ORDER BY name"); }
+    catch (Throwable $e) { return []; }
+}
+
+/* ═══════════════════════════════════════════════════
+   CLIENTS
+═══════════════════════════════════════════════════ */
+function all_clients_list(int $limit = 200, int $offset = 0): array
+{
+    try { return db_fetch_all("SELECT * FROM clients ORDER BY lastname, firstname LIMIT ? OFFSET ?", [$limit, $offset]); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_client_by_id(int $id): ?array
+{
+    try { $r = db_fetch("SELECT * FROM clients WHERE id = ?", [$id]); return $r ?: null; }
+    catch (Throwable $e) { return null; }
+}
+
+function search_clients(string $q): array
+{
+    if (trim($q) === '') return [];
+    $like = '%' . $q . '%';
+    try { return db_fetch_all("SELECT * FROM clients WHERE lastname LIKE ? OR firstname LIKE ? OR phone LIKE ? OR city LIKE ? ORDER BY lastname LIMIT 20", [$like, $like, $like, $like]); }
+    catch (Throwable $e) { return []; }
+}
+
+function create_client(array $data): int
+{
+    db_execute("INSERT INTO clients (lastname, firstname, phone, email, address, postal_code, city, floor, digicode, access_info, notes) VALUES (?,?,?,?,?,?,?,?,?,?,?)", [
+        trim((string)($data['lastname'] ?? '')), trim((string)($data['firstname'] ?? '')),
+        trim((string)($data['phone'] ?? '')), trim((string)($data['email'] ?? '')),
+        trim((string)($data['address'] ?? '')), trim((string)($data['postal_code'] ?? '')),
+        trim((string)($data['city'] ?? '')), trim((string)($data['floor'] ?? '')),
+        trim((string)($data['digicode'] ?? '')), trim((string)($data['access_info'] ?? '')),
+        trim((string)($data['notes'] ?? '')),
+    ]);
+    return db_last_id();
+}
+
+function update_client(int $id, array $data): void
+{
+    db_execute("UPDATE clients SET lastname=?,firstname=?,phone=?,email=?,address=?,postal_code=?,city=?,floor=?,digicode=?,access_info=?,notes=? WHERE id=?", [
+        trim((string)($data['lastname'] ?? '')), trim((string)($data['firstname'] ?? '')),
+        trim((string)($data['phone'] ?? '')), trim((string)($data['email'] ?? '')),
+        trim((string)($data['address'] ?? '')), trim((string)($data['postal_code'] ?? '')),
+        trim((string)($data['city'] ?? '')), trim((string)($data['floor'] ?? '')),
+        trim((string)($data['digicode'] ?? '')), trim((string)($data['access_info'] ?? '')),
+        trim((string)($data['notes'] ?? '')), $id,
+    ]);
+}
+
+function client_intervention_count(int $client_id): int
+{
+    try { return (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE client_id = ?", [$client_id])['c'] ?? 0); }
+    catch (Throwable $e) { return 0; }
+}
+
+/* ═══════════════════════════════════════════════════
+   INTERVENTION CONFIG
+═══════════════════════════════════════════════════ */
+function intervention_status_config(): array
+{
+    return [
+        'nouveau'      => ['label' => 'Nouveau',      'color' => '#3b82f6', 'bg' => 'rgba(59,130,246,.15)'],
+        'confirmé'     => ['label' => 'Confirmé',     'color' => '#8b5cf6', 'bg' => 'rgba(139,92,246,.15)'],
+        'assigné'      => ['label' => 'Assigné',      'color' => '#f59e0b', 'bg' => 'rgba(245,158,11,.15)'],
+        'en_route'     => ['label' => 'En route',     'color' => '#06b6d4', 'bg' => 'rgba(6,182,212,.15)'],
+        'sur_place'    => ['label' => 'Sur place',    'color' => '#10b981', 'bg' => 'rgba(16,185,129,.15)'],
+        'terminé'      => ['label' => 'Terminé',      'color' => '#22c55e', 'bg' => 'rgba(34,197,94,.15)'],
+        'devis_envoyé' => ['label' => 'Devis envoyé', 'color' => '#f97316', 'bg' => 'rgba(249,115,22,.15)'],
+        'facturé'      => ['label' => 'Facturé',      'color' => '#ec4899', 'bg' => 'rgba(236,72,153,.15)'],
+        'payé'         => ['label' => 'Payé',         'color' => '#14b8a6', 'bg' => 'rgba(20,184,166,.15)'],
+        'annulé'       => ['label' => 'Annulé',       'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.15)'],
+    ];
+}
+
+function intervention_category_config(): array
+{
+    return [
+        'electricite'    => ['label' => 'Électricité',   'icon' => '⚡', 'color' => '#fbbf24'],
+        'plomberie'      => ['label' => 'Plomberie',     'icon' => '💧', 'color' => '#60a5fa'],
+        'chauffage'      => ['label' => 'Chauffage',     'icon' => '🔥', 'color' => '#f87171'],
+        'climatisation'  => ['label' => 'Climatisation', 'icon' => '❄️', 'color' => '#34d399'],
+        'multitechnique' => ['label' => 'Multitechnique','icon' => '🔧', 'color' => '#a78bfa'],
+        'ascenseur'      => ['label' => 'Ascenseur',     'icon' => '🛗', 'color' => '#fb923c'],
+        'maintenance'    => ['label' => 'Maintenance',   'icon' => '🔩', 'color' => '#94a3b8'],
+        'depannage'      => ['label' => 'Dépannage',     'icon' => '🛠️', 'color' => '#f472b6'],
+        'renovation'     => ['label' => 'Rénovation',    'icon' => '🏗️', 'color' => '#6ee7b7'],
+    ];
+}
+
+function intervention_status_badge(string $status): string
+{
+    $cfg = intervention_status_config();
+    $c = $cfg[$status] ?? ['label' => $status, 'color' => '#8fa0c4', 'bg' => 'rgba(143,160,196,.15)'];
+    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .7rem;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.04em;color:'.$c['color'].';background:'.$c['bg'].';border:1px solid '.$c['color'].'55;">'
+        . '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;"></span>'
+        . e($c['label']) . '</span>';
+}
+
+function intervention_category_badge(string $cat): string
+{
+    $cfg = intervention_category_config();
+    $c = $cfg[$cat] ?? ['label' => $cat, 'icon' => '🔧', 'color' => '#8fa0c4'];
+    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:8px;font-size:.72rem;font-weight:700;color:'.$c['color'].';background:'.$c['color'].'22;border:1px solid '.$c['color'].'44;">'
+        . $c['icon'] . ' ' . e($c['label']) . '</span>';
+}
+
+/* ═══════════════════════════════════════════════════
+   INTERVENTIONS CRUD
+═══════════════════════════════════════════════════ */
+function all_interventions(array $filters = []): array
+{
+    $where = ['1=1']; $params = [];
+    if (!empty($filters['status'])) { $where[] = 'i.status = ?'; $params[] = $filters['status']; }
+    if (!empty($filters['technician_id'])) { $where[] = 'i.technician_id = ?'; $params[] = (int)$filters['technician_id']; }
+    if (!empty($filters['dispatcher_id'])) { $where[] = 'i.dispatcher_id = ?'; $params[] = (int)$filters['dispatcher_id']; }
+    if (!empty($filters['category'])) { $where[] = 'i.category = ?'; $params[] = $filters['category']; }
+    if (!empty($filters['urgency'])) { $where[] = 'i.urgency = 1'; }
+    if (!empty($filters['date'])) { $where[] = 'i.scheduled_date = ?'; $params[] = $filters['date']; }
+    if (!empty($filters['search'])) {
+        $like = '%' . $filters['search'] . '%';
+        $where[] = '(c.lastname LIKE ? OR c.firstname LIKE ? OR c.phone LIKE ? OR c.city LIKE ? OR i.ref LIKE ? OR i.type_label LIKE ?)';
+        array_push($params, $like, $like, $like, $like, $like, $like);
+    }
+    $sql = "SELECT i.*, c.lastname, c.firstname, c.phone AS client_phone, c.address, c.city AS client_city, c.postal_code,
+                   t.name AS tech_name, t.phone AS tech_phone, d.name AS disp_name
+            FROM interventions i
+            LEFT JOIN clients c ON c.id = i.client_id
+            LEFT JOIN technicians t ON t.id = i.technician_id
+            LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY i.urgency DESC, COALESCE(i.scheduled_date,'9999-12-31') ASC, i.id DESC";
+    try { return db_fetch_all($sql, $params); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_intervention_by_id(int $id): ?array
+{
+    try {
+        $r = db_fetch(
+            "SELECT i.*, c.lastname, c.firstname, c.phone AS client_phone, c.email AS client_email,
+                    c.address, c.city AS client_city, c.postal_code, c.floor, c.digicode, c.access_info,
+                    t.name AS tech_name, t.phone AS tech_phone, t.email AS tech_email,
+                    d.name AS disp_name
+             FROM interventions i
+             LEFT JOIN clients c ON c.id = i.client_id
+             LEFT JOIN technicians t ON t.id = i.technician_id
+             LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
+             WHERE i.id = ?", [$id]);
+        return $r ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function create_intervention(array $data): int
+{
+    $ref = 'INT-' . date('Ymd') . '-' . strtoupper(bin2hex(random_bytes(3)));
+    db_execute(
+        "INSERT INTO interventions (ref,client_id,dispatcher_id,technician_id,scheduled_date,scheduled_time,
+         duration_estimate,urgency,priority,category,type_label,installation_type,description,fault_reported,
+         materials_needed,notes_admin,quote_accepted,amount_ht,amount_ttc,deposit,remaining,payment_method,
+         status,latitude,longitude) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [
+            $ref,
+            (int)($data['client_id'] ?? 0),
+            !empty($data['dispatcher_id']) ? (int)$data['dispatcher_id'] : null,
+            !empty($data['technician_id']) ? (int)$data['technician_id'] : null,
+            $data['scheduled_date'] ?: null,
+            $data['scheduled_time'] ?: null,
+            (int)($data['duration_estimate'] ?? 60),
+            (int)($data['urgency'] ?? 0),
+            $data['priority'] ?? 'normale',
+            $data['category'] ?: null,
+            $data['type_label'] ?: null,
+            $data['installation_type'] ?: null,
+            $data['description'] ?: null,
+            $data['fault_reported'] ?: null,
+            $data['materials_needed'] ?: null,
+            $data['notes_admin'] ?: null,
+            (int)($data['quote_accepted'] ?? 0),
+            !empty($data['amount_ht']) ? (float)$data['amount_ht'] : null,
+            !empty($data['amount_ttc']) ? (float)$data['amount_ttc'] : null,
+            !empty($data['deposit']) ? (float)$data['deposit'] : null,
+            !empty($data['remaining']) ? (float)$data['remaining'] : null,
+            $data['payment_method'] ?: null,
+            $data['status'] ?? 'nouveau',
+            !empty($data['latitude']) ? (float)$data['latitude'] : null,
+            !empty($data['longitude']) ? (float)$data['longitude'] : null,
+        ]
+    );
+    return db_last_id();
+}
+
+function update_intervention(int $id, array $data): void
+{
+    $allowed = ['technician_id','dispatcher_id','scheduled_date','scheduled_time','duration_estimate',
+                'urgency','priority','category','type_label','installation_type','description','fault_reported',
+                'materials_needed','notes_admin','quote_accepted','amount_ht','amount_ttc','deposit','remaining',
+                'payment_method','status','tech_report','tech_photos','tech_materials_used','tech_time_spent',
+                'tech_signature','tech_client_name','tech_started_at','tech_arrived_at','tech_completed_at',
+                'latitude','longitude'];
+    $sets = []; $params = [];
+    foreach ($allowed as $f) {
+        if (array_key_exists($f, $data)) { $sets[] = "$f = ?"; $params[] = $data[$f]; }
+    }
+    if (empty($sets)) return;
+    $params[] = $id;
+    db_execute("UPDATE interventions SET " . implode(', ', $sets) . " WHERE id = ?", $params);
+}
+
+function log_intervention_history(int $id, ?string $from, string $to, string $actor_type, int $actor_id, string $actor_name, string $note = ''): void
+{
+    try {
+        db_execute("INSERT INTO intervention_history (intervention_id,status_from,status_to,actor_type,actor_id,actor_name,note) VALUES (?,?,?,?,?,?,?)",
+            [$id, $from, $to, $actor_type, $actor_id, $actor_name, $note]);
+    } catch (Throwable $e) {}
+}
+
+function get_intervention_history(int $id): array
+{
+    try { return db_fetch_all("SELECT * FROM intervention_history WHERE intervention_id = ? ORDER BY created_at ASC", [$id]); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_client_interventions(int $client_id): array
+{
+    try { return db_fetch_all("SELECT i.*, t.name AS tech_name FROM interventions i LEFT JOIN technicians t ON t.id=i.technician_id WHERE i.client_id=? ORDER BY i.created_at DESC", [$client_id]); }
+    catch (Throwable $e) { return []; }
+}
+
+/* ═══════════════════════════════════════════════════
+   DISPATCHER KPIs
+═══════════════════════════════════════════════════ */
+function dispatcher_kpis(): array
+{
+    $today = date('Y-m-d');
+    $ws    = date('Y-m-d', strtotime('monday this week'));
+    $ms    = date('Y-m-01');
+    $zero  = ['today_total'=>0,'waiting'=>0,'assigned'=>0,'in_progress'=>0,'done_today'=>0,'urgent'=>0,'late'=>0,'techs_active'=>0,'ca_today'=>0.0,'ca_week'=>0.0,'ca_month'=>0.0,'total'=>0];
+    try {
+        return [
+            'today_total'  => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date=?",[$today])['c']??0),
+            'waiting'      => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0),
+            'assigned'     => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='assigné'")['c']??0),
+            'in_progress'  => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('en_route','sur_place')")['c']??0),
+            'done_today'   => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='terminé' AND DATE(tech_completed_at)=?",[$today])['c']??0),
+            'urgent'       => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN ('terminé','annulé','payé')")['c']??0),
+            'late'         => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date<? AND scheduled_date IS NOT NULL AND status NOT IN ('terminé','annulé','payé','facturé')",[$today])['c']??0),
+            'techs_active' => (int)(db_fetch("SELECT COUNT(*) AS c FROM technicians WHERE status='actif'")['c']??0),
+            'ca_today'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND DATE(tech_completed_at)=?",[$today])['s']??0),
+            'ca_week'      => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ws])['s']??0),
+            'ca_month'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ms])['s']??0),
+            'total'        => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions")['c']??0),
+        ];
+    } catch (Throwable $e) { return $zero; }
+}
+
+/* ═══════════════════════════════════════════════════
+   SMS DISPATCHER
+═══════════════════════════════════════════════════ */
+function send_sms_dispatcher(string $to, string $message): bool
+{
+    $apiUrl = setting('sms_api_url', '');
+    $apiKey = setting('sms_api_key', '');
+    $sender = setting('sms_sender',  'EMAE');
+    if ($apiUrl === '' || $apiKey === '') return false;
+    $to = preg_replace('/\s+/', '', $to);
+    if (!preg_match('/^\+?[0-9]{8,15}$/', $to)) return false;
+    try {
+        $payload = json_encode(['to'=>$to,'message'=>$message,'sender'=>$sender,'api_key'=>$apiKey]);
+        $ctx = stream_context_create(['http'=>[
+            'method'=>'POST',
+            'header'=>"Content-Type: application/json\r\nAuthorization: Bearer $apiKey\r\n",
+            'content'=>$payload,'timeout'=>5,'ignore_errors'=>true,
+        ]]);
+        @file_get_contents($apiUrl, false, $ctx);
+        return true;
+    } catch (Throwable $e) { return false; }
+}
+
+/* ═══════════════════════════════════════════════════
+   GEOCODING (Nominatim)
+═══════════════════════════════════════════════════ */
+function geocode_address(string $address, string $city = '', string $postal = ''): array
+{
+    $q   = trim($address . ' ' . $postal . ' ' . $city . ' France');
+    $url = 'https://nominatim.openstreetmap.org/search?q=' . rawurlencode($q) . '&format=json&limit=1&countrycodes=fr';
+    $ctx = stream_context_create(['http'=>['timeout'=>3,'ignore_errors'=>true,'header'=>"User-Agent: EMAE-Dispatcher/1.0\r\n"]]);
+    try {
+        $json = @file_get_contents($url, false, $ctx);
+        if ($json !== false) {
+            $data = json_decode($json, true);
+            if (is_array($data) && !empty($data[0])) return ['lat'=>(float)$data[0]['lat'],'lng'=>(float)$data[0]['lon']];
+        }
+    } catch (Throwable $e) {}
+    return ['lat'=>null,'lng'=>null];
+}
+
+/* ═══════════════════════════════════════════════════
+   ZONES MULTI-ZONES
+═══════════════════════════════════════════════════ */
+function all_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function all_active_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones WHERE status=1 ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_zone_by_slug(string $slug): ?array
+{
+    if ($slug === '') return null;
+    try {
+        $z = db_fetch("SELECT * FROM zones WHERE slug=? LIMIT 1", [$slug]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function get_zone_by_id(int $id): ?array
+{
+    try {
+        $z = db_fetch("SELECT * FROM zones WHERE id=? LIMIT 1", [$id]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function zone_field(array $zone, string $field, string $default = ''): string
+{
+    $val = trim((string)($zone[$field] ?? ''));
+    return $val !== '' ? $val : $default;
+}
+
+function zone_faq(array $zone): array
+{
+    $raw = $zone['faq'] ?? null;
+    if ($raw === null || $raw === '') return [];
+    $decoded = json_decode((string)$raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function zone_cities(array $zone): array
+{
+    $raw = trim((string)($zone['cities'] ?? ''));
+    if ($raw === '') return [];
+    return array_values(array_filter(array_map('trim', explode('|', $raw))));
+}
+
+function zone_url(string $slug, string $page = ''): string
+{
+    $base = url_for($slug . '/');
+    if ($page === '' || $page === 'home') return $base;
+    return rtrim($base, '/') . '/' . ltrim($page, '/');
+}
+
+function create_zone(array $data): int
+{
+    db_execute(
+        "INSERT INTO zones (slug,name,status,meta_title,meta_description,hero_h1,hero_subtitle,hero_cta_label,cities,postal_codes,faq,mentions_legales,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0)]
+    );
+    return db_last_id();
+}
+
+function update_zone(int $id, array $data): void
+{
+    db_execute(
+        "UPDATE zones SET slug=?,name=?,status=?,meta_title=?,meta_description=?,hero_h1=?,hero_subtitle=?,hero_cta_label=?,cities=?,postal_codes=?,faq=?,mentions_legales=?,sort_order=? WHERE id=?",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0),$id]
+    );
+}
+
+function toggle_zone_status(int $id): void
+{
+    db_execute("UPDATE zones SET status = 1 - status WHERE id=?", [$id]);
+}
+
+function delete_zone(int $id): void
+{
+    db_execute("DELETE FROM zones WHERE id=?", [$id]);
 }

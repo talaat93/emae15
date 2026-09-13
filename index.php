@@ -5,17 +5,45 @@ require_once __DIR__ . '/includes/render.php';
 
 $route = trim((string)($_GET['route'] ?? ''), '/');
 
+// ── Zone detection from clean URL path (e.g. /paris-ile-de-france/) ──
+$currentZone = null;
+$_zuri = ltrim(rtrim((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/'), '/');
+$_zbase = ltrim(rtrim(base_path(), '/'), '/');
+if ($_zbase !== '' && str_starts_with($_zuri, $_zbase)) $_zuri = ltrim(substr($_zuri, strlen($_zbase)), '/');
+$_zsegs = array_values(array_filter(explode('/', $_zuri)));
+$_zs0   = $_zsegs[0] ?? '';
+if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets','includes','config','storage','index.php'], true)
+    && preg_match('/^[a-z][a-z0-9-]{1,78}$/', $_zs0)) {
+    $_zobj = get_zone_by_slug($_zs0);
+    if ($_zobj && (bool)$_zobj['status']) {
+        $currentZone = $_zobj;
+        if ($route === '' && isset($_zsegs[1]) && trim($_zsegs[1]) !== '') $route = trim($_zsegs[1]);
+    }
+    unset($_zobj);
+}
+unset($_zuri, $_zbase, $_zsegs, $_zs0);
+
 /* ── POST FORM ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();
     if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to('index.php?route='.$route); }
     if (trim((string)($_POST['website'] ?? '')) !== '') { redirect_to('index.php?route='.$route); }
     $fn=$_POST['full_name']??''; $ph=$_POST['phone']??''; $em=$_POST['email']??'';
-    $ci=$_POST['city']??''; $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
+    $ci=$_POST['city']??''; $ad=$_POST['address']??''; $pc=$_POST['postal_code']??'';
+    $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
     $ur=$_POST['urgency']??'Normale'; $so=$_POST['source']??'';
     if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to('index.php?route='.$route); }
-    db_execute('INSERT INTO quotes (full_name,phone,email,city,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?)',
-        [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+    try {
+        db_execute('INSERT INTO quotes (full_name,phone,email,city,address,postal_code,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+            [trim($fn),trim($ph),trim($em),trim($ci),trim($ad),trim($pc),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+    } catch (Throwable $_qe) {
+        db_execute('INSERT INTO quotes (full_name,phone,email,city,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?)',
+            [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+        unset($_qe);
+    }
+    $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so];
+    send_quote_notification($qData);
+    if (trim($em) !== '') send_quote_confirmation_to_client($qData);
     flash('success', quote_form_options()['success_message']);
     redirect_to('index.php?route='.($route ?: 'home'));
 }
@@ -36,8 +64,22 @@ if ($route === '' || $route === 'home') {
     $btn2url = setting('home_button2_url','') ?: company_phone_link();
     if ($btn2url !== '' && !preg_match('#^(https?:|tel:|mailto:|/)#i',$btn2url)) $btn2url = route_url($btn2url);
 
+    // ── Zone overrides ──
+    if ($currentZone) {
+        $_SESSION['geo_redirected'] = true; // pas de redirect geo sur pages zone
+        $zMT = zone_field($currentZone, 'meta_title');
+        $zMD = zone_field($currentZone, 'meta_description');
+        $meta['title']       = $zMT !== '' ? $zMT : company_name().' — '.$currentZone['name'].' | Électricien, Plombier, Chauffagiste';
+        $meta['description'] = $zMD !== '' ? $zMD : 'Électricien, plombier, chauffagiste à '.$currentZone['name'].'. Devis gratuit, intervention rapide. '.company_phone().'.';
+        $meta['canonical']   = url_for($currentZone['slug'].'/');
+        unset($zMT, $zMD);
+    } else {
+        if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
+    }
+
     render_head($meta);
-    render_header(route_url(''));
+    $activeZones = all_active_zones();
+    render_header($currentZone ? url_for($currentZone['slug'].'/') : route_url(''));
 ?>
 
 <!-- HERO -->
@@ -46,13 +88,29 @@ if ($route === '' || $route === 'home') {
   <div class="wrap hero-grid">
 
     <div class="hero-content">
-      <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(setting('home_eyebrow','Disponible '.company_hours())) ?></div>
+      <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(geo_replace(setting('home_eyebrow','Disponible '.company_hours()))) ?></div>
       <h1><?php
-        $ht = setting('home_title','Votre expert multitechnique');
-        $ht2 = setting('home_title_hl','en urgence');
-        echo e($ht).' <span class="hl">'.e($ht2).'</span>';
+        if ($currentZone && zone_field($currentZone,'hero_h1') !== '') {
+            $zH1 = zone_field($currentZone,'hero_h1');
+            // split on last word for highlight
+            $zParts = explode(' ', $zH1, -1);
+            $zLast  = array_pop(explode(' ', $zH1)) ?: '';
+            $zFirst = implode(' ', array_slice(explode(' ',$zH1),0,-1));
+            echo e($zFirst).' <span class="hl">'.e($zLast).'</span>';
+            unset($zH1,$zParts,$zLast,$zFirst);
+        } else {
+            $ht = setting('home_title','Votre expert multitechnique');
+            $ht2 = setting('home_title_hl','en urgence');
+            echo e($ht).' <span class="hl">'.e($ht2).'</span>';
+        }
       ?></h1>
-      <p class="hero-lead"><?= e(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en Île-de-France et Occitanie. Intervention rapide, devis gratuit, artisans qualifiés.')) ?></p>
+      <p class="hero-lead"><?php
+        if ($currentZone && zone_field($currentZone,'hero_subtitle') !== '') {
+            echo e(zone_field($currentZone,'hero_subtitle'));
+        } else {
+            echo e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.company_regions().'. Intervention rapide, devis gratuit, artisans qualifiés.')));
+        }
+      ?></p>
 
       <div class="chips">
         <?php foreach (array_filter([
@@ -94,21 +152,6 @@ if ($route === '' || $route === 'home') {
   </div>
 </section>
 
-<!-- STRIP URGENCE -->
-<div class="strip">
-  <div class="wrap strip-in">
-    <?php foreach (array_filter([
-      setting('strip_1','⚡ Urgence électrique 24h/24'),
-      setting('strip_2','💧 Fuite d\'eau — intervention immédiate'),
-      setting('strip_3','🔥 Panne chauffage / PAC'),
-      setting('strip_4','❄️ Climatisation en panne'),
-      '📞 '.company_phone(),
-    ], fn($v)=>trim($v)!=='') as $i=>$item): ?>
-      <?php if ($i>0): ?><span class="strip-sep"></span><?php endif; ?>
-      <span class="strip-item"><?= e($item) ?></span>
-    <?php endforeach; ?>
-  </div>
-</div>
 
 <!-- NOS SERVICES -->
 <section class="svc-section">
@@ -116,7 +159,7 @@ if ($route === '' || $route === 'home') {
     <div class="svc-header">
       <div class="svc-label"><?= e(setting('services_section_label','Nos pôles d\'intervention')) ?></div>
       <h2 class="svc-title"><?= e(setting('services_title','Tout ce dont vous avez')) ?> <em><?= e(setting('services_title_hl','besoin')) ?></em></h2>
-      <p class="svc-lead"><?= e(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes — un seul interlocuteur pour tous vos besoins techniques.')) ?></p>
+      <p class="svc-lead"><?= e(geo_replace(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes en '.company_regions().' — un seul interlocuteur pour tous vos besoins techniques.'))) ?></p>
     </div>
     <div class="svc-grid">
       <?php foreach ($cards as $card):
@@ -196,16 +239,16 @@ if ($route === '' || $route === 'home') {
     <div class="svc-label"><?= e(setting('process_label','Comment ça marche')) ?></div>
     <h2 class="section-title"><?= e(setting('process_title','Votre intervention en')) ?> <em><?= e(setting('process_title_hl','3 étapes')) ?></em></h2>
     <div class="process-grid">
-      <?php foreach ([
-        [setting('process_1_num','01'), setting('process_1_title','Vous nous contactez'),        setting('process_1_text','Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.')],
-        [setting('process_2_num','02'), setting('process_2_title','Nous organisons l\'intervention'), setting('process_2_text','Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.')],
-        [setting('process_3_num','03'), setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
-      ] as [$num,$title,$text]): ?>
+      <?php $_pn=0; foreach ([
+        [setting('process_1_title','Vous nous contactez'),        setting('process_1_text','Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.')],
+        [setting('process_2_title','Nous organisons l\'intervention'), setting('process_2_text','Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.')],
+        [setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
+      ] as [$title,$text]): $_pn++; ?>
       <div class="process-step">
-        <div class="process-num"><?= e($num) ?></div>
+        <div class="process-num"><?= $_pn ?></div>
         <div><div class="process-h"><?= e($title) ?></div><p class="process-p"><?= e($text) ?></p></div>
       </div>
-      <?php endforeach; ?>
+      <?php endforeach; unset($_pn); ?>
     </div>
   </div>
 </section>
@@ -314,144 +357,110 @@ if ($route === '' || $route === 'home') {
 <section class="zones-section">
   <div class="wrap">
     <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
-    <h2 class="section-title"><?= e(setting('zones_title','Nous intervenons')) ?> <em><?= e(setting('zones_title_hl','près de chez vous')) ?></em></h2>
-    <p class="section-lead"><?= e(setting('zones_lead','Île-de-France et Occitanie — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.')) ?></p>
+    <?php if ($currentZone): ?>
+    <h2 class="section-title">Villes couvertes <em>en <?= e($currentZone['name']) ?></em></h2>
+    <p class="section-lead">Nos techniciens interviennent sur toutes les villes de la zone <?= e($currentZone['name']) ?>. Délai moyen d'intervention inférieur à 2 heures pour les urgences.</p>
     <div class="zones-grid">
-      <?php $zoneCards = get_json_setting('home_zone_cards', [
-        ['title'=>'🗺️ Île-de-France','text'=>setting('zone_idf_text','Paris, Meaux, Versailles, Évry, Nanterre, Saint-Denis, Créteil, Cergy et toute la région.'),'cities'=>setting('zone_idf_cities','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Marne-la-Vallée|Melun|Pontoise')],
-        ['title'=>'🗺️ Occitanie','text'=>setting('zone_occ_text','Toulouse, Montpellier, Nîmes, Perpignan et toute la région.'),'cities'=>setting('zone_occ_cities','Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)|Carcassonne (11)|Albi (81)')],
-      ]);
-      foreach ($zoneCards as $zc):
-        $cities = is_array($zc['cities']??null) ? $zc['cities'] : array_filter(array_map('trim', explode('|', (string)($zc['cities']??''))));
-      ?>
       <div class="zone-card">
-        <div class="zone-name"><?= e($zc['title']) ?></div>
-        <p class="zone-text"><?= e($zc['text']) ?></p>
+        <div class="zone-name">🗺️ <?= e($currentZone['name']) ?></div>
         <div class="zone-chips">
-          <?php foreach ($cities as $city): ?><span class="zone-chip"><?= e($city) ?></span><?php endforeach; ?>
+          <?php foreach (zone_cities($currentZone) as $_zc): ?><span class="zone-chip"><?= e($_zc) ?></span><?php endforeach; ?>
         </div>
+      </div>
+    </div>
+    <?php else: ?>
+    <h2 class="section-title"><?= e(setting('zones_title','Nos zones d\'intervention')) ?> <em><?= e(setting('zones_title_hl','partout en France')) ?></em></h2>
+    <p class="section-lead"><?= e(geo_replace(setting('zones_lead',company_regions().' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
+    <div class="zones-grid">
+      <?php foreach ($activeZones as $_az): ?>
+      <div class="zone-card">
+        <a href="<?= e(url_for($_az['slug'].'/')) ?>" style="text-decoration:none;color:inherit;">
+          <div class="zone-name">🗺️ <?= e($_az['name']) ?></div>
+          <?php $_azc = zone_cities($_az); if (!empty($_azc)): ?>
+          <div class="zone-chips" style="margin-top:.5rem;">
+            <?php foreach (array_slice($_azc,0,6) as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+        </a>
       </div>
       <?php endforeach; ?>
     </div>
+    <?php endif; ?>
     <div style="text-align:center;margin-top:2.5rem;">
-      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Vérifier ma zone')) ?> →</a>
+      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>
     </div>
   </div>
 </section>
 
+<?php if ($currentZone && !empty(zone_faq($currentZone))): ?>
+<!-- FAQ ZONE -->
+<section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
+  <div class="svc-label">FAQ</div>
+  <h2 class="section-title">Questions <em>fréquentes</em></h2>
+  <div class="sfaq-list" style="margin-top:1.75rem;">
+    <?php foreach (zone_faq($currentZone) as [$_fq,$_fa]): ?>
+    <details class="sfaq-item"><summary><?= e($_fq) ?></summary><p><?= e($_fa) ?></p></details>
+    <?php endforeach; ?>
+  </div>
+</div></section>
+<?php endif; ?>
+
 <?php render_footer(); exit; }
-/* ════ SERVICES ════ */
-if ($route === 'services') {
-    $svc  = services_page_content();
+
+/* ════ ZONES D'INTERVENTION ════ */
+if ($route === 'zones') {
+    $zones = zones_page_settings();
     $cards = service_cards_v14();
-    $meta = [
-        'title'       => setting('services_meta_title', 'Nos services | '.company_name()),
-        'description' => setting('services_meta_desc',  'Électricité, plomberie, chauffage, climatisation — dépannage urgence, installation et entretien en Île-de-France et Occitanie.'),
-        'canonical'   => route_url('services'),
+    $meta  = [
+        'title'       => setting('zones_meta_title', 'Zones d\'intervention | '.company_name()),
+        'description' => setting('zones_meta_desc',  'EMAE intervient en Île-de-France et Occitanie — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'),
+        'canonical'   => route_url('zones'),
     ];
-    render_head($meta); render_header(route_url('services'));
+    render_head($meta); render_header(route_url('zones'));
 ?>
 <section class="page-hero">
   <div class="wrap">
-    <div class="ph-eyebrow"><?= e($svc['eyebrow']) ?></div>
-    <h1 class="ph-h1"><?= e($svc['title']) ?></h1>
-    <p class="ph-lead"><?= e($svc['lead']) ?></p>
+    <div class="ph-eyebrow">// <?= e($zones['eyebrow']) ?></div>
+    <h1 class="ph-h1"><?= e($zones['title']) ?> <em><?= e($zones['title_hl']) ?></em></h1>
+    <p class="ph-lead"><?= e($zones['lead']) ?></p>
     <div class="ph-badges">
       <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
       <span class="ph-badge">🆓 Devis gratuit</span>
-      <span class="ph-badge">📍 <?= e(company_regions()) ?></span>
       <span class="ph-badge">🔒 Artisans certifiés</span>
+      <span class="ph-badge">📞 <?= e(company_phone()) ?></span>
     </div>
   </div>
 </section>
 
-<section class="svc-section">
+<section class="sec sec-navy" style="padding:4rem 0;">
   <div class="wrap">
-    <div class="svc-header">
-      <div class="svc-label"><?= e(setting('services_section_label','Nos pôles d\'intervention')) ?></div>
-      <h2 class="svc-title"><?= e(setting('services_title','Tout ce dont vous avez')) ?> <em><?= e(setting('services_title_hl','besoin')) ?></em></h2>
-      <p class="svc-lead"><?= e(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes — un seul interlocuteur pour tous vos besoins techniques.')) ?></p>
-    </div>
-    <div class="svc-grid">
-      <?php foreach ($cards as $card):
-        $link = trim($card['link'] ?? '');
-        if (!preg_match('#^(https?:|/)#i',$link)) $link = route_url($link ?: 'services');
-        $img  = trim($card['image'] ?? '');
-        $hasImg = $img !== '' && file_exists(__DIR__.'/'.ltrim($img,'/'));
-      ?>
-      <a class="svc-card" href="<?= e($link) ?>">
-        <?php if ($hasImg): ?>
-          <div class="svc-bg" style="background-image:url(<?= e(asset_url($img)) ?>)"></div>
-        <?php else: ?>
-          <div class="svc-placeholder">
-            <div class="svc-placeholder-lines"></div>
-            <div class="svc-placeholder-icon"><?= e($card['placeholder_icon'] ?? '⚡') ?></div>
-          </div>
-        <?php endif; ?>
-        <div class="svc-overlay"></div>
-        <span class="svc-badge"><?= e($card['badge'] ?? '') ?></span>
-        <span class="svc-arrow">→</span>
-        <div class="svc-body">
-          <div class="svc-name"><?= e($card['title']) ?></div>
-          <div class="svc-desc"><?= e($card['desc'] ?? '') ?></div>
-          <div class="svc-tags"><?php foreach ((array)($card['tags']??[]) as $tag): ?><span class="svc-tag"><?= e($tag) ?></span><?php endforeach; ?></div>
-        </div>
-      </a>
-      <?php endforeach; ?>
-    </div>
-  </div>
-</section>
-
-<section class="sec sec-navy">
-  <div class="wrap">
-    <div class="svc-label"><?= e(setting('services_detail_label','Le détail de nos prestations')) ?></div>
-    <h2 class="section-title"><?= e(setting('services_detail_title','4 pôles,')) ?> <em><?= e(setting('services_detail_title_hl','une seule équipe')) ?></em></h2>
-    <p class="section-lead"><?= e(setting('services_detail_lead','Chaque corps de métier dispose de ses propres techniciens certifiés. Vous avez un seul interlocuteur, nous coordonnons tout.')) ?></p>
-    <div style="display:grid;gap:2.5rem;">
-      <?php foreach ($svc['services'] as $s): ?>
-      <div style="background:var(--card);border:1px solid var(--line);border-radius:var(--r4);padding:2rem;position:relative;overflow:hidden;">
-        <div style="position:absolute;top:0;left:0;width:4px;height:100%;background:linear-gradient(180deg,<?= e($s['color']) ?>,rgba(<?= implode(',',sscanf($s['color'],'#%02x%02x%02x') ?: [240,123,29]) ?>,.2));"></div>
-        <div style="padding-left:1.2rem;">
-          <div style="display:flex;align-items:center;gap:.85rem;margin-bottom:1rem;">
-            <span style="font-size:2rem;"><?= e($s['icon']) ?></span>
+    <div class="svc-label">Nos régions</div>
+    <h2 class="section-title">Deux grandes <em>zones couvertes</em></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-top:2.5rem;">
+      <?php foreach ($zones['regions'] as $reg): ?>
+      <div style="background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:var(--r4);overflow:hidden;">
+        <div style="background:linear-gradient(135deg,<?= e($reg['color']) ?>22,<?= e($reg['color']) ?>08);padding:2rem 2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;">
+            <span style="font-size:2.2rem;"><?= e($reg['icon']) ?></span>
             <div>
-              <a href="<?= e(route_url($s['slug'])) ?>" style="font-family:var(--font-h);font-size:1.25rem;font-weight:700;color:#fff;letter-spacing:-.01em;"><?= e($s['title']) ?></a>
-              <p style="font-size:.82rem;color:var(--t2);margin:.15rem 0 0;font-weight:300;"><?= e($s['desc']) ?></p>
+              <div style="font-family:var(--font-h);font-size:1.4rem;font-weight:700;color:#fff;"><?= e($reg['name']) ?></div>
+              <div style="font-size:.78rem;font-weight:700;color:<?= e($reg['color']) ?>;text-transform:uppercase;letter-spacing:.1em;margin-top:.15rem;">⏱ <?= e($reg['delay']) ?></div>
             </div>
           </div>
-          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.45rem;">
-            <?php foreach ($s['items'] as $item): ?>
-            <div style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--t1);font-weight:300;">
-              <span style="width:6px;height:6px;border-radius:50%;background:<?= e($s['color']) ?>;flex-shrink:0;"></span><?= e($item) ?>
-            </div>
+          <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1rem;">
+            <?php foreach ($reg['depts'] as $d): ?>
+            <span style="font-size:.72rem;background:rgba(255,255,255,.06);color:var(--t1);border:1px solid rgba(255,255,255,.1);padding:.22rem .65rem;border-radius:4px;"><?= e($d) ?></span>
             <?php endforeach; ?>
           </div>
-          <div style="margin-top:1.35rem;">
-            <a class="btn btn-ghost-p btn-sm" href="<?= e(route_url($s['slug'])) ?>">Voir <?= e($s['title']) ?> →</a>
+        </div>
+        <div style="padding:1.25rem 2rem 1.75rem;">
+          <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t2);margin-bottom:.75rem;">Principales villes</div>
+          <div style="display:flex;flex-wrap:wrap;gap:.35rem;">
+            <?php foreach ($reg['cities'] as $city): ?>
+            <span style="font-size:.8rem;color:var(--t1);background:rgba(255,255,255,.04);padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.07);">📍 <?= e($city) ?></span>
+            <?php endforeach; ?>
           </div>
         </div>
-      </div>
-      <?php endforeach; ?>
-    </div>
-  </div>
-</section>
-
-<section class="why-section" style="padding:5rem 0;">
-  <div class="wrap">
-    <div class="svc-label">Pourquoi choisir EMAE</div>
-    <h2 class="section-title">Un seul interlocuteur, <em>toutes compétences</em></h2>
-    <div class="why-grid" style="margin-top:2rem;">
-      <?php foreach ([
-        ['⚡','Urgence 24h/7j','Astreinte permanente. Moins de 2h en Île-de-France pour toute panne bloquante.'],
-        ['🆓','Devis gratuit','Prix annoncé avant toute intervention. Aucune surprise sur la facture.'],
-        ['🔒','Artisans certifiés','Techniciens formés, qualifiés et assurés pour chaque corps de métier.'],
-        ['🛠️','Toutes interventions','Urgence, installation, entretien, mise aux normes — tout en interne.'],
-        ['📍','Présence locale','Île-de-France et Occitanie. Réactivité garantie sur nos zones.'],
-        ['⭐','Clients satisfaits',setting('schema_rating_value','4.9').'/5 sur '.setting('schema_review_count','120').' avis vérifiés.'],
-      ] as [$ico,$t,$txt]): ?>
-      <div class="why-card">
-        <div class="why-icon"><?= $ico ?></div>
-        <div><div class="why-h"><?= e($t) ?></div><p class="why-p"><?= e($txt) ?></p></div>
       </div>
       <?php endforeach; ?>
     </div>
@@ -459,25 +468,329 @@ if ($route === 'services') {
 </section>
 
 <section class="sec sec-navy" style="padding:4rem 0;">
-  <div class="wrap" style="max-width:700px;text-align:center;">
-    <div class="svc-label">Démarrer</div>
-    <h2 class="section-title">Besoin d'un <em>technicien ?</em></h2>
-    <p class="section-lead" style="margin-bottom:1.75rem;"><?= e(setting('qs_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair.')) ?></p>
-    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;">
-      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>">🆓 Devis gratuit en 2 min</a>
-      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+  <div class="wrap" style="max-width:760px;">
+    <div class="svc-label">Intervention rapide</div>
+    <h2 class="section-title">Demandez votre <em>devis gratuit</em></h2>
+    <p class="section-lead" style="margin-bottom:2rem;">Précisez votre ville et votre besoin — nous confirmons la disponibilité dans votre zone sous 30 minutes.</p>
+    <div class="hero-card" style="background:var(--card);">
+      <div class="hero-card-tag">Gratuit et sans engagement</div>
+      <h2 style="font-family:var(--font-h);font-size:1.3rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">Obtenir un devis</h2>
+      <?php render_quote_form($cards, 'zones'); ?>
+    </div>
+  </div>
+</section>
+<?php render_footer(); exit; }
+
+/* ════ AVIS CLIENTS ════ */
+if ($route === 'avis') {
+    $allReviews  = all_published_reviews();
+    $ratingVal   = setting('schema_rating_value', '4.6');
+    $reviewCount = setting('schema_review_count', (string)count($allReviews) ?: '120');
+    $gmbUrl      = setting('google_mybusiness_url', '');
+    $meta = [
+        'title'       => setting('avis_meta_title', 'Avis clients | '.company_name()),
+        'description' => setting('avis_meta_desc',  'Découvrez les avis de nos clients — note de '.$ratingVal.'/5 sur '.$reviewCount.' avis vérifiés.'),
+        'canonical'   => route_url('avis'),
+    ];
+    render_head($meta); render_header(route_url('avis'));
+?>
+<section class="page-hero">
+  <div class="wrap">
+    <div class="ph-eyebrow">// Avis clients</div>
+    <h1 class="ph-h1">Ce que disent <em>nos clients</em></h1>
+    <p class="ph-lead">Des centaines de clients satisfaits en Île-de-France et Occitanie. Voici leurs témoignages.</p>
+    <div style="display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+      <div style="text-align:center;">
+        <div style="font-family:var(--font-h);font-size:3rem;font-weight:700;color:var(--p);line-height:1;"><?= e($ratingVal) ?></div>
+        <div style="font-size:.75rem;color:var(--t2);margin-top:.2rem;">sur 5</div>
+      </div>
+      <div>
+        <div style="color:#f59e0b;font-size:1.3rem;letter-spacing:.1em;">★★★★★</div>
+        <div style="font-size:.85rem;color:var(--t1);margin-top:.3rem;font-weight:600;"><?= e($reviewCount) ?> avis vérifiés</div>
+        <?php if ($gmbUrl !== ''): ?>
+        <a href="<?= e($gmbUrl) ?>" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--p);margin-top:.4rem;font-weight:600;">Voir sur Google →</a>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="sec sec-navy">
+  <div class="wrap">
+    <?php if (empty($allReviews)): ?>
+      <p style="text-align:center;color:var(--t2);padding:3rem 0;">Aucun avis pour le moment.</p>
+    <?php else: ?>
+    <div class="reviews-grid" style="margin-top:1rem;">
+      <?php foreach ($allReviews as $rv):
+        $stars = max(1,min(5,(int)($rv['rating'] ?? 5)));
+        $starsHtml = str_repeat('★',$stars).str_repeat('☆',5-$stars);
+      ?>
+      <div class="review-card">
+        <div class="rv-head">
+          <div class="rv-avatar"><?= mb_strtoupper(mb_substr($rv['author_name']??'?',0,1,'UTF-8'),'UTF-8') ?></div>
+          <div>
+            <div class="rv-name"><?= e($rv['author_name'] ?? '') ?></div>
+            <?php if (trim($rv['service_type']??'') !== ''): ?>
+            <div class="rv-svc"><?= e($rv['service_type']) ?></div>
+            <?php endif; ?>
+          </div>
+          <div class="rv-stars" style="margin-left:auto;color:#f59e0b;font-size:1rem;"><?= $starsHtml ?></div>
+        </div>
+        <?php if (trim($rv['content']??'') !== ''): ?>
+        <p class="rv-body"><?= e($rv['content']) ?></p>
+        <?php endif; ?>
+        <?php if (trim($rv['city']??'') !== ''): ?>
+        <div style="font-size:.75rem;color:var(--t2);margin-top:.75rem;">📍 <?= e($rv['city']) ?></div>
+        <?php endif; ?>
+      </div>
+      <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <?php if ($gmbUrl !== ''): ?>
+    <div style="text-align:center;margin-top:3rem;">
+      <a class="btn btn-p btn-lg" href="<?= e($gmbUrl) ?>" target="_blank" rel="noopener noreferrer">⭐ Laisser un avis sur Google</a>
+    </div>
+    <?php endif; ?>
+  </div>
+</section>
+<?php render_footer(); exit; }
+
+
+/* ════════════════════════════════════════════════════════════════
+   LANDING PAGE DYNAMIQUE — ?route=landing&ville=X&dept=Y&metier=Z
+   Utilisée pour les campagnes Google Ads géolocalisées.
+   Zones : Bourgogne-Franche-Comté, Auvergne-Rhône-Alpes, Île-de-France
+════════════════════════════════════════════════════════════════ */
+if ($route === 'landing') {
+
+    /* ── Données départements ── */
+    $landing_depts = [
+        /* Bourgogne-Franche-Comté */
+        'jura'     => ['nom'=>'Jura',       'code'=>'39','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Lons-le-Saunier',
+                       'villes'=>['Lons-le-Saunier','Dole','Saint-Claude','Champagnole','Morez','Poligny','Orgelet','Arbois']],
+        'doubs'    => ['nom'=>'Doubs',      'code'=>'25','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Besançon',
+                       'villes'=>['Besançon','Montbéliard','Pontarlier','Audincourt','Morteau','Valentigney','Baume-les-Dames','Maîche']],
+        'cote-dor' => ['nom'=>"Côte-d'Or",  'code'=>'21','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Dijon',
+                       'villes'=>['Dijon','Beaune','Chenôve','Longvic','Quetigny','Talant','Auxonne','Montbard']],
+        /* Auvergne-Rhône-Alpes */
+        'ain'         => ['nom'=>'Ain',          'code'=>'01','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Bourg-en-Bresse',
+                          'villes'=>['Bourg-en-Bresse','Oyonnax','Ambérieu-en-Bugey','Bellegarde-sur-Valserine','Gex','Miribel','Ferney-Voltaire','Pont-d\'Ain']],
+        'isere'       => ['nom'=>'Isère',        'code'=>'38','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Grenoble',
+                          'villes'=>['Grenoble','Vienne','Bourgoin-Jallieu','Échirolles','Voiron','Crolles','Vizille','Romans-sur-Isère']],
+        'rhone'       => ['nom'=>'Rhône',        'code'=>'69','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Lyon',
+                          'villes'=>['Lyon','Villeurbanne','Vénissieux','Caluire-et-Cuire','Bron','Saint-Priest','Décines-Charpieu','Rillieux-la-Pape']],
+        'loire'       => ['nom'=>'Loire',        'code'=>'42','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Saint-Étienne',
+                          'villes'=>['Saint-Étienne','Roanne','Andrézieux-Bouthéon','Saint-Chamond','Firminy','Montbrison','Le Chambon-Feugerolles']],
+        'savoie'      => ['nom'=>'Savoie',       'code'=>'73','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Chambéry',
+                          'villes'=>['Chambéry','Aix-les-Bains','Albertville','Moûtiers','Bourg-Saint-Maurice','Modane']],
+        'haute-savoie'=> ['nom'=>'Haute-Savoie', 'code'=>'74','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Annecy',
+                          'villes'=>['Annecy','Thonon-les-Bains','Annemasse','Sallanches','Cluses','Évian-les-Bains','Bonneville']],
+        'drome'       => ['nom'=>'Drôme',        'code'=>'26','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Valence',
+                          'villes'=>['Valence','Romans-sur-Isère','Montélimar','Bourg-lès-Valence','Pierrelatte','Die']],
+        'puy-de-dome' => ['nom'=>'Puy-de-Dôme',  'code'=>'63','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Clermont-Ferrand',
+                          'villes'=>['Clermont-Ferrand','Thiers','Riom','Issoire','Ambert','Vichy','Cusset']],
+        'haute-loire' => ['nom'=>'Haute-Loire',  'code'=>'43','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Le Puy-en-Velay',
+                          'villes'=>['Le Puy-en-Velay','Brioude','Yssingeaux','Monistrol-sur-Loire','La Chaise-Dieu']],
+        'allier'      => ['nom'=>'Allier',       'code'=>'03','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Moulins',
+                          'villes'=>['Moulins','Vichy','Montluçon','Cusset','Gannat','Thiers']],
+        'ardeche'     => ['nom'=>'Ardèche',      'code'=>'07','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Privas',
+                          'villes'=>['Privas','Aubenas','Annonay','Tournon-sur-Rhône','Guilherand-Granges']],
+        'cantal'      => ['nom'=>'Cantal',       'code'=>'15','region'=>'Auvergne-Rhône-Alpes','chef_lieu'=>'Aurillac',
+                          'villes'=>['Aurillac','Saint-Flour','Mauriac','Riom-ès-Montagnes']],
+        /* Île-de-France */
+        'paris'       => ['nom'=>'Paris',            'code'=>'75','region'=>'Île-de-France','chef_lieu'=>'Paris',
+                          'villes'=>['Paris','Boulogne-Billancourt','Vincennes','Neuilly-sur-Seine','Montrouge','Ivry-sur-Seine']],
+        'seine-et-marne' => ['nom'=>'Seine-et-Marne','code'=>'77','region'=>'Île-de-France','chef_lieu'=>'Melun',
+                          'villes'=>['Melun','Meaux','Chelles','Pontault-Combault','Savigny-le-Temple','Marne-la-Vallée','Fontainebleau']],
+        'yvelines'    => ['nom'=>'Yvelines',          'code'=>'78','region'=>'Île-de-France','chef_lieu'=>'Versailles',
+                          'villes'=>['Versailles','Mantes-la-Jolie','Sartrouville','Trappes','Poissy','Saint-Germain-en-Laye']],
+        'essonne'     => ['nom'=>'Essonne',            'code'=>'91','region'=>'Île-de-France','chef_lieu'=>'Évry-Courcouronnes',
+                          'villes'=>['Évry','Corbeil-Essonnes','Massy','Palaiseau','Viry-Châtillon','Longjumeau']],
+        'hauts-de-seine' => ['nom'=>'Hauts-de-Seine', 'code'=>'92','region'=>'Île-de-France','chef_lieu'=>'Nanterre',
+                          'villes'=>['Nanterre','Boulogne-Billancourt','Colombes','Rueil-Malmaison','Levallois-Perret','Issy-les-Moulineaux']],
+        'seine-saint-denis' => ['nom'=>'Seine-Saint-Denis','code'=>'93','region'=>'Île-de-France','chef_lieu'=>'Bobigny',
+                          'villes'=>['Saint-Denis','Montreuil','Aubervilliers','Vitry-sur-Seine','Noisy-le-Grand','Bobigny']],
+        'val-de-marne'  => ['nom'=>'Val-de-Marne',   'code'=>'94','region'=>'Île-de-France','chef_lieu'=>'Créteil',
+                          'villes'=>['Créteil','Vitry-sur-Seine','Champigny-sur-Marne','Saint-Maur-des-Fossés','Vincennes','Ivry-sur-Seine']],
+        'val-d-oise'    => ['nom'=>"Val-d'Oise",      'code'=>'95','region'=>'Île-de-France','chef_lieu'=>'Cergy',
+                          'villes'=>['Cergy','Argenteuil','Sarcelles','Osny','Pontoise','Saint-Ouen-l\'Aumône']],
+    ];
+
+    /* ── Données métiers ── */
+    $landing_metiers = [
+        'electricite' => [
+            'label'    => 'Électricité',
+            'label_pro'=> 'Électricien',
+            'icon'     => '⚡',
+            'urgence'  => 'Panne électrique, disjoncteur, court-circuit',
+            'desc'     => 'Dépannage électrique d\'urgence, mise aux normes NF C 15-100, installation tableau, prises et circuits.',
+            'services' => ['Dépannage panne électrique','Remplacement tableau électrique','Mise aux normes NF C 15-100','Ajout prises et circuits','Éclairage intérieur/extérieur','Rénovation électrique complète'],
+        ],
+        'plomberie' => [
+            'label'    => 'Plomberie',
+            'label_pro'=> 'Plombier',
+            'icon'     => '💧',
+            'urgence'  => 'Fuite d\'eau, dégât des eaux, canalisation bouchée',
+            'desc'     => 'Recherche et réparation de fuites, débouchage, remplacement sanitaires, chauffe-eau.',
+            'services' => ['Recherche et réparation de fuites','Débouchage canalisations','Remplacement robinetterie','Chauffe-eau — diagnostic et remplacement','Installation sanitaires','Entretien préventif réseau'],
+        ],
+        'chauffage' => [
+            'label'    => 'Chauffage & PAC',
+            'label_pro'=> 'Technicien chauffage',
+            'icon'     => '🔥',
+            'urgence'  => 'Panne chaudière, chauffage en panne, PAC HS',
+            'desc'     => 'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien annuel réglementaire.',
+            'services' => ['Dépannage chaudière gaz, fioul, électrique','Entretien annuel réglementaire','Pompe à chaleur air/air et air/eau','Installation chaudière ou PAC neuve','Réglage thermostat et programmation','Urgence chauffage hiver'],
+        ],
+        'climatisation' => [
+            'label'    => 'Climatisation & CVC',
+            'label_pro'=> 'Technicien climatisation',
+            'icon'     => '❄️',
+            'urgence'  => 'Climatisation en panne, entretien saisonnier',
+            'desc'     => 'Installation, dépannage et entretien de climatisation split, multi-split, gainable et CVC.',
+            'services' => ['Dépannage climatiseur (split, multi-split)','Installation climatisation neuve','Entretien saisonnier (nettoyage, réglages)','Recharge fluide frigorigène','VMC et ventilation mécanique','Étude et conseil avant installation'],
+        ],
+    ];
+
+    /* ── Lecture et validation des paramètres GET ── */
+    $p_dept   = strtolower(trim((string)($_GET['dept']   ?? '')));
+    $p_metier = strtolower(trim((string)($_GET['metier'] ?? '')));
+    $p_ville  = trim((string)($_GET['ville'] ?? ''));
+
+    /* Valider dept contre la whitelist */
+    if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';
+
+    /* Valider métier contre la whitelist */
+    if (!isset($landing_metiers[$p_metier])) $p_metier = 'electricite';
+
+    /* Valider la ville — doit appartenir au département ou être vide */
+    $dept_data   = $landing_depts[$p_dept];
+    $metier_data = $landing_metiers[$p_metier];
+
+    /* Nettoyer la ville : uniquement lettres, espaces, tirets, apostrophes */
+    $p_ville = preg_replace('/[^a-zA-ZÀ-ÿ0-9 \'\-]/u', '', $p_ville);
+    $p_ville = mb_convert_case(trim($p_ville), MB_CASE_TITLE, 'UTF-8');
+
+    /* Fallback sur le chef-lieu si ville vide ou inconnue */
+    $villes_dept = $dept_data['villes'];
+    $ville_in_list = $p_ville !== '' && in_array($p_ville, $villes_dept, true);
+    if ($p_ville === '' || !$ville_in_list) {
+        $p_ville = $dept_data['chef_lieu'];
+    }
+
+    /* ── Construction des textes dynamiques ── */
+    $h1      = $metier_data['label_pro'].' urgence à '.$p_ville.' ('.$dept_data['nom'].' '.$dept_data['code'].')';
+    $meta_t  = $metier_data['label_pro'].' à '.$p_ville.' — Urgence 24h/7j | '.company_name();
+    $meta_d  = company_name().' — '.$metier_data['label_pro'].' d\'urgence à '.$p_ville.' dans le '.$dept_data['nom'].' ('.$dept_data['code'].'). Intervention rapide, devis gratuit, disponible 24h/7j.';
+    $canonical = route_url('landing').'&dept='.urlencode($p_dept).'&metier='.urlencode($p_metier).'&ville='.urlencode($p_ville);
+
+    $cards = service_cards_v14();
+    $meta  = ['title'=>$meta_t, 'description'=>$meta_d, 'canonical'=>$canonical];
+    render_head($meta);
+    render_header('');
+?>
+
+<!-- HERO LANDING -->
+<section class="page-hero" style="padding:3rem 0 2.5rem;">
+  <div class="wrap">
+    <div class="ph-eyebrow">// <?= e($metier_data['icon']) ?> <?= e($metier_data['label']) ?> — <?= e($dept_data['region']) ?></div>
+    <h1 class="ph-h1"><?= e($h1) ?></h1>
+    <p class="ph-lead"><?= e($metier_data['desc']) ?> Disponible <?= e(company_hours()) ?>.</p>
+    <div class="ph-badges">
+      <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
+      <span class="ph-badge hl"><?= e($metier_data['urgence']) ?></span>
+      <span class="ph-badge">🆓 Devis gratuit</span>
+      <span class="ph-badge">🔒 Artisans certifiés</span>
+      <span class="ph-badge">📍 <?= e($p_ville) ?> et alentours</span>
+    </div>
+    <div class="btn-row" style="margin-top:1.75rem;">
+      <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+      <a class="btn btn-outline btn-lg" href="#lp-form">📋 Devis gratuit</a>
+    </div>
+  </div>
+</section>
+
+<!-- SERVICES DU MÉTIER -->
+<section class="sec sec-card">
+  <div class="wrap">
+    <div class="svc-label">Nos interventions</div>
+    <h2 class="section-title"><?= e($metier_data['label_pro']) ?> à <em><?= e($p_ville) ?></em></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:.6rem;margin-top:1.75rem;">
+      <?php foreach ($metier_data['services'] as $svc): ?>
+      <div class="qs-perk"><?= e($svc) ?></div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- VILLES DU DÉPARTEMENT -->
+<section class="sec sec-navy">
+  <div class="wrap">
+    <div class="svc-label">Zone d'intervention</div>
+    <h2 class="section-title">Interventions dans le <em><?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)</em></h2>
+    <p class="section-lead">Nous intervenons à <?= e($p_ville) ?> et dans toutes les communes du département <?= e($dept_data['nom']) ?> (<?= e($dept_data['region']) ?>).</p>
+    <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1.25rem;">
+      <?php foreach ($villes_dept as $v): ?>
+      <span class="zone-chip" style="<?= $v===$p_ville ? 'background:rgba(240,123,29,.15);border-color:rgba(240,123,29,.4);color:var(--p);font-weight:600;' : '' ?>">
+        📍 <?= e($v) ?>
+      </span>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- POURQUOI NOUS -->
+<section class="sec sec-card">
+  <div class="wrap">
+    <div class="svc-label">Pourquoi EMAE</div>
+    <h2 class="section-title">Votre <?= e(mb_strtolower($metier_data['label_pro'],'UTF-8')) ?> de confiance à <em><?= e($p_ville) ?></em></h2>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem;margin-top:1.75rem;">
+      <?php foreach ([
+        ['⚡','Intervention rapide','Moins de 2h en urgence dans le '.$dept_data['nom'].'.'],
+        ['🆓','Devis 100% gratuit','Sans engagement, tarif annoncé avant intervention.'],
+        ['🔒','Artisans certifiés','Techniciens qualifiés et assurés.'],
+        ['📞','Disponible 24h/7j',company_hours().' — même les jours fériés.'],
+      ] as [$ico,$t,$d]): ?>
+      <div class="why-card">
+        <div class="why-icon"><?= $ico ?></div>
+        <div><div class="why-h"><?= e($t) ?></div><p class="why-p"><?= e($d) ?></p></div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+
+<!-- FORMULAIRE DEVIS -->
+<section class="sec sec-navy" id="lp-form">
+  <div class="wrap" style="max-width:700px;">
+    <div class="svc-label">Devis gratuit — <?= e($metier_data['label']) ?> à <?= e($p_ville) ?></div>
+    <div class="qs-card">
+      <div class="hero-card-tag"><?= e($metier_data['icon']) ?> <?= e($metier_data['label_pro']) ?> à <?= e($p_ville) ?></div>
+      <h2 style="font-family:var(--font-h);font-size:1.35rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">
+        Intervention rapide dans le <?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)
+      </h2>
+      <?php render_quote_form($cards, 'landing_'.$p_metier.'_'.$p_dept); ?>
     </div>
   </div>
 </section>
 
 <?php render_footer(); exit; }
 
-
 /* ════ FAQ ════ */
 if ($route === 'faq') {
     $faq  = faq_page_settings();
     $meta = ['title'=>setting('faq_meta_title','FAQ | '.company_name()),'description'=>setting('faq_meta_description','Questions fréquentes.'),'canonical'=>route_url('faq')];
-    render_head($meta); render_header(route_url('faq'));
+    render_head($meta);
+    // FAQPage schema — rich snippets Google
+    $faqSchema = [];
+    foreach ($faq['groups'] as $g) {
+        foreach ($g['items'] ?? [] as $item) {
+            if (($item['q'] ?? '') !== '' && ($item['a'] ?? '') !== '')
+                $faqSchema[] = ['@type'=>'Question','name'=>$item['q'],'acceptedAnswer'=>['@type'=>'Answer','text'=>$item['a']]];
+        }
+    }
+    if (!empty($faqSchema)) echo '<script type="application/ld+json">'.json_encode(['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$faqSchema],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES).'</script>';
+    render_header(route_url('faq'));
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Questions fréquentes</div>
   <h1 class="ph-h1"><?= e($faq['hero_title']) ?></h1>
@@ -691,11 +1004,15 @@ if ($page) {
         $meta  = seo_defaults($route, $page);
         $cards = service_cards_v14();
         render_head($meta); render_header(route_url($route));
+        $heroImg = setting('svc_'.$sk.'_hero_image', '');
+        $hasHeroImg = $heroImg !== '' && file_exists(__DIR__.'/'.ltrim($heroImg,'/'));
 ?>
-<section class="page-hero"><div class="wrap">
+<section class="page-hero<?= $hasHeroImg ? ' svc-hero-img' : '' ?>"<?= $hasHeroImg ? ' style="background-image:url('.e(asset_url($heroImg)).');background-size:cover;background-position:center;"' : '' ?>>
+  <?php if ($hasHeroImg): ?><div class="svc-hero-overlay"></div><?php endif; ?>
+  <div class="wrap" style="position:relative;z-index:1;">
   <div class="ph-eyebrow">// <?= e($tpl['label']) ?></div>
   <h1 class="ph-h1"><?= e($page['title']) ?></h1>
-  <p class="ph-lead"><?= e($page['excerpt'] ?: $tpl['desc']) ?></p>
+  <p class="ph-lead"><?= e(geo_replace($page['excerpt'] ?: $tpl['desc'])) ?></p>
   <div class="ph-badges">
     <?php foreach ($tpl['badges'] as $b): ?><span class="ph-badge hl"><?= e($b) ?></span><?php endforeach; ?>
     <span class="ph-badge"><?= e(company_hours()) ?></span>
@@ -704,7 +1021,8 @@ if ($page) {
     <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
     <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
   </div>
-</div></section>
+  </div>
+</section>
 
 <!-- Ce que nous proposons -->
 <section class="sec sec-card"><div class="wrap">
@@ -733,9 +1051,9 @@ if ($page) {
   <div class="svc-label"><?= e(setting('svc_process_label','Notre méthode')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_process_title','Intervention en')) ?> <em><?= e(setting('svc_process_title_hl','3 étapes')) ?></em></h2>
   <div class="steps-grid" style="margin-top:1.75rem;">
-    <div class="step-card"><div class="step-num"><?= e(setting('process_1_num','01')) ?></div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num"><?= e(setting('process_2_num','02')) ?></div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num"><?= e(setting('process_3_num','03')) ?></div><div><div class="step-h"><?= e(setting('process_3_title','Intervention & rapport')) ?></div><p class="step-p"><?= e(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu et facture détaillés.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">1</div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">2</div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
+    <div class="step-card"><div class="step-num">3</div><div><div class="step-h"><?= e(setting('process_3_title','Intervention & rapport')) ?></div><p class="step-p"><?= e(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu et facture détaillés.')) ?></p></div></div>
   </div>
 </div></section>
 
@@ -794,6 +1112,57 @@ if ($page) {
     echo '<section class="sec sec-navy"><div class="wrap"><div class="rich">'.($page['content_html'] ?: '<p style="color:var(--t2)">Contenu à venir.</p>').'</div></div></section>';
     render_footer(); exit;
 }
+
+/* ════ MENTIONS LÉGALES ════ */
+if ($route === 'mentions-legales' || $route === 'mentions_legales') {
+    $zML = $currentZone ? trim((string)($currentZone['mentions_legales'] ?? '')) : '';
+    $zName = $currentZone ? $currentZone['name'] : '';
+    $meta = [
+        'title'       => ($zName ? $zName.' — ' : '').setting('ml_meta_title','Mentions légales | '.company_name()),
+        'description' => setting('ml_meta_description','Mentions légales, informations légales et politique de confidentialité de '.company_name().'.'),
+        'canonical'   => $currentZone ? url_for($currentZone['slug'].'/mentions-legales') : route_url('mentions-legales'),
+    ];
+    render_head($meta);
+    render_header($currentZone ? url_for($currentZone['slug'].'/') : route_url(''));
+?>
+<section class="page-hero"><div class="wrap">
+  <div class="ph-eyebrow">Informations légales</div>
+  <h1 class="ph-h1">Mentions légales<?= $zName ? ' — '.e($zName) : '' ?></h1>
+  <p class="ph-lead">Conformément aux dispositions de la loi n°2004-575 du 21 juin 2004 pour la Confiance en l'Économie Numérique.</p>
+</div></section>
+<section class="sec sec-navy"><div class="wrap"><div class="rich" style="max-width:800px;color:var(--t1);line-height:1.8;">
+<?php if ($zML !== ''): ?>
+  <?= nl2br(e($zML)) ?>
+<?php else: ?>
+  <h2>Éditeur du site</h2>
+  <p><strong><?= e(company_name()) ?></strong><br>
+  <?php $addr = setting('company_address',''); if($addr): ?><?= e($addr) ?><br><?php endif; ?>
+  <?php $siret = company_siret(); if($siret): ?>SIRET : <?= e($siret) ?><br><?php endif; ?>
+  Téléphone : <a href="<?= e(company_phone_link()) ?>"><?= e(company_phone()) ?></a><br>
+  Email : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a></p>
+
+  <h2>Directeur de la publication</h2>
+  <p><?= e(setting('ml_directeur', company_name())) ?></p>
+
+  <h2>Hébergeur</h2>
+  <p><?= e(setting('ml_hebergeur', 'o2switch — 222-224 Boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr')) ?></p>
+
+  <h2>Propriété intellectuelle</h2>
+  <p>L'ensemble de ce site relève de la législation française et internationale sur le droit d'auteur et la propriété intellectuelle. Tous les droits de reproduction sont réservés, y compris pour les documents téléchargeables et les représentations iconographiques et photographiques.</p>
+
+  <h2>Données personnelles</h2>
+  <p>Les informations recueillies via les formulaires de ce site sont enregistrées dans un fichier informatisé par <?= e(company_name()) ?> pour permettre la gestion des demandes d'intervention. Conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez-nous à : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>.</p>
+
+  <h2>Cookies</h2>
+  <p>Ce site utilise des cookies techniques nécessaires à son fonctionnement. Aucun cookie publicitaire ou de tracking tiers n'est utilisé sans votre consentement.</p>
+
+  <h2>Responsabilité</h2>
+  <p><?= e(company_name()) ?> s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur ce site. Toutefois, <?= e(company_name()) ?> ne peut garantir l'exactitude, la précision ou l'exhaustivité des informations mises à disposition sur ce site.</p>
+
+  <p style="margin-top:2rem;color:var(--t2);font-size:.85rem;">Dernière mise à jour : <?= date('d/m/Y') ?></p>
+<?php endif; ?>
+</div></div></section>
+<?php render_footer(); exit; }
 
 // 404
 $meta = ['title'=>'Page introuvable | '.company_name(),'description'=>'404.','canonical'=>route_url($route)];

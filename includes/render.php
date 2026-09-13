@@ -18,26 +18,34 @@ function render_head(array $meta): void
     echo '<meta property="og:description" content="'.e($meta['description']).'">';
     echo '<meta property="og:type" content="website">';
     echo '<meta property="og:url" content="'.e($meta['canonical']).'">';
+    $ogImg = $meta['og_image'] ?? setting('og_default_image','');
+    if ($ogImg !== '') echo '<meta property="og:image" content="'.e(asset_url($ogImg)).'">';
+    // Favicons
+    if (file_exists(__DIR__.'/../favicon.png'))
+        echo '<link rel="icon" type="image/png" href="'.e(asset_url('favicon.png')).'">';
+    if (file_exists(__DIR__.'/../apple-touch-icon.png'))
+        echo '<link rel="apple-touch-icon" href="'.e(asset_url('apple-touch-icon.png')).'">';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     
-    echo '<link rel="stylesheet" href="'.e(asset_url('assets/css/style.css')).'">';
+    $cssV = @filemtime(__DIR__.'/../assets/css/style.css') ?: time();
+    echo '<link rel="stylesheet" href="'.e(asset_url('assets/css/style.css')).'?v='.$cssV.'">';
     echo theme_css_variables();
     // Schema.org
     echo '<script type="application/ld+json">'.schema_local_business().'</script>';
-    // Google Analytics
-    if ($gaId !== '') {
-        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($gaId).'"></script>';
-        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","'.e($gaId).'");</script>';
+    // Google Analytics + Ads — un seul chargement de gtag.js
+    $firstId = $gaId !== '' ? $gaId : ($gAdsId !== '' ? $gAdsId : '');
+    if ($firstId !== '') {
+        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($firstId).'"></script>';
+        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());';
+        if ($gaId !== '')   echo 'gtag("config","'.e($gaId).'");';
+        if ($gAdsId !== '') echo 'gtag("config","'.e($gAdsId).'");';
+        echo '</script>';
     }
-    // Google Ads
-    if ($gAdsId !== '') {
-        echo '<script async src="https://www.googletagmanager.com/gtag/js?id='.e($gAdsId).'"></script>';
-        echo '<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","'.e($gAdsId).'");</script>';
-    }
-    // Pass IDs to JS
+    // Pass IDs to JS — _gAdsCv is an array to support multiple conversion labels (comma-separated)
     if ($gAdsId !== '' || $gAdsCv !== '') {
-        echo '<script>window._gAdsId="'.e($gAdsId).'";window._gAdsCv="'.e($gAdsCv).'";</script>';
+        $labels = array_values(array_filter(array_map('trim', explode(',', $gAdsCv))));
+        echo '<script>window._gAdsId="'.e($gAdsId).'";window._gAdsCv='.json_encode($labels).';</script>';
     }
     echo '<script defer src="'.e(asset_url('assets/js/site.js')).'"></script>';
     echo '</head><body>';
@@ -75,7 +83,6 @@ function render_header(string $active = ''): void
     <a class="brand" href="<?= e(route_url('')) ?>">
       <?php
         $logo = site_logo_path();
-        // Auto-detect real PNG logo
         $pngLogo = 'storage/uploads/logos/logo-emae.png';
         if ($logo === '' || $logo === 'storage/uploads/logos/logo-emae-default.svg') {
             if (file_exists(__DIR__.'/../'.$pngLogo)) $logo = $pngLogo;
@@ -98,7 +105,7 @@ function render_header(string $active = ''): void
       <span></span><span></span><span></span>
     </button>
 
-    <nav class="site-nav" id="main-nav" id="main-nav">
+    <nav class="site-nav" id="main-nav">
       <?php foreach (nav_items() as $item): ?>
         <a class="<?= $active === $item['url'] ? 'on' : '' ?>" href="<?= e($item['url']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
@@ -172,10 +179,41 @@ function render_footer(): void
       <div class="footer-bottom-links">
         <a href="<?= e(route_url('faq')) ?>">FAQ</a>
         <a href="<?= e(route_url('contact')) ?>">Contact</a>
+        <a href="<?= e(route_url('mentions-legales')) ?>">Mentions légales</a>
       </div>
     </div>
   </div>
 </footer>
+
+<?php if (setting_bool('chatbot_enabled', false)): ?>
+<div class="chat-widget" id="chat-widget"
+     data-endpoint="<?= e(url_for('api/chat.php')) ?>"
+     data-welcome="<?= e(setting('chatbot_welcome','Bonjour ! Je suis l\'assistant EMAE. Comment puis-je vous aider ?')) ?>">
+  <div class="chat-box" id="chat-box">
+    <div class="chat-head">
+      <div class="chat-head-info">
+        <span class="chat-head-dot"></span>
+        <span class="chat-head-name">Assistant <?= e(company_name()) ?></span>
+      </div>
+      <button class="chat-close" id="chat-close" aria-label="Fermer">✕</button>
+    </div>
+    <div class="chat-msgs" id="chat-msgs"></div>
+    <div class="chat-input-row">
+      <input class="chat-input" id="chat-input" type="text" placeholder="Votre question…" maxlength="500" autocomplete="off">
+      <button class="chat-send" id="chat-send">→</button>
+    </div>
+  </div>
+  <button class="chat-btn" id="chat-btn" aria-label="Ouvrir le chat">
+    <?= e(setting('chatbot_btn_label','💬')) ?>
+  </button>
+</div>
+<?php endif; ?>
+
+<?php $waNum = preg_replace('/[^0-9]/', '', company_whatsapp()); if ($waNum !== ''): ?>
+<a class="wa-btn" href="https://wa.me/<?= e($waNum) ?>" target="_blank" rel="noopener noreferrer" aria-label="Contacter par WhatsApp">
+  <svg width="30" height="30" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+</a>
+<?php endif; ?>
 </body></html>
 <?php
 }
@@ -183,7 +221,7 @@ function render_footer(): void
 /* ── FORMULAIRE RÉUTILISABLE ── */
 function render_quote_form(array $cards, string $source = 'form'): void
 {
-    $placeholder = setting('home_quote_city_placeholder','Ex : Meaux, Paris, Toulouse');
+    $placeholder = geo_replace(setting('home_quote_city_placeholder','Ex : Meaux, Paris, Toulouse'));
     $submitLabel = quote_form_options()['submit_label'] ?? 'Envoyer ma demande';
     ?>
 <form action="<?= e(route_url('quote')) ?>" method="post">
@@ -197,8 +235,10 @@ function render_quote_form(array $cards, string $source = 'form'): void
   </div>
   <div class="f-row">
     <div class="f-field"><span class="f-label">Email</span><input class="f-input" type="email" name="email" placeholder="votre@email.fr"></div>
-    <div class="f-field"><span class="f-label">Ville</span><input class="f-input" type="text" name="city" placeholder="<?= e($placeholder) ?>"></div>
+    <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" placeholder="Ex : 75001" pattern="[0-9]{5}" maxlength="5" required></div>
   </div>
+  <div class="f-field"><span class="f-label">Adresse *</span><input class="f-input" type="text" name="address" placeholder="Ex : 12 rue de la République" required></div>
+  <div class="f-field"><span class="f-label">Ville</span><input class="f-input" type="text" name="city" placeholder="<?= e($placeholder) ?>"></div>
   <div class="f-field">
     <span class="f-label">Service souhaité</span>
     <select class="f-input" name="service_type">

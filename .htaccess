@@ -1,6 +1,38 @@
 Options -Indexes
-<IfModule mod_rewrite.c>
+Options +FollowSymLinks
+
 RewriteEngine On
-RewriteRule ^includes/ - [F,L]
+
+# ── Forcer HTTPS ──
+RewriteCond %{HTTPS} off
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# ── Forcer www ──
+RewriteCond %{HTTP_HOST} !^www\. [NC]
+RewriteRule ^ https://www.%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+# ── Bloquer l'accès aux dossiers sensibles ──
 RewriteRule ^config/ - [F,L]
+RewriteRule ^includes/ - [F,L]
+
+# ── Laisser passer les fichiers et dossiers qui existent réellement ──
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+
+# ── Tout le reste → index.php ──
+RewriteRule ^ index.php [L]
+
+# ── Sécurité headers ──
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
 </IfModule>
+
+# ── PHP : afficher les erreurs en dev (désactiver en prod) ──
+# php_flag display_errors Off
+
+# ── Protéger config.php ──
+<Files "config.php">
+    Deny from all
+</Files>
