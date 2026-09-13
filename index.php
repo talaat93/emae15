@@ -5,6 +5,24 @@ require_once __DIR__ . '/includes/render.php';
 
 $route = trim((string)($_GET['route'] ?? ''), '/');
 
+// ── Zone detection from clean URL path (e.g. /paris-ile-de-france/) ──
+$currentZone = null;
+$_zuri = ltrim(rtrim((string)parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH), '/'), '/');
+$_zbase = ltrim(rtrim(base_path(), '/'), '/');
+if ($_zbase !== '' && str_starts_with($_zuri, $_zbase)) $_zuri = ltrim(substr($_zuri, strlen($_zbase)), '/');
+$_zsegs = array_values(array_filter(explode('/', $_zuri)));
+$_zs0   = $_zsegs[0] ?? '';
+if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets','includes','config','storage','index.php'], true)
+    && preg_match('/^[a-z][a-z0-9-]{1,78}$/', $_zs0)) {
+    $_zobj = get_zone_by_slug($_zs0);
+    if ($_zobj && (bool)$_zobj['status']) {
+        $currentZone = $_zobj;
+        if ($route === '' && isset($_zsegs[1]) && trim($_zsegs[1]) !== '') $route = trim($_zsegs[1]);
+    }
+    unset($_zobj);
+}
+unset($_zuri, $_zbase, $_zsegs, $_zs0);
+
 /* ── POST FORM ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();
@@ -46,23 +64,22 @@ if ($route === '' || $route === 'home') {
     $btn2url = setting('home_button2_url','') ?: company_phone_link();
     if ($btn2url !== '' && !preg_match('#^(https?:|tel:|mailto:|/)#i',$btn2url)) $btn2url = route_url($btn2url);
 
-    // Toujours détecter la géo (pour geo_replace() sur toute la page)
-    if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
-
-    // Phase 3 — Redirect une seule fois vers la landing dept
-    if (!isset($_SESSION['geo_redirected']) && !isset($_GET['noredirect'])) {
-        $_SESSION['geo_redirected'] = true;
-        if (($_SESSION['geo_dept'] ?? '') !== '') {
-            $geo_city = urlencode($_SESSION['geo_city'] ?? '');
-            $geo_url  = url_for('index.php?route=landing&dept=' . $_SESSION['geo_dept'] . '&metier=electricite');
-            if ($geo_city !== '') $geo_url .= '&ville=' . $geo_city;
-            header('Location: ' . $geo_url);
-            exit;
-        }
+    // ── Zone overrides ──
+    if ($currentZone) {
+        $_SESSION['geo_redirected'] = true; // pas de redirect geo sur pages zone
+        $zMT = zone_field($currentZone, 'meta_title');
+        $zMD = zone_field($currentZone, 'meta_description');
+        $meta['title']       = $zMT !== '' ? $zMT : company_name().' — '.$currentZone['name'].' | Électricien, Plombier, Chauffagiste';
+        $meta['description'] = $zMD !== '' ? $zMD : 'Électricien, plombier, chauffagiste à '.$currentZone['name'].'. Devis gratuit, intervention rapide. '.company_phone().'.';
+        $meta['canonical']   = url_for($currentZone['slug'].'/');
+        unset($zMT, $zMD);
+    } else {
+        if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
     }
 
     render_head($meta);
-    render_header(route_url(''));
+    $activeZones = all_active_zones();
+    render_header($currentZone ? url_for($currentZone['slug'].'/') : route_url(''));
 ?>
 
 <!-- HERO -->
@@ -73,11 +90,27 @@ if ($route === '' || $route === 'home') {
     <div class="hero-content">
       <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(geo_replace(setting('home_eyebrow','Disponible '.company_hours()))) ?></div>
       <h1><?php
-        $ht = setting('home_title','Votre expert multitechnique');
-        $ht2 = setting('home_title_hl','en urgence');
-        echo e($ht).' <span class="hl">'.e($ht2).'</span>';
+        if ($currentZone && zone_field($currentZone,'hero_h1') !== '') {
+            $zH1 = zone_field($currentZone,'hero_h1');
+            // split on last word for highlight
+            $zParts = explode(' ', $zH1, -1);
+            $zLast  = array_pop(explode(' ', $zH1)) ?: '';
+            $zFirst = implode(' ', array_slice(explode(' ',$zH1),0,-1));
+            echo e($zFirst).' <span class="hl">'.e($zLast).'</span>';
+            unset($zH1,$zParts,$zLast,$zFirst);
+        } else {
+            $ht = setting('home_title','Votre expert multitechnique');
+            $ht2 = setting('home_title_hl','en urgence');
+            echo e($ht).' <span class="hl">'.e($ht2).'</span>';
+        }
       ?></h1>
-      <p class="hero-lead"><?= e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.company_regions().'. Intervention rapide, devis gratuit, artisans qualifiés.'))) ?></p>
+      <p class="hero-lead"><?php
+        if ($currentZone && zone_field($currentZone,'hero_subtitle') !== '') {
+            echo e(zone_field($currentZone,'hero_subtitle'));
+        } else {
+            echo e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.company_regions().'. Intervention rapide, devis gratuit, artisans qualifiés.')));
+        }
+      ?></p>
 
       <div class="chips">
         <?php foreach (array_filter([
@@ -324,30 +357,53 @@ if ($route === '' || $route === 'home') {
 <section class="zones-section">
   <div class="wrap">
     <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
-    <h2 class="section-title"><?= e(setting('zones_title','Nous intervenons')) ?> <em><?php $geo=geo_display(); echo $geo ? e('à '.$geo['ville']) : e(setting('zones_title_hl','près de chez vous')); ?></em></h2>
+    <?php if ($currentZone): ?>
+    <h2 class="section-title">Villes couvertes <em>en <?= e($currentZone['name']) ?></em></h2>
+    <p class="section-lead">Nos techniciens interviennent sur toutes les villes de la zone <?= e($currentZone['name']) ?>. Délai moyen d'intervention inférieur à 2 heures pour les urgences.</p>
+    <div class="zones-grid">
+      <div class="zone-card">
+        <div class="zone-name">🗺️ <?= e($currentZone['name']) ?></div>
+        <div class="zone-chips">
+          <?php foreach (zone_cities($currentZone) as $_zc): ?><span class="zone-chip"><?= e($_zc) ?></span><?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php else: ?>
+    <h2 class="section-title"><?= e(setting('zones_title','Nos zones d\'intervention')) ?> <em><?= e(setting('zones_title_hl','partout en France')) ?></em></h2>
     <p class="section-lead"><?= e(geo_replace(setting('zones_lead',company_regions().' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
     <div class="zones-grid">
-      <?php $zoneCards = get_json_setting('home_zone_cards', [
-        ['title'=>'🗺️ Île-de-France','text'=>setting('zone_idf_text','Paris, Meaux, Versailles, Évry, Nanterre, Saint-Denis, Créteil, Cergy et toute la région.'),'cities'=>setting('zone_idf_cities','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Marne-la-Vallée|Melun|Pontoise')],
-        ['title'=>'🗺️ Occitanie','text'=>setting('zone_occ_text','Toulouse, Montpellier, Nîmes, Perpignan et toute la région.'),'cities'=>setting('zone_occ_cities','Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)|Carcassonne (11)|Albi (81)')],
-      ]);
-      foreach ($zoneCards as $zc):
-        $cities = is_array($zc['cities']??null) ? $zc['cities'] : array_filter(array_map('trim', explode('|', (string)($zc['cities']??''))));
-      ?>
+      <?php foreach ($activeZones as $_az): ?>
       <div class="zone-card">
-        <div class="zone-name"><?= e($zc['title']) ?></div>
-        <p class="zone-text"><?= e($zc['text']) ?></p>
-        <div class="zone-chips">
-          <?php foreach ($cities as $city): ?><span class="zone-chip"><?= e($city) ?></span><?php endforeach; ?>
-        </div>
+        <a href="<?= e(url_for($_az['slug'].'/')) ?>" style="text-decoration:none;color:inherit;">
+          <div class="zone-name">🗺️ <?= e($_az['name']) ?></div>
+          <?php $_azc = zone_cities($_az); if (!empty($_azc)): ?>
+          <div class="zone-chips" style="margin-top:.5rem;">
+            <?php foreach (array_slice($_azc,0,6) as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+        </a>
       </div>
       <?php endforeach; ?>
     </div>
+    <?php endif; ?>
     <div style="text-align:center;margin-top:2.5rem;">
-      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Vérifier ma zone')) ?> →</a>
+      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>
     </div>
   </div>
 </section>
+
+<?php if ($currentZone && !empty(zone_faq($currentZone))): ?>
+<!-- FAQ ZONE -->
+<section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
+  <div class="svc-label">FAQ</div>
+  <h2 class="section-title">Questions <em>fréquentes</em></h2>
+  <div class="sfaq-list" style="margin-top:1.75rem;">
+    <?php foreach (zone_faq($currentZone) as [$_fq,$_fa]): ?>
+    <details class="sfaq-item"><summary><?= e($_fq) ?></summary><p><?= e($_fa) ?></p></details>
+    <?php endforeach; ?>
+  </div>
+</div></section>
+<?php endif; ?>
 
 <?php render_footer(); exit; }
 
@@ -1056,6 +1112,57 @@ if ($page) {
     echo '<section class="sec sec-navy"><div class="wrap"><div class="rich">'.($page['content_html'] ?: '<p style="color:var(--t2)">Contenu à venir.</p>').'</div></div></section>';
     render_footer(); exit;
 }
+
+/* ════ MENTIONS LÉGALES ════ */
+if ($route === 'mentions-legales' || $route === 'mentions_legales') {
+    $zML = $currentZone ? trim((string)($currentZone['mentions_legales'] ?? '')) : '';
+    $zName = $currentZone ? $currentZone['name'] : '';
+    $meta = [
+        'title'       => ($zName ? $zName.' — ' : '').setting('ml_meta_title','Mentions légales | '.company_name()),
+        'description' => setting('ml_meta_description','Mentions légales, informations légales et politique de confidentialité de '.company_name().'.'),
+        'canonical'   => $currentZone ? url_for($currentZone['slug'].'/mentions-legales') : route_url('mentions-legales'),
+    ];
+    render_head($meta);
+    render_header($currentZone ? url_for($currentZone['slug'].'/') : route_url(''));
+?>
+<section class="page-hero"><div class="wrap">
+  <div class="ph-eyebrow">Informations légales</div>
+  <h1 class="ph-h1">Mentions légales<?= $zName ? ' — '.e($zName) : '' ?></h1>
+  <p class="ph-lead">Conformément aux dispositions de la loi n°2004-575 du 21 juin 2004 pour la Confiance en l'Économie Numérique.</p>
+</div></section>
+<section class="sec sec-navy"><div class="wrap"><div class="rich" style="max-width:800px;color:var(--t1);line-height:1.8;">
+<?php if ($zML !== ''): ?>
+  <?= nl2br(e($zML)) ?>
+<?php else: ?>
+  <h2>Éditeur du site</h2>
+  <p><strong><?= e(company_name()) ?></strong><br>
+  <?php $addr = setting('company_address',''); if($addr): ?><?= e($addr) ?><br><?php endif; ?>
+  <?php $siret = company_siret(); if($siret): ?>SIRET : <?= e($siret) ?><br><?php endif; ?>
+  Téléphone : <a href="<?= e(company_phone_link()) ?>"><?= e(company_phone()) ?></a><br>
+  Email : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a></p>
+
+  <h2>Directeur de la publication</h2>
+  <p><?= e(setting('ml_directeur', company_name())) ?></p>
+
+  <h2>Hébergeur</h2>
+  <p><?= e(setting('ml_hebergeur', 'o2switch — 222-224 Boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr')) ?></p>
+
+  <h2>Propriété intellectuelle</h2>
+  <p>L'ensemble de ce site relève de la législation française et internationale sur le droit d'auteur et la propriété intellectuelle. Tous les droits de reproduction sont réservés, y compris pour les documents téléchargeables et les représentations iconographiques et photographiques.</p>
+
+  <h2>Données personnelles</h2>
+  <p>Les informations recueillies via les formulaires de ce site sont enregistrées dans un fichier informatisé par <?= e(company_name()) ?> pour permettre la gestion des demandes d'intervention. Conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez-nous à : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>.</p>
+
+  <h2>Cookies</h2>
+  <p>Ce site utilise des cookies techniques nécessaires à son fonctionnement. Aucun cookie publicitaire ou de tracking tiers n'est utilisé sans votre consentement.</p>
+
+  <h2>Responsabilité</h2>
+  <p><?= e(company_name()) ?> s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur ce site. Toutefois, <?= e(company_name()) ?> ne peut garantir l'exactitude, la précision ou l'exhaustivité des informations mises à disposition sur ce site.</p>
+
+  <p style="margin-top:2rem;color:var(--t2);font-size:.85rem;">Dernière mise à jour : <?= date('d/m/Y') ?></p>
+<?php endif; ?>
+</div></div></section>
+<?php render_footer(); exit; }
 
 // 404
 $meta = ['title'=>'Page introuvable | '.company_name(),'description'=>'404.','canonical'=>route_url($route)];

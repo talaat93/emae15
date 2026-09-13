@@ -1539,3 +1539,98 @@ function geocode_address(string $address, string $city = '', string $postal = ''
     } catch (Throwable $e) {}
     return ['lat'=>null,'lng'=>null];
 }
+
+/* ═══════════════════════════════════════════════════
+   ZONES MULTI-ZONES
+═══════════════════════════════════════════════════ */
+function all_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function all_active_zones(): array
+{
+    try { return db_fetch_all("SELECT * FROM zones WHERE status=1 ORDER BY sort_order ASC, name ASC"); }
+    catch (Throwable $e) { return []; }
+}
+
+function get_zone_by_slug(string $slug): ?array
+{
+    if ($slug === '') return null;
+    try {
+        $z = db_fetch("SELECT * FROM zones WHERE slug=? LIMIT 1", [$slug]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function get_zone_by_id(int $id): ?array
+{
+    try {
+        $z = db_fetch("SELECT * FROM zones WHERE id=? LIMIT 1", [$id]);
+        return $z ?: null;
+    } catch (Throwable $e) { return null; }
+}
+
+function zone_field(array $zone, string $field, string $default = ''): string
+{
+    $val = trim((string)($zone[$field] ?? ''));
+    return $val !== '' ? $val : $default;
+}
+
+function zone_faq(array $zone): array
+{
+    $raw = $zone['faq'] ?? null;
+    if ($raw === null || $raw === '') return [];
+    $decoded = json_decode((string)$raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+function zone_cities(array $zone): array
+{
+    $raw = trim((string)($zone['cities'] ?? ''));
+    if ($raw === '') return [];
+    return array_values(array_filter(array_map('trim', explode('|', $raw))));
+}
+
+function zone_url(string $slug, string $page = ''): string
+{
+    $base = url_for($slug . '/');
+    if ($page === '' || $page === 'home') return $base;
+    return rtrim($base, '/') . '/' . ltrim($page, '/');
+}
+
+function create_zone(array $data): int
+{
+    db_execute(
+        "INSERT INTO zones (slug,name,status,meta_title,meta_description,hero_h1,hero_subtitle,hero_cta_label,cities,postal_codes,faq,mentions_legales,sort_order) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0)]
+    );
+    return db_last_id();
+}
+
+function update_zone(int $id, array $data): void
+{
+    db_execute(
+        "UPDATE zones SET slug=?,name=?,status=?,meta_title=?,meta_description=?,hero_h1=?,hero_subtitle=?,hero_cta_label=?,cities=?,postal_codes=?,faq=?,mentions_legales=?,sort_order=? WHERE id=?",
+        [$data['slug'],$data['name'],(int)($data['status']??1),
+         $data['meta_title']??null,$data['meta_description']??null,
+         $data['hero_h1']??null,$data['hero_subtitle']??null,$data['hero_cta_label']??null,
+         $data['cities']??null,$data['postal_codes']??null,
+         $data['faq']??null,$data['mentions_legales']??null,(int)($data['sort_order']??0),$id]
+    );
+}
+
+function toggle_zone_status(int $id): void
+{
+    db_execute("UPDATE zones SET status = 1 - status WHERE id=?", [$id]);
+}
+
+function delete_zone(int $id): void
+{
+    db_execute("DELETE FROM zones WHERE id=?", [$id]);
+}

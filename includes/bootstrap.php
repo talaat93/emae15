@@ -176,3 +176,40 @@ if (!file_exists($_mf8)) {
     unset($_me);
 }
 unset($_mf8);
+// Auto-migration v15.12 — table zones (système multi-zones)
+$_mf12 = __DIR__.'/../storage/.mig_v15_zones';
+if (!file_exists($_mf12)) {
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS zones (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            slug VARCHAR(80) NOT NULL UNIQUE,
+            name VARCHAR(120) NOT NULL,
+            status TINYINT(1) NOT NULL DEFAULT 1,
+            meta_title VARCHAR(160) NULL,
+            meta_description VARCHAR(320) NULL,
+            hero_h1 VARCHAR(255) NULL,
+            hero_subtitle TEXT NULL,
+            hero_cta_label VARCHAR(80) NULL,
+            cities TEXT NULL,
+            postal_codes TEXT NULL,
+            faq JSON NULL,
+            mentions_legales TEXT NULL,
+            sort_order INT NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $__zd = [
+            ['paris-ile-de-france','Paris / Île-de-France','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','75,77,78,91,92,93,94,95',0],
+            ['cote-dor','Côte-d\'Or','Dijon|Beaune|Auxonne|Montbard|Nuits-Saint-Georges','21',1],
+            ['jura','Jura','Lons-le-Saunier|Dole|Saint-Claude|Morez|Champagnole','39',2],
+            ['doubs','Doubs','Besançon|Pontarlier|Montbéliard|Morteau|Baume-les-Dames','25',3],
+            ['seine-saint-denis','Seine-Saint-Denis','Saint-Denis|Bobigny|Montreuil|Aubervilliers|Pantin|Noisy-le-Grand','93',4],
+        ];
+        foreach ($__zd as [$__sl,$__nm,$__ci,$__pc,$__so]) {
+            try { db_execute("INSERT IGNORE INTO zones (slug,name,status,cities,postal_codes,sort_order) VALUES (?,?,1,?,?,?)",[$__sl,$__nm,$__ci,$__pc,$__so]); } catch (Throwable $_me) {}
+        }
+        unset($__zd,$__sl,$__nm,$__ci,$__pc,$__so);
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf12, date('c'));
+    unset($_me);
+}
+unset($_mf12);

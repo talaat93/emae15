@@ -56,6 +56,9 @@ function admin_is_active(array $files, string $section = ''): string {
     <a class="<?= admin_is_active(['zones.php'],'zones') ?>" href="<?= e(url_for('admin/zones.php')) ?>">🗺️ Zones d'intervention</a>
     <a class="<?= admin_is_active(['services_hero_images.php'],'services_hero_images') ?>" href="<?= e(url_for('admin/services_hero_images.php')) ?>">🖼️ Images hero services</a>
 
+    <div class="admin-menu__group-label">Multi-zones</div>
+    <a class="<?= admin_is_active(['zones_manager.php','zone_edit.php'],'zones_manager') ?>" href="<?= e(url_for('admin/zones_manager.php')) ?>">🗺️ Zones géographiques</a>
+
     <div class="admin-menu__group-label">Leads & Interventions</div>
     <a class="<?= admin_is_active(['quotes.php','dossier.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes & Interventions</a>
 

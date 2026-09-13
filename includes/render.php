@@ -179,6 +179,7 @@ function render_footer(): void
       <div class="footer-bottom-links">
         <a href="<?= e(route_url('faq')) ?>">FAQ</a>
         <a href="<?= e(route_url('contact')) ?>">Contact</a>
+        <a href="<?= e(route_url('mentions-legales')) ?>">Mentions légales</a>
       </div>
     </div>
   </div>
