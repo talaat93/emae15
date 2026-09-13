@@ -22,6 +22,9 @@ if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets'
     unset($_zobj);
 }
 unset($_zuri, $_zbase, $_zsegs, $_zs0);
+// Active le contexte : tous les réglages et contenus deviennent ceux de la zone,
+// avec repli automatique sur les valeurs globales.
+set_zone_context($currentZone);
 
 /* ── POST FORM ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {

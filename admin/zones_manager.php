@@ -63,8 +63,9 @@ require_once __DIR__ . '/partials/header.php';
         <th>Zone</th>
         <th>Slug / URL</th>
         <th>Villes</th>
+        <th style="width:120px;text-align:center;">Personnalisé</th>
         <th style="width:100px;text-align:center;">Statut</th>
-        <th style="width:140px;text-align:right;">Actions</th>
+        <th style="width:240px;text-align:right;">Actions</th>
       </tr>
     </thead>
     <tbody id="zones-tbody">
@@ -86,6 +87,13 @@ require_once __DIR__ . '/partials/header.php';
           echo e(implode(', ', array_slice($zcities, 0, 4)));
           if (count($zcities) > 4) echo ' <em>+'.(count($zcities)-4).' autres</em>';
         ?></td>
+        <td style="text-align:center;"><?php $zov = zone_override_count((string)$z['slug']); ?>
+          <?php if ($zov > 0): ?>
+            <span style="background:#dcfce7;color:#166534;border-radius:20px;padding:.2rem .6rem;font-size:.75rem;font-weight:700;"><?= $zov ?> champ<?= $zov > 1 ? 's' : '' ?></span>
+          <?php else: ?>
+            <span style="color:var(--t3);font-size:.78rem;">hérite du global</span>
+          <?php endif; ?>
+        </td>
         <td style="text-align:center;">
           <form method="post" style="display:inline;">
             <?= csrf_field() ?>
@@ -97,7 +105,8 @@ require_once __DIR__ . '/partials/header.php';
           </form>
         </td>
         <td style="text-align:right;">
-          <a class="btn btn-sm btn-outline" href="<?= e(url_for('admin/zone_edit.php?id='.$z['id'])) ?>">✏️ Éditer</a>
+          <a class="btn btn-sm btn-p" href="<?= e(url_for('admin/index.php?admin_zone='.$z['id'])) ?>" title="Basculer l'admin sur cette zone pour modifier tout son site">🎛 Éditer le site</a>
+          <a class="btn btn-sm btn-outline" href="<?= e(url_for('admin/zone_edit.php?id='.$z['id'])) ?>">✏️ Réglages</a>
           <form method="post" style="display:inline;" onsubmit="return confirm('Supprimer la zone <?= e(addslashes($z['name'])) ?> ?');">
             <?= csrf_field() ?>
             <input type="hidden" name="action" value="delete">
@@ -115,9 +124,10 @@ require_once __DIR__ . '/partials/header.php';
   <strong>💡 Comment ça marche ?</strong>
   <ul style="margin:.5rem 0 0 1.2rem;font-size:.875rem;color:var(--t2);line-height:1.8;">
     <li>Chaque zone active est accessible via <code>votre-site.fr/<em>slug-zone</em>/</code></li>
-    <li>Les zones inactives ne sont pas accessibles aux visiteurs</li>
-    <li>Cliquez sur <strong>✅ Actif</strong> / <strong>⏸ Inactif</strong> pour basculer instantanément</li>
-    <li>Editez une zone pour personnaliser : H1, méta, FAQ, villes et mentions légales</li>
+    <li><strong>🎛 Éditer le site</strong> bascule tout l'admin sur cette zone : identité, couleurs, accueil, services, pages, réalisations… Le bandeau orange en haut rappelle en permanence la zone en cours.</li>
+    <li><strong>✏️ Réglages</strong> ne modifie que la fiche de la zone : slug, villes, mentions légales.</li>
+    <li>Un champ laissé vide dans une zone <strong>hérite automatiquement du site global</strong> : vous ne saisissez que les différences.</li>
+    <li>Les zones inactives ne sont pas accessibles aux visiteurs.</li>
   </ul>
 </div>
 <?php endif; ?>

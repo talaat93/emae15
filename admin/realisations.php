@@ -11,14 +11,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $desc        = trim((string)($_POST['description'] ?? ''));
         $service     = trim((string)($_POST['service_type'] ?? ''));
         $city        = trim((string)($_POST['city']    ?? ''));
+        $zid         = (int)($_POST['zone_id'] ?? 0) ?: null;
         if ($title !== '') {
             $image = upload_image_field('image', 'realisations');
-            db_execute('INSERT INTO realisations (title, description, service_type, city, image_path, is_visible, sort_order) VALUES (?,?,?,?,?,1,?)',
-                [$title, $desc, $service, $city, $image ?? '', (int)time()]);
+            db_execute('INSERT INTO realisations (title, description, service_type, city, image_path, is_visible, sort_order, zone_id) VALUES (?,?,?,?,?,1,?,?)',
+                [$title, $desc, $service, $city, $image ?? '', (int)time(), $zid]);
             flash('success', 'Réalisation ajoutée.');
         } else {
             flash('error', 'Le titre est obligatoire.');
         }
+        redirect_to('admin/realisations.php');
+    }
+
+    // Réaffectation de zone
+    if (isset($_POST['action']) && $_POST['action'] === 'setzone') {
+        db_execute('UPDATE realisations SET zone_id = ? WHERE id = ?',
+            [((int)($_POST['zone_id'] ?? 0)) ?: null, (int)($_POST['id'] ?? 0)]);
+        flash('success', 'Zone de la réalisation mise à jour.');
         redirect_to('admin/realisations.php');
     }
 
@@ -89,6 +98,10 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
           </label>
           <label class="admin-field"><span>Photo (jpg, png, webp)</span><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></label>
         </div>
+        <label class="admin-field"><span>Zone d'affichage</span>
+          <?= zone_select_field('zone_id', zone_ctx_id()) ?>
+          <small style="color:#7b8aa8;">« Toutes les zones » affiche ce chantier sur l'ensemble du site.</small>
+        </label>
         <label class="admin-field"><span>Description courte</span><textarea name="description" rows="3" placeholder="Décrivez rapidement l'intervention réalisée..."></textarea></label>
         <div class="admin-savebar"><button class="admin-btn admin-btn--primary" type="submit">Ajouter</button></div>
       </form>
@@ -103,7 +116,7 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
         <p style="color:#7b8aa8;padding:1rem 0;">Aucune réalisation pour le moment. Ajoutez vos premières photos de chantiers !</p>
       <?php else: ?>
         <table class="admin-table">
-          <thead><tr><th>Photo</th><th>Titre</th><th>Service</th><th>Ville</th><th>Visible</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Photo</th><th>Titre</th><th>Service</th><th>Ville</th><th>Zone</th><th>Visible</th><th>Actions</th></tr></thead>
           <tbody>
             <?php foreach ($reals as $r): ?>
               <tr>
@@ -116,7 +129,14 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
                 </td>
                 <td style="font-weight:700;"><?= e($r['title']) ?></td>
                 <td><?= e((string)($r['service_type']??'')) ?></td>
-                <td><?= e((string)($r['city']??'')) ?></td>
+                <td>
+                  <form method="post" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="setzone">
+                    <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                    <?= zone_select_field('zone_id', (int)($r['zone_id'] ?? 0), 'onchange="this.form.submit()" style="font-size:.8rem;padding:.25rem;"') ?>
+                  </form>
+                </td>
                 <td><?= (int)$r['is_visible'] === 1 ? '<span style="color:#16a34a;font-weight:700;">✓ Oui</span>' : '<span style="color:#dc2626;">Non</span>' ?></td>
                 <td>
                   <div style="display:flex;gap:.5rem;flex-wrap:wrap;">

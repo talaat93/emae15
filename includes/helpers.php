@@ -102,11 +102,37 @@ function rate_limit_passed(string $name, int $seconds = 10): bool
 }
 
 /* ═══════════════════════════════════════════════════
+   CONTEXTE ZONE
+   Quand une zone est active, les réglages sont lus et
+   écrits sous la clé "z:{slug}:{clé}". Si la zone n'a
+   pas de valeur propre, on retombe sur la valeur
+   globale : c'est le mécanisme d'héritage.
+═══════════════════════════════════════════════════ */
+function zone_context(?array $zone = null, bool $write = false): ?array
+{
+    static $ctx = null;
+    if ($write) $ctx = $zone;
+    return $ctx;
+}
+
+function set_zone_context(?array $zone): void { zone_context($zone, true); }
+function zone_ctx_slug(): string { $z = zone_context(); return $z ? (string)($z['slug'] ?? '') : ''; }
+function zone_ctx_id(): int      { $z = zone_context(); return $z ? (int)($z['id'] ?? 0) : 0; }
+function zone_ctx_name(): string { $z = zone_context(); return $z ? (string)($z['name'] ?? '') : ''; }
+
+function zone_setting_key(string $key): string
+{
+    $s = zone_ctx_slug();
+    return $s === '' ? $key : 'z:'.$s.':'.$key;
+}
+
+/* ═══════════════════════════════════════════════════
    SETTINGS
 ═══════════════════════════════════════════════════ */
-function setting(string $key, ?string $fallback = null): string
+function settings_cache(bool $flush = false): array
 {
     static $cache = null;
+    if ($flush) { $cache = null; return []; }
     if ($cache === null) {
         $cache = [];
         try {
@@ -117,8 +143,35 @@ function setting(string $key, ?string $fallback = null): string
             }
         } catch (Throwable $e) { $cache = []; }
     }
+    return $cache;
+}
+
+function setting(string $key, ?string $fallback = null): string
+{
+    $cache = settings_cache();
+    $zk = zone_setting_key($key);
+    if ($zk !== $key) {
+        $zv = $cache[$zk] ?? null;
+        if ($zv !== null && $zv !== '') return $zv;
+    }
     $v = $cache[$key] ?? null;
     return ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
+}
+
+/** Valeur globale du réglage, en ignorant la zone active. */
+function global_setting(string $key, ?string $fallback = null): string
+{
+    $v = settings_cache()[$key] ?? null;
+    return ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
+}
+
+/** true si la zone active n'a pas de valeur propre et hérite donc du global. */
+function setting_is_inherited(string $key): bool
+{
+    $zk = zone_setting_key($key);
+    if ($zk === $key) return false;
+    $zv = settings_cache()[$zk] ?? null;
+    return ($zv === null || $zv === '');
 }
 
 function site_setting(string $key, ?string $fallback = null): string { return setting($key, $fallback); }
@@ -126,9 +179,79 @@ function site_setting(string $key, ?string $fallback = null): string { return se
 function set_setting(string $key, mixed $value): void
 {
     $s = is_scalar($value) || $value === null ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-    $exists = db_fetch('SELECT id FROM settings WHERE setting_key = ?', [$key]);
-    if ($exists) db_execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$s, $key]);
-    else db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)', [$key, $s]);
+    $k = zone_setting_key($key);
+    // En contexte zone, vider un champ supprime la surcharge : la zone hérite à nouveau du global.
+    if ($k !== $key && $s === '') {
+        db_execute('DELETE FROM settings WHERE setting_key = ?', [$k]);
+        settings_cache(true);
+        return;
+    }
+    $exists = db_fetch('SELECT id FROM settings WHERE setting_key = ?', [$k]);
+    if ($exists) db_execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$s, $k]);
+    else db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)', [$k, $s]);
+    settings_cache(true);
+}
+
+/** Recopie toutes les valeurs globales dans la zone active. Retourne le nombre de champs copiés. */
+function zone_copy_from_global(): int
+{
+    $slug = zone_ctx_slug();
+    if ($slug === '') return 0;
+    $n = 0;
+    foreach (settings_cache() as $k => $v) {
+        if ($v === '' || str_starts_with($k, 'z:')) continue;
+        $zk = 'z:'.$slug.':'.$k;
+        $exists = db_fetch('SELECT id FROM settings WHERE setting_key = ?', [$zk]);
+        if ($exists) db_execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$v, $zk]);
+        else db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)', [$zk, $v]);
+        $n++;
+    }
+    settings_cache(true);
+    return $n;
+}
+
+/** Supprime toutes les surcharges de la zone active : retour à l'héritage total. */
+function zone_reset_overrides(): int
+{
+    $slug = zone_ctx_slug();
+    if ($slug === '') return 0;
+    $n = 0;
+    foreach (array_keys(settings_cache()) as $k) {
+        if (str_starts_with($k, 'z:'.$slug.':')) { db_execute('DELETE FROM settings WHERE setting_key = ?', [$k]); $n++; }
+    }
+    settings_cache(true);
+    return $n;
+}
+
+/** Nombre de champs personnalisés par une zone donnée. */
+function zone_override_count(string $slug): int
+{
+    if ($slug === '') return 0;
+    $n = 0;
+    foreach (array_keys(settings_cache()) as $k) { if (str_starts_with($k, 'z:'.$slug.':')) $n++; }
+    return $n;
+}
+
+/* Filtrage des contenus (pages, réalisations, avis) selon la zone active. */
+function zone_rows_ready(): bool
+{
+    static $ok = null;
+    if ($ok === null) {
+        $ok = true;
+        foreach (['pages','realisations','reviews'] as $t) {
+            try { db_fetch("SELECT zone_id FROM {$t} LIMIT 1"); }
+            catch (Throwable $e) { $ok = false; break; }
+        }
+    }
+    return $ok;
+}
+
+/** Clause SQL restreignant aux contenus de la zone active + ceux marqués « toutes les zones ». */
+function zone_rows_where(string $col = 'zone_id'): string
+{
+    $id = zone_ctx_id();
+    if ($id <= 0 || !zone_rows_ready()) return '';
+    return " AND ({$col} IS NULL OR {$col} = {$id})";
 }
 
 function set_site_setting(string $key, mixed $value): void { set_setting($key, $value); }
@@ -784,7 +907,7 @@ function zones_page_settings(): array
 
 function all_published_reviews(): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1 ORDER BY sort_order ASC, id DESC'); }
+    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
     catch (Throwable $e) { return []; }
 }
 
@@ -794,13 +917,13 @@ function all_published_reviews(): array
 function visible_realisations(int $limit = 6): array
 {
     try {
-        return db_fetch_all('SELECT * FROM realisations WHERE is_visible = 1 ORDER BY sort_order ASC, id DESC LIMIT '.max(1,(int)$limit));
+        return db_fetch_all('SELECT * FROM realisations WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT '.max(1,(int)$limit));
     } catch (Throwable $e) { return []; }
 }
 
 function all_realisations(): array
 {
-    try { return db_fetch_all('SELECT * FROM realisations ORDER BY sort_order ASC, id DESC'); }
+    try { return db_fetch_all('SELECT * FROM realisations WHERE 1=1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
     catch (Throwable $e) { return []; }
 }
 
@@ -809,19 +932,25 @@ function all_realisations(): array
 ═══════════════════════════════════════════════════ */
 function page_by_slug(string $slug): ?array
 {
-    try { return db_fetch('SELECT * FROM pages WHERE slug = ? AND status = ? LIMIT 1', [$slug, 'published']); }
-    catch (Throwable $e) { return null; }
+    // Une page propre à la zone prime sur la page globale de même slug.
+    try {
+        return db_fetch('SELECT * FROM pages WHERE slug = ? AND status = ?'.zone_rows_where().' ORDER BY zone_id DESC LIMIT 1', [$slug, 'published'])
+            ?: db_fetch('SELECT * FROM pages WHERE slug = ? AND status = ? LIMIT 1', [$slug, 'published']);
+    } catch (Throwable $e) {
+        try { return db_fetch('SELECT * FROM pages WHERE slug = ? AND status = ? LIMIT 1', [$slug, 'published']); }
+        catch (Throwable $e2) { return null; }
+    }
 }
 
 function all_pages(): array
 {
-    try { return db_fetch_all('SELECT * FROM pages ORDER BY sort_order ASC, title ASC'); }
+    try { return db_fetch_all('SELECT * FROM pages WHERE 1=1'.zone_rows_where().' ORDER BY sort_order ASC, title ASC'); }
     catch (Throwable $e) { return []; }
 }
 
 function visible_reviews(int $limit = 6): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1 ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
+    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1638,4 +1767,24 @@ function toggle_zone_status(int $id): void
 function delete_zone(int $id): void
 {
     db_execute("DELETE FROM zones WHERE id=?", [$id]);
+}
+
+/** Liste déroulante d'affectation d'un contenu à une zone (0 = toutes les zones). */
+function zone_select_field(string $name, ?int $selected, string $attrs = ''): string
+{
+    $out = '<select name="'.e($name).'" '.$attrs.'>';
+    $out .= '<option value="0"'.(!$selected ? ' selected' : '').'>🌐 Toutes les zones</option>';
+    foreach (all_zones() as $z) {
+        $sel = ((int)$z['id'] === (int)$selected) ? ' selected' : '';
+        $out .= '<option value="'.(int)$z['id'].'"'.$sel.'>📍 '.e($z['name']).'</option>';
+    }
+    return $out.'</select>';
+}
+
+/** Libellé lisible de la zone d'un contenu. */
+function zone_label(?int $zoneId): string
+{
+    if (!$zoneId) return '🌐 Toutes les zones';
+    $z = get_zone_by_id((int)$zoneId);
+    return $z ? '📍 '.$z['name'] : '⚠ Zone supprimée';
 }

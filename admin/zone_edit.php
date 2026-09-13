@@ -63,6 +63,17 @@ require_once __DIR__ . '/partials/header.php';
   <a class="btn btn-outline" href="<?= e(url_for('admin/zones_manager.php')) ?>">← Retour</a>
 </div>
 
+<?php if (!$isNew): ?>
+<div class="admin-card" style="border-left:4px solid #F07B1D;background:#fffaf4;margin-bottom:1.25rem;">
+  <strong>Cette fiche ne couvre que les réglages de base de la zone.</strong>
+  <p style="margin:.4rem 0 .75rem;color:var(--t2);font-size:.875rem;">
+    Pour modifier tout le site de cette zone — identité, coordonnées, couleurs, accueil, services, pages, réalisations, SEO —
+    basculez l'admin sur la zone. Les champs SEO et Hero ci-dessous restent prioritaires sur ceux de l'admin de zone.
+  </p>
+  <a class="btn btn-p" href="<?= e(url_for('admin/index.php?admin_zone='.$id)) ?>">🎛 Éditer tout le site de <?= e($zone['name']) ?></a>
+</div>
+<?php endif; ?>
+
 <form method="post" id="zone-form">
   <?= csrf_field() ?>
 

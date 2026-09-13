@@ -213,3 +213,27 @@ if (!file_exists($_mf12)) {
     unset($_me);
 }
 unset($_mf12);
+// Auto-migration v15.13 — rattachement des contenus à une zone (NULL = toutes les zones)
+$_mf13 = __DIR__.'/../storage/.mig_v15_zone_content';
+if (!file_exists($_mf13)) {
+    foreach ([
+        "ALTER TABLE pages ADD COLUMN zone_id INT NULL",
+        "ALTER TABLE realisations ADD COLUMN zone_id INT NULL",
+        "ALTER TABLE reviews ADD COLUMN zone_id INT NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf13, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf13);
+// Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
+if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
+    boot_session();
+    if (isset($_GET['admin_zone'])) $_SESSION['admin_zone_id'] = max(0, (int)$_GET['admin_zone']);
+    $_azid = (int)($_SESSION['admin_zone_id'] ?? 0);
+    if ($_azid > 0) {
+        $_az = get_zone_by_id($_azid);
+        if ($_az) set_zone_context($_az); else $_SESSION['admin_zone_id'] = 0;
+        unset($_az);
+    }
+    unset($_azid);
+}
