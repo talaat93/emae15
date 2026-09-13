@@ -32,6 +32,7 @@ require_once __DIR__ . '/partials/header.php';
     <p class="admin-page-subtitle"><?= e($page['intro'] ?? '') ?></p>
   </div>
   <div class="admin-toolbar-actions">
+    <a class="admin-btn admin-btn--primary" href="<?= e(admin_visual_url($pageId)) ?>">✏️ Modifier sur la page</a>
     <a class="admin-btn admin-btn--secondary" href="<?= e(route_url((string)$page['route'])) ?>" target="_blank">Voir la page</a>
   </div>
 </div>

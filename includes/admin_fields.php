@@ -198,7 +198,7 @@ function admin_page_catalog(): array
                     'seen'  => 'Ce qui s\'affiche quand on partage un lien de votre site',
                     'link'  => ['admin/seo.php', 'Modifier le reste du référencement'],
                     'fields' => [
-                        ['key'=>'company_description','label'=>'Description de l\'entreprise','type'=>'textarea','default'=>'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.','help'=>'Utilisée par Google pour décrire votre établissement.'],
+                        ['key'=>'company_description','label'=>'Description de l\'entreprise','type'=>'textarea','inline'=>false,'default'=>'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.','help'=>'Utilisée par Google pour décrire votre établissement. Invisible sur la page, donc modifiable seulement ici.'],
                         ['key'=>'og_default_image','label'=>'Image de partage','type'=>'text','default'=>'','help'=>'Chemin d\'une image, ex : storage/uploads/partage.jpg. Affichée sur Facebook, WhatsApp, LinkedIn.'],
                     ],
                 ],
@@ -499,6 +499,15 @@ function admin_page_catalog(): array
     ];
 }
 
+/** URL publique d'une page du catalogue, en mode édition visuelle. */
+function admin_visual_url(string $pageId): string
+{
+    $page = admin_catalog_page($pageId);
+    if (!$page) return url_for('admin/index.php');
+    $url = route_url((string)$page['route']);
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'admin_edit=1';
+}
+
 /** Une page du catalogue, ou null. */
 function admin_catalog_page(string $id): ?array
 {
@@ -519,6 +528,40 @@ function admin_catalog_fields(string $pageId): array
 function admin_catalog_keys(string $pageId): array
 {
     return array_keys(admin_catalog_fields($pageId));
+}
+
+/**
+ * Ce champ peut-il être modifié directement sur la page rendue ?
+ *
+ * Non pour les valeurs qui ne sortent pas en texte visible : celles placées
+ * dans un attribut ou une balise (titres Google, image de partage, liens,
+ * textes d'exemple), celles que le site découpe avant affichage (listes
+ * séparées par des barres verticales), et celles rangées dans un bloc JSON.
+ * Ces champs restent modifiables depuis les écrans de formulaire.
+ */
+function admin_field_is_inline(array $f): bool
+{
+    if (array_key_exists('inline', $f)) return (bool)$f['inline'];
+    if (!empty($f['json'])) return false;
+    $k = $f['key'];
+    foreach (['meta_title','meta_desc','meta_description','og_','_url','_cities','_tags','_placeholder'] as $pat) {
+        if (str_contains($k, $pat)) return false;
+    }
+    return true;
+}
+
+/** Les clés modifiables directement sur la page, tous écrans confondus. */
+function admin_inline_keys(): array
+{
+    static $keys = null;
+    if ($keys !== null) return $keys;
+    $keys = [];
+    foreach (admin_page_catalog() as $page) {
+        foreach ($page['sections'] as $s) {
+            foreach ($s['fields'] as $f) if (admin_field_is_inline($f)) $keys[$f['key']] = $f;
+        }
+    }
+    return $keys;
 }
 
 /**

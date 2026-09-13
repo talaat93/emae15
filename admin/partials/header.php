@@ -50,8 +50,18 @@ function admin_zone_url(int $zoneId): string {
     <div class="admin-menu__group-label">Contenu du site</div>
     <?php require_once __DIR__.'/../../includes/admin_fields.php';
     foreach (admin_page_catalog() as $cpId => $cp): ?>
-      <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
+      <span class="admin-menu__row">
+        <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
+        <a class="admin-menu__pencil" href="<?= e(admin_visual_url($cpId)) ?>" title="Modifier directement sur la page">✏️</a>
+      </span>
     <?php endforeach; ?>
+    <style>
+    .admin-menu__row{display:flex;align-items:stretch;gap:2px;}
+    .admin-menu__row > a:first-child{flex:1;min-width:0;}
+    .admin-menu__pencil{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
+      width:38px;opacity:.45;text-decoration:none;border-radius:8px;}
+    .admin-menu__pencil:hover{opacity:1;background:rgba(255,255,255,.12);}
+    </style>
 
     <div class="admin-menu__group-label">Accueil (ancien écran)</div>
     <a class="<?= admin_is_active(['home_hero.php']) ?>" href="<?= e(url_for('admin/home_hero.php')) ?>">⭐ Accueil complet</a>

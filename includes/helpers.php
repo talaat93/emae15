@@ -160,12 +160,17 @@ function setting(string $key, ?string $fallback = null): string
 {
     $cache = settings_cache();
     $zk = zone_setting_key($key);
+    $out = null;
     if ($zk !== $key) {
         $zv = $cache[$zk] ?? null;
-        if ($zv !== null && $zv !== '') return $zv;
+        if ($zv !== null && $zv !== '') $out = $zv;
     }
-    $v = $cache[$key] ?? null;
-    return ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
+    if ($out === null) {
+        $v = $cache[$key] ?? null;
+        $out = ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
+    }
+    // En mode édition visuelle, le texte est balisé pour devenir cliquable.
+    return function_exists('inline_edit_wrap') ? inline_edit_wrap($key, $out) : $out;
 }
 
 /**

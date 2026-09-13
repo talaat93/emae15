@@ -225,6 +225,17 @@ if (!file_exists($_mf13)) {
     unset($_me, $__sql);
 }
 unset($_mf13);
+// Édition visuelle du site — réservée à un administrateur connecté, en consultation
+// simple (jamais sur un envoi de formulaire, pour ne pas polluer les e-mails).
+if (isset($_GET['admin_edit'])
+    && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET'
+    && !str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')
+    && admin_logged_in()) {
+    require_once __DIR__ . '/admin_fields.php';
+    require_once __DIR__ . '/inline_edit.php';
+    inline_edit_active(true);
+    ob_start('inline_edit_postprocess');
+}
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
