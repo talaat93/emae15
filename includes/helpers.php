@@ -50,6 +50,11 @@ function asset_url(string $path): string { return url_for($path); }
 
 function route_url(string $slug = ''): string
 {
+    // En contexte zone, toute la navigation reste dans la zone : /paris-ile-de-france/zones
+    $z = zone_ctx_slug();
+    if ($z !== '') {
+        return url_for($z . (($slug === '' || $slug === 'home') ? '/' : '/' . rawurlencode($slug)));
+    }
     if ($slug === '' || $slug === 'home') return url_for('index.php');
     return url_for('index.php?route=' . rawurlencode($slug));
 }
@@ -58,7 +63,12 @@ function current_year(): string { return date('Y'); }
 
 function redirect_to(string $path): never
 {
-    if (!preg_match('#^(https?:|tel:|mailto:)#i', $path)) $path = url_for($path);
+    if (!preg_match('#^(https?:|tel:|mailto:)#i', $path)) {
+        // Ne pas re-préfixer un chemin déjà absolu depuis la racine du site.
+        $b = base_path();
+        $already = $b !== '' ? str_starts_with($path, $b.'/') : str_starts_with($path, '/');
+        if (!$already) $path = url_for($path);
+    }
     header('Location: ' . $path);
     exit;
 }

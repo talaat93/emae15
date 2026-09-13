@@ -29,13 +29,13 @@ set_zone_context($currentZone);
 /* ── POST FORM ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();
-    if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to('index.php?route='.$route); }
-    if (trim((string)($_POST['website'] ?? '')) !== '') { redirect_to('index.php?route='.$route); }
+    if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to(route_url($route)); }
+    if (trim((string)($_POST['website'] ?? '')) !== '') { redirect_to(route_url($route)); }
     $fn=$_POST['full_name']??''; $ph=$_POST['phone']??''; $em=$_POST['email']??'';
     $ci=$_POST['city']??''; $ad=$_POST['address']??''; $pc=$_POST['postal_code']??'';
     $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
     $ur=$_POST['urgency']??'Normale'; $so=$_POST['source']??'';
-    if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to('index.php?route='.$route); }
+    if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to(route_url($route)); }
     try {
         db_execute('INSERT INTO quotes (full_name,phone,email,city,address,postal_code,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             [trim($fn),trim($ph),trim($em),trim($ci),trim($ad),trim($pc),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
     send_quote_notification($qData);
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
     flash('success', quote_form_options()['success_message']);
-    redirect_to('index.php?route='.($route ?: 'home'));
+    redirect_to(route_url($route));
 }
 
 /* ════════════════════════════════
