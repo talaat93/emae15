@@ -168,6 +168,16 @@ function setting(string $key, ?string $fallback = null): string
     return ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
 }
 
+/**
+ * Valeur réellement enregistrée pour le contexte courant, sans aucun repli.
+ * Vide signifie « rien de saisi ici » : le site affichera la valeur héritée
+ * (celle du global en zone, sinon le texte par défaut du code).
+ */
+function raw_setting(string $key): string
+{
+    return settings_cache()[zone_setting_key($key)] ?? '';
+}
+
 /** Valeur globale du réglage, en ignorant la zone active. */
 function global_setting(string $key, ?string $fallback = null): string
 {

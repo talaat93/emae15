@@ -47,7 +47,10 @@ function admin_zone_url(int $zoneId): string {
     <a class="<?= admin_is_active(['appearance.php']) ?>" href="<?= e(url_for('admin/appearance.php')) ?>">🎨 Couleurs & polices</a>
     <a class="<?= admin_is_active(['header_menu.php']) ?>" href="<?= e(url_for('admin/header_menu.php')) ?>">🧭 Header & menu</a>
 
-    <div class="admin-menu__group-label">Accueil</div>
+    <div class="admin-menu__group-label">Contenu du site</div>
+    <a class="<?= admin_is_active([],'content_accueil') ?>" href="<?= e(url_for('admin/page_content.php?p=accueil')) ?>">🏠 Page d'accueil</a>
+
+    <div class="admin-menu__group-label">Accueil (ancien écran)</div>
     <a class="<?= admin_is_active(['home_hero.php']) ?>" href="<?= e(url_for('admin/home_hero.php')) ?>">⭐ Accueil complet</a>
     <a class="<?= admin_is_active(['home_services.php']) ?>" href="<?= e(url_for('admin/home_services.php')) ?>">🔧 Cartes services</a>
     <a class="<?= admin_is_active(['why_us.php'],'why_us') ?>" href="<?= e(url_for('admin/why_us.php')) ?>">⭐ Pourquoi nous choisir</a>
@@ -92,6 +95,17 @@ function admin_zone_url(int $zoneId): string {
   </nav>
 </aside>
 <main class="admin-main">
+<form class="admin-search" method="get" action="<?= e(url_for('admin/search.php')) ?>" role="search">
+  <input type="text" name="q" value="<?= e((string)($_GET['q'] ?? '')) ?>" placeholder="🔎 Chercher un texte du site — ex : un seul interlocuteur">
+  <button type="submit">Chercher</button>
+</form>
+<style>
+.admin-search{display:flex;gap:.5rem;margin-bottom:1.1rem;}
+.admin-search input{flex:1;min-width:0;padding:.6rem .85rem;border:1px solid #dde5f3;border-radius:12px;font-size:.9rem;background:#fff;}
+.admin-search input:focus{outline:2px solid #2f66d2;outline-offset:1px;}
+.admin-search button{border:1px solid #dde5f3;background:#f7faff;color:#4b5b7d;border-radius:12px;padding:0 .95rem;font-weight:600;font-size:.85rem;cursor:pointer;white-space:nowrap;}
+.admin-search button:hover{background:#eaf1ff;color:#1b2d6b;}
+</style>
 <?php
 $zsList = all_zones();
 $zsCur  = zone_context();
