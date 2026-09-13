@@ -145,12 +145,72 @@ function bulk_scan(string $term): array
         }
     }
 
+    foreach ($hits as &$h) $h['edit'] = bulk_edit_url($h['ref']);
+    unset($h);
+
     return $hits;
 }
 
 function bulk_table_label(string $t): string
 {
     return ['pages'=>'Page','realisations'=>'Réalisation','reviews'=>'Avis'][$t] ?? $t;
+}
+
+/** Index clé de réglage → page et section du catalogue, pour les liens de modification. */
+function bulk_catalog_index(): array
+{
+    static $idx = null;
+    if ($idx !== null) return $idx;
+    $idx = [];
+    foreach (admin_page_catalog() as $pageId => $page) {
+        foreach ($page['sections'] as $s) {
+            foreach ($s['fields'] as $f) {
+                $idx[$f['key']] = ['page' => $pageId, 'section' => $s['id']];
+                if (!empty($f['json'])) $idx[$f['json'][0]] = ['page' => $pageId, 'section' => $s['id']];
+            }
+        }
+    }
+    return $idx;
+}
+
+/**
+ * Lien menant droit au champ à modifier. Pour une surcharge de zone, il
+ * bascule aussi l'administration sur cette zone, sinon on éditerait le global.
+ */
+function bulk_edit_url(string $ref): ?string
+{
+    $p = explode(':', $ref, 4);
+
+    if ($p[0] === 'row' && count($p) === 4) {
+        return match ($p[1]) {
+            'pages'        => url_for('admin/page_edit.php?id='.(int)$p[2]),
+            'realisations' => url_for('admin/realisations.php'),
+            'reviews'      => url_for('admin/reviews.php'),
+            default        => null,
+        };
+    }
+
+    $zoneId = 0;
+    if ($p[0] === 'cat' && count($p) === 3) {
+        $field = $p[2];
+        $loc   = ['page' => $p[1], 'section' => bulk_catalog_index()[$field]['section'] ?? ''];
+    } elseif ($p[0] === 'set') {
+        $key = substr($ref, 4);
+        if (preg_match('/^z:([a-z0-9-]+):(.+)$/', $key, $m)) {
+            $zoneId = (int)(get_zone_by_slug($m[1])['id'] ?? 0);
+            $key    = $m[2];
+        }
+        $loc   = bulk_catalog_index()[$key] ?? null;
+        $field = $key;
+    } else {
+        return null;
+    }
+    if (!$loc || ($loc['page'] ?? '') === '') return null;
+
+    return url_for('admin/page_content.php?p='.$loc['page']
+        .'&field='.rawurlencode($field)
+        .($zoneId > 0 ? '&admin_zone='.$zoneId : '')
+        .'#s-'.$loc['section']);
 }
 
 /** Valeur actuelle d'une occurrence, à partir de sa référence. */

@@ -117,6 +117,7 @@ require_once __DIR__ . '/partials/header.php';
           <th style="width:150px;">Portée</th>
           <th>Emplacement</th>
           <th>Texte<?= $to !== '' ? ' — avant, puis après' : '' ?></th>
+          <th style="width:110px;"></th>
         </tr></thead>
         <tbody>
         <?php foreach ($hits as $h): ?>
@@ -132,6 +133,14 @@ require_once __DIR__ . '/partials/header.php';
               <div class="sr-before"><?= sr_preview($h['value'], $q, $to, false) ?></div>
               <?php if ($to !== ''): ?>
                 <div class="sr-after"><?= sr_preview($h['value'], $q, $to, true) ?></div>
+              <?php endif; ?>
+            </td>
+            <td style="text-align:right;">
+              <?php if ($h['edit']): ?>
+                <a class="admin-btn admin-btn--secondary" style="min-height:34px;padding:0 .7rem;font-size:.8rem;"
+                   href="<?= e($h['edit']) ?>">Modifier →</a>
+              <?php else: ?>
+                <span style="font-size:.75rem;color:#a3aec4;">—</span>
               <?php endif; ?>
             </td>
           </tr>
