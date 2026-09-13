@@ -8,12 +8,14 @@ declare(strict_types=1);
  * Sert à la fois à générer les écrans d'édition et à alimenter la recherche.
  * Ajouter une page ici suffit à la rendre éditable et trouvable.
  *
- * Chaque champ : key (clé settings), label (nom parlant), type, default
+ * Chaque champ : key (identifiant du champ), label (nom parlant), type, default
  * (exactement la valeur de repli utilisée par le site), help (optionnel).
+ * Un champ peut viser un sous-élément d'un bloc JSON via json => [clé, sous-clé].
  */
 function admin_page_catalog(): array
 {
-    $reg = company_regions();
+    $reg  = company_regions();
+    $name = company_name();
 
     return [
         'accueil' => [
@@ -67,6 +69,18 @@ function admin_page_catalog(): array
                         ['key'=>'services_title','label'=>'Titre','type'=>'text','default'=>'Tout ce dont vous avez'],
                         ['key'=>'services_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'besoin'],
                         ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes en '.$reg.' — un seul interlocuteur pour tous vos besoins techniques.'],
+                    ],
+                ],
+                [
+                    'id'    => 'why',
+                    'label' => 'Pourquoi nous choisir',
+                    'seen'  => 'La section de réassurance, entre les services et les 3 étapes',
+                    'link'  => ['admin/why_us.php', 'Modifier les 8 arguments et leurs icônes'],
+                    'note'  => 'Ces trois textes sont stockés avec les 8 arguments. En zone, les personnaliser fige aussi les arguments pour cette zone.',
+                    'fields' => [
+                        ['key'=>'why_eyebrow','json'=>['why_us_settings','eyebrow'],'label'=>'Surtitre','type'=>'text','default'=>'Pourquoi nous choisir'],
+                        ['key'=>'why_title','json'=>['why_us_settings','title'],'label'=>'Titre','type'=>'text','default'=>'EMAE, votre expert multitechnique de confiance'],
+                        ['key'=>'why_lead','json'=>['why_us_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des artisans qualifiés, des délais respectés, des devis clairs. Chaque intervention est réalisée avec rigueur et professionnalisme.'],
                     ],
                 ],
                 [
@@ -141,6 +155,347 @@ function admin_page_catalog(): array
                 ],
             ],
         ],
+
+        'entete' => [
+            'label' => 'En-tête & pied de page',
+            'icon'  => '🧭',
+            'route' => '',
+            'intro' => "Les éléments présents sur toutes les pages du site.",
+            'sections' => [
+                [
+                    'id'    => 'menu',
+                    'label' => 'Libellés du menu',
+                    'seen'  => 'La navigation principale, en haut de chaque page',
+                    'link'  => ['admin/header_menu.php', 'Modifier le reste du menu et le bandeau'],
+                    'fields' => [
+                        ['key'=>'nav_services','label'=>'Lien Services','type'=>'text','default'=>'Services'],
+                        ['key'=>'nav_zones','label'=>'Lien Nos zones','type'=>'text','default'=>'Nos zones'],
+                        ['key'=>'nav_avis','label'=>'Lien Avis clients','type'=>'text','default'=>'Avis clients'],
+                        ['key'=>'nav_realisations','label'=>'Lien Réalisations','type'=>'text','default'=>'Réalisations'],
+                    ],
+                ],
+                [
+                    'id'    => 'pied',
+                    'label' => 'Pied de page',
+                    'seen'  => 'Le bas de page, sous le contenu',
+                    'link'  => ['admin/site_identity.php', 'Modifier téléphone, e-mail et adresse'],
+                    'fields' => [
+                        ['key'=>'company_slogan','label'=>'Slogan sous le logo','type'=>'text','default'=>'Dépannage & installation multitechnique','help'=>'Repris aussi au bas des e-mails envoyés par le site.'],
+                    ],
+                ],
+                [
+                    'id'    => 'formulaires',
+                    'label' => 'Formulaires de contact',
+                    'seen'  => 'Sur tous les formulaires de demande du site',
+                    'fields' => [
+                        ['key'=>'form_submit_label','label'=>'Texte du bouton d\'envoi','type'=>'text','default'=>'Envoyer ma demande'],
+                        ['key'=>'form_success_message','label'=>'Message après envoi','type'=>'textarea','default'=>'Votre demande a bien été envoyée. Nous vous recontactons rapidement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'partage',
+                    'label' => 'Partage & moteurs de recherche',
+                    'seen'  => 'Ce qui s\'affiche quand on partage un lien de votre site',
+                    'link'  => ['admin/seo.php', 'Modifier le reste du référencement'],
+                    'fields' => [
+                        ['key'=>'company_description','label'=>'Description de l\'entreprise','type'=>'textarea','default'=>'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.','help'=>'Utilisée par Google pour décrire votre établissement.'],
+                        ['key'=>'og_default_image','label'=>'Image de partage','type'=>'text','default'=>'','help'=>'Chemin d\'une image, ex : storage/uploads/partage.jpg. Affichée sur Facebook, WhatsApp, LinkedIn.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_zones' => [
+            'label' => 'Page Nos zones',
+            'icon'  => '🗺️',
+            'route' => 'zones',
+            'sections' => [
+                [
+                    'id'    => 'hero',
+                    'label' => 'Haut de page',
+                    'seen'  => 'Le bandeau de titre de la page Nos zones',
+                    'link'  => ['admin/zones.php', 'Modifier les régions et leurs villes'],
+                    'fields' => [
+                        ['key'=>'zp_eyebrow','json'=>['zones_page_settings','eyebrow'],'label'=>'Surtitre','type'=>'text','default'=>'Zones d\'intervention'],
+                        ['key'=>'zp_title','json'=>['zones_page_settings','title'],'label'=>'Titre','type'=>'text','default'=>'Nous intervenons partout en'],
+                        ['key'=>'zp_title_hl','json'=>['zones_page_settings','title_hl'],'label'=>'Fin du titre, en couleur','type'=>'text','default'=>'Île-de-France & Occitanie'],
+                        ['key'=>'zp_lead','json'=>['zones_page_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'zones_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Zones d\'intervention | '.$name],
+                        ['key'=>'zones_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'EMAE intervient en Île-de-France et Occitanie — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_avis' => [
+            'label' => 'Page Avis clients',
+            'icon'  => '⭐',
+            'route' => 'avis',
+            'sections' => [
+                [
+                    'id'    => 'contenu',
+                    'label' => 'Contenu',
+                    'seen'  => 'La page listant tous vos avis',
+                    'link'  => ['admin/reviews.php', 'Gérer les avis affichés'],
+                    'fields' => [
+                        ['key'=>'google_mybusiness_url','label'=>'Lien vers votre fiche Google','type'=>'text','default'=>'','help'=>'Active le bouton « Laisser un avis sur Google ». Laissez vide pour le masquer.'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'avis_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Avis clients | '.$name],
+                        ['key'=>'avis_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'Découvrez les avis de nos clients — note de '.setting('schema_rating_value','4.6').'/5 sur '.setting('schema_review_count','120').' avis vérifiés.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_faq' => [
+            'label' => 'Page FAQ',
+            'icon'  => '❓',
+            'route' => 'faq',
+            'sections' => [
+                [
+                    'id'    => 'hero',
+                    'label' => 'Haut de page',
+                    'seen'  => 'Les pastilles sous le titre de la FAQ',
+                    'link'  => ['admin/faq_contact.php', 'Modifier les questions et réponses'],
+                    'fields' => [
+                        ['key'=>'faq_badge_1','label'=>'Pastille 1','type'=>'text','default'=>'Réponse rapide'],
+                        ['key'=>'faq_badge_2','label'=>'Pastille 2','type'=>'text','default'=>'Urgences 24h/7j'],
+                        ['key'=>'faq_badge_3','label'=>'Pastille 3','type'=>'text','default'=>'Devis gratuit'],
+                        ['key'=>'faq_cat_all','label'=>'Filtre « toutes les catégories »','type'=>'text','default'=>'Toutes'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'faq_meta_title','label'=>'Titre Google','type'=>'text','default'=>'FAQ | '.$name],
+                        ['key'=>'faq_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Questions fréquentes.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_contact' => [
+            'label' => 'Page Contact',
+            'icon'  => '✉️',
+            'route' => 'contact',
+            'sections' => [
+                [
+                    'id'    => 'hero',
+                    'label' => 'Haut de page',
+                    'seen'  => 'Les pastilles sous le titre de la page Contact',
+                    'fields' => [
+                        ['key'=>'contact_badge_1','label'=>'Pastille 1','type'=>'text','default'=>'Devis gratuit'],
+                        ['key'=>'contact_badge_2','label'=>'Pastille 2','type'=>'text','default'=>'Réponse sous 30 min'],
+                    ],
+                ],
+                [
+                    'id'    => 'form',
+                    'label' => 'Formulaire',
+                    'seen'  => 'Le formulaire de la page Contact',
+                    'fields' => [
+                        ['key'=>'home_quote_city_placeholder','label'=>'Exemple dans le champ Ville','type'=>'text','default'=>'Meaux, Paris…'],
+                        ['key'=>'contact_zone_tags','label'=>'Villes listées sous le formulaire','type'=>'textarea','default'=>'Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Toulouse|Montpellier|Nîmes|Occitanie','help'=>'Séparez chaque ville par une barre verticale |'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'contact_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Contact | '.$name],
+                        ['key'=>'contact_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Contactez EMAE.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_devis' => [
+            'label' => 'Page Devis',
+            'icon'  => '📋',
+            'route' => 'quote',
+            'sections' => [
+                [
+                    'id'    => 'contenu',
+                    'label' => 'Contenu',
+                    'seen'  => 'La page de demande de devis',
+                    'fields' => [
+                        ['key'=>'quote_hero_title','label'=>'Titre','type'=>'text','default'=>'Votre demande d\'intervention'],
+                        ['key'=>'quote_hero_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Remplissez ce formulaire. Un technicien vous rappelle sous 30 minutes avec un chiffrage clair, sans engagement.'],
+                        ['key'=>'quote_form_title','label'=>'Titre du formulaire','type'=>'text','default'=>'Décrivez votre besoin'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'quote_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Devis gratuit | '.$name],
+                        ['key'=>'quote_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Devis gratuit et rapide.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_realisations' => [
+            'label' => 'Page Réalisations',
+            'icon'  => '📷',
+            'route' => 'realisations',
+            'sections' => [
+                [
+                    'id'    => 'contenu',
+                    'label' => 'Contenu',
+                    'seen'  => 'La page listant vos chantiers',
+                    'link'  => ['admin/realisations.php', 'Gérer les photos de chantiers'],
+                    'fields' => [
+                        ['key'=>'reals_page_title','label'=>'Titre','type'=>'text','default'=>'Interventions & chantiers'],
+                        ['key'=>'reals_page_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des interventions propres et documentées en '.$reg.'.'],
+                        ['key'=>'reals_empty','label'=>'Message si aucune réalisation','type'=>'text','default'=>'Les réalisations seront publiées prochainement.'],
+                        ['key'=>'reals_empty_btn','label'=>'Bouton si aucune réalisation','type'=>'text','default'=>'Nous contacter'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'note'  => 'L\'écran SEO comporte un champ Réalisations qui n\'a jamais eu d\'effet : utilisez celui-ci.',
+                    'fields' => [
+                        ['key'=>'reals_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Réalisations | '.$name],
+                        ['key'=>'reals_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Nos chantiers et interventions.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_services' => [
+            'label' => 'Pages Service',
+            'icon'  => '🔧',
+            'route' => 'electricite',
+            'intro' => "Ces textes sont communs aux quatre pages métier : Électricité, Plomberie, Chauffage et Climatisation.",
+            'sections' => [
+                [
+                    'id'    => 'titres',
+                    'label' => 'Titres des sections',
+                    'seen'  => 'Les intertitres qui rythment chaque page métier',
+                    'note'  => 'Les 3 étapes de ces pages utilisent les mêmes textes que « Comment ça marche » sur la page d\'accueil : les modifier change les deux.',
+                    'fields' => [
+                        ['key'=>'svc_offer_label','label'=>'Surtitre de l\'offre','type'=>'text','default'=>'Notre offre'],
+                        ['key'=>'svc_interv_label','label'=>'Interventions — surtitre','type'=>'text','default'=>'Nos interventions'],
+                        ['key'=>'svc_interv_title','label'=>'Interventions — titre','type'=>'text','default'=>'Ce que nous'],
+                        ['key'=>'svc_interv_title_hl','label'=>'Interventions — fin en couleur','type'=>'text','default'=>'faisons'],
+                        ['key'=>'svc_process_label','label'=>'Méthode — surtitre','type'=>'text','default'=>'Notre méthode'],
+                        ['key'=>'svc_process_title','label'=>'Méthode — titre','type'=>'text','default'=>'Intervention en'],
+                        ['key'=>'svc_process_title_hl','label'=>'Méthode — fin en couleur','type'=>'text','default'=>'3 étapes'],
+                        ['key'=>'svc_faq_label','label'=>'FAQ — surtitre','type'=>'text','default'=>'FAQ'],
+                        ['key'=>'svc_faq_title','label'=>'FAQ — titre','type'=>'text','default'=>'Questions'],
+                        ['key'=>'svc_faq_title_hl','label'=>'FAQ — fin en couleur','type'=>'text','default'=>'fréquentes'],
+                        ['key'=>'svc_zones_label','label'=>'Zones — surtitre','type'=>'text','default'=>'Zone d\'intervention'],
+                        ['key'=>'svc_zones_title','label'=>'Zones — titre','type'=>'text','default'=>'Zones couvertes'],
+                        ['key'=>'svc_page_btn_devis','label'=>'Bouton devis','type'=>'text','default'=>'Devis gratuit'],
+                        ['key'=>'svc_form_label','label'=>'Formulaire — surtitre','type'=>'text','default'=>'Devis gratuit'],
+                        ['key'=>'svc_form_tag','label'=>'Formulaire — étiquette','type'=>'text','default'=>'Votre technicien'],
+                        ['key'=>'svc_form_title','label'=>'Formulaire — titre','type'=>'text','default'=>'Devis gratuit'],
+                    ],
+                ],
+                [
+                    'id'    => 'zones_svc',
+                    'label' => 'Zones affichées sur ces pages',
+                    'seen'  => 'Les deux encarts de couverture géographique',
+                    'fields' => [
+                        ['key'=>'zone_idf_text','label'=>'Île-de-France — texte','type'=>'text','default'=>'Paris et toute la région.'],
+                        ['key'=>'zone_idf_cities','label'=>'Île-de-France — villes','type'=>'textarea','default'=>'Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','help'=>'Séparez chaque ville par une barre verticale |'],
+                        ['key'=>'zone_occ_text','label'=>'Occitanie — texte','type'=>'text','default'=>'Toulouse et toute la région.'],
+                        ['key'=>'zone_occ_cities','label'=>'Occitanie — villes','type'=>'textarea','default'=>'Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)'],
+                    ],
+                ],
+                [
+                    'id'    => 'faq_elec',
+                    'label' => 'FAQ Électricité',
+                    'seen'  => 'Les réponses affichées en bas de la page Électricité',
+                    'note'  => 'Les questions elles-mêmes sont figées dans le code ; seules les réponses sont modifiables ici.',
+                    'fields' => [
+                        ['key'=>'faq_elec_1_a','label'=>'Délai d\'intervention en urgence','type'=>'textarea','default'=>'En urgence, nous intervenons en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.'],
+                        ['key'=>'faq_elec_2_a','label'=>'Mise aux normes','type'=>'textarea','default'=>'Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.'],
+                        ['key'=>'faq_elec_3_a','label'=>'Types de bâtiments','type'=>'textarea','default'=>'Oui, logements, commerces, bureaux et bâtiments techniques.'],
+                        ['key'=>'faq_elec_4_a','label'=>'Devis gratuit','type'=>'textarea','default'=>'Oui, devis gratuit et sans engagement avant toute intervention.'],
+                    ],
+                ],
+                [
+                    'id'    => 'faq_plomb',
+                    'label' => 'FAQ Plomberie',
+                    'seen'  => 'Les réponses affichées en bas de la page Plomberie',
+                    'fields' => [
+                        ['key'=>'faq_plomb_1_a','label'=>'Urgence fuite','type'=>'textarea','default'=>'Oui, disponible '.company_hours().'. Appelez-nous pour une intervention immédiate.'],
+                        ['key'=>'faq_plomb_2_a','label'=>'Chauffe-eau','type'=>'textarea','default'=>'Oui, diagnostic, remplacement et mise en service de tous types de chauffe-eau.'],
+                        ['key'=>'faq_plomb_3_a','label'=>'Contrat d\'entretien','type'=>'textarea','default'=>'Oui, contrats de maintenance préventive annuels disponibles.'],
+                        ['key'=>'faq_plomb_4_a','label'=>'Que faire en cas de dégât des eaux','type'=>'textarea','default'=>'Coupez l\'arrivée d\'eau principale et appelez-nous immédiatement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'faq_chauf',
+                    'label' => 'FAQ Chauffage',
+                    'seen'  => 'Les réponses affichées en bas de la page Chauffage',
+                    'fields' => [
+                        ['key'=>'faq_chauf_1_a','label'=>'Types de chaudières','type'=>'textarea','default'=>'Oui, sur tous types de chaudières : gaz, fioul, électrique et condensation.'],
+                        ['key'=>'faq_chauf_2_a','label'=>'Pompes à chaleur','type'=>'textarea','default'=>'Oui, PAC air/air, air/eau — installation, entretien et dépannage.'],
+                        ['key'=>'faq_chauf_3_a','label'=>'Entretien annuel','type'=>'textarea','default'=>'Oui, contrat d\'entretien annuel réglementaire avec rapport d\'intervention.'],
+                        ['key'=>'faq_chauf_4_a','label'=>'Panne en hiver','type'=>'textarea','default'=>'Appelez-nous immédiatement — priorité absolue aux urgences de chauffage en hiver.'],
+                    ],
+                ],
+                [
+                    'id'    => 'faq_clim',
+                    'label' => 'FAQ Climatisation',
+                    'seen'  => 'Les réponses affichées en bas de la page Climatisation',
+                    'fields' => [
+                        ['key'=>'faq_clim_1_a','label'=>'Types de systèmes','type'=>'textarea','default'=>'Oui, splits, multi-splits, gainables et systèmes CVC.'],
+                        ['key'=>'faq_clim_2_a','label'=>'Fourniture et pose','type'=>'textarea','default'=>'Oui, fourniture, pose et mise en service avec conseil adapté.'],
+                        ['key'=>'faq_clim_3_a','label'=>'Fréquence d\'entretien','type'=>'textarea','default'=>'Idéalement avant chaque saison (printemps et automne) pour garantir les performances.'],
+                        ['key'=>'faq_clim_4_a','label'=>'Locaux professionnels','type'=>'textarea','default'=>'Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_mentions' => [
+            'label' => 'Mentions légales',
+            'icon'  => '⚖️',
+            'route' => 'mentions-legales',
+            'sections' => [
+                [
+                    'id'    => 'contenu',
+                    'label' => 'Informations légales',
+                    'seen'  => 'La page Mentions légales, liée depuis le pied de page',
+                    'link'  => ['admin/site_identity.php', 'Modifier raison sociale, SIRET et adresse'],
+                    'fields' => [
+                        ['key'=>'ml_directeur','label'=>'Directeur de la publication','type'=>'text','default'=>$name],
+                        ['key'=>'ml_hebergeur','label'=>'Hébergeur du site','type'=>'textarea','default'=>'o2switch — 222-224 Boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'ml_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Mentions légales | '.$name],
+                        ['key'=>'ml_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Mentions légales, informations légales et politique de confidentialité de '.$name.'.'],
+                    ],
+                ],
+            ],
+        ],
     ];
 }
 
@@ -150,14 +505,60 @@ function admin_catalog_page(string $id): ?array
     return admin_page_catalog()[$id] ?? null;
 }
 
-/** Toutes les clés pilotées par une page du catalogue. */
-function admin_catalog_keys(string $pageId): array
+/** Tous les champs d'une page, à plat. */
+function admin_catalog_fields(string $pageId): array
 {
     $page = admin_catalog_page($pageId);
     if (!$page) return [];
-    $keys = [];
-    foreach ($page['sections'] as $s) foreach ($s['fields'] as $f) $keys[] = $f['key'];
-    return $keys;
+    $out = [];
+    foreach ($page['sections'] as $s) foreach ($s['fields'] as $f) $out[$f['key']] = $f;
+    return $out;
+}
+
+/** Noms des champs de formulaire d'une page. */
+function admin_catalog_keys(string $pageId): array
+{
+    return array_keys(admin_catalog_fields($pageId));
+}
+
+/**
+ * Valeur réellement saisie pour ce champ, sans repli.
+ * Vide signifie que le site affiche la valeur héritée.
+ */
+function admin_field_raw(array $f): string
+{
+    if (!empty($f['json'])) {
+        [$blob, $sub] = $f['json'];
+        return trim((string)(get_json_setting($blob, [])[$sub] ?? ''));
+    }
+    return raw_setting($f['key']);
+}
+
+/** Ce que le visiteur voit aujourd'hui pour ce champ. */
+function admin_field_shown(array $f): string
+{
+    $default = (string)($f['default'] ?? '');
+    if (!empty($f['json'])) {
+        $raw = admin_field_raw($f);
+        return $raw !== '' ? $raw : $default;
+    }
+    return setting($f['key'], $default);
+}
+
+/** Enregistre le champ. Retourne true si quelque chose a changé. */
+function admin_field_save(array $f, string $value): bool
+{
+    $value = trim($value);
+    if ($value === admin_field_raw($f)) return false;
+    if (!empty($f['json'])) {
+        [$blob, $sub] = $f['json'];
+        $data = get_json_setting($blob, []);
+        $data[$sub] = $value;
+        set_json_setting($blob, $data);
+        return true;
+    }
+    set_setting($f['key'], $value);
+    return true;
 }
 
 /**
@@ -177,7 +578,7 @@ function admin_search_fields(string $needle): array
     foreach (admin_page_catalog() as $pageId => $page) {
         foreach ($page['sections'] as $section) {
             foreach ($section['fields'] as $f) {
-                $value = setting($f['key'], (string)($f['default'] ?? ''));
+                $value = admin_field_shown($f);
                 $pool  = $hay($f['label'].' '.$f['key'].' '.$value.' '.((string)($f['default'] ?? '')).' '.$section['label']);
                 if (!str_contains($pool, $n)) continue;
                 $out[] = [

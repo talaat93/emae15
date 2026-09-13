@@ -48,7 +48,10 @@ function admin_zone_url(int $zoneId): string {
     <a class="<?= admin_is_active(['header_menu.php']) ?>" href="<?= e(url_for('admin/header_menu.php')) ?>">🧭 Header & menu</a>
 
     <div class="admin-menu__group-label">Contenu du site</div>
-    <a class="<?= admin_is_active([],'content_accueil') ?>" href="<?= e(url_for('admin/page_content.php?p=accueil')) ?>">🏠 Page d'accueil</a>
+    <?php require_once __DIR__.'/../../includes/admin_fields.php';
+    foreach (admin_page_catalog() as $cpId => $cp): ?>
+      <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
+    <?php endforeach; ?>
 
     <div class="admin-menu__group-label">Accueil (ancien écran)</div>
     <a class="<?= admin_is_active(['home_hero.php']) ?>" href="<?= e(url_for('admin/home_hero.php')) ?>">⭐ Accueil complet</a>

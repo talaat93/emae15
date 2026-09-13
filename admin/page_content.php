@@ -12,10 +12,9 @@ if (!$page) { flash('error', 'Page inconnue.'); redirect_to('admin/index.php'); 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $n = 0;
-    foreach (admin_catalog_keys($pageId) as $key) {
+    foreach (admin_catalog_fields($pageId) as $key => $f) {
         if (!array_key_exists($key, $_POST)) continue;
-        $new = trim((string)$_POST[$key]);
-        if ($new !== raw_setting($key)) { set_setting($key, $new); $n++; }
+        if (admin_field_save($f, (string)$_POST[$key])) $n++;
     }
     flash('success', $n === 0 ? 'Aucune modification.' : $n.' texte'.($n > 1 ? 's' : '').' enregistré'.($n > 1 ? 's' : '').'.');
     redirect_to('admin/page_content.php?p='.$pageId.(isset($_POST['_anchor']) && $_POST['_anchor'] !== '' ? '#s-'.preg_replace('/[^a-z0-9_-]/','',(string)$_POST['_anchor']) : ''));
@@ -55,15 +54,17 @@ require_once __DIR__ . '/partials/header.php';
       <p><?= e($s['seen'] ?? '') ?></p>
     </div>
     <div class="admin-panel__body">
+      <?php if (!empty($s['note'])): ?>
+        <p class="pc-note"><?= e($s['note']) ?></p>
+      <?php endif; ?>
       <?php if (!empty($s['link'])): ?>
         <p style="margin:0 0 1rem;"><a class="admin-btn admin-btn--secondary" href="<?= e(url_for($s['link'][0])) ?>"><?= e($s['link'][1]) ?> →</a></p>
       <?php endif; ?>
       <div class="admin-form-grid admin-form-grid--2">
         <?php foreach ($s['fields'] as $f):
             $key     = $f['key'];
-            $raw     = raw_setting($key);
-            $default = (string)($f['default'] ?? '');
-            $shown   = setting($key, $default);   // ce que le visiteur voit aujourd'hui
+            $raw     = admin_field_raw($f);
+            $shown   = admin_field_shown($f);   // ce que le visiteur voit aujourd'hui
             $isFocus = ($focusKey !== '' && $focusKey === $key);
             $wide    = ($f['type'] ?? 'text') === 'textarea';
         ?>
@@ -104,6 +105,7 @@ require_once __DIR__ . '/partials/header.php';
 .pc-jump a:hover{background:#eaf1ff;color:#1b2d6b;}
 .pc-tag{font-style:normal;font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#8494b4;background:#f0f4ff;border-radius:20px;padding:.1rem .45rem;margin-left:.35rem;}
 .pc-help{display:block;margin-top:.3rem;color:#8494b4;font-size:.76rem;line-height:1.45;}
+.pc-note{background:#fffaf4;border-left:3px solid #F07B1D;border-radius:8px;padding:.6rem .8rem;margin:0 0 1rem;font-size:.82rem;color:#7a5a35;line-height:1.5;}
 .pc-field.is-focus{outline:3px solid #F07B1D;outline-offset:6px;border-radius:8px;}
 .pc-savebar{position:sticky;bottom:0;background:#fff;border-top:1px solid #dde5f3;padding:.85rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;z-index:5;}
 .pc-savebar__note{font-size:.78rem;color:#7b88a6;margin-right:auto;}
