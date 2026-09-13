@@ -70,6 +70,11 @@ function csrf_token(): string
     return (string)$_SESSION['csrf_token'];
 }
 
+function csrf_field(): string
+{
+    return '<input type="hidden" name="csrf_token" value="'.e(csrf_token()).'">';
+}
+
 function verify_csrf(): void
 {
     boot_session();
