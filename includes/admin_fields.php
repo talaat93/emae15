@@ -31,7 +31,7 @@ function admin_page_catalog(): array
                     'fields' => [
                         ['key'=>'home_title','label'=>'Titre principal','type'=>'text','default'=>'Votre expert multitechnique','help'=>'Le grand titre. Le mot mis en couleur se règle juste en dessous.'],
                         ['key'=>'home_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'en urgence','help'=>'Affiché à la suite du titre, surligné dans la couleur d\'accent.'],
-                        ['key'=>'home_lead','label'=>'Phrase d\'accroche','type'=>'textarea','inline'=>false,'default'=>'Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.$reg.'. Intervention rapide, devis gratuit, artisans qualifiés.','help'=>'Texte adapté au visiteur : « '.$reg.' » y est remplacé par sa ville. Vous pouvez aussi écrire {ville}, {dept} ou {region}. Modifiable ici uniquement, pas sur la page.'],
+                        ['key'=>'home_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.$reg.'. Intervention rapide, devis gratuit, artisans qualifiés.','help'=>'Vous pouvez écrire {ville}, {dept} ou {region} : ces variables reprennent le nom de la zone consultée, ou les valeurs définies dans l\'écran Chatbot sur le site global. Un texte qui en contient se modifie ici seulement, pas directement sur la page.'],
                         ['key'=>'home_button1_label','label'=>'Bouton principal','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'home_button2_label','label'=>'Bouton secondaire','type'=>'text','default'=>'Appeler maintenant'],
                         ['key'=>'home_chip_1','label'=>'Étiquette 1','type'=>'text','default'=>'Électricité','help'=>'Les petites pastilles de métiers sous l\'accroche.'],
@@ -68,7 +68,7 @@ function admin_page_catalog(): array
                         ['key'=>'services_section_label','label'=>'Surtitre','type'=>'text','default'=>'Nos pôles d\'intervention'],
                         ['key'=>'services_title','label'=>'Titre','type'=>'text','default'=>'Tout ce dont vous avez'],
                         ['key'=>'services_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'besoin'],
-                        ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','inline'=>false,'default'=>'Dépannage urgence, installation, entretien et mise aux normes en '.$reg.' — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Texte adapté au visiteur : « '.$reg.' » y est remplacé par sa ville. Vous pouvez aussi écrire {ville}, {dept} ou {region}. Modifiable ici uniquement, pas sur la page.'],
+                        ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes en '.$reg.' — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Vous pouvez écrire {ville}, {dept} ou {region} : ces variables reprennent le nom de la zone consultée, ou les valeurs définies dans l\'écran Chatbot sur le site global. Un texte qui en contient se modifie ici seulement, pas directement sur la page.'],
                     ],
                 ],
                 [
@@ -149,7 +149,7 @@ function admin_page_catalog(): array
                         ['key'=>'zones_label','label'=>'Surtitre','type'=>'text','default'=>'Zone d\'intervention'],
                         ['key'=>'zones_title','label'=>'Titre','type'=>'text','default'=>'Nos zones d\'intervention'],
                         ['key'=>'zones_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'partout en France'],
-                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','inline'=>false,'default'=>$reg.' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Texte adapté au visiteur : « '.$reg.' » y est remplacé par sa ville. Vous pouvez aussi écrire {ville}, {dept} ou {region}. Modifiable ici uniquement, pas sur la page.'],
+                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>$reg.' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Vous pouvez écrire {ville}, {dept} ou {region} : ces variables reprennent le nom de la zone consultée, ou les valeurs définies dans l\'écran Chatbot sur le site global. Un texte qui en contient se modifie ici seulement, pas directement sur la page.'],
                         ['key'=>'zones_btn','label'=>'Bouton','type'=>'text','default'=>'Demander une intervention'],
                     ],
                 ],
@@ -550,15 +550,25 @@ function admin_field_is_inline(array $f): bool
     return true;
 }
 
-/** Les clés modifiables directement sur la page, tous écrans confondus. */
-function admin_inline_keys(): array
+/**
+ * Les clés modifiables directement sur la page, tous écrans confondus.
+ * Le résultat dépend des valeurs enregistrées : purger après une écriture.
+ */
+function admin_inline_keys(bool $flush = false): array
 {
     static $keys = null;
+    if ($flush) { $keys = null; return []; }
     if ($keys !== null) return $keys;
     $keys = [];
     foreach (admin_page_catalog() as $page) {
         foreach ($page['sections'] as $s) {
-            foreach ($s['fields'] as $f) if (admin_field_is_inline($f)) $keys[$f['key']] = $f;
+            foreach ($s['fields'] as $f) {
+                if (!admin_field_is_inline($f)) continue;
+                // Un texte contenant une variable comme {ville} ne s'affiche pas tel
+                // qu'il est stocké : l'éditer sur la page figerait la valeur résolue.
+                if (str_contains(admin_field_raw($f).(string)($f['default'] ?? ''), '{')) continue;
+                $keys[$f['key']] = $f;
+            }
         }
     }
     return $keys;
@@ -598,9 +608,10 @@ function admin_field_save(array $f, string $value): bool
         $data = get_json_setting($blob, []);
         $data[$sub] = $value;
         set_json_setting($blob, $data);
-        return true;
+    } else {
+        set_setting($f['key'], $value);
     }
-    set_setting($f['key'], $value);
+    admin_inline_keys(true);   // une variable a pu apparaître ou disparaître
     return true;
 }
 

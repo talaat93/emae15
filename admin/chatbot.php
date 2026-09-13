@@ -134,11 +134,13 @@ Téléphone : <?= e(company_phone()) ?>.
   </div>
 </section>
 
-<!-- GÉOLOCALISATION PAR DÉFAUT -->
+<!-- VARIABLES DE LOCALISATION -->
 <section class="admin-panel">
   <div class="admin-panel__head">
-    <h2>📍 Textes par défaut (IP non reconnue)</h2>
-    <p>Affiché quand la géolocalisation échoue (IP mobile, VPN, hors zone). Utilisez ces valeurs dans vos textes admin avec <code>{region}</code>, <code>{ville}</code>, <code>{dept}</code>.</p>
+    <h2>📍 Variables de localisation</h2>
+    <p>Valeurs prises par <code>{region}</code>, <code>{ville}</code> et <code>{dept}</code> quand vous les employez dans vos textes.
+       Sur une page de zone, ces variables reprennent le nom de la zone ; ailleurs, elles utilisent ce que vous indiquez ici.
+       La détection par adresse IP a été retirée : les VPN et les réseaux mobiles la rendaient fausse.</p>
   </div>
   <div class="admin-panel__body">
     <div class="admin-form-grid admin-form-grid--2">

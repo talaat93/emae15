@@ -76,8 +76,6 @@ if ($route === '' || $route === 'home') {
         $meta['description'] = $zMD !== '' ? $zMD : 'Électricien, plombier, chauffagiste à '.$currentZone['name'].'. Devis gratuit, intervention rapide. '.company_phone().'.';
         $meta['canonical']   = url_for($currentZone['slug'].'/');
         unset($zMT, $zMD);
-    } else {
-        if (!array_key_exists('geo_dept', $_SESSION)) geo_detect_dept();
     }
 
     render_head($meta);
