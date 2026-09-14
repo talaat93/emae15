@@ -1704,3 +1704,117 @@ function zone_label(?int $zoneId): string
     $z = get_zone_by_id((int)$zoneId);
     return $z ? '📍 '.$z['name'] : '⚠ Zone supprimée';
 }
+
+/* ═══════════════════════════════════════════════════
+   PAGES MÉTIER
+
+   Chaque métier a ses propres textes. Les valeurs ci-dessous sont
+   celles d'origine ; l'administration peut les remplacer métier par
+   métier, y compris zone par zone.
+═══════════════════════════════════════════════════ */
+
+/** Lecture d'un réglage sans balisage d'édition visuelle — sûr pour du JSON. */
+function setting_plain(string $key, string $fallback = ''): string
+{
+    $c  = settings_cache();
+    $zk = zone_setting_key($key);
+    if ($zk !== $key) { $v = $c[$zk] ?? null; if ($v !== null && $v !== '') return $v; }
+    $v = $c[$key] ?? null;
+    return ($v === null || $v === '') ? $fallback : $v;
+}
+
+/** Les quatre métiers, dans l'ordre d'affichage. */
+function service_trades(): array
+{
+    return ['electricite', 'plomberie', 'chauffage', 'climatisation'];
+}
+
+function service_trade_defaults(): array
+{
+    return [
+      'electricite' => [
+        'label'=>'Électricité','icon_svc'=>'⚡',
+        'desc'=>'Dépannage, installation, mise aux normes et rénovation électrique en '.company_regions().'.',
+        'badges'=>['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation'],
+        'offer_title'=>'Ce que nous proposons en électricité',
+        'offer_items'=>['Dépannage et remise en service (urgence 24h/7j)','Remplacement et mise en conformité de tableaux électriques','Ajout ou réparation de circuits, prises, lignes dédiées','Installation et dépannage d\'éclairage intérieur et extérieur','Rénovation électrique complète (logement, commerce)','Mise aux normes NF C 15-100 obligatoire','Câblage neuf pour constructions et extensions','Contrôle et diagnostic de l\'installation existante'],
+        'interv'=>[['⚡','Panne électrique','Diagnostic et remise en service rapide.'],['🧰','Tableau électrique','Remplacement et sécurisation.'],['🔌','Prises & circuits','Ajout, réparation, remplacement.'],['💡','Éclairage','LED, intérieur, extérieur, technique.'],['🏗️','Installation neuve','Câblage neuf ou réfection.'],['✅','Mise aux normes','NF C 15-100.'],['🔄','Rénovation','Modernisation de l\'installation.'],['🚨','Urgence 24h/7j','Astreinte permanente.']],
+        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
+      ],
+      'plomberie' => [
+        'label'=>'Plomberie','icon_svc'=>'💧',
+        'desc'=>'Dépannage fuite, réparation sanitaire et entretien réseau en '.company_regions().'.',
+        'badges'=>['Fuite urgente','Débouchage','Sanitaires','Entretien réseau'],
+        'offer_title'=>'Ce que nous proposons en plomberie',
+        'offer_items'=>['Recherche et réparation de fuites visibles ou cachées','Dépannage et remplacement de robinetterie','Débouchage de canalisations et WC','Remplacement de WC, lavabo, baignoire, douche','Réparation et remplacement de chauffe-eau','Entretien préventif annuel','Intervention sur réseaux d\'alimentation et d\'évacuation','Mise en conformité des installations sanitaires'],
+        'interv'=>[['💧','Recherche de fuite','Localisation précise et réparation.'],['🚿','Sanitaires','WC, robinetterie, évacuations.'],['🧯','Urgence plomberie','Mise en sécurité immédiate.'],['🔩','Réseaux','Tuyauteries, alimentations, raccordements.'],['🛁','Équipements','Baignoire, douche, évier, robinet.'],['🌡️','Chauffe-eau','Diagnostic, remplacement, mise en service.'],['🧼','Entretien','Maintenance courante préventive.'],['📋','Rapport','Compte rendu détaillé systématique.']],
+        'faq'=>[['Intervenez-vous en urgence pour une fuite ?',setting('faq_plomb_1_a','Oui, disponible '.company_hours().'. Appelez-nous pour une intervention immédiate.')],['Faites-vous le remplacement de chauffe-eau ?',setting('faq_plomb_2_a','Oui, diagnostic, remplacement et mise en service de tous types de chauffe-eau.')],['Proposez-vous un contrat d\'entretien ?',setting('faq_plomb_3_a','Oui, contrats de maintenance préventive annuels disponibles.')],['Que faire en cas de fuite importante ?',setting('faq_plomb_4_a','Coupez l\'arrivée d\'eau principale et appelez-nous immédiatement.')]],
+      ],
+      'chauffage' => [
+        'label'=>'Chauffage & PAC','icon_svc'=>'🔥',
+        'desc'=>'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien en '.company_regions().'.',
+        'badges'=>['Panne chaudière','Pompe à chaleur','Chaudière gaz/fioul','Entretien annuel'],
+        'offer_title'=>'Ce que nous proposons en chauffage',
+        'offer_items'=>['Dépannage et remise en service de chaudières gaz, fioul, électrique','Entretien annuel réglementaire de chaudière (obligatoire)','Dépannage et entretien de pompes à chaleur air/air et air/eau','Installation de PAC et chaudières neuves','Diagnostic et optimisation de la consommation énergétique','Remplacement de corps de chauffe, brûleurs, circulateurs','Réglage thermostat, programmation, vannes thermostatiques','Urgences hiver — astreinte renforcée en période froide'],
+        'interv'=>[['🔥','Panne chaudière','Gaz, fioul, électrique.'],['♨️','Pompe à chaleur','Air/air et air/eau.'],['🌡️','Régulation','Thermostats, sondes, programmation.'],['🛠️','Optimisation','Amélioration performances et confort.'],['🏗️','Installation','Chaudière ou PAC neuve.'],['📊','Entretien annuel','Contrat réglementaire.'],['🚨','Urgence hiver','Astreinte renforcée.'],['📋','Rapport','Compte rendu et recommandations.']],
+        'faq'=>[['Intervenez-vous sur les chaudières gaz et fioul ?',setting('faq_chauf_1_a','Oui, sur tous types de chaudières : gaz, fioul, électrique et condensation.')],['Proposez-vous l\'installation de pompe à chaleur ?',setting('faq_chauf_2_a','Oui, PAC air/air, air/eau — installation, entretien et dépannage.')],['Faites-vous l\'entretien annuel de chaudière ?',setting('faq_chauf_3_a','Oui, contrat d\'entretien annuel réglementaire avec rapport d\'intervention.')],['Mon chauffage tombe en panne en hiver, que faire ?',setting('faq_chauf_4_a','Appelez-nous immédiatement — priorité absolue aux urgences de chauffage en hiver.')]],
+      ],
+      'climatisation' => [
+        'label'=>'Climatisation & CVC','icon_svc'=>'❄️',
+        'desc'=>'Installation, dépannage et entretien de climatisation et CVC en '.company_regions().'.',
+        'badges'=>['Clim en panne','CVC','Installation split','Entretien saisonnier'],
+        'offer_title'=>'Ce que nous proposons en climatisation',
+        'offer_items'=>['Dépannage de tout type de climatiseur (split, multi-split, gainable)','Installation de climatisation pour particuliers et professionnels','Entretien saisonnier (nettoyage, vérification, réglages)','Recharge en fluide frigorigène','Contrôle des performances et optimisation','Systèmes gainables et centralisés','VMC et ventilation mécanique','Étude et conseil avant installation'],
+        'interv'=>[['❄️','Panne climatisation','Diagnostic et remise en service.'],['🌬️','Qualité air','Contrôle du soufflage et diffusion.'],['🧼','Entretien saisonnier','Nettoyage et réglages.'],['🏗️','Installation','Splits, multi-splits, gainables.'],['📈','Performances','Contrôle et optimisation.'],['💨','VMC','Ventilation mécanique.'],['🚨','Urgence','Prise en charge prioritaire.'],['📋','Rapport','Compte rendu systématique.']],
+        'faq'=>[['Intervenez-vous sur tous types de climatiseurs ?',setting('faq_clim_1_a','Oui, splits, multi-splits, gainables et systèmes CVC.')],['Proposez-vous l\'installation de climatisation ?',setting('faq_clim_2_a','Oui, fourniture, pose et mise en service avec conseil adapté.')],['Quand faire l\'entretien de sa climatisation ?',setting('faq_clim_3_a','Idéalement avant chaque saison (printemps et automne) pour garantir les performances.')],['Intervenez-vous pour les entreprises ?',setting('faq_clim_4_a','Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.')]],
+      ],
+    ];
+}
+
+/**
+ * Slug de la page publique d'un métier. index.php reconnaît le métier
+ * d'après le slug ou le titre de la page ; on applique la même règle ici
+ * pour que les liens « voir la page » tombent juste.
+ */
+function service_page_slug(string $trade): string
+{
+    $motifs = [
+        'electricite'   => ['electric','electri'],
+        'plomberie'     => ['plomb'],
+        'chauffage'     => ['chauff','chaudiere','pac','pompe'],
+        'climatisation' => ['clim','cvc','ventil'],
+    ];
+    $needles = $motifs[$trade] ?? [$trade];
+    try {
+        foreach (db_fetch_all('SELECT slug, title FROM pages') as $p) {
+            $ctx = mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');
+            foreach ($needles as $n) if (str_contains($ctx, $n)) return (string)$p['slug'];
+        }
+    } catch (Throwable $e) { /* table absente */ }
+    return $trade;
+}
+
+/** Textes effectifs d'un métier : personnalisés si définis, d'origine sinon. */
+function service_template(string $trade): ?array
+{
+    $d = service_trade_defaults()[$trade] ?? null;
+    if ($d === null) return null;
+
+    $p = 'svc_' . $trade . '_';
+    $list = static function (string $key, array $fallback): array {
+        $raw = setting_plain($key);
+        if ($raw === '') return $fallback;
+        $v = json_decode($raw, true);
+        return (is_array($v) && $v !== []) ? $v : $fallback;
+    };
+
+    return [
+        'label'       => setting($p . 'label',       $d['label']),
+        'desc'        => setting($p . 'desc',        $d['desc']),
+        'offer_title' => setting($p . 'offer_title', $d['offer_title']),
+        'badges'      => $list($p . 'badges',      $d['badges']),
+        'offer_items' => $list($p . 'offer_items', $d['offer_items']),
+        'interv'      => $list($p . 'interv',      $d['interv']),
+        'faq'         => $list($p . 'faq',         $d['faq']),
+    ];
+}

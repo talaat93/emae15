@@ -221,7 +221,10 @@ function bulk_read(string $ref): ?string
         $f = admin_catalog_fields($p[1])[$p[2]] ?? null;
         if (!$f) return null;
         $prev = zone_context(); set_zone_context(null);
-        $v = admin_field_shown($f);
+        // Une liste se manipule sous sa forme enregistrée, pour rester réécrivable.
+        $v = admin_field_is_list($f)
+            ? (string)json_encode(admin_list_rows($f), JSON_UNESCAPED_UNICODE)
+            : admin_field_shown($f);
         set_zone_context($prev);
         return $v;
     }
@@ -252,7 +255,13 @@ function bulk_write(string $ref, string $value): bool
         $f = admin_catalog_fields($p[1])[$p[2]] ?? null;
         if (!$f) return false;
         $prev = zone_context(); set_zone_context(null);
-        $ok = admin_field_save($f, $value);
+        if (admin_field_is_list($f)) {
+            $rows = json_decode($value, true);
+            $ok = is_array($rows);
+            if ($ok) { set_setting($f['key'], (string)json_encode($rows, JSON_UNESCAPED_UNICODE)); }
+        } else {
+            $ok = admin_field_save($f, $value);
+        }
         set_zone_context($prev);
         return $ok;
     }

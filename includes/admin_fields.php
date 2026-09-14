@@ -17,7 +17,7 @@ function admin_page_catalog(): array
     $reg  = company_regions();
     $name = company_name();
 
-    return [
+    $pages = [
         'accueil' => [
             'label' => "Page d'accueil",
             'icon'  => '🏠',
@@ -422,51 +422,6 @@ function admin_page_catalog(): array
                         ['key'=>'zone_occ_cities','label'=>'Occitanie — villes','type'=>'textarea','default'=>'Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)'],
                     ],
                 ],
-                [
-                    'id'    => 'faq_elec',
-                    'label' => 'FAQ Électricité',
-                    'seen'  => 'Les réponses affichées en bas de la page Électricité',
-                    'note'  => 'Les questions elles-mêmes sont figées dans le code ; seules les réponses sont modifiables ici.',
-                    'fields' => [
-                        ['key'=>'faq_elec_1_a','label'=>'Délai d\'intervention en urgence','type'=>'textarea','default'=>'En urgence, nous intervenons en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.'],
-                        ['key'=>'faq_elec_2_a','label'=>'Mise aux normes','type'=>'textarea','default'=>'Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.'],
-                        ['key'=>'faq_elec_3_a','label'=>'Types de bâtiments','type'=>'textarea','default'=>'Oui, logements, commerces, bureaux et bâtiments techniques.'],
-                        ['key'=>'faq_elec_4_a','label'=>'Devis gratuit','type'=>'textarea','default'=>'Oui, devis gratuit et sans engagement avant toute intervention.'],
-                    ],
-                ],
-                [
-                    'id'    => 'faq_plomb',
-                    'label' => 'FAQ Plomberie',
-                    'seen'  => 'Les réponses affichées en bas de la page Plomberie',
-                    'fields' => [
-                        ['key'=>'faq_plomb_1_a','label'=>'Urgence fuite','type'=>'textarea','default'=>'Oui, disponible '.company_hours().'. Appelez-nous pour une intervention immédiate.'],
-                        ['key'=>'faq_plomb_2_a','label'=>'Chauffe-eau','type'=>'textarea','default'=>'Oui, diagnostic, remplacement et mise en service de tous types de chauffe-eau.'],
-                        ['key'=>'faq_plomb_3_a','label'=>'Contrat d\'entretien','type'=>'textarea','default'=>'Oui, contrats de maintenance préventive annuels disponibles.'],
-                        ['key'=>'faq_plomb_4_a','label'=>'Que faire en cas de dégât des eaux','type'=>'textarea','default'=>'Coupez l\'arrivée d\'eau principale et appelez-nous immédiatement.'],
-                    ],
-                ],
-                [
-                    'id'    => 'faq_chauf',
-                    'label' => 'FAQ Chauffage',
-                    'seen'  => 'Les réponses affichées en bas de la page Chauffage',
-                    'fields' => [
-                        ['key'=>'faq_chauf_1_a','label'=>'Types de chaudières','type'=>'textarea','default'=>'Oui, sur tous types de chaudières : gaz, fioul, électrique et condensation.'],
-                        ['key'=>'faq_chauf_2_a','label'=>'Pompes à chaleur','type'=>'textarea','default'=>'Oui, PAC air/air, air/eau — installation, entretien et dépannage.'],
-                        ['key'=>'faq_chauf_3_a','label'=>'Entretien annuel','type'=>'textarea','default'=>'Oui, contrat d\'entretien annuel réglementaire avec rapport d\'intervention.'],
-                        ['key'=>'faq_chauf_4_a','label'=>'Panne en hiver','type'=>'textarea','default'=>'Appelez-nous immédiatement — priorité absolue aux urgences de chauffage en hiver.'],
-                    ],
-                ],
-                [
-                    'id'    => 'faq_clim',
-                    'label' => 'FAQ Climatisation',
-                    'seen'  => 'Les réponses affichées en bas de la page Climatisation',
-                    'fields' => [
-                        ['key'=>'faq_clim_1_a','label'=>'Types de systèmes','type'=>'textarea','default'=>'Oui, splits, multi-splits, gainables et systèmes CVC.'],
-                        ['key'=>'faq_clim_2_a','label'=>'Fourniture et pose','type'=>'textarea','default'=>'Oui, fourniture, pose et mise en service avec conseil adapté.'],
-                        ['key'=>'faq_clim_3_a','label'=>'Fréquence d\'entretien','type'=>'textarea','default'=>'Idéalement avant chaque saison (printemps et automne) pour garantir les performances.'],
-                        ['key'=>'faq_clim_4_a','label'=>'Locaux professionnels','type'=>'textarea','default'=>'Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.'],
-                    ],
-                ],
             ],
         ],
 
@@ -497,6 +452,15 @@ function admin_page_catalog(): array
             ],
         ],
     ];
+
+    // Les quatre pages métier sont générées à partir des textes d'origine,
+    // et insérées juste après les éléments qu'elles ont en commun.
+    $out = [];
+    foreach ($pages as $id => $page) {
+        $out[$id] = $page;
+        if ($id === 'page_services') foreach (admin_service_pages() as $sid => $sp) $out[$sid] = $sp;
+    }
+    return $out;
 }
 
 /** URL publique d'une page du catalogue, en mode édition visuelle. */
@@ -506,6 +470,79 @@ function admin_visual_url(string $pageId): string
     if (!$page) return url_for('admin/index.php');
     $url = route_url((string)$page['route']);
     return $url . (str_contains($url, '?') ? '&' : '?') . 'admin_edit=1';
+}
+
+/**
+ * Une page d'édition par métier, construite à partir des textes d'origine
+ * définis dans helpers.php — une seule source de vérité pour le site et
+ * pour l'administration.
+ */
+function admin_service_pages(): array
+{
+    $icones = ['electricite'=>'⚡','plomberie'=>'💧','chauffage'=>'🔥','climatisation'=>'❄️'];
+    $pages  = [];
+
+    foreach (service_trade_defaults() as $trade => $d) {
+        $p = 'svc_'.$trade.'_';
+        $pages['metier_'.$trade] = [
+            'label' => $d['label'],
+            'icon'  => $icones[$trade] ?? '🔧',
+            'route' => service_page_slug($trade),
+            'intro' => 'Textes propres à la page '.$d['label'].'. Les trois autres métiers ont leurs propres écrans.',
+            'sections' => [
+                [
+                    'id'    => 'intro',
+                    'label' => 'Haut de page',
+                    'seen'  => 'Le titre et la phrase d\'accroche de la page',
+                    'fields' => [
+                        ['key'=>$p.'label','label'=>'Nom du métier','type'=>'text','default'=>$d['label']],
+                        ['key'=>$p.'desc','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>$d['desc']],
+                        ['key'=>$p.'badges','label'=>'Pastilles sous le titre','type'=>'list','default'=>$d['badges'],
+                         'columns'=>[['k'=>'v','label'=>'Pastille']],
+                         'help'=>'Les mots-clés affichés en pastilles. Ajoutez-en ou retirez-en librement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'offre',
+                    'label' => 'Notre offre',
+                    'seen'  => 'La liste à puces de vos prestations',
+                    'fields' => [
+                        ['key'=>$p.'offer_title','label'=>'Titre de la section','type'=>'text','default'=>$d['offer_title']],
+                        ['key'=>$p.'offer_items','label'=>'Prestations','type'=>'list','default'=>$d['offer_items'],
+                         'columns'=>[['k'=>'v','label'=>'Prestation']]],
+                    ],
+                ],
+                [
+                    'id'    => 'interventions',
+                    'label' => 'Nos interventions',
+                    'seen'  => 'Les tuiles illustrées au milieu de la page',
+                    'fields' => [
+                        ['key'=>$p.'interv','label'=>'Tuiles d\'intervention','type'=>'list','default'=>$d['interv'],
+                         'columns'=>[
+                            ['k'=>'icon','label'=>'Icône','w'=>'80px'],
+                            ['k'=>'title','label'=>'Titre'],
+                            ['k'=>'text','label'=>'Description'],
+                         ],
+                         'help'=>'L\'icône est un emoji. Copiez-en un depuis votre clavier d\'émojis.'],
+                    ],
+                ],
+                [
+                    'id'    => 'faq',
+                    'label' => 'Questions fréquentes',
+                    'seen'  => 'La FAQ en bas de la page',
+                    'fields' => [
+                        ['key'=>$p.'faq','label'=>'Questions et réponses','type'=>'list','default'=>$d['faq'],
+                         'columns'=>[
+                            ['k'=>'q','label'=>'Question'],
+                            ['k'=>'a','label'=>'Réponse','type'=>'textarea'],
+                         ],
+                         'help'=>'Les questions sont désormais modifiables, pas seulement les réponses.'],
+                    ],
+                ],
+            ],
+        ];
+    }
+    return $pages;
 }
 
 /** Une page du catalogue, ou null. */
@@ -530,6 +567,86 @@ function admin_catalog_keys(string $pageId): array
     return array_keys(admin_catalog_fields($pageId));
 }
 
+/* ═══════════════════════════════════════════════════
+   CHAMPS DE TYPE LISTE
+
+   Une liste est un tableau de lignes enregistré en JSON dans un seul
+   réglage. Une liste à une colonne stocke des textes simples ; à
+   plusieurs colonnes, chaque ligne est un tableau de valeurs dans
+   l'ordre des colonnes. Cette forme est exactement celle qu'attend le
+   site à l'affichage, il n'y a donc aucune conversion au rendu.
+═══════════════════════════════════════════════════ */
+
+function admin_field_is_list(array $f): bool
+{
+    return ($f['type'] ?? '') === 'list';
+}
+
+/** Colonnes d'une liste. Une liste sans colonnes déclarées en a une seule. */
+function admin_list_columns(array $f): array
+{
+    return $f['columns'] ?? [['k' => 'v', 'label' => $f['label'] ?? 'Valeur']];
+}
+
+/** Lignes réellement enregistrées, ou null si la liste n'a jamais été modifiée. */
+function admin_list_stored(array $f): ?array
+{
+    $raw = raw_setting($f['key']);
+    if ($raw === '') return null;
+    $d = json_decode($raw, true);
+    return is_array($d) ? $d : null;
+}
+
+/** Lignes affichées : celles enregistrées, sinon celles d'origine. */
+function admin_list_rows(array $f): array
+{
+    $stored = admin_list_stored($f);
+    if ($stored !== null) return $stored;
+    // Hors zone la valeur d'origine vient du code ; en zone, du site global.
+    if (zone_ctx_id() > 0) {
+        $prev = zone_context();
+        set_zone_context(null);
+        $global = admin_list_stored($f);
+        set_zone_context($prev);
+        if ($global !== null) return $global;
+    }
+    return is_array($f['default'] ?? null) ? $f['default'] : [];
+}
+
+/** Enregistre des lignes. Une liste vidée revient à la valeur héritée. */
+function admin_list_save(array $f, array $rows): bool
+{
+    $cols  = admin_list_columns($f);
+    $multi = count($cols) > 1;
+    $clean = [];
+    foreach ($rows as $row) {
+        if ($multi) {
+            $vals = [];
+            foreach ($cols as $c) $vals[] = trim((string)($row[$c['k']] ?? ''));
+            if (implode('', $vals) === '') continue;          // ligne entièrement vide : ignorée
+            $clean[] = $vals;
+        } else {
+            $v = trim((string)(is_array($row) ? reset($row) : $row));
+            if ($v !== '') $clean[] = $v;
+        }
+    }
+    $before = raw_setting($f['key']);
+    $after  = $clean === [] ? '' : (string)json_encode($clean, JSON_UNESCAPED_UNICODE);
+    if ($after === $before) return false;
+    set_setting($f['key'], $after);
+    return true;
+}
+
+/** Contenu d'une liste sous forme de texte, pour la recherche et l'aperçu. */
+function admin_list_flatten(array $f): string
+{
+    $out = [];
+    foreach (admin_list_rows($f) as $row) {
+        $out[] = is_array($row) ? implode(' · ', array_map('strval', $row)) : (string)$row;
+    }
+    return implode(' · ', $out);
+}
+
 /**
  * Ce champ peut-il être modifié directement sur la page rendue ?
  *
@@ -542,7 +659,7 @@ function admin_catalog_keys(string $pageId): array
 function admin_field_is_inline(array $f): bool
 {
     if (array_key_exists('inline', $f)) return (bool)$f['inline'];
-    if (!empty($f['json'])) return false;
+    if (!empty($f['json']) || admin_field_is_list($f)) return false;
     $k = $f['key'];
     foreach (['meta_title','meta_desc','meta_description','og_','_url','_cities','_tags','_placeholder'] as $pat) {
         if (str_contains($k, $pat)) return false;
@@ -580,6 +697,7 @@ function admin_inline_keys(bool $flush = false): array
  */
 function admin_field_raw(array $f): string
 {
+    if (admin_field_is_list($f)) return raw_setting($f['key']);
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
         return trim((string)(get_json_setting($blob, [])[$sub] ?? ''));
@@ -590,6 +708,7 @@ function admin_field_raw(array $f): string
 /** Ce que le visiteur voit aujourd'hui pour ce champ. */
 function admin_field_shown(array $f): string
 {
+    if (admin_field_is_list($f)) return admin_list_flatten($f);
     $default = (string)($f['default'] ?? '');
     if (!empty($f['json'])) {
         $raw = admin_field_raw($f);
@@ -601,6 +720,8 @@ function admin_field_shown(array $f): string
 /** Enregistre le champ. Retourne true si quelque chose a changé. */
 function admin_field_save(array $f, string $value): bool
 {
+    // Une liste s'enregistre par admin_list_save(), qui reçoit des lignes.
+    if (admin_field_is_list($f)) return false;
     $value = trim($value);
     if ($value === admin_field_raw($f)) return false;
     if (!empty($f['json'])) {
