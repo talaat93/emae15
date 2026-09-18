@@ -659,7 +659,7 @@ function admin_list_flatten(array $f): string
 function admin_field_is_inline(array $f): bool
 {
     if (array_key_exists('inline', $f)) return (bool)$f['inline'];
-    if (!empty($f['json']) || admin_field_is_list($f)) return false;
+    if (admin_field_is_list($f)) return false;
     $k = $f['key'];
     foreach (['meta_title','meta_desc','meta_description','og_','_url','_cities','_tags','_placeholder'] as $pat) {
         if (str_contains($k, $pat)) return false;

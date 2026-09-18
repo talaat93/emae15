@@ -927,7 +927,8 @@ function zones_page_settings(): array
         ],
     ];
     $saved = get_json_setting('zones_page_settings', []);
-    return array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
+    $out   = array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
+    return json_block_inline($out, 'zones_page_settings');
 }
 
 function all_published_reviews(): array
@@ -1169,7 +1170,7 @@ function why_us_settings(): array
     if (!isset($out['items']) || !is_array($out['items']) || empty($out['items'])) {
         $out['items'] = $default['items'];
     }
-    return $out;
+    return json_block_inline($out, 'why_us_settings');
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1712,6 +1713,15 @@ function zone_label(?int $zoneId): string
    celles d'origine ; l'administration peut les remplacer métier par
    métier, y compris zone par zone.
 ═══════════════════════════════════════════════════ */
+
+/**
+ * Rend cliquables les textes d'un bloc groupé, en mode édition visuelle.
+ * Sans effet hors de ce mode, et si le moteur d'édition n'est pas chargé.
+ */
+function json_block_inline(array $data, string $blob): array
+{
+    return function_exists('inline_edit_json_wrap') ? inline_edit_json_wrap($data, $blob) : $data;
+}
 
 /** Lecture d'un réglage sans balisage d'édition visuelle — sûr pour du JSON. */
 function setting_plain(string $key, string $fallback = ''): string

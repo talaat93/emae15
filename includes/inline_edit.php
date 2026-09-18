@@ -38,6 +38,25 @@ function inline_edit_wrap(string $key, string $value): string
 }
 
 /**
+ * Balise les textes d'un bloc groupé (stocké en JSON) pour les rendre
+ * cliquables comme les autres. Seules les sous-clés déclarées au catalogue
+ * sont concernées ; le reste du bloc, listes comprises, n'est pas touché.
+ */
+function inline_edit_json_wrap(array $data, string $blob): array
+{
+    if (!inline_edit_active()) return $data;
+    foreach (admin_inline_keys() as $key => $f) {
+        if (empty($f['json']) || $f['json'][0] !== $blob) continue;
+        $sub = $f['json'][1];
+        $val = $data[$sub] ?? null;
+        if (is_string($val) && $val !== '' && !str_contains($val, IE_OPEN)) {
+            $data[$sub] = IE_OPEN.$key.IE_SEP.$val.IE_CLOSE;
+        }
+    }
+    return $data;
+}
+
+/**
  * Retire tous les marqueurs d'un fragment, en ne gardant que les valeurs.
  * Traite aussi leur forme échappée, produite quand une valeur traverse
  * json_encode() — cas des données structurées destinées à Google.
