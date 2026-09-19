@@ -1,5 +1,10 @@
 <?php
 declare(strict_types=1);
+// Ne jamais exposer d'erreurs PHP (trace, chemins serveur) à un visiteur ;
+// tout est tout de même journalisé côté serveur pour le débogage.
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
+error_reporting(E_ALL);
 require_once __DIR__ . '/helpers.php';
 if (!app_installed() && basename($_SERVER['PHP_SELF'] ?? '') !== 'install.php') { redirect_to('install.php'); }
 require_once __DIR__ . '/db.php';
@@ -225,6 +230,25 @@ if (!file_exists($_mf13)) {
     unset($_me, $__sql);
 }
 unset($_mf13);
+// Auto-migration v15.14 — table login_attempts (anti brute-force)
+$_mf14 = __DIR__.'/../storage/.mig_v15_login_attempts';
+if (!file_exists($_mf14)) {
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS login_attempts (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            scope VARCHAR(20) NOT NULL,
+            identifier VARCHAR(191) NOT NULL,
+            ip VARCHAR(45) NOT NULL,
+            success TINYINT(1) NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_scope_identifier (scope, identifier, created_at),
+            INDEX idx_scope_ip (scope, ip, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf14, date('c'));
+    unset($_me);
+}
+unset($_mf14);
 // Édition visuelle du site — réservée à un administrateur connecté, en consultation
 // simple (jamais sur un envoi de formulaire, pour ne pas polluer les e-mails).
 if (isset($_GET['admin_edit'])

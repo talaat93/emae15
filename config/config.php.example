@@ -1,0 +1,19 @@
+<?php
+// Copie ce fichier en config.local.php (ignoré par git) et renseigne tes
+// identifiants réels, ou laisse config.local.php absent et fournis-les via
+// des variables d'environnement (DB_HOST, DB_PORT, DB_NAME, DB_USER,
+// DB_PASS, DB_CHARSET, SITE_BASE_URL).
+return [
+    'installed' => true,
+    'db' => [
+        'host'    => 'localhost',
+        'port'    => '3306',
+        'name'    => '',
+        'user'    => '',
+        'pass'    => '',
+        'charset' => 'utf8mb4',
+    ],
+    'site' => [
+        'base_url' => '', // vide : site à la racine du domaine
+    ],
+];

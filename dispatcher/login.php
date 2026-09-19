@@ -9,6 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pass  = (string)($_POST['password'] ?? '');
     $d = dispatcher_login_check($email, $pass);
     if ($d) {
+        session_regenerate_id(true);
         $_SESSION['disp_id']   = (int)$d['id'];
         $_SESSION['disp_name'] = $d['name'];
         header('Location: '.url_for('dispatcher/index.php')); exit;
@@ -22,7 +23,9 @@ $co = htmlspecialchars(company_name(), ENT_QUOTES, 'UTF-8');
 <meta name="robots" content="noindex,nofollow">
 <title>Espace Dispatcher — <?= $co ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap"></noscript>
 <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/css/dispatcher.css'),ENT_QUOTES,'UTF-8') ?>">
 <style>
 .login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse at 20% 50%,rgba(240,123,29,.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.06) 0%,transparent 55%),var(--d-bg,#040d1f);}
