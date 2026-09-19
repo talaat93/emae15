@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/render.php';
+require_once __DIR__ . '/../includes/admin_fields.php';
+require_once __DIR__ . '/../includes/zone_content.php';
 require_admin();
 
 // POST actions
@@ -105,6 +107,9 @@ require_once __DIR__ . '/partials/header.php';
           </form>
         </td>
         <td style="text-align:right;">
+          <?php if (zone_content_pack((string)$z['slug'])): ?>
+            <a class="btn btn-sm btn-outline" href="<?= e(url_for('admin/zone_content.php?admin_zone='.$z['id'])) ?>" title="Appliquer des textes déjà rédigés pour cette zone">✨ Contenu prêt</a>
+          <?php endif; ?>
           <a class="btn btn-sm btn-p" href="<?= e(url_for('admin/index.php?admin_zone='.$z['id'])) ?>" title="Basculer l'admin sur cette zone pour modifier tout son site">🎛 Éditer le site</a>
           <a class="btn btn-sm btn-outline" href="<?= e(url_for('admin/zone_edit.php?id='.$z['id'])) ?>">✏️ Réglages</a>
           <form method="post" style="display:inline;" onsubmit="return confirm('Supprimer la zone <?= e(addslashes($z['name'])) ?> ?');">
