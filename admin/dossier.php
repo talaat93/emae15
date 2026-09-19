@@ -246,7 +246,7 @@ $techPhotos = quote_tech_photos($q);
       <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem;">
         <?php foreach ($techPhotos as $ph): ?>
           <a href="<?= e(asset_url($ph)) ?>" target="_blank" style="aspect-ratio:1;border-radius:8px;overflow:hidden;display:block;background:#f0f4ff;">
-            <img src="<?= e(asset_url($ph)) ?>" alt="photo" style="width:100%;height:100%;object-fit:cover;">
+            <img src="<?= e(asset_url($ph)) ?>" alt="photo" style="width:100%;height:100%;object-fit:cover;" loading="lazy">
           </a>
         <?php endforeach; ?>
       </div>

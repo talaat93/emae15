@@ -275,7 +275,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <input type="hidden" name="zones[current_map_image]" value="<?= e($config['zones']['map_image']) ?>">
       <label class="full"><span>Image carte</span><input type="file" name="zones_map_image" accept=".png,.jpg,.jpeg,.webp,.svg"></label>
       <?php if (!empty($config['zones']['map_image'])): ?>
-        <div class="full"><img class="electric-thumb" src="<?= e(asset_url($config['zones']['map_image'])) ?>" alt="Carte"></div>
+        <div class="full"><img class="electric-thumb" src="<?= e(asset_url($config['zones']['map_image'])) ?>" alt="Carte" loading="lazy"></div>
       <?php endif; ?>
     </div>
     <div class="electric-actions" style="margin:1rem 0;"><button type="button" class="admin-btn admin-btn--primary" data-add="zone">Ajouter une zone</button></div>

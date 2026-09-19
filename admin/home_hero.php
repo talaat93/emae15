@@ -257,7 +257,7 @@ $zoneSection = function_exists('home_zone_settings') ? home_zone_settings() : $z
               <label class="admin-field"><span>Titre</span><input type="text" name="cards[<?= e((string) $i) ?>][title]" value="<?= e($card['title']) ?>"></label>
               <label class="admin-field"><span>Lien</span><input type="text" name="cards[<?= e((string) $i) ?>][link]" value="<?= e($card['link']) ?>" placeholder="electricien-meaux"></label>
             </div>
-            <img class="preview-thumb" src="<?= e(asset_url($card['image'])) ?>" alt="<?= e($card['title']) ?>">
+            <img class="preview-thumb" src="<?= e(asset_url($card['image'])) ?>" alt="<?= e($card['title']) ?>" loading="lazy">
             <label class="admin-field"><span>Nouvelle image</span><input type="file" name="card_image_<?= e((string) $i) ?>" accept=".png,.jpg,.jpeg,.webp,.svg"></label>
           </div>
         <?php endforeach; ?>
@@ -291,7 +291,7 @@ $zoneSection = function_exists('home_zone_settings') ? home_zone_settings() : $z
         </div>
         <?php if (trim(hero_admin_setting('home_banner_logo_path', '')) !== ''): ?>
           <div style="margin-top:1rem;display:flex;align-items:center;gap:1rem;">
-            <img src="<?= e(asset_url(hero_admin_setting('home_banner_logo_path', ''))) ?>" alt="Logo bandeau" style="width:120px;height:auto;object-fit:contain;border-radius:0;padding:0;background:transparent;border:0;box-shadow:none;">
+            <img src="<?= e(asset_url(hero_admin_setting('home_banner_logo_path', ''))) ?>" alt="Logo bandeau" style="width:120px;height:auto;object-fit:contain;border-radius:0;padding:0;background:transparent;border:0;box-shadow:none;" loading="lazy">
             <p style="margin:0;color:#5d6b92;">Seul le PNG apparaîtra sur le site, sans cercle automatique.</p>
           </div>
         <?php endif; ?>

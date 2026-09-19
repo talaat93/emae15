@@ -20,7 +20,9 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <meta name="robots" content="noindex,nofollow">
 <title><?= e($pageTitle ?? 'Dispatcher') ?> — <?= e(company_name()) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap"></noscript>
 <link rel="stylesheet" href="<?= e(asset_url('assets/css/dispatcher.css')) ?>">
 <?= $extraHead ?? '' ?>
 </head>
@@ -30,7 +32,7 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <aside class="d-sidebar" id="d-sidebar">
   <div class="d-sidebar-brand">
     <?php $logo=site_logo_path(); if(trim($logo)!==''&&file_exists(__DIR__.'/../../'.$logo)): ?>
-      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:140px;height:auto;display:block;"></a>
+      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:140px;height:auto;display:block;" loading="lazy"></a>
     <?php else: ?>
       <a href="<?= e(url_for('dispatcher/index.php')) ?>" style="text-decoration:none;">
         <div class="logo-text">EM<span>AE</span></div>
