@@ -20,7 +20,14 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./
           server-dir: /public_html/
+          # Ce qui vit sur le serveur et ne doit jamais être écrasé par le dépôt.
           exclude: |
             **/.git*
             **/.git*/**
             **/node_modules/**
+            config/config.local.php
+            storage/uploads/**
+            storage/.mig_*
+            storage/logs/**
+            **/.ftp-deploy-sync-state.json
+            **/.DS_Store
