@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <section class="admin-panel">
   <div class="admin-panel__head"><h2>Logo</h2><p>Upload, taille et position.</p></div>
   <div class="admin-panel__body">
-    <img class="preview-thumb" src="<?= e(site_logo_url()) ?>" alt="Logo actuel">
+    <img class="preview-thumb" src="<?= e(site_logo_url()) ?>" alt="Logo actuel" loading="lazy">
     <div class="admin-form-grid admin-form-grid--2">
       <label class="admin-field"><span>Nouveau logo</span><input type="file" name="site_logo_file" accept=".png,.jpg,.jpeg,.webp,.svg"></label>
       <label class="admin-field"><span>Position logo</span>

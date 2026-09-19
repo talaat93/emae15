@@ -9,6 +9,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     $tech = tech_login_check($email, $password);
     if ($tech) {
+        boot_session();
+        session_regenerate_id(true);
         $_SESSION['tech_id']   = (int)$tech['id'];
         $_SESSION['tech_name'] = $tech['name'];
         header('Location: '.url_for('tech/dashboard.php')); exit;

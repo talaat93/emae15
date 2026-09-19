@@ -207,7 +207,7 @@ if ($route === '' || $route === 'home') {
       <div class="why-card">
         <div class="why-icon">
           <?php if (($item['icon_type']??'emoji')==='image' && trim($item['icon_img']??'')!=='' && file_exists(__DIR__.'/'.ltrim($item['icon_img']??'','/'))) : ?>
-            <img src="<?= e(asset_url($item['icon_img'])) ?>" alt="<?= e($item['title']??'') ?>">
+            <img src="<?= e(asset_url($item['icon_img'])) ?>" alt="<?= e($item['title']??'') ?>" loading="lazy">
           <?php else: ?>
             <?= e($item['icon'] ?? '✓') ?>
           <?php endif; ?>
@@ -265,7 +265,7 @@ if ($route === '' || $route === 'home') {
       <?php foreach ($reals as $r): ?>
       <div class="real-card">
         <?php if (trim((string)($r['image_path']??''))!==''): ?>
-          <div class="real-img"><img src="<?= e(asset_url($r['image_path'])) ?>" alt="<?= e($r['title']) ?>"></div>
+          <div class="real-img"><img src="<?= e(asset_url($r['image_path'])) ?>" alt="<?= e($r['title']) ?>" loading="lazy"></div>
         <?php else: ?>
           <div class="real-placeholder">🔧</div>
         <?php endif; ?>
@@ -937,7 +937,7 @@ if ($route === 'realisations') {
     <div class="reals-grid">
       <?php foreach ($reals as $r): ?>
       <div class="real-card">
-        <?php if(trim((string)($r['image_path']??''))!==''):?><div class="real-img"><img src="<?=e(asset_url($r['image_path']))?>" alt="<?=e($r['title'])?>"></div><?php else:?><div class="real-placeholder">🔧</div><?php endif;?>
+        <?php if(trim((string)($r['image_path']??''))!==''):?><div class="real-img"><img src="<?=e(asset_url($r['image_path']))?>" alt="<?=e($r['title'])?>" loading="lazy"></div><?php else:?><div class="real-placeholder">🔧</div><?php endif;?>
         <div class="real-body">
           <?php if(trim((string)($r['service_type']??''))!==''):?><div class="real-svc"><?=e($r['service_type'])?></div><?php endif;?>
           <div class="real-h"><?=e($r['title'])?></div>

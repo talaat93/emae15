@@ -301,7 +301,6 @@ body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:
   color:var(--p);margin-bottom:.65rem;
 }
 .svc-label::before{content:'';width:28px;height:1.5px;background:var(--p);}
-.svc-title{font-family:var(--font-h);font-size:clamp(2rem,5vw,3rem);font-weight:800;color:#fff;line-height:1.06;letter-spacing:-.025em;margin-bottom:.75rem;}
 .svc-title{font-family:var(--font-h);font-size:clamp(1.8rem,4vw,2.6rem);font-weight:800;color:#fff;line-height:1.1;letter-spacing:-.02em;margin-bottom:.75rem;}
 .svc-title em{color:var(--p);font-style:normal;}
 .svc-lead{font-size:.95rem;font-weight:300;color:var(--t2);max-width:52ch;line-height:1.75;}

@@ -6,7 +6,14 @@ declare(strict_types=1);
 ═══════════════════════════════════════════════════ */
 function boot_session(): void
 {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+        session_set_cookie_params([
+            'secure'   => true,
+            'httponly' => true,
+            'samesite' => 'Strict',
+        ]);
+        session_start();
+    }
 }
 
 function e(mixed $v): string
@@ -109,6 +116,61 @@ function rate_limit_passed(string $name, int $seconds = 10): bool
     if ((time() - $l) < $seconds) return false;
     $_SESSION[$k] = time();
     return true;
+}
+
+/* ═══════════════════════════════════════════════════
+   LOGIN RATE LIMITING (protection anti brute-force)
+   Compte les échecs par identifiant ET par IP sur une
+   fenêtre glissante, tous espaces de connexion confondus
+   (admin / tech / dispatcher partagent le même mécanisme).
+═══════════════════════════════════════════════════ */
+const LOGIN_MAX_ATTEMPTS    = 5;
+const LOGIN_LOCKOUT_SECONDS = 900; // 15 minutes
+
+function client_ip(): string
+{
+    return (string) ($_SERVER['REMOTE_ADDR'] ?? '0.0.0.0');
+}
+
+/** true si l'identifiant OU l'IP a dépassé le nombre d'échecs autorisés récemment. */
+function login_is_locked(string $scope, string $identifier): bool
+{
+    try {
+        // La durée est une constante du code, jamais une saisie : on l'insère
+        // directement. Passée en paramètre, elle casserait la requête si les
+        // requêtes préparées natives étaient un jour activées — et l'échec
+        // serait avalé par le catch, désactivant le blocage sans prévenir.
+        $row = db_fetch(
+            "SELECT COUNT(*) AS n FROM login_attempts
+             WHERE scope = ? AND success = 0
+             AND created_at > (NOW() - INTERVAL ".(int)LOGIN_LOCKOUT_SECONDS." SECOND)
+             AND (identifier = ? OR ip = ?)",
+            [$scope, $identifier, client_ip()]
+        );
+    } catch (Throwable $e) { return false; }
+    return (int) ($row['n'] ?? 0) >= LOGIN_MAX_ATTEMPTS;
+}
+
+/** Journalise une tentative ; un succès efface l'historique d'échecs de cet identifiant/IP. */
+function login_record_attempt(string $scope, string $identifier, bool $success): void
+{
+    try {
+        db_execute(
+            'INSERT INTO login_attempts (scope, identifier, ip, success) VALUES (?, ?, ?, ?)',
+            [$scope, $identifier, client_ip(), $success ? 1 : 0]
+        );
+        if ($success) {
+            db_execute(
+                'DELETE FROM login_attempts WHERE scope = ? AND (identifier = ? OR ip = ?) AND success = 0',
+                [$scope, $identifier, client_ip()]
+            );
+        }
+        // Purge occasionnelle : sans elle, la table grossit indéfiniment sous
+        // les tentatives de robots. Une fois sur cinquante suffit largement.
+        if (random_int(1, 50) === 1) {
+            db_execute('DELETE FROM login_attempts WHERE created_at < (NOW() - INTERVAL 7 DAY)');
+        }
+    } catch (Throwable $e) {}
 }
 
 /* ═══════════════════════════════════════════════════
@@ -646,11 +708,14 @@ function get_tech_by_id(int $id): ?array
 
 function tech_login_check(string $email, string $password): ?array
 {
+    $email = trim($email);
+    if (login_is_locked('tech', $email)) return null;
     try {
-        $r = db_fetch("SELECT * FROM technicians WHERE email = ? AND status = 'actif'", [trim($email)]);
-        if (!$r) return null;
-        return password_verify($password, (string)$r['password_hash']) ? $r : null;
-    } catch (Throwable $e) { return null; }
+        $r = db_fetch("SELECT * FROM technicians WHERE email = ? AND status = 'actif'", [$email]);
+        $ok = $r && password_verify($password, (string)$r['password_hash']);
+    } catch (Throwable $e) { $r = null; $ok = false; }
+    login_record_attempt('tech', $email, $ok);
+    return $ok ? $r : null;
 }
 
 function require_tech_auth(): array
@@ -681,6 +746,62 @@ function public_asset_exists(string $path): bool
     return is_file(__DIR__ . '/../' . ltrim($path, '/'));
 }
 
+/**
+ * Nettoie un SVG uploadé : refuse tout DOCTYPE, retire les balises et
+ * attributs capables d'exécuter du JavaScript (script, gestionnaires
+ * on*, liens javascript:). Retourne null si le contenu n'est pas un SVG
+ * valide ou est jugé dangereux.
+ */
+function sanitize_svg(string $svg): ?string
+{
+    if (stripos($svg, '<!doctype') !== false) return null;
+
+    $prevErrors = libxml_use_internal_errors(true);
+    $doc = new DOMDocument();
+    $ok = $doc->loadXML($svg, LIBXML_NONET | LIBXML_NOCDATA);
+    libxml_clear_errors();
+    libxml_use_internal_errors($prevErrors);
+    if (!$ok || !$doc->documentElement || strtolower($doc->documentElement->localName) !== 'svg') {
+        return null;
+    }
+
+    $dangerousTags = ['script','foreignobject','iframe','embed','object','animate','animatetransform','animatemotion','animatecolor','set'];
+    foreach ($dangerousTags as $tag) {
+        $nodes = $doc->getElementsByTagName($tag);
+        for ($i = $nodes->length - 1; $i >= 0; $i--) {
+            $node = $nodes->item($i);
+            $node?->parentNode?->removeChild($node);
+        }
+    }
+
+    $xpath = new DOMXPath($doc);
+    foreach ($xpath->query('//*') as $el) {
+        if (!$el instanceof DOMElement) continue;
+        foreach (iterator_to_array($el->attributes ?? []) as $attr) {
+            $name = strtolower($attr->nodeName);
+            $value = trim($attr->nodeValue ?? '');
+            if (str_starts_with($name, 'on')) {          // gestionnaire d'événement
+                $el->removeAttribute($attr->nodeName);
+                continue;
+            }
+            if (!in_array($name, ['href', 'xlink:href'], true)) continue;
+
+            // Un navigateur retire espaces et caractères de contrôle avant de lire
+            // le schéma : « java&#9;script: » s'exécute bel et bien. On teste donc
+            // la valeur nettoyée, et on n'autorise que des schémas connus sûrs
+            // plutôt que d'essayer d'énumérer les dangereux.
+            $probe     = strtolower((string)preg_replace('/[\s\x00-\x1F\x7F]+/', '', $value));
+            $hasScheme = (bool)preg_match('/^[a-z][a-z0-9+.\-]*:/', $probe);
+            $safe = !$hasScheme                                            // relatif ou #ancre
+                || (bool)preg_match('#^(https?|mailto|tel):#', $probe)
+                || (bool)preg_match('#^data:image/(png|jpe?g|gif|webp);base64,#', $probe);
+            if (!$safe) $el->removeAttribute($attr->nodeName);
+        }
+    }
+
+    return $doc->saveXML($doc->documentElement) ?: null;
+}
+
 function upload_image_field(string $field, string $dir = 'gallery'): ?string
 {
     if (empty($_FILES[$field]['name'])) return null;
@@ -694,10 +815,48 @@ function upload_image_field(string $field, string $dir = 'gallery'): ?string
     if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
     $filename = date('YmdHis').'-'.bin2hex(random_bytes(4)).'.'.$allowed[$mime];
     $target = $uploadDir . '/' . $filename;
-    if (!move_uploaded_file($tmp, $target)) return null;
+    if ($mime === 'image/svg+xml') {
+        $raw = file_get_contents($tmp);
+        $clean = $raw !== false ? sanitize_svg($raw) : null;
+        if ($clean === null || file_put_contents($target, $clean) === false) return null;
+    } elseif (!move_uploaded_file($tmp, $target)) {
+        return null;
+    }
     $path = 'storage/uploads/'.trim($dir,'/').'/'.$filename;
     db_execute('INSERT INTO media (file_path, alt_text, category) VALUES (?, ?, ?)', [$path, '', $dir]);
+    if ($mime !== 'image/svg+xml') generate_webp_variant($target, $mime);
     return $path;
+}
+
+/**
+ * Génère une copie .webp à côté de l'image originale (JPEG/PNG) pour que
+ * les gabarits puissent proposer WebP avec repli sur le format d'origine.
+ * N'échoue jamais l'upload : simple optimisation best-effort via GD.
+ */
+function generate_webp_variant(string $sourcePath, string $mime): void
+{
+    if (!function_exists('imagewebp')) return;
+    $webpPath = preg_replace('/\.[a-z0-9]+$/i', '.webp', $sourcePath);
+    if ($webpPath === null || $webpPath === $sourcePath || is_file($webpPath)) return;
+    try {
+        $image = match ($mime) {
+            'image/jpeg' => @imagecreatefromjpeg($sourcePath),
+            'image/png'  => @imagecreatefrompng($sourcePath),
+            default      => false,
+        };
+        if ($image === false) return;
+        if ($mime === 'image/png') imagepalettetotruecolor($image);
+        imagewebp($image, $webpPath, 82);
+        imagedestroy($image);
+    } catch (Throwable $e) {}
+}
+
+/** Chemin de la variante .webp d'une image uploadée, si elle existe. */
+function webp_variant_path(string $path): ?string
+{
+    $webp = preg_replace('/\.(jpe?g|png)$/i', '.webp', $path);
+    if ($webp === null || $webp === $path) return null;
+    return is_file(__DIR__ . '/../' . ltrim($webp, '/')) ? $webp : null;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1283,11 +1442,14 @@ function require_dispatcher_auth(): array
 
 function dispatcher_login_check(string $email, string $password): ?array
 {
+    $email = trim($email);
+    if (login_is_locked('dispatcher', $email)) return null;
     try {
-        $r = db_fetch("SELECT * FROM dispatchers WHERE email = ? AND status = 'actif'", [trim($email)]);
-        if ($r && password_verify($password, (string)$r['password_hash'])) return $r;
-    } catch (Throwable $e) {}
-    return null;
+        $r = db_fetch("SELECT * FROM dispatchers WHERE email = ? AND status = 'actif'", [$email]);
+        $ok = $r && password_verify($password, (string)$r['password_hash']);
+    } catch (Throwable $e) { $r = null; $ok = false; }
+    login_record_attempt('dispatcher', $email, $ok);
+    return $ok ? $r : null;
 }
 
 function all_dispatchers(): array

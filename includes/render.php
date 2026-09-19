@@ -1,6 +1,24 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Icônes SVG inline (rendu identique sur toutes les plateformes, contrairement
+ * aux emojis) pour les pictogrammes codés en dur dans les gabarits publics.
+ */
+function icon_svg(string $name): string
+{
+    $attrs = 'width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="display:inline-block;vertical-align:-0.14em;flex-shrink:0;"';
+    $paths = [
+        'phone' => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>',
+        'clock' => '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3.5 2"/>',
+        'pin'   => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="2"/>',
+        'bolt'  => '<path fill="currentColor" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+        'lock'  => '<rect x="4" y="11" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+    ];
+    if (!isset($paths[$name])) return '';
+    return '<svg '.$attrs.'>'.$paths[$name].'</svg>';
+}
+
 /* ── HEAD ── */
 function render_head(array $meta): void
 {
@@ -27,7 +45,11 @@ function render_head(array $meta): void
         echo '<link rel="apple-touch-icon" href="'.e(asset_url('apple-touch-icon.png')).'">';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
-    
+    // Google Fonts en non-bloquant : preload + bascule en stylesheet une fois chargée.
+    $fontsHref = 'https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Outfit:wght@300;400;500;600;700&display=swap';
+    echo '<link rel="preload" as="style" href="'.e($fontsHref).'" onload="this.onload=null;this.rel=\'stylesheet\'">';
+    echo '<noscript><link rel="stylesheet" href="'.e($fontsHref).'"></noscript>';
+
     $cssV = @filemtime(__DIR__.'/../assets/css/style.css') ?: time();
     echo '<link rel="stylesheet" href="'.e(asset_url('assets/css/style.css')).'?v='.$cssV.'">';
     echo theme_css_variables();
@@ -65,14 +87,14 @@ function render_header(string $active = ''): void
 <div class="topbar">
   <div class="wrap topbar-in">
     <div class="topbar-l">
-      <a href="<?= e($phoneLink) ?>" class="topbar-phone">📞 <?= e($phone) ?></a>
+      <a href="<?= e($phoneLink) ?>" class="topbar-phone"><?= icon_svg('phone') ?> <?= e($phone) ?></a>
       <span class="topbar-dot">•</span>
       <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>
     </div>
     <div class="topbar-r">
-      <span>📍 <?= e(company_regions()) ?></span>
+      <span><?= icon_svg('pin') ?> <?= e(company_regions()) ?></span>
       <span class="topbar-dot">•</span>
-      <span>🕐 <?= e(company_hours()) ?></span>
+      <span><?= icon_svg('clock') ?> <?= e(company_hours()) ?></span>
     </div>
   </div>
 </div>
@@ -90,7 +112,7 @@ function render_header(string $active = ''): void
         $logoExists = trim($logo) !== '' && file_exists(__DIR__.'/../'.$logo);
       ?>
       <?php if ($logoExists): ?>
-        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="height:48px;width:auto;max-width:220px;object-fit:contain;">
+        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="lazy">
       <?php else: ?>
         <div>
           <div class="brand-name">EM<span>AE</span></div>
@@ -99,7 +121,7 @@ function render_header(string $active = ''): void
       <?php endif; ?>
     </a>
 
-    <a class="header-call" href="<?= e($phoneLink) ?>">📞 <?= e($phone) ?></a>
+    <a class="header-call" href="<?= e($phoneLink) ?>"><?= icon_svg('phone') ?> <?= e($phone) ?></a>
 
     <button class="nav-toggle" type="button" aria-expanded="false" aria-label="Menu">
       <span></span><span></span><span></span>
@@ -116,7 +138,7 @@ function render_header(string $active = ''): void
 
 <!-- Barre CTA fixe mobile -->
 <div class="mob-bar">
-  <a href="<?= e($phoneLink) ?>" class="mob-bar-call">📞 Appeler</a>
+  <a href="<?= e($phoneLink) ?>" class="mob-bar-call"><?= icon_svg('phone') ?> Appeler</a>
   <a href="<?= e(route_url('quote')) ?>" class="mob-bar-devis">📋 Devis gratuit</a>
 </div>
 
@@ -138,8 +160,8 @@ function render_footer(): void
       <div class="ft-tagline">Entreprise Multitech Avancée</div>
       <div class="ft-badges">
         <span class="ft-badge">✓ Devis gratuit</span>
-        <span class="ft-badge">⚡ Urgences 24h/7j</span>
-        <span class="ft-badge">🔒 Artisans qualifiés</span>
+        <span class="ft-badge"><?= icon_svg('bolt') ?> Urgences 24h/7j</span>
+        <span class="ft-badge"><?= icon_svg('lock') ?> Artisans qualifiés</span>
       </div>
     </div>
     <div class="ft-col">

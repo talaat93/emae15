@@ -25,14 +25,17 @@ function require_admin(): void
 
 function attempt_login(string $email, string $password): bool
 {
-    $admin = db_fetch('SELECT * FROM admins WHERE email = ?', [$email]);
-    if (!$admin) {
+    if (login_is_locked('admin', $email)) {
         return false;
     }
-    if (!password_verify($password, $admin['password_hash'])) {
+    $admin = db_fetch('SELECT * FROM admins WHERE email = ?', [$email]);
+    $ok = $admin && password_verify($password, $admin['password_hash']);
+    login_record_attempt('admin', $email, $ok);
+    if (!$ok) {
         return false;
     }
     boot_session();
+    session_regenerate_id(true);
     $_SESSION['admin_id'] = (int) $admin['id'];
     return true;
 }

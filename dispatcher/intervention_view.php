@@ -309,7 +309,7 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_signature'])): ?>
             <div style="margin-top:.75rem;">
               <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Signature client</div>
-              <img src="<?= e($iv['tech_signature']) ?>" alt="Signature" style="max-width:200px;background:#fff;border-radius:4px;border:1px solid rgba(255,255,255,.1);">
+              <img src="<?= e($iv['tech_signature']) ?>" alt="Signature" style="max-width:200px;background:#fff;border-radius:4px;border:1px solid rgba(255,255,255,.1);" loading="lazy">
             </div>
             <?php endif; ?>
             <?php
@@ -324,8 +324,8 @@ function fmt_dur(int $mins): string {
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
                 <?php foreach ($photos as $ph): ?>
                   <a href="<?= e(asset_url($ph)) ?>" target="_blank">
-                    <img src="<?= e(asset_url($ph)) ?>" alt="Photo intervention"
-                         style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.1);">
+                    <img src="<?= e(asset_url($ph)) ?>" alt="Photo intervention" width="80" height="80"
+                         style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.1);" loading="lazy">
                   </a>
                 <?php endforeach; ?>
               </div>

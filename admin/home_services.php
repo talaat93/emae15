@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <?php if (trim($card['image']) !== ''): ?>
         <div style="margin:.5rem 0;">
           <p style="font-size:.75rem;color:#888;margin-bottom:.35rem;">Image actuelle :</p>
-          <img class="preview-thumb" src="<?= e(asset_url($card['image'])) ?>" alt="<?= e($card['title']) ?>"
+          <img class="preview-thumb" loading="lazy" src="<?= e(asset_url($card['image'])) ?>" alt="<?= e($card['title']) ?>"
                style="max-height:120px;border-radius:8px;border:1px solid rgba(0,0,0,.1);">
         </div>
       <?php endif; ?>

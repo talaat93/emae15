@@ -1,39 +1,25 @@
-Options -Indexes
-Options +FollowSymLinks
+# Dossier d'uploads : jamais d'exécution de script, même si un fichier
+# malveillant y atterrit avec un nom généré aléatoirement.
+Options -Indexes -ExecCGI
 
-RewriteEngine On
-
-# ── Forcer HTTPS (compatible o2switch) ──
-RewriteCond %{HTTPS} off [OR]
-RewriteCond %{HTTP:X-Forwarded-Proto} !https
-RewriteRule ^ https://www.emaee.fr%{REQUEST_URI} [R=301,L,NE]
-
-# ── Forcer www ──
-RewriteCond %{HTTP_HOST} !^www\. [NC]
-RewriteRule ^ https://www.emaee.fr%{REQUEST_URI} [R=301,L,NE]
-
-# ── Bloquer l'accès aux dossiers sensibles ──
-RewriteRule ^config/ - [F,L]
-RewriteRule ^includes/ - [F,L]
-
-# ── Laisser passer les fichiers et dossiers qui existent réellement ──
-RewriteCond %{REQUEST_FILENAME} -f [OR]
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-# ── Tout le reste → index.php ──
-RewriteRule ^ index.php [L]
-
-# ── Sécurité headers ──
-<IfModule mod_headers.c>
-    Header always set X-Content-Type-Options "nosniff"
-    Header always set X-Frame-Options "SAMEORIGIN"
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php8.c>
+    php_flag engine off
 </IfModule>
 
-# ── PHP : afficher les erreurs en dev (désactiver en prod) ──
-# php_flag display_errors Off
-
-# ── Protéger config.php ──
-<Files "config.php">
-    Deny from all
-</Files>
+<IfModule mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php\d|pl|py|cgi|asp|aspx|sh|exe)$">
+        Require all denied
+    </FilesMatch>
+</IfModule>
+<IfModule !mod_authz_core.c>
+    <FilesMatch "\.(php|phtml|php\d|pl|py|cgi|asp|aspx|sh|exe)$">
+        Order allow,deny
+        Deny from all
+    </FilesMatch>
+</IfModule>

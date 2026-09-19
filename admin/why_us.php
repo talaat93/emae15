@@ -129,7 +129,7 @@ function upload_file_from_array(array $files, int $idx, string $dir): string
         <div class="admin-field icon-img-field-<?= $i ?>" style="<?= ($item['icon_type']??'emoji')==='emoji' ? 'display:none;' : '' ?>">
           <span>Image PNG/SVG (52×52px recommandé)</span>
           <?php if (trim($item['icon_img']??'') !== '' && file_exists(__DIR__.'/../'.$item['icon_img'])): ?>
-            <div style="margin-bottom:.5rem;"><img src="<?= e(asset_url($item['icon_img'])) ?>" alt="" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #dde5f3;"></div>
+            <div style="margin-bottom:.5rem;"><img src="<?= e(asset_url($item['icon_img'])) ?>" alt="" width="52" height="52" style="width:52px;height:52px;object-fit:cover;border-radius:8px;border:1px solid #dde5f3;" loading="lazy"></div>
           <?php endif; ?>
           <input type="hidden" name="item_icon_img_existing[<?= $i ?>]" value="<?= e($item['icon_img'] ?? '') ?>">
           <input type="file" name="item_icon_img[<?= $i ?>]" accept="image/png,image/jpeg,image/webp,image/svg+xml">

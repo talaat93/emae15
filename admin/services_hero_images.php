@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if ($hasImg): ?>
     <div style="margin-bottom:1rem;">
       <div style="position:relative;display:inline-block;border-radius:12px;overflow:hidden;max-width:480px;width:100%;">
-        <img src="<?= e(asset_url($current)) ?>" alt="Hero <?= e($svc['label']) ?>" style="width:100%;max-height:220px;object-fit:cover;display:block;">
+        <img src="<?= e(asset_url($current)) ?>" alt="Hero <?= e($svc['label']) ?>" style="width:100%;max-height:220px;object-fit:cover;display:block;" loading="lazy">
         <div style="position:absolute;inset:0;background:rgba(6,16,41,.80);display:flex;align-items:center;justify-content:center;">
           <span style="color:#fff;font-size:.8rem;font-weight:600;letter-spacing:.05em;opacity:.8;">Aperçu avec overlay</span>
         </div>

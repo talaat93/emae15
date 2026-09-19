@@ -28,7 +28,7 @@ function admin_zone_url(int $zoneId): string {
   <div class="admin-brand-wrap">
     <a href="<?= e(url_for('admin/index.php')) ?>" style="display:block;padding:.5rem;">
       <?php $logo=site_logo_path(); if(trim($logo)!==''&&file_exists(__DIR__.'/../../'.$logo)): ?>
-        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:160px;height:auto;">
+        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:160px;height:auto;" loading="lazy">
       <?php else: ?>
         <div style="font-family:'Syne',Arial,sans-serif;font-size:1.5rem;font-weight:800;color:#fff;letter-spacing:.05em;">EM<span style="color:#F07B1D;">AE</span></div>
       <?php endif; ?>

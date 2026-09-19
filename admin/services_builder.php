@@ -47,7 +47,7 @@ function sb_render_card_item(int $blockIndex, int $itemIndex, array $item): void
         </div>
 
         <?php if (!empty($item['image'])): ?>
-            <img class="preview-thumb" src="<?= e(asset_url((string) $item['image'])) ?>" alt="">
+            <img class="preview-thumb" src="<?= e(asset_url((string) $item['image'])) ?>" alt="" loading="lazy">
         <?php endif; ?>
     </div>
     <?php
@@ -160,7 +160,7 @@ function sb_render_block(int $index, array $block): void
 
                 <div>
                     <?php if (!empty($block['image'])): ?>
-                        <img class="preview-thumb" src="<?= e(asset_url((string) $block['image'])) ?>" alt="">
+                        <img class="preview-thumb" src="<?= e(asset_url((string) $block['image'])) ?>" alt="" loading="lazy">
                     <?php endif; ?>
                     <label class="admin-field">
                         <span>Nouvelle image</span>
@@ -445,7 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <div>
                 <?php if (!empty($page['hero_image'])): ?>
-                    <img class="preview-thumb" src="<?= e(asset_url((string) $page['hero_image'])) ?>" alt="">
+                    <img class="preview-thumb" src="<?= e(asset_url((string) $page['hero_image'])) ?>" alt="" loading="lazy">
                 <?php endif; ?>
                 <label class="admin-field">
                     <span>Image du hero</span>

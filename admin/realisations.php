@@ -122,7 +122,7 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
               <tr>
                 <td>
                   <?php if (trim((string)($r['image_path']??'')) !== ''): ?>
-                    <img src="<?= e(asset_url($r['image_path'])) ?>" alt="" style="width:80px;height:56px;object-fit:cover;border-radius:8px;">
+                    <img src="<?= e(asset_url($r['image_path'])) ?>" alt="" width="80" height="56" style="width:80px;height:56px;object-fit:cover;border-radius:8px;" loading="lazy">
                   <?php else: ?>
                     <div style="width:80px;height:56px;background:#eef2fb;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#7b8aa8;font-size:1.4rem;">📷</div>
                   <?php endif; ?>
