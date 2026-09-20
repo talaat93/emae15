@@ -39,22 +39,37 @@ function admin_zone_url(int $zoneId): string {
     <div class="admin-sidebar-card__text">V15 — Premium</div>
   </div>
   <nav class="admin-menu">
-    <div class="admin-menu__group-label">Vue d'ensemble</div>
-    <a class="<?= admin_is_active(['index.php']) ?>" href="<?= e(url_for('admin/index.php')) ?>">🏠 Dashboard</a>
-
-    <div class="admin-menu__group-label">Identité</div>
-    <a class="<?= admin_is_active(['site_identity.php']) ?>" href="<?= e(url_for('admin/site_identity.php')) ?>">🏢 Identité & coordonnées</a>
-    <a class="<?= admin_is_active(['appearance.php']) ?>" href="<?= e(url_for('admin/appearance.php')) ?>">🎨 Couleurs & polices</a>
-    <a class="<?= admin_is_active(['header_menu.php']) ?>" href="<?= e(url_for('admin/header_menu.php')) ?>">🧭 Header & menu</a>
-
-    <div class="admin-menu__group-label">Contenu du site</div>
-    <?php require_once __DIR__.'/../../includes/admin_fields.php';
-    foreach (admin_page_catalog() as $cpId => $cp): ?>
-      <span class="admin-menu__row">
-        <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
-        <a class="admin-menu__pencil" href="<?= e(admin_visual_url($cpId)) ?>" title="Modifier directement sur la page">✏️</a>
-      </span>
+    <?php
+    // Le menu se construit depuis le registre des écrans : un compte standard
+    // ne voit que ceux que le compte principal lui a ouverts.
+    foreach (admin_screens() as $groupe => $ecrans):
+        $visibles = array_filter(array_keys($ecrans), 'admin_can_access');
+        if (!$visibles) continue; ?>
+      <div class="admin-menu__group-label"><?= e($groupe) ?></div>
+      <?php foreach ($visibles as $fichier): ?>
+        <?php if ($fichier === 'page_content.php'):
+                require_once __DIR__.'/../../includes/admin_fields.php';
+                foreach (admin_page_catalog() as $cpId => $cp): ?>
+          <span class="admin-menu__row">
+            <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
+            <a class="admin-menu__pencil" href="<?= e(admin_visual_url($cpId)) ?>" title="Modifier directement sur la page">✏️</a>
+          </span>
+        <?php endforeach; else: ?>
+          <a class="<?= admin_is_active([$fichier]) ?>" href="<?= e(url_for('admin/'.$fichier)) ?>"><?= e(admin_screen_label($fichier)) ?></a>
+        <?php endif; ?>
+      <?php endforeach; ?>
     <?php endforeach; ?>
+
+    <?php if (admin_is_super()): ?>
+      <div class="admin-menu__group-label">Administration</div>
+      <a class="<?= admin_is_active(['admins.php']) ?>" href="<?= e(url_for('admin/admins.php')) ?>">👥 Comptes administrateurs</a>
+      <a class="<?= admin_is_active(['activity.php']) ?>" href="<?= e(url_for('admin/activity.php')) ?>">📜 Journal d'activité</a>
+    <?php endif; ?>
+
+    <?php if (admin_can_access('dispatchers.php')): ?>
+      <a href="<?= e(url_for('dispatcher/index.php')) ?>" target="_blank">🚀 Espace Dispatcher</a>
+    <?php endif; ?>
+    <a href="<?= e(route_url('')) ?>" target="_blank">🌐 Voir le site</a>
     <style>
     .admin-menu__row{display:flex;align-items:stretch;gap:2px;}
     .admin-menu__row > a:first-child{flex:1;min-width:0;}
@@ -62,48 +77,6 @@ function admin_zone_url(int $zoneId): string {
       width:38px;opacity:.45;text-decoration:none;border-radius:8px;}
     .admin-menu__pencil:hover{opacity:1;background:rgba(255,255,255,.12);}
     </style>
-
-    <div class="admin-menu__group-label">Accueil (ancien écran)</div>
-    <a class="<?= admin_is_active(['home_hero.php']) ?>" href="<?= e(url_for('admin/home_hero.php')) ?>">⭐ Accueil complet</a>
-    <a class="<?= admin_is_active(['home_services.php']) ?>" href="<?= e(url_for('admin/home_services.php')) ?>">🔧 Cartes services</a>
-    <a class="<?= admin_is_active(['why_us.php'],'why_us') ?>" href="<?= e(url_for('admin/why_us.php')) ?>">⭐ Pourquoi nous choisir</a>
-
-    <div class="admin-menu__group-label">Contenus</div>
-    <a class="<?= admin_is_active(['pages.php','page_edit.php']) ?>" href="<?= e(url_for('admin/pages.php')) ?>">📄 Pages</a>
-    <a class="<?= admin_is_active(['realisations.php']) ?>" href="<?= e(url_for('admin/realisations.php')) ?>">📷 Réalisations</a>
-    <a class="<?= admin_is_active(['reviews.php']) ?>" href="<?= e(url_for('admin/reviews.php')) ?>">⭐ Avis clients</a>
-    <a class="<?= admin_is_active(['faq_contact.php'],'faq_contact') ?>" href="<?= e(url_for('admin/faq_contact.php')) ?>">❓ FAQ & Contact</a>
-
-    <div class="admin-menu__group-label">Pages spéciales</div>
-    <a class="<?= admin_is_active(['zones.php'],'zones') ?>" href="<?= e(url_for('admin/zones.php')) ?>">🗺️ Zones d'intervention</a>
-    <a class="<?= admin_is_active(['services_hero_images.php'],'services_hero_images') ?>" href="<?= e(url_for('admin/services_hero_images.php')) ?>">🖼️ Images hero services</a>
-
-    <div class="admin-menu__group-label">Multi-zones</div>
-    <a class="<?= admin_is_active(['zones_manager.php','zone_edit.php'],'zones_manager') ?>" href="<?= e(url_for('admin/zones_manager.php')) ?>">🗺️ Zones géographiques</a>
-
-    <div class="admin-menu__group-label">Leads & Interventions</div>
-    <a class="<?= admin_is_active(['quotes.php','dossier.php']) ?>" href="<?= e(url_for('admin/quotes.php')) ?>">📋 Demandes & Interventions</a>
-
-    <div class="admin-menu__group-label">Équipe</div>
-    <a class="<?= admin_is_active(['technicians.php'],'technicians') ?>" href="<?= e(url_for('admin/technicians.php')) ?>">👷 Techniciens</a>
-
-    <div class="admin-menu__group-label">Dispatchers</div>
-    <a class="<?= admin_is_active(['dispatchers.php'],'dispatchers') ?>" href="<?= e(url_for('admin/dispatchers.php')) ?>">🗂️ Dispatchers</a>
-    <a href="<?= e(url_for('dispatcher/index.php')) ?>" target="_blank">🚀 Espace Dispatcher</a>
-
-    <div class="admin-menu__group-label">Notifications</div>
-    <a class="<?= admin_is_active(['sms.php'],'sms') ?>" href="<?= e(url_for('admin/sms.php')) ?>">📱 SMS — OVH</a>
-
-    <div class="admin-menu__group-label">Marketing</div>
-    <a class="<?= admin_is_active(['seo.php']) ?>" href="<?= e(url_for('admin/seo.php')) ?>">🔍 SEO & Google Ads</a>
-    <a class="<?= admin_is_active(['design.php'],'design') ?>" href="<?= e(url_for('admin/design.php')) ?>">🎨 Design & Couleurs</a>
-    <a class="<?= admin_is_active(['gallery.php']) ?>" href="<?= e(url_for('admin/gallery.php')) ?>">🖼️ Galerie médias</a>
-    <a class="<?= admin_is_active(['chatbot.php'],'chatbot') ?>" href="<?= e(url_for('admin/chatbot.php')) ?>">🤖 Chatbot IA</a>
-
-    <div class="admin-menu__group-label">Compte</div>
-    <a class="<?= admin_is_active(['profile.php']) ?>" href="<?= e(url_for('admin/profile.php')) ?>">👤 Mon profil</a>
-    <a class="<?= admin_is_active(['mail_test.php']) ?>" href="<?= e(url_for('admin/mail_test.php')) ?>">📧 Test email</a>
-    <a href="<?= e(route_url('')) ?>" target="_blank">🌐 Voir le site</a>
     <a href="<?= e(url_for('admin/logout.php')) ?>">🚪 Déconnexion</a>
   </nav>
 </aside>

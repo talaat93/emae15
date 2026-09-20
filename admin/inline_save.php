@@ -49,4 +49,7 @@ foreach ($fields as $key => $value) {
 
 if ($unknown !== []) ie_fail('Champ non reconnu : '.implode(', ', array_slice($unknown, 0, 3)));
 
+if ($saved > 0) {
+    admin_log('modification', 'Édition visuelle'.($slug !== '' ? ' — '.$slug : ''), $saved.' texte'.($saved > 1 ? 's' : ''));
+}
 echo json_encode(['ok' => true, 'saved' => $saved], JSON_UNESCAPED_UNICODE);

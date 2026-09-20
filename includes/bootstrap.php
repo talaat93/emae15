@@ -9,6 +9,7 @@ require_once __DIR__ . '/helpers.php';
 if (!app_installed() && basename($_SERVER['PHP_SELF'] ?? '') !== 'install.php') { redirect_to('install.php'); }
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
+require_once __DIR__ . '/admin_team.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -249,6 +250,60 @@ if (!file_exists($_mf14)) {
     unset($_me);
 }
 unset($_mf14);
+// Auto-migration v15.15 — comptes multiples, journal d'activité et statistiques
+$_mf15 = __DIR__.'/../storage/.mig_v15_equipe_stats';
+if (!file_exists($_mf15)) {
+    foreach ([
+        "ALTER TABLE admins ADD COLUMN role VARCHAR(20) NOT NULL DEFAULT 'admin'",
+        "ALTER TABLE admins ADD COLUMN permissions TEXT NULL",
+        "ALTER TABLE admins ADD COLUMN status TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE admins ADD COLUMN last_login_at DATETIME NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    try {
+        // Le plus ancien compte devient le compte principal.
+        db_execute("UPDATE admins SET role = 'super' WHERE id = (SELECT * FROM (SELECT MIN(id) FROM admins) AS t)");
+    } catch (Throwable $_me) {}
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS admin_activity (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            admin_id INT NULL,
+            admin_name VARCHAR(120) NOT NULL,
+            action VARCHAR(40) NOT NULL,
+            resource VARCHAR(120) NULL,
+            detail VARCHAR(255) NULL,
+            ip VARCHAR(45) NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_date (created_at),
+            INDEX idx_admin (admin_id, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $_me) {}
+    try {
+        // Trafic agrégé : une ligne par jour et par page, jamais de donnée personnelle.
+        db_execute("CREATE TABLE IF NOT EXISTS site_stats (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            stat_date DATE NOT NULL,
+            zone_slug VARCHAR(80) NOT NULL DEFAULT '',
+            page_key VARCHAR(120) NOT NULL DEFAULT '',
+            views INT NOT NULL DEFAULT 0,
+            UNIQUE KEY uniq_jour_page (stat_date, zone_slug, page_key),
+            INDEX idx_date (stat_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $_me) {}
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS site_events (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            stat_date DATE NOT NULL,
+            zone_slug VARCHAR(80) NOT NULL DEFAULT '',
+            event_key VARCHAR(60) NOT NULL,
+            total INT NOT NULL DEFAULT 0,
+            UNIQUE KEY uniq_jour_event (stat_date, zone_slug, event_key),
+            INDEX idx_date (stat_date)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf15, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf15);
 // Édition visuelle du site — réservée à un administrateur connecté, en consultation
 // simple (jamais sur un envoi de formulaire, pour ne pas polluer les e-mails).
 if (isset($_GET['admin_edit'])

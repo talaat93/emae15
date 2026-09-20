@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         flash('error', 'Le mot recherché est trop court.');
     } else {
         $applied = bulk_apply($refs, $q, $to);
+        if ($applied['done'] > 0) admin_log('modification', 'Chercher-remplacer', '« '.$q.' » → « '.$to.' » sur '.$applied['done'].' texte(s)');
         flash('success', $applied['done'].' texte'.($applied['done']>1?'s':'').' modifié'
             .($applied['done']>1?'s':'').($applied['skipped'] ? ' — '.$applied['skipped'].' ignoré(s)' : '').'.');
         redirect_to('admin/search.php?q='.rawurlencode($q).'&to='.rawurlencode($to).'&done=1');

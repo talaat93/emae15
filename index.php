@@ -26,6 +26,11 @@ unset($_zuri, $_zbase, $_zsegs, $_zs0);
 // avec repli automatique sur les valeurs globales.
 set_zone_context($currentZone);
 
+// Mesure d'audience interne : un compteur par jour et par page, sans
+// aucune donnée personnelle. Ignorée pour les robots et pour vous-même.
+require_once __DIR__ . '/includes/stats.php';
+stats_track_view($route, $currentZone['slug'] ?? '');
+
 /* ── POST FORM ── */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();

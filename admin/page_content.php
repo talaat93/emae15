@@ -21,6 +21,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $n++;
         }
     }
+    if ($n > 0) {
+        admin_log('modification', $page['label'].(zone_ctx_id() > 0 ? ' — '.zone_ctx_name() : ''),
+                  $n.' texte'.($n > 1 ? 's' : ''));
+    }
     flash('success', $n === 0 ? 'Aucune modification.' : $n.' texte'.($n > 1 ? 's' : '').' enregistré'.($n > 1 ? 's' : '').'.');
     redirect_to('admin/page_content.php?p='.$pageId.(isset($_POST['_anchor']) && $_POST['_anchor'] !== '' ? '#s-'.preg_replace('/[^a-z0-9_-]/','',(string)$_POST['_anchor']) : ''));
 }

@@ -18,6 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pack) {
     verify_csrf();
     $keys = $_POST['keys'] ?? [];
     $n = is_array($keys) ? zone_content_apply($slug, $keys) : 0;
+    if ($n > 0) admin_log('modification', 'Contenu pré-rédigé — '.$zone['name'], $n.' texte(s) appliqué(s)');
     flash('success', $n === 0
         ? 'Aucun texte modifié.'
         : $n.' texte'.($n > 1 ? 's' : '').' appliqué'.($n > 1 ? 's' : '').' à '.$zone['name'].'.');
