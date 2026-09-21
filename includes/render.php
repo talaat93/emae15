@@ -112,7 +112,7 @@ function render_header(string $active = ''): void
         $logoExists = trim($logo) !== '' && file_exists(__DIR__.'/../'.$logo);
       ?>
       <?php if ($logoExists): ?>
-        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="lazy">
+        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="eager" fetchpriority="high">
       <?php else: ?>
         <div>
           <div class="brand-name">EM<span>AE</span></div>

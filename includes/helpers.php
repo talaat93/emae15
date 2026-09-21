@@ -859,6 +859,22 @@ function webp_variant_path(string $path): ?string
     return is_file(__DIR__ . '/../' . ltrim($webp, '/')) ? $webp : null;
 }
 
+/**
+ * Rend une balise <picture> avec la variante .webp en priorité (si elle
+ * existe) et l'original en repli, pour que les images uploadées bénéficient
+ * réellement du webp déjà généré par generate_webp_variant().
+ * $attrs est fusionné tel quel dans le <img> de repli (class, loading, width...).
+ */
+function picture_html(string $path, string $alt, array $attrs = []): string
+{
+    $attrStr = '';
+    foreach ($attrs as $k => $v) { $attrStr .= ' ' . e($k) . '="' . e((string)$v) . '"'; }
+    $img = '<img src="' . e(asset_url($path)) . '" alt="' . e($alt) . '"' . $attrStr . '>';
+    $webp = webp_variant_path($path);
+    if ($webp === null) return $img;
+    return '<picture><source srcset="' . e(asset_url($webp)) . '" type="image/webp">' . $img . '</picture>';
+}
+
 /* ═══════════════════════════════════════════════════
    SERVICE CARDS
 ═══════════════════════════════════════════════════ */

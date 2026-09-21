@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+/* Police chargée en non-bloquant via preload+swap dans dispatcher/partials/header.php.
+   Ne pas la recharger ici avec @import : 2e requête bloquante et redondante. */
 
 /* ═══════════════════════════════════════════════════════════════
    DISPATCHER PORTAL — Premium Dark CSS
