@@ -4,9 +4,9 @@
    Palette     : Marine profond #061029 + Orange vif #F07B1D + Blanc #F8FAFF
    Esthétique  : Asymétrique, industriel raffiné, micro-animations
 ═══════════════════════════════════════════════════════════════ */
- 
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=Outfit:wght@300;400;500;600;700&display=swap');
- 
+/* Police chargée en non-bloquant via preload+swap dans render_head() (includes/render.php).
+   Ne pas la recharger ici avec @import : ce serait une 2e requête bloquante et redondante. */
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
  
 :root{
