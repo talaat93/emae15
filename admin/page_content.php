@@ -37,7 +37,10 @@ require_once __DIR__ . '/partials/header.php';
 <div class="admin-page-toolbar">
   <div>
     <div class="admin-breadcrumb">Contenu du site</div>
-    <h1 class="admin-page-title"><?= e($page['icon'].' '.$page['label']) ?></h1>
+    <h1 class="admin-page-title">
+      <?= e($page['icon'].' '.$page['label']) ?>
+      <span class="pc-portee<?= $inZone ? ' pc-portee--zone' : '' ?>"><?= $inZone ? '📍 '.e(zone_ctx_name()) : '🌐 Site global' ?></span>
+    </h1>
     <p class="admin-page-subtitle"><?= e($page['intro'] ?? '') ?></p>
   </div>
   <div class="admin-toolbar-actions">
@@ -45,6 +48,19 @@ require_once __DIR__ . '/partials/header.php';
     <a class="admin-btn admin-btn--secondary" href="<?= e(route_url((string)$page['route'])) ?>" target="_blank">Voir la page</a>
   </div>
 </div>
+
+<?php if (!$inZone && all_zones()): ?>
+<div class="pc-avert">
+  <strong>Vous modifiez le site global.</strong>
+  Vos changements s'appliqueront à <em>toutes</em> les zones qui n'ont pas leur propre version de ces textes.
+  Pour ne modifier qu'une zone, choisissez-la d'abord dans le bandeau ci-dessus.
+  <div class="pc-avert__zones">
+    <?php foreach (all_zones() as $paZ): ?>
+      <a href="<?= e(admin_zone_url((int)$paZ['id'])) ?>">📍 <?= e($paZ['name']) ?></a>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="pc-jump">
   <span class="pc-jump__label">Aller à</span>
@@ -110,6 +126,15 @@ require_once __DIR__ . '/partials/header.php';
 </form>
 
 <style>
+.pc-portee{display:inline-block;vertical-align:middle;margin-left:.6rem;font-size:.8rem;font-weight:800;
+  border-radius:20px;padding:.2rem .7rem;background:#eef2fb;color:#4b5b7d;}
+.pc-portee--zone{background:#F07B1D;color:#fff;}
+.pc-avert{background:#fffaf4;border:1px solid #f5d5b0;border-left:5px solid #F07B1D;border-radius:14px;
+  padding:.85rem 1.1rem;margin-bottom:1.25rem;font-size:.88rem;color:#7a4a12;line-height:1.6;}
+.pc-avert__zones{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;}
+.pc-avert__zones a{background:#fff;border:1px solid #f0c9a0;border-radius:20px;padding:.25rem .7rem;
+  font-size:.82rem;font-weight:700;color:#b45309;text-decoration:none;}
+.pc-avert__zones a:hover{background:#F07B1D;color:#fff;border-color:#F07B1D;}
 .pc-jump{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;background:#fff;border:1px solid #dde5f3;border-radius:14px;padding:.7rem .9rem;margin-bottom:1.25rem;}
 .pc-jump__label{font-size:.7rem;letter-spacing:.09em;text-transform:uppercase;color:#8494b4;font-weight:700;margin-right:.2rem;}
 .pc-jump a{font-size:.82rem;font-weight:600;color:#4b5b7d;text-decoration:none;background:#f7faff;border:1px solid #dde5f3;border-radius:20px;padding:.3rem .75rem;}

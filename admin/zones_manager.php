@@ -46,6 +46,7 @@ require_once __DIR__ . '/partials/header.php';
     <h1 class="admin-page-title">Zones géographiques</h1>
     <p class="admin-page-sub">Gérez vos zones d'intervention. Chaque zone active obtient sa propre URL (ex: <code>/paris-ile-de-france/</code>).</p>
   </div>
+  <a class="btn btn-outline" href="<?= e(url_for('admin/zones_diag.php')) ?>">🩺 Diagnostic</a>
   <a class="btn btn-p" href="<?= e(url_for('admin/zone_edit.php')) ?>">+ Nouvelle zone</a>
 </div>
 

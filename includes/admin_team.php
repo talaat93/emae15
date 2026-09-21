@@ -43,6 +43,7 @@ function admin_screens(): array
         ],
         'Multi-zones' => [
             'zones_manager.php'=> ['🗺️ Zones géographiques'],
+            'zones_diag.php'   => ['🩺 Diagnostic des zones'],
         ],
         'Leads & Interventions' => [
             'quotes.php'       => ['📋 Demandes & Interventions'],
