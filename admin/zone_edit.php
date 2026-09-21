@@ -99,6 +99,12 @@ require_once __DIR__ . '/partials/header.php';
             <input type="text" name="slug" class="form-input" style="padding-left:1.5rem;" value="<?= e($zone['slug']??'') ?>" placeholder="paris-ile-de-france" required id="zone-slug">
           </div>
           <small style="color:var(--t2);">URL : votre-site.fr/<strong id="slug-preview"><?= e($zone['slug']??'votre-slug') ?></strong>/</small>
+          <?php if (!$isNew && ($nbTextes = zone_override_count((string)$zone['slug'])) > 0): ?>
+            <small style="display:block;margin-top:.35rem;color:#b45309;">
+              ⚠️ Changer l'adresse déplacera les <?= $nbTextes ?> textes de cette zone et modifiera son lien public.
+              Le nom ci-contre se change sans aucun risque.
+            </small>
+          <?php endif; ?>
         </label>
       </div>
       <div class="form-grid2" style="margin-top:1rem;">

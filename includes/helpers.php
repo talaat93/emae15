@@ -1881,8 +1881,36 @@ function create_zone(array $data): int
     return db_last_id();
 }
 
+/**
+ * Déplace les textes d'une zone lorsqu'elle change d'adresse.
+ *
+ * Les personnalisations sont rangées sous « z:{slug}:… ». Sans ce
+ * déplacement, renommer le slug les laisserait orphelines : la zone
+ * paraîtrait vidée de tout son contenu.
+ */
+function zone_move_settings(string $ancien, string $nouveau): int
+{
+    if ($ancien === '' || $nouveau === '' || $ancien === $nouveau) return 0;
+    $prefixe = 'z:'.$ancien.':';
+    $n = 0;
+    foreach (settings_cache() as $k => $v) {
+        if (!str_starts_with($k, $prefixe)) continue;
+        $cible = 'z:'.$nouveau.':'.substr($k, strlen($prefixe));
+        db_execute('DELETE FROM settings WHERE setting_key = ?', [$cible]);
+        db_execute('UPDATE settings SET setting_key = ? WHERE setting_key = ?', [$cible, $k]);
+        $n++;
+    }
+    if ($n > 0) { settings_cache(true); if (function_exists('admin_inline_keys')) admin_inline_keys(true); }
+    return $n;
+}
+
 function update_zone(int $id, array $data): void
 {
+    // Un changement d'adresse doit emmener les textes de la zone avec lui.
+    $avant = get_zone_by_id($id);
+    if ($avant && (string)$avant['slug'] !== (string)$data['slug']) {
+        zone_move_settings((string)$avant['slug'], (string)$data['slug']);
+    }
     db_execute(
         "UPDATE zones SET slug=?,name=?,status=?,meta_title=?,meta_description=?,hero_h1=?,hero_subtitle=?,hero_cta_label=?,cities=?,postal_codes=?,faq=?,mentions_legales=?,sort_order=? WHERE id=?",
         [$data['slug'],$data['name'],(int)($data['status']??1),
@@ -1898,9 +1926,31 @@ function toggle_zone_status(int $id): void
     db_execute("UPDATE zones SET status = 1 - status WHERE id=?", [$id]);
 }
 
+/**
+ * Supprime une zone et ce qui n'a plus de sens sans elle.
+ *
+ * Ses textes personnalisés disparaissent — ils ne s'afficheraient nulle
+ * part. Les contenus qui lui étaient rattachés (pages, réalisations,
+ * avis) ne sont pas supprimés mais rendus visibles partout : rien de ce
+ * que vous avez saisi ne doit se perdre avec la zone.
+ */
 function delete_zone(int $id): void
 {
+    $zone = get_zone_by_id($id);
     db_execute("DELETE FROM zones WHERE id=?", [$id]);
+    if (!$zone) return;
+
+    $prefixe = 'z:'.$zone['slug'].':';
+    foreach (array_keys(settings_cache()) as $k) {
+        if (str_starts_with($k, $prefixe)) db_execute('DELETE FROM settings WHERE setting_key = ?', [$k]);
+    }
+    settings_cache(true);
+    if (function_exists('admin_inline_keys')) admin_inline_keys(true);
+
+    foreach (['pages', 'realisations', 'reviews'] as $table) {
+        try { db_execute('UPDATE '.$table.' SET zone_id = NULL WHERE zone_id = ?', [$id]); }
+        catch (Throwable $e) { /* colonne absente : rien à détacher */ }
+    }
 }
 
 /** Liste déroulante d'affectation d'un contenu à une zone (0 = toutes les zones). */
