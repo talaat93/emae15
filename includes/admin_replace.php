@@ -145,7 +145,14 @@ function bulk_scan(string $term): array
         }
     }
 
-    foreach ($hits as &$h) $h['edit'] = bulk_edit_url($h['ref']);
+    // Marque ce qui relève de la portée en cours. L'écran ne coche d'office
+    // que ces lignes : sans cela, un remplacement lancé depuis une zone
+    // toucherait aussi le site global et toutes les autres zones.
+    $portee = zone_ctx_slug();
+    foreach ($hits as &$h) {
+        $h['edit'] = bulk_edit_url($h['ref']);
+        $h['dans_portee'] = bulk_ref_scope($h['ref']) === $portee;
+    }
     unset($h);
 
     return $hits;
@@ -154,6 +161,16 @@ function bulk_scan(string $term): array
 function bulk_table_label(string $t): string
 {
     return ['pages'=>'Page','realisations'=>'Réalisation','reviews'=>'Avis'][$t] ?? $t;
+}
+
+/**
+ * Portée d'une occurrence : '' pour le site global et les contenus,
+ * sinon le slug de la zone à laquelle elle appartient.
+ */
+function bulk_ref_scope(string $ref): string
+{
+    if (str_starts_with($ref, 'set:z:') && preg_match('/^set:z:([a-z0-9-]+):/', $ref, $m)) return $m[1];
+    return '';
 }
 
 /** Index clé de réglage → page et section du catalogue, pour les liens de modification. */

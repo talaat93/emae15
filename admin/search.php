@@ -100,7 +100,10 @@ require_once __DIR__ . '/partials/header.php';
     <?php if (!$hits): ?>
       <p>Aucun texte ne contient ce mot. Essayez une portion plus courte, ou vérifiez l'orthographe.</p>
     <?php elseif ($to !== ''): ?>
-      <p>Décochez ce que vous ne voulez pas toucher, puis validez. Vous pourrez annuler après coup.</p>
+      <p>Seules les lignes de la portée où vous travaillez —
+         <strong><?= zone_ctx_id() > 0 ? '📍 '.e(zone_ctx_name()) : '🌐 Site global' ?></strong> —
+         sont cochées d'office. Les autres zones apparaissent pour information : cochez-les seulement
+         si vous voulez vraiment les modifier aussi. Vous pourrez annuler après coup.</p>
     <?php else: ?>
       <p>Renseignez le champ « Remplacer par » ci-dessus pour tout corriger d'un coup, ou modifiez texte par texte.</p>
     <?php endif; ?>
@@ -114,7 +117,7 @@ require_once __DIR__ . '/partials/header.php';
     <div class="admin-panel__body admin-table-wrap">
       <table class="admin-table">
         <thead><tr>
-          <?php if ($to !== ''): ?><th style="width:34px;"><input type="checkbox" id="sr-all" checked></th><?php endif; ?>
+          <?php if ($to !== ''): ?><th style="width:34px;"><input type="checkbox" id="sr-all"></th><?php endif; ?>
           <th style="width:150px;">Portée</th>
           <th>Emplacement</th>
           <th>Texte<?= $to !== '' ? ' — avant, puis après' : '' ?></th>
@@ -122,9 +125,10 @@ require_once __DIR__ . '/partials/header.php';
         </tr></thead>
         <tbody>
         <?php foreach ($hits as $h): ?>
-          <tr>
+          <tr<?= $h['dans_portee'] ? '' : ' class="sr-hors"' ?>>
             <?php if ($to !== ''): ?>
-            <td><input type="checkbox" class="sr-cb" name="refs[]" value="<?= e($h['ref']) ?>" checked></td>
+            <td><input type="checkbox" class="sr-cb" name="refs[]" value="<?= e($h['ref']) ?>"
+                       <?= $h['dans_portee'] ? 'checked' : '' ?>></td>
             <?php endif; ?>
             <td style="white-space:nowrap;font-size:.82rem;"><?= e($h['scope']) ?></td>
             <td style="font-size:.85rem;"><?= e($h['label']) ?>
@@ -173,6 +177,8 @@ require_once __DIR__ . '/partials/header.php';
 .sr-arrow{padding-bottom:.7rem;color:#8494b4;font-weight:700;}
 .sr-note{margin:.7rem 0 0;font-size:.78rem;color:#8494b4;}
 .sr-undo{border-left:4px solid #F07B1D;background:#fffaf4;}
+.sr-hors{background:#fcfcfd;}
+.sr-hors td{opacity:.62;}
 .sr-before{color:#7b8aa8;}
 .sr-after{margin-top:.3rem;padding-top:.3rem;border-top:1px dashed #dde5f3;color:#1b2d6b;}
 mark{background:#ffe0e0;color:#9b1c1c;padding:0 .12em;border-radius:3px;}

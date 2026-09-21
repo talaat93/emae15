@@ -297,6 +297,45 @@ function zone_copy_from_global(): int
     return $n;
 }
 
+/**
+ * Supprime les textes d'une zone qui sont identiques au site global.
+ *
+ * Après un « Dupliquer depuis Global », une zone détient une copie figée de
+ * tout le site : elle lui ressemble en tout point et cesse d'hériter, si
+ * bien qu'une correction faite ensuite en global ne l'atteint plus. Ce
+ * nettoyage ne conserve que les vraies différences.
+ */
+function zone_prune_identical(string $slug): int
+{
+    if ($slug === '') return 0;
+    $prefixe = 'z:'.$slug.':';
+    $cache   = settings_cache();
+    $n = 0;
+    foreach ($cache as $k => $v) {
+        if (!str_starts_with($k, $prefixe)) continue;
+        $base = substr($k, strlen($prefixe));
+        if (($cache[$base] ?? null) !== $v) continue;   // différence réelle : on garde
+        db_execute('DELETE FROM settings WHERE setting_key = ?', [$k]);
+        $n++;
+    }
+    if ($n > 0) { settings_cache(true); admin_inline_keys(true); }
+    return $n;
+}
+
+/** Nombre de textes d'une zone réellement différents du site global. */
+function zone_real_differences(string $slug): int
+{
+    if ($slug === '') return 0;
+    $prefixe = 'z:'.$slug.':';
+    $cache   = settings_cache();
+    $n = 0;
+    foreach ($cache as $k => $v) {
+        if (!str_starts_with($k, $prefixe)) continue;
+        if (($cache[substr($k, strlen($prefixe))] ?? null) !== $v) $n++;
+    }
+    return $n;
+}
+
 /** Supprime toutes les surcharges de la zone active : retour à l'héritage total. */
 function zone_reset_overrides(): int
 {

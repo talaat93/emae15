@@ -10,6 +10,19 @@ require_admin();
  * Sert à comprendre pourquoi une modification part au mauvais endroit.
  */
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
+    $slug = preg_replace('/[^a-z0-9-]/', '', (string)($_POST['slug'] ?? '')) ?? '';
+    if (($_POST['action'] ?? '') === 'prune' && $slug !== '') {
+        $n = zone_prune_identical($slug);
+        admin_log('modification', 'Nettoyage zone — '.$slug, $n.' texte(s) remis en héritage');
+        flash('success', $n === 0
+            ? 'Rien à nettoyer : tous les textes de cette zone diffèrent déjà du site global.'
+            : $n.' texte'.($n > 1 ? 's' : '').' remis en héritage. Cette zone suivra de nouveau le site global, sauf là où elle diffère vraiment.');
+    }
+    redirect_to('admin/zones_diag.php');
+}
+
 $tableOk = true;
 $zones   = [];
 try { $zones = db_fetch_all('SELECT * FROM zones ORDER BY sort_order ASC, name ASC'); }
@@ -79,21 +92,40 @@ require_once __DIR__ . '/partials/header.php';
          dont <?= count($actives) ?> active<?= count($actives) > 1 ? 's' : '' ?>.</p>
       <div class="admin-table-wrap">
         <table class="admin-table">
-          <thead><tr><th>Zone</th><th>Adresse publique</th><th>Statut</th><th>Textes personnalisés</th></tr></thead>
+          <thead><tr><th>Zone</th><th>Adresse publique</th><th>Statut</th><th>Textes enregistrés</th><th>Vraiment différents</th><th></th></tr></thead>
           <tbody>
           <?php foreach ($zones as $z):
-              $n = $parPortee[(string)$z['slug']] ?? 0; ?>
+              $slug = (string)$z['slug'];
+              $n    = $parPortee[$slug] ?? 0;
+              $diff = zone_real_differences($slug);
+              $copies = $n - $diff; ?>
             <tr>
               <td style="font-weight:700;"><?= e($z['name']) ?></td>
-              <td><a href="<?= e(url_for($z['slug'].'/')) ?>" target="_blank"><code>/<?= e($z['slug']) ?>/</code> ↗</a></td>
+              <td><a href="<?= e(url_for($slug.'/')) ?>" target="_blank"><code>/<?= e($slug) ?>/</code> ↗</a></td>
               <td><?= (int)$z['status'] === 1
                       ? '<span style="color:#15803d;font-weight:700;">active</span>'
                       : '<span style="color:#b91c1c;">inactive — page inaccessible</span>' ?></td>
+              <td><?= $n > 0 ? '<strong>'.$n.'</strong>' : '<span style="color:#b45309;">aucun — affiche le site global</span>' ?></td>
               <td>
-                <?php if ($n > 0): ?>
-                  <strong style="color:#15803d;"><?= $n ?></strong> texte<?= $n > 1 ? 's' : '' ?> propre<?= $n > 1 ? 's' : '' ?>
+                <?php if ($n === 0): ?>
+                  —
+                <?php elseif ($diff === 0): ?>
+                  <strong style="color:#b45309;">0</strong>
+                  <br><small style="color:#b45309;">copie conforme du global</small>
                 <?php else: ?>
-                  <span style="color:#b45309;">aucun — cette zone affiche exactement le site global</span>
+                  <strong style="color:#15803d;"><?= $diff ?></strong>
+                  <?php if ($copies > 0): ?><br><small style="color:#b45309;">+ <?= $copies ?> copies inutiles</small><?php endif; ?>
+                <?php endif; ?>
+              </td>
+              <td style="text-align:right;">
+                <?php if ($copies > 0): ?>
+                  <form method="post" style="margin:0;"
+                        onsubmit="return confirm('Remettre <?= $copies ?> texte(s) en héritage pour <?= e(addslashes($z['name'])) ?> ? Les <?= $diff ?> texte(s) réellement différents sont conservés.');">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="action" value="prune">
+                    <input type="hidden" name="slug" value="<?= e($slug) ?>">
+                    <button class="admin-btn admin-btn--secondary" style="min-height:34px;padding:0 .7rem;font-size:.8rem;" type="submit">🧹 Nettoyer</button>
+                  </form>
                 <?php endif; ?>
               </td>
             </tr>
@@ -110,6 +142,10 @@ require_once __DIR__ . '/partials/header.php';
   <div class="admin-panel__body">
     <p style="font-size:.9rem;color:#5b6b92;">Un texte enregistré en global sert de base à toutes les zones.
        Une zone ne s'en écarte que pour les textes qu'elle possède en propre.</p>
+    <p class="dg-warn" style="margin:.6rem 0 0;">À savoir : le bouton « ⧉ Dupliquer depuis Global » recopie
+       <em>tout</em> le site dans la zone. Celle-ci cesse alors d'hériter, et une correction faite ensuite en global
+       ne l'atteint plus. C'est pourquoi la colonne « Vraiment différents » compte ce qui s'écarte réellement —
+       le bouton 🧹 Nettoyer remet le reste en héritage.</p>
     <div class="dg-barres">
       <div class="dg-ligne">
         <span class="dg-nom">🌐 Site global</span>
