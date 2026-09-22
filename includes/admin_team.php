@@ -45,6 +45,7 @@ function admin_screens(): array
             'zones_manager.php'=> ['🗺️ Zones géographiques'],
             'zones_diag.php'   => ['🩺 Diagnostic des zones'],
             'zone_vars.php'    => ['🏷️ Variables de lieu'],
+            'zone_convert.php' => ['✨ Convertir en variables'],
         ],
         'Leads & Interventions' => [
             'quotes.php'       => ['📋 Demandes & Interventions'],
