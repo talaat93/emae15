@@ -10,6 +10,7 @@ if (!app_installed() && basename($_SERVER['PHP_SELF'] ?? '') !== 'install.php') 
 require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/admin_team.php';
+require_once __DIR__ . '/zone_vars.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -315,6 +316,38 @@ if (isset($_GET['admin_edit'])
     inline_edit_active(true);
     ob_start('inline_edit_postprocess');
 }
+// Auto-migration v15.16 — variables de lieu par zone
+$_mf16 = __DIR__.'/../storage/.mig_v15_zone_vars';
+if (!file_exists($_mf16)) {
+    try {
+        // Les anciens réglages de repli deviennent les valeurs globales.
+        foreach ([
+            'geo_default_region' => 'zvar_region',
+            'geo_default_ville'  => 'zvar_ville',
+            'geo_default_dept'   => 'zvar_departement',
+        ] as $__ancien => $__nouveau) {
+            $__v = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', [$__ancien]);
+            $__v = trim((string)($__v['setting_value'] ?? ''));
+            if ($__v !== '') {
+                db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?,?)
+                            ON DUPLICATE KEY UPDATE setting_value = setting_value', [$__nouveau, $__v]);
+            }
+        }
+        // Amorce chaque zone avec son nom : valeur modifiable, jamais imposée.
+        foreach (db_fetch_all('SELECT slug, name, cities FROM zones') as $__z) {
+            $__pre  = 'z:'.$__z['slug'].':zvar_';
+            $__vill = trim(explode('|', (string)($__z['cities'] ?? ''))[0]);
+            foreach (['region' => (string)$__z['name'], 'ville' => $__vill] as $__n => $__val) {
+                if ($__val === '') continue;
+                db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?,?)
+                            ON DUPLICATE KEY UPDATE setting_value = setting_value', [$__pre.$__n, $__val]);
+            }
+        }
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf16, date('c'));
+    unset($_me, $__ancien, $__nouveau, $__v, $__z, $__pre, $__vill, $__n, $__val);
+}
+unset($_mf16);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

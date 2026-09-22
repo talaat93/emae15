@@ -69,23 +69,84 @@ function bulk_scan(string $term): array
     $term = trim($term);
     if (mb_strlen($term) < 2) return [];
 
-    $hits = [];
-    $seenGlobalKeys = [];
+    return zone_ctx_id() > 0 ? bulk_scan_zone($term) : bulk_scan_global($term);
+}
 
-    // 1. Champs du catalogue — valeur affichée, texte d'origine compris.
-    $previous = zone_context();
-    set_zone_context(null);
+/**
+ * Recherche depuis une zone : on balaie ce que la zone AFFICHE, qu'il lui
+ * soit propre ou hérité du site global. Remplacer un texte hérité crée sa
+ * version propre à la zone, sans toucher au global ni aux autres zones.
+ */
+function bulk_scan_zone(string $term): array
+{
+    $slug  = zone_ctx_slug();
+    $nom   = '📍 '.zone_ctx_name();
+    $hits  = [];
+    $vus   = [];
+
     foreach (admin_page_catalog() as $pageId => $page) {
         foreach ($page['sections'] as $s) {
             foreach ($s['fields'] as $f) {
                 if (bulk_is_sensitive($f['key'])) continue;
-                if (!empty($f['json'])) {
-                    // Si le bloc est enregistré, sa ligne brute couvre déjà tout son contenu.
-                    // Sinon il n'existe qu'en texte d'origine : il faut le balayer ici.
-                    if (isset(settings_cache()[$f['json'][0]])) continue;
-                }
+                if (!empty($f['json']) && isset(settings_cache()['z:'.$slug.':'.$f['json'][0]])) continue;
+                $vus[$f['key']] = true;
+                if (!empty($f['json'])) $vus[$f['json'][0]] = true;
                 $val = admin_field_shown($f);
-                $seenGlobalKeys[$f['key']] = true;
+                if (bulk_count($val, $term) === 0) continue;
+                $hits[] = [
+                    'ref'   => 'cat:'.$pageId.':'.$f['key'],
+                    'scope' => $nom,
+                    'label' => $page['label'].' · '.$s['label'].' — '.$f['label'],
+                    'value' => $val,
+                    'n'     => bulk_count($val, $term),
+                ];
+            }
+        }
+    }
+
+    foreach (bulk_extra_settings() as $key => [$label, $val]) {
+        $vus[$key] = true;
+        if (bulk_count($val, $term) === 0) continue;
+        $hits[] = ['ref'=>'set:z:'.$slug.':'.$key, 'scope'=>$nom, 'label'=>$label,
+                   'value'=>$val, 'n'=>bulk_count($val, $term)];
+    }
+
+    // Réglages hors catalogue : valeur propre à la zone si elle existe, sinon celle du global.
+    $cache = settings_cache();
+    $bases = [];
+    foreach ($cache as $k => $v) {
+        if (bulk_is_sensitive($k)) continue;
+        if (preg_match('/^z:([a-z0-9-]+):(.+)$/', $k, $m)) {
+            if ($m[1] === $slug) $bases[$m[2]] = $v;       // version de la zone
+        } elseif (!isset($bases[$k])) {
+            $bases[$k] = $v;                                // version globale, héritée
+        }
+    }
+    foreach ($bases as $bare => $val) {
+        if ($val === '' || isset($vus[$bare]) || bulk_count($val, $term) === 0) continue;
+        $connu = admin_inline_keys()[$bare] ?? null;
+        $hits[] = ['ref'=>'set:z:'.$slug.':'.$bare, 'scope'=>$nom,
+                   'label'=>$connu['label'] ?? ('Réglage « '.$bare.' »'),
+                   'value'=>$val, 'n'=>bulk_count($val, $term)];
+    }
+
+    $hits = array_merge($hits, bulk_scan_rows($term, zone_ctx_id()));
+    return bulk_decorate($hits);
+}
+
+/** Recherche depuis le site global : toutes les portées, chacune étiquetée. */
+function bulk_scan_global(string $term): array
+{
+    $hits = [];
+    $vus  = [];
+
+    foreach (admin_page_catalog() as $pageId => $page) {
+        foreach ($page['sections'] as $s) {
+            foreach ($s['fields'] as $f) {
+                if (bulk_is_sensitive($f['key'])) continue;
+                if (!empty($f['json']) && isset(settings_cache()[$f['json'][0]])) continue;
+                $val = admin_field_shown($f);
+                $vus[$f['key']] = true;
                 if (bulk_count($val, $term) === 0) continue;
                 $hits[] = [
                     'ref'   => 'cat:'.$pageId.':'.$f['key'],
@@ -98,63 +159,67 @@ function bulk_scan(string $term): array
         }
     }
     foreach (bulk_extra_settings() as $key => [$label, $val]) {
-        $seenGlobalKeys[$key] = true;
+        $vus[$key] = true;
         if (bulk_count($val, $term) === 0) continue;
-        $hits[] = ['ref'=>'set:'.$key, 'scope'=>'🌐 Site global', 'label'=>$label, 'value'=>$val, 'n'=>bulk_count($val, $term)];
+        $hits[] = ['ref'=>'set:'.$key, 'scope'=>'🌐 Site global', 'label'=>$label,
+                   'value'=>$val, 'n'=>bulk_count($val, $term)];
     }
-    set_zone_context($previous);
 
-    // 2. Réglages enregistrés : surcharges de zone, blocs JSON, réglages hors catalogue.
     try {
         foreach (db_fetch_all('SELECT setting_key, setting_value FROM settings') as $row) {
             $key = (string)$row['setting_key'];
             $val = (string)($row['setting_value'] ?? '');
             if ($val === '' || bulk_is_sensitive($key)) continue;
             [$scope, $bare] = bulk_scope_label($key);
-            if ($scope === '🌐 Site global' && isset($seenGlobalKeys[$bare])) continue;   // déjà listé plus haut
+            if ($scope === '🌐 Site global' && isset($vus[$bare])) continue;
             if (bulk_count($val, $term) === 0) continue;
-            $known = admin_inline_keys()[$bare] ?? null;
-            $hits[] = [
-                'ref'   => 'set:'.$key,
-                'scope' => $scope,
-                'label' => $known['label'] ?? ('Réglage « '.$bare.' »'),
-                'value' => $val,
-                'n'     => bulk_count($val, $term),
-            ];
+            $connu = admin_inline_keys()[$bare] ?? null;
+            $hits[] = ['ref'=>'set:'.$key, 'scope'=>$scope,
+                       'label'=>$connu['label'] ?? ('Réglage « '.$bare.' »'),
+                       'value'=>$val, 'n'=>bulk_count($val, $term)];
         }
-    } catch (Throwable $e) { /* table absente : on continue */ }
+    } catch (Throwable $e) {}
 
-    // 3. Contenus : pages, réalisations, avis.
+    $hits = array_merge($hits, bulk_scan_rows($term, 0));
+    return bulk_decorate($hits);
+}
+
+/** Contenus : pages, réalisations, avis. Filtrés sur la zone le cas échéant. */
+function bulk_scan_rows(string $term, int $zoneId): array
+{
+    $hits = [];
     foreach (bulk_row_columns() as $table => $cols) {
-        try {
-            $rows = db_fetch_all('SELECT * FROM '.$table);
-        } catch (Throwable $e) { continue; }
+        try { $rows = db_fetch_all('SELECT * FROM '.$table); }
+        catch (Throwable $e) { continue; }
         foreach ($rows as $r) {
-            $name = (string)($r['title'] ?? $r['author_name'] ?? ('n°'.(int)($r['id'] ?? 0)));
+            if ($zoneId > 0 && ($r['zone_id'] ?? null) !== null && (int)$r['zone_id'] !== $zoneId) continue;
+            $nom = (string)($r['title'] ?? $r['author_name'] ?? ('n°'.(int)($r['id'] ?? 0)));
             foreach ($cols as $c) {
                 $val = (string)($r[$c] ?? '');
                 if ($val === '' || bulk_count($val, $term) === 0) continue;
                 $hits[] = [
                     'ref'   => 'row:'.$table.':'.(int)$r['id'].':'.$c,
                     'scope' => '🗂 Contenu',
-                    'label' => bulk_table_label($table).' « '.mb_substr($name, 0, 40).' » — '.$c,
+                    'label' => bulk_table_label($table).' « '.mb_substr($nom, 0, 40).' » — '.$c,
                     'value' => $val,
                     'n'     => bulk_count($val, $term),
                 ];
             }
         }
     }
+    return $hits;
+}
 
-    // Marque ce qui relève de la portée en cours. L'écran ne coche d'office
-    // que ces lignes : sans cela, un remplacement lancé depuis une zone
-    // toucherait aussi le site global et toutes les autres zones.
+/** Ajoute le lien de modification et marque ce qui relève de la portée courante. */
+function bulk_decorate(array $hits): array
+{
     $portee = zone_ctx_slug();
     foreach ($hits as &$h) {
         $h['edit'] = bulk_edit_url($h['ref']);
-        $h['dans_portee'] = bulk_ref_scope($h['ref']) === $portee;
+        // En zone, tout ce qui est listé relève de la zone : tout est actionnable.
+        $h['dans_portee'] = $portee !== '' ? true : (bulk_ref_scope($h['ref']) === '');
     }
     unset($h);
-
     return $hits;
 }
 
@@ -237,22 +302,22 @@ function bulk_read(string $ref): ?string
     if ($p[0] === 'cat' && count($p) === 3) {
         $f = admin_catalog_fields($p[1])[$p[2]] ?? null;
         if (!$f) return null;
-        $prev = zone_context(); set_zone_context(null);
-        // Une liste se manipule sous sa forme enregistrée, pour rester réécrivable.
-        $v = admin_field_is_list($f)
+        // Lu dans la portée courante : en zone, on voit ce que la zone affiche.
+        return admin_field_is_list($f)
             ? (string)json_encode(admin_list_rows($f), JSON_UNESCAPED_UNICODE)
             : admin_field_shown($f);
-        set_zone_context($prev);
-        return $v;
     }
     if ($p[0] === 'set' && count($p) >= 2) {
         $key = substr($ref, 4);
         if (bulk_is_sensitive($key)) return null;
         [, $bare] = bulk_scope_label($key);
-        $extra = bulk_extra_settings();
-        $raw = settings_cache()[$key] ?? '';
-        if ($raw === '' && isset($extra[$bare])) return $extra[$bare][1];
-        return $raw !== '' ? $raw : null;
+        $cache = settings_cache();
+        $raw   = $cache[$key] ?? '';
+        // Une clé de zone encore vide hérite : on lit la valeur globale, que
+        // le remplacement transformera en version propre à la zone.
+        if ($raw === '' && $key !== $bare) $raw = $cache[$bare] ?? '';
+        if ($raw === '') { $extra = bulk_extra_settings(); return $extra[$bare][1] ?? null; }
+        return $raw;
     }
     if ($p[0] === 'row' && count($p) === 4) {
         [$t, $id, $c] = [$p[1], (int)$p[2], $p[3]];
@@ -271,16 +336,14 @@ function bulk_write(string $ref, string $value): bool
     if ($p[0] === 'cat' && count($p) === 3) {
         $f = admin_catalog_fields($p[1])[$p[2]] ?? null;
         if (!$f) return false;
-        $prev = zone_context(); set_zone_context(null);
+        // Écrit dans la portée courante : en zone, cela crée sa version propre.
         if (admin_field_is_list($f)) {
             $rows = json_decode($value, true);
-            $ok = is_array($rows);
-            if ($ok) { set_setting($f['key'], (string)json_encode($rows, JSON_UNESCAPED_UNICODE)); }
-        } else {
-            $ok = admin_field_save($f, $value);
+            if (!is_array($rows)) return false;
+            set_setting($f['key'], (string)json_encode($rows, JSON_UNESCAPED_UNICODE));
+            return true;
         }
-        set_zone_context($prev);
-        return $ok;
+        return admin_field_save($f, $value);
     }
     if ($p[0] === 'set' && count($p) >= 2) {
         $key = substr($ref, 4);

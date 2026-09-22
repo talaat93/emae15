@@ -231,6 +231,12 @@ function setting(string $key, ?string $fallback = null): string
         $v = $cache[$key] ?? null;
         $out = ($v === null || $v === '') ? (string)($fallback ?? '') : $v;
     }
+    // Les variables de lieu se résolvent ici, donc dans tous les textes du site.
+    // Les valeurs des variables elles-mêmes en sont exclues : elles ne doivent
+    // pas s'auto-substituer.
+    if (function_exists('zone_vars_apply') && !str_starts_with($key, 'zvar_')) {
+        $out = zone_vars_apply($out);
+    }
     // En mode édition visuelle, le texte est balisé pour devenir cliquable.
     return function_exists('inline_edit_wrap') ? inline_edit_wrap($key, $out) : $out;
 }
@@ -389,8 +395,12 @@ function setting_bool(string $key, bool $fallback = false): bool
 
 function get_json_setting(string $key, array $fallback = []): array
 {
-    $d = json_decode(setting($key, ''), true);
-    return is_array($d) ? $d : $fallback;
+    // Lecture brute : un bloc JSON contient des accolades, il ne doit pas
+    // traverser la substitution de variables avant d'être décodé.
+    $d = json_decode(setting_plain($key), true);
+    $d = is_array($d) ? $d : $fallback;
+    // Les variables s'appliquent ensuite à chaque texte du bloc.
+    return function_exists('zone_vars_apply_deep') ? zone_vars_apply_deep($d) : $d;
 }
 
 function set_json_setting(string $key, array $value): void
@@ -1432,20 +1442,14 @@ function service_cards_v14(): array
    définies dans l'administration.
 ═══════════════════════════════════════════════════ */
 
+/**
+ * Conservée pour les gabarits qui l'appellent encore. Les variables sont
+ * désormais résolues par setting() pour l'ensemble du site ; cet appel
+ * reste sans effet sur un texte déjà traité.
+ */
 function geo_replace(string $text): string
 {
-    if (!str_contains($text, '{')) return $text;
-
-    $zone   = zone_ctx_name();
-    $region = setting('geo_default_region', company_regions());
-    $ville  = $zone !== '' ? $zone : setting('geo_default_ville', 'votre région');
-    $dept   = $zone !== '' ? $zone : setting('geo_default_dept', $region);
-
-    return str_replace(
-        ['{ville}', '{dept}', '{dept_code}', '{region}'],
-        [$ville, $dept, '', $zone !== '' ? $zone : $region],
-        $text
-    );
+    return function_exists('zone_vars_apply') ? zone_vars_apply($text) : $text;
 }
 
 /* ═══════════════════════════════════════════════════
