@@ -5,9 +5,85 @@ require_once __DIR__ . '/../includes/render.php';
 require_once __DIR__ . '/../includes/admin_fields.php';
 require_admin();
 
-$pageId = preg_replace('/[^a-z0-9_-]/', '', (string)($_GET['p'] ?? 'accueil'));
+/* ── Sommaire : une vignette par page du site ──
+   Le menu n'a plus qu'une entrée « Textes des pages ». Sans paramètre ?p=,
+   on affiche la grille des pages plutôt que d'ouvrir l'accueil d'office. */
+if (!isset($_GET['p'])) {
+    $adminSection = 'content_index';
+    require __DIR__ . '/partials/header.php';
+    ?>
+    <div class="admin-page-toolbar">
+      <div>
+        <div class="admin-breadcrumb">Le site</div>
+        <h1 class="admin-page-title">Textes des pages</h1>
+        <p class="admin-page-subtitle">Choisissez la page à modifier. Le crayon ouvre la page elle-même, où vous écrivez directement sur le texte.</p>
+      </div>
+    </div>
+    <div class="pcx-grid">
+      <?php foreach (admin_page_catalog() as $cpId => $cp):
+          $nb = count(admin_catalog_fields($cpId)); ?>
+        <div class="pcx-card">
+          <a class="pcx-card__main" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>">
+            <span class="pcx-ico"><?= e((string)$cp['icon']) ?></span>
+            <span class="pcx-name"><?= e((string)$cp['label']) ?></span>
+            <span class="pcx-meta"><?= (int)$nb ?> texte<?= $nb > 1 ? 's' : '' ?></span>
+          </a>
+          <div class="pcx-card__foot">
+            <a href="<?= e(admin_visual_url($cpId)) ?>">✏️ Modifier sur la page</a>
+            <a href="<?= e(route_url((string)($cp['route'] ?? ''))) ?>" target="_blank">Voir</a>
+          </div>
+        </div>
+      <?php endforeach; ?>
+    </div>
+
+    <details class="pcx-more">
+      <summary>Anciens écrans détaillés</summary>
+      <div class="pcx-more__body">
+        <p>Ces écrans font double emploi avec les vignettes ci-dessus. Ils restent accessibles
+           pour les réglages qu'ils sont seuls à proposer.</p>
+        <div class="pcx-more__links">
+          <a href="<?= e(url_for('admin/home_hero.php')) ?>">Accueil complet</a>
+          <a href="<?= e(url_for('admin/home_services.php')) ?>">Cartes services</a>
+          <a href="<?= e(url_for('admin/why_us.php')) ?>">Pourquoi nous choisir</a>
+          <a href="<?= e(url_for('admin/services_builder.php')) ?>">Constructeur de services</a>
+          <a href="<?= e(url_for('admin/services_hero_images.php')) ?>">Images hero des services</a>
+          <a href="<?= e(url_for('admin/service_electric_page.php')) ?>">Page Électricité</a>
+        </div>
+      </div>
+    </details>
+    <style>
+    .pcx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem;}
+    .pcx-more{margin-top:1.25rem;background:#fff;border:1px solid #dde5f3;border-radius:20px;}
+    .pcx-more > summary{cursor:pointer;padding:1rem 1.2rem;font-weight:800;color:#13254c;list-style:none;}
+    .pcx-more > summary::-webkit-details-marker{display:none;}
+    .pcx-more > summary::before{content:'›';display:inline-block;margin-right:.6rem;color:#8494b4;}
+    .pcx-more[open] > summary::before{transform:rotate(90deg);}
+    .pcx-more__body{padding:0 1.2rem 1.2rem;}
+    .pcx-more__body p{margin:0 0 .8rem;color:#7b8aa8;font-size:.88rem;}
+    .pcx-more__links{display:flex;flex-wrap:wrap;gap:.5rem;}
+    .pcx-more__links a{font-size:.84rem;font-weight:700;color:#2f66d2;text-decoration:none;
+      border:1px solid #dde5f3;border-radius:20px;padding:.35rem .85rem;}
+    .pcx-more__links a:hover{background:#f2f7ff;}
+    .pcx-card{background:#fff;border:1px solid #dde5f3;border-radius:20px;overflow:hidden;
+      box-shadow:0 12px 30px rgba(11,22,65,.05);display:flex;flex-direction:column;}
+    .pcx-card__main{display:grid;gap:.3rem;padding:1.4rem 1.2rem 1.1rem;text-decoration:none;color:#13254c;flex:1;}
+    .pcx-card__main:hover{background:#f7faff;}
+    .pcx-ico{font-size:1.7rem;line-height:1;}
+    .pcx-name{font-weight:800;font-size:1.02rem;margin-top:.35rem;}
+    .pcx-meta{color:#8494b4;font-size:.8rem;}
+    .pcx-card__foot{display:flex;justify-content:space-between;gap:.5rem;padding:.7rem 1.2rem;
+      border-top:1px solid #eef2f8;background:#fcfdff;}
+    .pcx-card__foot a{font-size:.8rem;font-weight:700;color:#2f66d2;text-decoration:none;}
+    .pcx-card__foot a:hover{text-decoration:underline;}
+    </style>
+    <?php
+    require __DIR__ . '/partials/footer.php';
+    exit;
+}
+
+$pageId = preg_replace('/[^a-z0-9_-]/', '', (string)$_GET['p']);
 $page   = admin_catalog_page($pageId);
-if (!$page) { flash('error', 'Page inconnue.'); redirect_to('admin/index.php'); }
+if (!$page) { flash('error', 'Page inconnue.'); redirect_to('admin/page_content.php'); }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -36,7 +112,7 @@ require_once __DIR__ . '/partials/header.php';
 ?>
 <div class="admin-page-toolbar">
   <div>
-    <div class="admin-breadcrumb">Contenu du site</div>
+    <div class="admin-breadcrumb"><a href="<?= e(url_for('admin/page_content.php')) ?>" style="color:inherit;">Textes des pages</a> ›</div>
     <h1 class="admin-page-title">
       <?= e($page['icon'].' '.$page['label']) ?>
       <span class="pc-portee<?= $inZone ? ' pc-portee--zone' : '' ?>"><?= $inZone ? '📍 '.e(zone_ctx_name()) : '🌐 Site global' ?></span>

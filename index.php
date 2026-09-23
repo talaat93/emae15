@@ -84,7 +84,6 @@ if ($route === '' || $route === 'home') {
     }
 
     render_head($meta);
-    $activeZones = all_active_zones();
     render_header($currentZone ? url_for($currentZone['slug'].'/') : route_url(''));
 ?>
 
@@ -368,7 +367,7 @@ if ($route === '' || $route === 'home') {
     <p class="section-lead">Nos techniciens interviennent sur toutes les villes de la zone <?= e($currentZone['name']) ?>. Délai moyen d'intervention inférieur à 2 heures pour les urgences.</p>
     <div class="zones-grid">
       <div class="zone-card">
-        <div class="zone-name">🗺️ <?= e($currentZone['name']) ?></div>
+        <div class="zone-name"><?= e($currentZone['name']) ?></div>
         <div class="zone-chips">
           <?php foreach (zone_cities($currentZone) as $_zc): ?><span class="zone-chip"><?= e($_zc) ?></span><?php endforeach; ?>
         </div>
@@ -378,13 +377,15 @@ if ($route === '' || $route === 'home') {
     <h2 class="section-title"><?= e(setting('zones_title','Nos zones d\'intervention')) ?> <em><?= e(setting('zones_title_hl','partout en France')) ?></em></h2>
     <p class="section-lead"><?= e(geo_replace(setting('zones_lead',company_regions().' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
     <div class="zones-grid">
-      <?php foreach ($activeZones as $_az): ?>
+      <?php /* Source unique : la table des zones. Voir includes/zones_core.php. */
+            foreach (intervention_zones() as $_az): ?>
       <div class="zone-card">
         <a href="<?= e(url_for($_az['slug'].'/')) ?>" style="text-decoration:none;color:inherit;">
-          <div class="zone-name">🗺️ <?= e($_az['name']) ?></div>
-          <?php $_azc = zone_cities($_az); if (!empty($_azc)): ?>
+          <div class="zone-name"><?= e($_az['name']) ?></div>
+          <?php if ($_az['intro'] !== ''): ?><p class="zone-text"><?= e($_az['intro']) ?></p><?php endif; ?>
+          <?php if (!empty($_az['cities'])): ?>
           <div class="zone-chips" style="margin-top:.5rem;">
-            <?php foreach (array_slice($_azc,0,6) as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
+            <?php foreach (array_slice($_az['cities'],0,6) as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
           </div>
           <?php endif; ?>
         </a>
@@ -440,32 +441,43 @@ if ($route === 'zones') {
 
 <section class="sec sec-navy" style="padding:4rem 0;">
   <div class="wrap">
-    <div class="svc-label">Nos régions</div>
-    <h2 class="section-title">Deux grandes <em>zones couvertes</em></h2>
+    <div class="svc-label"><?= e(setting('zp_regions_label','Nos régions')) ?></div>
+    <h2 class="section-title"><?= e(setting('zp_regions_title','Nos')) ?> <em><?= e(setting('zp_regions_title_hl','zones couvertes')) ?></em></h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;margin-top:2.5rem;">
       <?php foreach ($zones['regions'] as $reg): ?>
       <div style="background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:var(--r4);overflow:hidden;">
         <div style="background:linear-gradient(135deg,<?= e($reg['color']) ?>22,<?= e($reg['color']) ?>08);padding:2rem 2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.06);">
           <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;">
             <div>
-              <div style="font-family:var(--font-h);font-size:1.4rem;font-weight:700;color:#fff;"><?= e($reg['name']) ?></div>
-              <div style="font-size:.78rem;font-weight:700;color:<?= e($reg['color']) ?>;text-transform:uppercase;letter-spacing:.1em;margin-top:.15rem;">⏱ <?= e($reg['delay']) ?></div>
+              <div style="font-family:var(--font-h);font-size:1.4rem;font-weight:700;color:#fff;">
+                <?php if (!empty($reg['slug'])): ?><a href="<?= e(url_for($reg['slug'].'/')) ?>" style="color:inherit;text-decoration:none;"><?= e($reg['name']) ?></a><?php else: ?><?= e($reg['name']) ?><?php endif; ?>
+              </div>
+              <?php if (trim((string)$reg['delay']) !== ''): ?>
+              <div style="font-size:.78rem;font-weight:700;color:<?= e($reg['color']) ?>;text-transform:uppercase;letter-spacing:.1em;margin-top:.15rem;"><?= e($reg['delay']) ?></div>
+              <?php endif; ?>
             </div>
           </div>
+          <?php if (!empty($reg['intro'])): ?>
+          <p style="font-size:.9rem;color:var(--t2);margin:.35rem 0 0;line-height:1.5;"><?= e($reg['intro']) ?></p>
+          <?php endif; ?>
+          <?php if (!empty($reg['depts'])): ?>
           <div style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:1rem;">
             <?php foreach ($reg['depts'] as $d): ?>
             <span style="font-size:.72rem;background:rgba(255,255,255,.06);color:var(--t1);border:1px solid rgba(255,255,255,.1);padding:.22rem .65rem;border-radius:4px;"><?= e($d) ?></span>
             <?php endforeach; ?>
           </div>
+          <?php endif; ?>
         </div>
+        <?php if (!empty($reg['cities'])): ?>
         <div style="padding:1.25rem 2rem 1.75rem;">
           <div style="font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t2);margin-bottom:.75rem;">Principales villes</div>
           <div style="display:flex;flex-wrap:wrap;gap:.35rem;">
             <?php foreach ($reg['cities'] as $city): ?>
-            <span style="font-size:.8rem;color:var(--t1);background:rgba(255,255,255,.04);padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.07);">📍 <?= e($city) ?></span>
+            <span style="font-size:.8rem;color:var(--t1);background:rgba(255,255,255,.04);padding:.28rem .7rem;border-radius:20px;border:1px solid rgba(255,255,255,.07);"><?= e($city) ?></span>
             <?php endforeach; ?>
           </div>
         </div>
+        <?php endif; ?>
       </div>
       <?php endforeach; ?>
     </div>
@@ -892,8 +904,8 @@ if ($route === 'contact') {
     <div class="c-info-box">
       <div class="c-info-h"><?= e($cfg['zones_title']) ?></div>
       <div class="zone-tags-grid">
-        <?php $ztags = array_filter(array_map('trim', explode('|', setting('contact_zone_tags','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Toulouse|Montpellier|Nîmes|Occitanie'))));
-        foreach ($ztags as $z): ?><div class="zone-tag-sm"><?= e($z) ?></div><?php endforeach; ?>
+        <?php /* Reprend automatiquement les villes des zones actives. */
+        foreach (intervention_cities() as $z): ?><div class="zone-tag-sm"><?= e($z) ?></div><?php endforeach; ?>
       </div>
     </div>
   </div>
@@ -1038,17 +1050,14 @@ if ($tpl !== null || $page) {
   <div class="svc-label"><?= e(setting('svc_zones_label','Zone d\'intervention')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_zones_title','Zones couvertes')) ?></h2>
   <div class="zones-grid" style="margin-top:1.75rem;">
-    <?php $zc = get_json_setting('home_zone_cards', [
-      ['title'=>'🗺️ Île-de-France','text'=>setting('zone_idf_text','Paris et toute la région.'),'cities'=>setting('zone_idf_cities','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)')],
-      ['title'=>'🗺️ Occitanie','text'=>setting('zone_occ_text','Toulouse et toute la région.'),'cities'=>setting('zone_occ_cities','Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)')],
-    ]);
-    foreach ($zc as $z):
-      $cit = is_array($z['cities']??null) ? $z['cities'] : array_filter(array_map('trim', explode('|', (string)($z['cities']??''))));
-    ?>
+    <?php /* Même source que l'accueil et la page Nos zones : la table des zones. */
+          foreach (intervention_zones() as $z): ?>
     <div class="zone-card">
-      <div class="zone-name"><?= e($z['title']) ?></div>
-      <p class="zone-text"><?= e($z['text']) ?></p>
-      <div class="zone-chips"><?php foreach($cit as $c):?><span class="zone-chip"><?=e($c)?></span><?php endforeach;?></div>
+      <div class="zone-name"><?= e($z['name']) ?></div>
+      <?php if ($z['intro'] !== ''): ?><p class="zone-text"><?= e($z['intro']) ?></p><?php endif; ?>
+      <?php if (!empty($z['cities'])): ?>
+      <div class="zone-chips"><?php foreach(array_slice($z['cities'],0,8) as $c):?><span class="zone-chip"><?=e($c)?></span><?php endforeach;?></div>
+      <?php endif; ?>
     </div>
     <?php endforeach; ?>
   </div>

@@ -217,12 +217,23 @@ function admin_page_catalog(): array
                     'id'    => 'hero',
                     'label' => 'Haut de page',
                     'seen'  => 'Le bandeau de titre de la page Nos zones',
-                    'link'  => ['admin/zones.php', 'Modifier les régions et leurs villes'],
+                    'link'  => ['admin/zones.php', 'Modifier les zones, leurs villes et leurs départements'],
                     'fields' => [
                         ['key'=>'zp_eyebrow','json'=>['zones_page_settings','eyebrow'],'label'=>'Surtitre','type'=>'text','default'=>'Zones d\'intervention'],
                         ['key'=>'zp_title','json'=>['zones_page_settings','title'],'label'=>'Titre','type'=>'text','default'=>'Nous intervenons partout en'],
                         ['key'=>'zp_title_hl','json'=>['zones_page_settings','title_hl'],'label'=>'Fin du titre, en couleur','type'=>'text','default'=>'Île-de-France & Occitanie'],
                         ['key'=>'zp_lead','json'=>['zones_page_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.'],
+                    ],
+                ],
+                [
+                    'id'    => 'liste',
+                    'label' => 'Titre au-dessus de la liste des zones',
+                    'seen'  => 'Juste avant les cartes de zones',
+                    'link'  => ['admin/zones.php', 'Modifier les zones elles-mêmes'],
+                    'fields' => [
+                        ['key'=>'zp_regions_label','label'=>'Surtitre','type'=>'text','default'=>'Nos régions'],
+                        ['key'=>'zp_regions_title','label'=>'Titre','type'=>'text','default'=>'Nos'],
+                        ['key'=>'zp_regions_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'zones couvertes'],
                     ],
                 ],
                 [
@@ -315,7 +326,6 @@ function admin_page_catalog(): array
                     'seen'  => 'Le formulaire de la page Contact',
                     'fields' => [
                         ['key'=>'home_quote_city_placeholder','label'=>'Exemple dans le champ Ville','type'=>'text','default'=>'Meaux, Paris…'],
-                        ['key'=>'contact_zone_tags','label'=>'Villes listées sous le formulaire','type'=>'textarea','default'=>'Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)|Toulouse|Montpellier|Nîmes|Occitanie','help'=>'Séparez chaque ville par une barre verticale |'],
                     ],
                 ],
                 [
@@ -415,17 +425,6 @@ function admin_page_catalog(): array
                         ['key'=>'svc_form_label','label'=>'Formulaire — surtitre','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'svc_form_tag','label'=>'Formulaire — étiquette','type'=>'text','default'=>'Votre technicien'],
                         ['key'=>'svc_form_title','label'=>'Formulaire — titre','type'=>'text','default'=>'Devis gratuit'],
-                    ],
-                ],
-                [
-                    'id'    => 'zones_svc',
-                    'label' => 'Zones affichées sur ces pages',
-                    'seen'  => 'Les deux encarts de couverture géographique',
-                    'fields' => [
-                        ['key'=>'zone_idf_text','label'=>'Île-de-France — texte','type'=>'text','default'=>'Paris et toute la région.'],
-                        ['key'=>'zone_idf_cities','label'=>'Île-de-France — villes','type'=>'textarea','default'=>'Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','help'=>'Séparez chaque ville par une barre verticale |'],
-                        ['key'=>'zone_occ_text','label'=>'Occitanie — texte','type'=>'text','default'=>'Toulouse et toute la région.'],
-                        ['key'=>'zone_occ_cities','label'=>'Occitanie — villes','type'=>'textarea','default'=>'Toulouse (31)|Montpellier (34)|Nîmes (30)|Perpignan (66)|Béziers (34)|Narbonne (11)'],
                     ],
                 ],
             ],

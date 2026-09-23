@@ -44,7 +44,7 @@ try {
     }
 } catch (Throwable $e) {}
 
-$adminSection = 'zones_manager';
+$adminSection = 'zones';
 require_once __DIR__ . '/partials/header.php';
 ?>
 <div class="admin-page-toolbar">
@@ -54,7 +54,7 @@ require_once __DIR__ . '/partials/header.php';
     <p class="admin-page-subtitle">L'état réel du système, pour comprendre où partent vos modifications.</p>
   </div>
   <div class="admin-toolbar-actions">
-    <a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/zones_manager.php')) ?>">← Gérer les zones</a>
+    <a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/zones.php')) ?>">← Gérer les zones</a>
   </div>
 </div>
 

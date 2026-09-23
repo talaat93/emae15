@@ -11,7 +11,6 @@ $cards = service_cards_settings();
 $expertiseSettings = function_exists('home_expertise_settings') ? home_expertise_settings() : ['eyebrow' => 'Expertise', 'title' => 'Notre expertise multitechnique', 'lead' => '', 'cards' => []];
 $reviewsBlock = function_exists('home_reviews_block_settings') ? home_reviews_block_settings() : ['eyebrow' => 'Avis clients', 'title' => 'Des témoignages qui rassurent', 'lead' => ''];
 $quotePanelBlock = function_exists('home_quote_panel_settings') ? home_quote_panel_settings() : ['eyebrow' => 'Demande de devis', 'title' => 'Demande de devis', 'lead' => '', 'service_label' => 'Service', 'service_placeholder' => 'Choisir', 'message_label' => 'Votre besoin', 'urgency_label' => 'Urgence', 'button_label' => 'Envoyer ma demande'];
-$zoneSection = function_exists('home_zone_settings') ? home_zone_settings() : ['eyebrow' => 'Zone d’intervention', 'title' => 'Une zone d’intervention claire et rassurante', 'lead' => '', 'badges' => [], 'button_label' => 'Voir nos zones', 'button_url' => 'contact', 'cards' => []];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -29,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'home_expertise_eyebrow','home_expertise_title','home_expertise_lead',
         'home_reviews_eyebrow','home_reviews_title','home_reviews_lead',
         'home_quote_panel_eyebrow','home_quote_panel_title','home_quote_panel_lead','home_quote_panel_service_label','home_quote_panel_service_placeholder','home_quote_panel_message_label','home_quote_panel_urgency_label','home_quote_panel_button_label',
-        'home_zone_eyebrow','home_zone_title','home_zone_lead','home_zone_badge_1','home_zone_badge_2','home_zone_badge_3','home_zone_button_label','home_zone_button_url',
     ];
 
     foreach ($fields as $field) {
@@ -81,18 +79,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         set_json_setting('home_expertise_cards', $expertiseCards);
     }
 
-    $zoneCards = [];
-    foreach (($_POST['zone_cards'] ?? []) as $card) {
-        $title = trim((string) ($card['title'] ?? ''));
-        $text = trim((string) ($card['text'] ?? ''));
-        if ($title === '' && $text === '') {
-            continue;
-        }
-        $zoneCards[] = ['title' => $title, 'text' => $text];
-    }
-    if ($zoneCards) {
-        set_json_setting('home_zone_cards', $zoneCards);
-    }
+    // Les cartes de zone ne se saisissent plus ici : elles viennent de la
+    // table des zones, source unique du site (admin/zones.php).
 
     flash('success', 'Accueil enregistré avec succès.');
     redirect_to('admin/home_hero.php');
@@ -102,7 +90,6 @@ $cards = service_cards_settings();
 $expertiseSettings = function_exists('home_expertise_settings') ? home_expertise_settings() : $expertiseSettings;
 $reviewsBlock = function_exists('home_reviews_block_settings') ? home_reviews_block_settings() : $reviewsBlock;
 $quotePanelBlock = function_exists('home_quote_panel_settings') ? home_quote_panel_settings() : $quotePanelBlock;
-$zoneSection = function_exists('home_zone_settings') ? home_zone_settings() : $zoneSection;
 ?>
 <div class="admin-page-toolbar">
   <div>
@@ -387,35 +374,15 @@ $zoneSection = function_exists('home_zone_settings') ? home_zone_settings() : $z
     <section class="admin-panel">
       <div class="admin-panel__head">
         <h2>Bloc Zone d’intervention</h2>
-        <p>La section de fin de page avec badges, bouton et cartes.</p>
+        <p>Ce bloc se règle maintenant à un seul endroit.</p>
       </div>
       <div class="admin-panel__body">
-        <div class="admin-form-grid admin-form-grid--2">
-          <label class="admin-field"><span>Petit texte</span><input type="text" name="home_zone_eyebrow" value="<?= e($zoneSection['eyebrow'] ?? 'Zone d’intervention') ?>"></label>
-          <label class="admin-field"><span>Titre</span><input type="text" name="home_zone_title" value="<?= e($zoneSection['title'] ?? 'Une zone d’intervention claire et rassurante') ?>"></label>
-        </div>
-        <label class="admin-field"><span>Description</span><textarea name="home_zone_lead" rows="4"><?= e($zoneSection['lead'] ?? '') ?></textarea></label>
-
-        <div class="admin-form-grid admin-form-grid--3">
-          <label class="admin-field"><span>Badge 1</span><input type="text" name="home_zone_badge_1" value="<?= e(hero_admin_setting('home_zone_badge_1', 'Île-de-France')) ?>"></label>
-          <label class="admin-field"><span>Badge 2</span><input type="text" name="home_zone_badge_2" value="<?= e(hero_admin_setting('home_zone_badge_2', 'Occitanie')) ?>"></label>
-          <label class="admin-field"><span>Badge 3</span><input type="text" name="home_zone_badge_3" value="<?= e(hero_admin_setting('home_zone_badge_3', 'Intervention planifiée & urgence')) ?>"></label>
-        </div>
-
-        <div class="admin-form-grid admin-form-grid--2">
-          <label class="admin-field"><span>Texte bouton</span><input type="text" name="home_zone_button_label" value="<?= e($zoneSection['button_label'] ?? 'Voir nos zones') ?>"></label>
-          <label class="admin-field"><span>Lien bouton</span><input type="text" name="home_zone_button_url" value="<?= e($zoneSection['button_url'] ?? 'contact') ?>"></label>
-        </div>
-
-        <div class="admin-repeat-4">
-          <?php foreach ((array) ($zoneSection['cards'] ?? []) as $i => $card): ?>
-            <div class="repeat-card">
-              <h3>Carte zone <?= e((string) ($i + 1)) ?></h3>
-              <label class="admin-field"><span>Titre</span><input type="text" name="zone_cards[<?= e((string) $i) ?>][title]" value="<?= e($card['title'] ?? '') ?>"></label>
-              <label class="admin-field"><span>Texte</span><textarea name="zone_cards[<?= e((string) $i) ?>][text]" rows="4"><?= e($card['text'] ?? '') ?></textarea></label>
-            </div>
-          <?php endforeach; ?>
-        </div>
+        <p style="margin:0 0 1rem;color:#4b5b7d;line-height:1.6;">
+          Les zones affichées sur l’accueil, sur la page « Nos zones », en bas des pages
+          Service et sur la page Contact viennent toutes de la même liste. Vous la modifiez
+          une fois, elle change partout.
+        </p>
+        <a class="admin-btn admin-btn--primary" href="<?= e(url_for('admin/zones.php')) ?>">Ouvrir les zones d’intervention</a>
       </div>
     </section>
   </div>

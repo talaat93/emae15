@@ -47,7 +47,6 @@ function zone_content_packs(): array
                     'svc_plomberie_desc'     => 'Recherche de fuite, dépannage sanitaire et entretien de réseau à Paris et en Île-de-France.',
                     'svc_chauffage_desc'     => 'Dépannage de chaudière gaz, fioul ou électrique, pompe à chaleur et entretien annuel en Île-de-France.',
                     'svc_climatisation_desc' => 'Installation, dépannage et entretien de climatisation et de CVC à Paris et en Île-de-France.',
-                    'zone_idf_text'          => 'Paris et les huit départements franciliens.',
                     'svc_zones_title'        => 'Zones couvertes en Île-de-France',
                 ],
                 'Référencement des autres pages' => [
@@ -61,7 +60,6 @@ function zone_content_packs(): array
                     'reals_meta_description'=> 'Découvrez nos interventions récentes à Paris et en Île-de-France : électricité, plomberie, chauffage et climatisation.',
                     'reals_page_lead'       => 'Des interventions propres et documentées à Paris et dans toute l\'Île-de-France.',
                     'avis_meta_title'       => 'Avis clients en Île-de-France',
-                    'contact_zone_tags'     => 'Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)',
                 ],
             ],
         ],

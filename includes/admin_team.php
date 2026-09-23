@@ -9,63 +9,79 @@ declare(strict_types=1);
  * qu'aux écrans que le principal lui a cochés.
  */
 
-/** Écrans de l'administration, groupés comme dans le menu. */
+/**
+ * Écrans de l'administration, groupés comme dans le menu.
+ *
+ * Le menu ne montre que les écrans où l'on va réellement travailler. Les
+ * écrans spécialisés ou redondants restent accessibles, mais depuis la page
+ * qui les concerne : voir admin_hidden_screens().
+ */
 function admin_screens(): array
 {
     return [
         "Vue d'ensemble" => [
             'index.php'        => ['🏠 Tableau de bord', true],   // toujours accessible
         ],
-        'Identité' => [
+        'Le site' => [
+            'page_content.php' => ['📝 Textes des pages'],
+            'zones.php'        => ['🗺️ Zones d\'intervention'],
             'site_identity.php'=> ['🏢 Identité & coordonnées'],
             'appearance.php'   => ['🎨 Couleurs & polices'],
             'header_menu.php'  => ['🧭 Header & menu'],
-        ],
-        'Contenu du site' => [
-            'page_content.php' => ['📝 Textes des pages'],
             'search.php'       => ['🔎 Chercher et remplacer'],
         ],
-        'Anciens écrans' => [
-            'home_hero.php'    => ['⭐ Accueil complet'],
-            'home_services.php'=> ['🔧 Cartes services'],
-            'why_us.php'       => ['⭐ Pourquoi nous choisir'],
-        ],
         'Contenus' => [
-            'pages.php'        => ['📄 Pages'],
-            'realisations.php' => ['📷 Réalisations'],
             'reviews.php'      => ['⭐ Avis clients'],
-            'faq_contact.php'  => ['❓ FAQ & Contact'],
+            'realisations.php' => ['📷 Réalisations'],
+            'faq_contact.php'  => ['❓ Questions fréquentes'],
+            'pages.php'        => ['📄 Pages libres'],
             'gallery.php'      => ['🖼️ Galerie médias'],
         ],
-        'Pages spéciales' => [
-            'zones.php'                => ['🗺️ Zones d\'intervention'],
-            'services_hero_images.php' => ['🖼️ Images hero services'],
-        ],
-        'Multi-zones' => [
-            'zones_manager.php'=> ['🗺️ Zones géographiques'],
-            'zones_diag.php'   => ['🩺 Diagnostic des zones'],
-            'zone_vars.php'    => ['🏷️ Variables de lieu'],
-            'zone_convert.php' => ['✨ Convertir en variables'],
-        ],
-        'Leads & Interventions' => [
-            'quotes.php'       => ['📋 Demandes & Interventions'],
-        ],
-        'Équipe' => [
+        'Activité' => [
+            'quotes.php'       => ['📋 Demandes & interventions'],
             'technicians.php'  => ['👷 Techniciens'],
             'dispatchers.php'  => ['🗂️ Dispatchers'],
         ],
-        'Notifications' => [
-            'sms.php'          => ['📱 SMS — OVH'],
-        ],
-        'Marketing' => [
+        'Réglages' => [
             'seo.php'          => ['🔍 SEO & Google Ads'],
-            'design.php'       => ['🎨 Design & Couleurs'],
             'chatbot.php'      => ['🤖 Chatbot IA'],
-        ],
-        'Compte' => [
+            'sms.php'          => ['📱 Notifications SMS'],
             'profile.php'      => ['👤 Mon profil', true],        // toujours accessible
             'mail_test.php'    => ['📧 Test email'],
         ],
+    ];
+}
+
+/**
+ * Écrans retirés du menu mais toujours actifs.
+ *
+ * Chacun est rattaché à l'écran du menu qui le remplace ou qui y mène : c'est
+ * ce dernier qui décide des droits, pour qu'un compte secondaire ne perde ni
+ * ne gagne d'accès à cause du rangement.
+ *
+ * @return array<string,array{0:string,1:string}> fichier => [libellé, écran parent]
+ */
+function admin_hidden_screens(): array
+{
+    return [
+        // Zones : tout part désormais de zones.php
+        'zones_manager.php'        => ['Zones géographiques',        'zones.php'],
+        'zone_edit.php'            => ['Réglages d\'une zone',        'zones.php'],
+        'zones_diag.php'           => ['Diagnostic des zones',        'zones.php'],
+        'zone_vars.php'            => ['Variables de lieu',           'zones.php'],
+        'zone_convert.php'         => ['Convertir en variables',      'zones.php'],
+        'zone_content.php'         => ['Contenus prêts à l\'emploi',  'zones.php'],
+        // Anciens écrans de l'accueil et des services
+        'home_hero.php'            => ['Accueil complet',             'page_content.php'],
+        'home_services.php'        => ['Cartes services',             'page_content.php'],
+        'why_us.php'               => ['Pourquoi nous choisir',       'page_content.php'],
+        'services_builder.php'     => ['Constructeur de services',    'page_content.php'],
+        'service_electric_page.php'=> ['Page Électricité',            'page_content.php'],
+        'services_hero_images.php' => ['Images hero des services',    'page_content.php'],
+        'page_edit.php'            => ['Modifier une page',           'pages.php'],
+        'dossier.php'              => ['Dossier d\'intervention',      'quotes.php'],
+        // Doublon historique de « Couleurs & polices »
+        'design.php'               => ['Design & Couleurs',           'appearance.php'],
     ];
 }
 
@@ -93,12 +109,14 @@ function admin_screen_files(): array
     return $out;
 }
 
-/** Libellé lisible d'un écran. */
+/** Libellé lisible d'un écran, visible ou masqué. */
 function admin_screen_label(string $file): string
 {
     foreach (admin_screens() as $group) {
         if (isset($group[$file])) return $group[$file][0];
     }
+    $hidden = admin_hidden_screens();
+    if (isset($hidden[$file])) return $hidden[$file][0];
     return match ($file) {
         'admins.php'   => '👥 Comptes administrateurs',
         'activity.php' => '📜 Journal d\'activité',
@@ -128,6 +146,15 @@ function admin_can_access(string $file, ?array $admin = null): bool
     if (admin_is_super($admin)) return true;
     if (in_array($file, admin_super_only(), true)) return false;
     if (in_array($file, admin_always_allowed(), true)) return true;
+
+    // Un écran masqué suit les droits de l'écran du menu qui le remplace :
+    // le rangement du menu ne doit retirer aucun accès existant.
+    $hidden = admin_hidden_screens();
+    if (isset($hidden[$file])) {
+        $droits = admin_permissions($admin);
+        return in_array($hidden[$file][1], $droits, true) || in_array($file, $droits, true);
+    }
+
     return in_array($file, admin_permissions($admin), true);
 }
 

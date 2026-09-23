@@ -1151,8 +1151,15 @@ function zones_page_settings(): array
         ],
     ];
     $saved = get_json_setting('zones_page_settings', []);
+    unset($saved['regions']);                    // plus stockées ici : voir ci-dessous
     $out   = array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
-    return json_block_inline($out, 'zones_page_settings');
+    $out   = json_block_inline($out, 'zones_page_settings');
+    // Les régions viennent désormais de la table des zones, source unique du
+    // site : un même changement se voit sur l'accueil, la page Nos zones, le
+    // bas des pages Service et la page Contact.
+    $live = function_exists('intervention_regions') ? intervention_regions() : [];
+    $out['regions'] = $live ?: $default['regions'];   // repli si aucune zone active
+    return $out;
 }
 
 function all_published_reviews(): array

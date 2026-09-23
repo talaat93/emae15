@@ -11,6 +11,7 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/admin_team.php';
 require_once __DIR__ . '/zone_vars.php';
+require_once __DIR__ . '/zones_core.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -348,6 +349,32 @@ if (!file_exists($_mf16)) {
     unset($_me, $__ancien, $__nouveau, $__v, $__z, $__pre, $__vill, $__n, $__val);
 }
 unset($_mf16);
+// Auto-migration v15.17 — la table zones devient la source unique des zones
+// d'intervention. On lui ajoute les champs de présentation qui n'existaient
+// que dans les réglages, puis on y rapatrie les anciennes saisies.
+$_mf17 = __DIR__.'/../storage/.mig_v15_zones_unique';
+if (!file_exists($_mf17)) {
+    foreach ([
+        "ALTER TABLE zones ADD COLUMN depts TEXT NULL",
+        "ALTER TABLE zones ADD COLUMN `delay` VARCHAR(80) NULL",
+        "ALTER TABLE zones ADD COLUMN color VARCHAR(16) NULL",
+        "ALTER TABLE zones ADD COLUMN intro VARCHAR(255) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    try {
+        $__old = json_decode((string)(db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?',
+                    ['zones_page_settings'])['setting_value'] ?? ''), true);
+        $__crd = json_decode((string)(db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?',
+                    ['home_zone_cards'])['setting_value'] ?? ''), true);
+        zones_import_legacy(
+            is_array($__old['regions'] ?? null) ? $__old['regions'] : [],
+            is_array($__crd) ? $__crd : []
+        );
+        intervention_zones_flush();
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf17, date('c'));
+    unset($_me, $__sql, $__old, $__crd);
+}
+unset($_mf17);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

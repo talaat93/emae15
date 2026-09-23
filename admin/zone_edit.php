@@ -48,11 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         update_zone($id, $data);
         flash('success', 'Zone mise à jour.');
     }
-    redirect_to('admin/zones_manager.php');
+    redirect_to('admin/zones.php');
 }
 
 $faqRows = $zone ? zone_faq($zone) : [];
-$adminSection = 'zones_manager';
+$adminSection = 'zones';
 require_once __DIR__ . '/partials/header.php';
 ?>
 <div class="admin-page-header">
@@ -60,7 +60,7 @@ require_once __DIR__ . '/partials/header.php';
     <h1 class="admin-page-title"><?= $isNew ? 'Nouvelle zone' : 'Éditer : '.e($zone['name']) ?></h1>
     <p class="admin-page-sub"><?= $isNew ? 'Créer une nouvelle zone géographique.' : 'Modifier le contenu et les paramètres de cette zone.' ?></p>
   </div>
-  <a class="btn btn-outline" href="<?= e(url_for('admin/zones_manager.php')) ?>">← Retour</a>
+  <a class="btn btn-outline" href="<?= e(url_for('admin/zones.php')) ?>">← Retour</a>
 </div>
 
 <?php if (!$isNew): ?>
@@ -204,7 +204,7 @@ require_once __DIR__ . '/partials/header.php';
     <?php if (!$isNew && (bool)($zone['status']??0)): ?>
     <a class="btn btn-outline btn-lg" href="<?= e(url_for($zone['slug'].'/')) ?>" target="_blank">↗ Voir la page</a>
     <?php endif; ?>
-    <a class="btn btn-outline" href="<?= e(url_for('admin/zones_manager.php')) ?>" style="margin-left:auto;">Annuler</a>
+    <a class="btn btn-outline" href="<?= e(url_for('admin/zones.php')) ?>" style="margin-left:auto;">Annuler</a>
   </div>
 </form>
 

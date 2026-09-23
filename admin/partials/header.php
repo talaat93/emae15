@@ -47,16 +47,12 @@ function admin_zone_url(int $zoneId): string {
         if (!$visibles) continue; ?>
       <div class="admin-menu__group-label"><?= e($groupe) ?></div>
       <?php foreach ($visibles as $fichier): ?>
-        <?php if ($fichier === 'page_content.php'):
-                require_once __DIR__.'/../../includes/admin_fields.php';
-                foreach (admin_page_catalog() as $cpId => $cp): ?>
-          <span class="admin-menu__row">
-            <a class="<?= admin_is_active([],'content_'.$cpId) ?>" href="<?= e(url_for('admin/page_content.php?p='.$cpId)) ?>"><?= e($cp['icon'].' '.$cp['label']) ?></a>
-            <a class="admin-menu__pencil" href="<?= e(admin_visual_url($cpId)) ?>" title="Modifier directement sur la page">✏️</a>
-          </span>
-        <?php endforeach; else: ?>
-          <a class="<?= admin_is_active([$fichier]) ?>" href="<?= e(url_for('admin/'.$fichier)) ?>"><?= e(admin_screen_label($fichier)) ?></a>
-        <?php endif; ?>
+        <?php // « Textes des pages » regroupe les 10 pages du site : une seule
+              // ligne de menu, la grille des pages s'ouvre derrière.
+              $actif = $fichier === 'page_content.php'
+                     ? ($adminCurrent === 'page_content.php' ? 'is-active' : '')
+                     : admin_is_active([$fichier]); ?>
+        <a class="<?= $actif ?>" href="<?= e(url_for('admin/'.$fichier)) ?>"><?= e(admin_screen_label($fichier)) ?></a>
       <?php endforeach; ?>
     <?php endforeach; ?>
 
@@ -70,13 +66,6 @@ function admin_zone_url(int $zoneId): string {
       <a href="<?= e(url_for('dispatcher/index.php')) ?>" target="_blank">🚀 Espace Dispatcher</a>
     <?php endif; ?>
     <a href="<?= e(route_url('')) ?>" target="_blank">🌐 Voir le site</a>
-    <style>
-    .admin-menu__row{display:flex;align-items:stretch;gap:2px;}
-    .admin-menu__row > a:first-child{flex:1;min-width:0;}
-    .admin-menu__pencil{flex:0 0 auto;display:flex;align-items:center;justify-content:center;
-      width:38px;opacity:.45;text-decoration:none;border-radius:8px;}
-    .admin-menu__pencil:hover{opacity:1;background:rgba(255,255,255,.12);}
-    </style>
     <a href="<?= e(url_for('admin/logout.php')) ?>">🚪 Déconnexion</a>
   </nav>
 </aside>

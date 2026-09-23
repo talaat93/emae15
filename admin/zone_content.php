@@ -9,7 +9,7 @@ require_admin();
 $zone = zone_context();
 if (!$zone) {
     flash('error', 'Choisissez d\'abord une zone dans le bandeau en haut.');
-    redirect_to('admin/zones_manager.php');
+    redirect_to('admin/zones.php');
 }
 $slug = (string)$zone['slug'];
 $pack = zone_content_pack($slug);
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $pack) {
 $lignes = $pack ? zone_content_preview($slug) : [];
 $aFaire = array_filter($lignes, fn($l) => !$l['identique']);
 
-$adminSection = 'zones_manager';
+$adminSection = 'zones';
 require_once __DIR__ . '/partials/header.php';
 ?>
 <div class="admin-page-toolbar">
