@@ -309,7 +309,7 @@ if ($route === '' || $route === 'home') {
       <?php foreach ($revs as $rev):
         $init = mb_strtoupper(mb_substr($rev['author_name'],0,1,'UTF-8'),'UTF-8');
       ?>
-      <div class="review-card">
+      <a class="review-card" href="<?= e(route_url('avis')) ?>" aria-label="Lire tous les avis clients">
         <div class="rv-stars"><?= str_repeat('★',(int)$rev['rating']) ?></div>
         <p class="rv-text">"<?= e($rev['content']) ?>"</p>
         <div class="rv-author">
@@ -447,7 +447,6 @@ if ($route === 'zones') {
       <div style="background:var(--card);border:1px solid rgba(255,255,255,.08);border-radius:var(--r4);overflow:hidden;">
         <div style="background:linear-gradient(135deg,<?= e($reg['color']) ?>22,<?= e($reg['color']) ?>08);padding:2rem 2rem 1.5rem;border-bottom:1px solid rgba(255,255,255,.06);">
           <div style="display:flex;align-items:center;gap:1rem;margin-bottom:.75rem;">
-            <span style="font-size:2.2rem;"><?= e($reg['icon']) ?></span>
             <div>
               <div style="font-family:var(--font-h);font-size:1.4rem;font-weight:700;color:#fff;"><?= e($reg['name']) ?></div>
               <div style="font-size:.78rem;font-weight:700;color:<?= e($reg['color']) ?>;text-transform:uppercase;letter-spacing:.1em;margin-top:.15rem;">⏱ <?= e($reg['delay']) ?></div>
@@ -503,8 +502,8 @@ if ($route === 'avis') {
 <section class="page-hero">
   <div class="wrap">
     <div class="ph-eyebrow">// Avis clients</div>
-    <h1 class="ph-h1">Ce que disent <em>nos clients</em></h1>
-    <p class="ph-lead">Des centaines de clients satisfaits en Île-de-France et Occitanie. Voici leurs témoignages.</p>
+    <h1 class="ph-h1"><?= e(setting('avis_title','Ce que disent')) ?> <em><?= e(setting('avis_title_hl','nos clients')) ?></em></h1>
+    <p class="ph-lead"><?= e(setting('avis_lead','Des centaines de clients satisfaits. Voici leurs témoignages.')) ?></p>
     <div style="display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;">
       <div style="text-align:center;">
         <div style="font-family:var(--font-h);font-size:3rem;font-weight:700;color:var(--p);line-height:1;"><?= e($ratingVal) ?></div>
@@ -957,18 +956,16 @@ if ($route === 'realisations') {
 <?php render_footer(); exit; }
 
 /* ════ PAGES SERVICE ════ */
+// La page peut exister en base — on reprend alors son titre et son contenu —
+// ou ne pas exister : l'adresse du métier suffit désormais à afficher la page.
 $page = page_by_slug($route);
-if ($page) {
-    $ctx = mb_strtolower($route.' '.($page['slug']??'').' '.($page['title']??''),'UTF-8');
-    $sk = null;
-    if (str_contains($ctx,'electric')||str_contains($ctx,'electri')) $sk='electricite';
-    elseif (str_contains($ctx,'plomb')) $sk='plomberie';
-    elseif (str_contains($ctx,'chauff')||str_contains($ctx,'chaudiere')||str_contains($ctx,'pac')||str_contains($ctx,'pompe')) $sk='chauffage';
-    elseif (str_contains($ctx,'clim')||str_contains($ctx,'cvc')||str_contains($ctx,'ventil')) $sk='climatisation';
-
-    $tpl = $sk ? service_template($sk) : null;
-
+$sk   = service_detect_trade($route.' '.($page['slug'] ?? '').' '.($page['title'] ?? ''));
+$tpl  = $sk ? service_template($sk) : null;
+if ($tpl !== null || $page) {
     if ($tpl !== null) {
+        // Sans page en base, l'adresse du métier suffit à composer la page.
+        $page = $page ?: ['title' => $tpl['label'], 'slug' => $route, 'excerpt' => '',
+                          'content_html' => '', 'page_type' => 'Service'];
         $meta  = seo_defaults($route, $page);
         $cards = service_cards_v14();
         render_head($meta); render_header(route_url($route));

@@ -71,8 +71,9 @@ $cfg = zones_page_settings();
 </section>
 
 <!-- RÉGIONS -->
+<div id="reg-liste">
 <?php foreach (($cfg['regions'] ?? []) as $ri => $reg): ?>
-<section class="admin-panel">
+<section class="admin-panel reg-bloc">
   <div class="admin-panel__head">
     <h2>Région <?= e((string)($ri+1)) ?> — <?= e($reg['name'] ?? '') ?></h2>
     <p>Départements et villes affichés sur la page.</p>

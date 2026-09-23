@@ -2049,6 +2049,35 @@ function service_trade_defaults(): array
         'interv'=>[['❄️','Panne climatisation','Diagnostic et remise en service.'],['🌬️','Qualité air','Contrôle du soufflage et diffusion.'],['🧼','Entretien saisonnier','Nettoyage et réglages.'],['🏗️','Installation','Splits, multi-splits, gainables.'],['📈','Performances','Contrôle et optimisation.'],['💨','VMC','Ventilation mécanique.'],['🚨','Urgence','Prise en charge prioritaire.'],['📋','Rapport','Compte rendu systématique.']],
         'faq'=>[['Intervenez-vous sur tous types de climatiseurs ?',setting('faq_clim_1_a','Oui, splits, multi-splits, gainables et systèmes CVC.')],['Proposez-vous l\'installation de climatisation ?',setting('faq_clim_2_a','Oui, fourniture, pose et mise en service avec conseil adapté.')],['Quand faire l\'entretien de sa climatisation ?',setting('faq_clim_3_a','Idéalement avant chaque saison (printemps et automne) pour garantir les performances.')],['Intervenez-vous pour les entreprises ?',setting('faq_clim_4_a','Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.')]],
       ],
+      'vmc' => [
+        'label'=>'VMC & Ventilation','icon_svc'=>'🌬️',
+        'desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
+        'badges'=>['VMC simple flux','VMC double flux','Entretien annuel','Qualité de l\'air'],
+        'offer_title'=>'Ce que nous proposons en ventilation',
+        'offer_items'=>['Installation de VMC simple flux et double flux','Remplacement de moteur ou de caisson défaillant','Nettoyage et désinfection des bouches et gaines','Entretien annuel et contrôle des débits','Diagnostic humidité, condensation et moisissures','Mise en conformité de la ventilation d\'un logement','Ventilation de locaux professionnels et commerces','Conseil sur le choix du système adapté au bâti'],
+        'interv'=>[['🌬️','Panne de VMC','Diagnostic et remise en service.'],['🔧','Moteur & caisson','Remplacement des pièces défaillantes.'],['🧼','Nettoyage','Bouches, gaines et filtres.'],['💧','Humidité','Traitement des causes de condensation.'],['🏗️','Installation neuve','Simple ou double flux.'],['📊','Contrôle des débits','Mesure et réglage.'],['🏢','Locaux pros','Commerces, bureaux, restauration.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'faq'=>[['Faut-il entretenir sa VMC ?',setting('faq_vmc_1_a','Oui, un nettoyage annuel des bouches et un contrôle des débits garantissent son efficacité et la qualité de l\'air.')],['Simple ou double flux ?',setting('faq_vmc_2_a','Le double flux récupère la chaleur de l\'air extrait et convient aux logements bien isolés. Nous vous conseillons selon votre bâti.')],['Ma VMC est bruyante, est-ce grave ?',setting('faq_vmc_3_a','Souvent un encrassement ou un moteur en fin de vie. Un diagnostic permet de trancher rapidement.')],['Intervenez-vous en copropriété ?',setting('faq_vmc_4_a','Oui, sur les VMC individuelles comme sur les installations collectives.')]],
+      ],
+      'portail' => [
+        'label'=>'Portail & Visiophone','icon_svc'=>'🚪',
+        'desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
+        'badges'=>['Portail bloqué','Motorisation','Visiophone','Interphone'],
+        'offer_title'=>'Ce que nous proposons en contrôle d\'accès',
+        'offer_items'=>['Dépannage de portail et portail de garage bloqué','Motorisation de portail battant ou coulissant','Installation et remplacement de visiophone','Interphone individuel et collectif','Programmation de télécommandes et badges','Remplacement de platine de rue et de combiné','Dépannage de digicode et de gâche électrique','Entretien et réglage des automatismes']
+        ,
+        'interv'=>[['🚪','Portail bloqué','Déblocage et remise en service.'],['⚙️','Motorisation','Battant, coulissant, garage.'],['📹','Visiophone','Installation et remplacement.'],['🔔','Interphone','Individuel ou collectif.'],['🎛️','Télécommandes','Programmation et copies.'],['🔢','Digicode','Dépannage et changement de code.'],['🔌','Gâche électrique','Remplacement et câblage.'],['🛠️','Entretien','Réglage et graissage.']],
+        'faq'=>[['Mon portail ne s\'ouvre plus, que faire ?',setting('faq_portail_1_a','Coupez l\'alimentation et appelez-nous. La panne vient souvent de la motorisation, des photocellules ou de la carte électronique.')],['Peut-on motoriser un portail existant ?',setting('faq_portail_2_a','Oui dans la plupart des cas, après vérification de l\'état des piliers et du portail.')],['Installez-vous des visiophones connectés ?',setting('faq_portail_3_a','Oui, y compris les modèles avec renvoi d\'appel sur téléphone.')],['Intervenez-vous en copropriété ?',setting('faq_portail_4_a','Oui, sur les interphones et portails collectifs, en coordination avec le syndic.')]],
+      ],
+      'automatisme' => [
+        'label'=>'Automatismes & Électroménager','icon_svc'=>'🤖',
+        'desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
+        'badges'=>['Volet roulant','Store motorisé','Domotique','Électroménager'],
+        'offer_title'=>'Ce que nous proposons en automatismes',
+        'offer_items'=>['Dépannage et remplacement de volets roulants','Motorisation de volets et de stores existants','Installation de stores et brise-soleil motorisés','Programmation de commandes et de scénarios domotiques','Dépannage de lave-linge, lave-vaisselle et sèche-linge','Raccordement et mise en service d\'électroménager','Remplacement de moteurs, cartes et télécommandes','Conseil sur les équipements connectés']
+        ,
+        'interv'=>[['🪟','Volet bloqué','Déblocage et réparation.'],['⚙️','Motorisation','Volets, stores, pergolas.'],['📱','Domotique','Commandes et scénarios.'],['🔌','Raccordement','Mise en service d\'appareils.'],['🧺','Lave-linge','Diagnostic et réparation.'],['🍽️','Lave-vaisselle','Fuites, vidange, résistance.'],['🎛️','Télécommandes','Programmation et remplacement.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'faq'=>[['Réparez-vous les volets roulants électriques ?',setting('faq_auto_1_a','Oui : moteur, lame, tablier, coffre et commande. Le diagnostic précise ce qui doit être remplacé.')],['Peut-on motoriser des volets manuels ?',setting('faq_auto_2_a','Oui dans la plupart des cas, sans changer le tablier ni le coffre.')],['Intervenez-vous sur l\'électroménager ?',setting('faq_auto_3_a','Oui, sur le gros électroménager : lave-linge, lave-vaisselle, sèche-linge, four et plaques.')],['Faut-il remplacer ou réparer ?',setting('faq_auto_4_a','Nous annonçons le coût de la réparation avant d\'intervenir : vous décidez en connaissance de cause.')]],
+      ],
     ];
 }
 
@@ -2057,15 +2086,41 @@ function service_trade_defaults(): array
  * d'après le slug ou le titre de la page ; on applique la même règle ici
  * pour que les liens « voir la page » tombent juste.
  */
-function service_page_slug(string $trade): string
+function service_trade_patterns(): array
 {
-    $motifs = [
+    return [
         'electricite'   => ['electric','electri'],
         'plomberie'     => ['plomb'],
-        'chauffage'     => ['chauff','chaudiere','pac','pompe'],
-        'climatisation' => ['clim','cvc','ventil'],
+        'chauffage'     => ['chauff','chaudiere','pompe-a-chaleur'],
+        'climatisation' => ['clim','cvc'],
+        'vmc'           => ['vmc','ventilation','aeration'],
+        'portail'       => ['portail','visiophone','interphone','digicode','controle-acces'],
+        'automatisme'   => ['automatisme','volet','store','domotique','electromenager'],
     ];
-    $needles = $motifs[$trade] ?? [$trade];
+}
+
+/**
+ * Reconnaît le métier d'une adresse ou d'un titre de page.
+ * Les motifs les plus longs passent d'abord, sinon « clim » capterait
+ * « climatisation » avant que « ventilation » n'ait sa chance.
+ */
+function service_detect_trade(string $contexte): ?string
+{
+    $contexte = mb_strtolower($contexte, 'UTF-8');
+    $trouve = null; $longueur = 0;
+    foreach (service_trade_patterns() as $trade => $motifs) {
+        foreach ($motifs as $m) {
+            if (str_contains($contexte, $m) && mb_strlen($m) > $longueur) {
+                $trouve = $trade; $longueur = mb_strlen($m);
+            }
+        }
+    }
+    return $trouve;
+}
+
+function service_page_slug(string $trade): string
+{
+    $needles = service_trade_patterns()[$trade] ?? [$trade];
     try {
         foreach (db_fetch_all('SELECT slug, title FROM pages') as $p) {
             $ctx = mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');

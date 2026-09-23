@@ -113,8 +113,9 @@ button,input,select,textarea{font:inherit;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
 .site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:#030918;padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;-webkit-transform:translateZ(0);transform:translateZ(0);}
-.site-nav.open{display:grid;grid-template-columns:1fr 1fr;align-content:start;gap:.5rem;}
-.site-nav a{color:var(--t1);font-weight:600;font-size:1.08rem;padding:1.4rem 1rem;min-height:72px;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;text-align:center;transition:all .18s;line-height:1.25;}
+/* Une seule colonne : sur deux, les libellés longs se coupaient et devenaient illisibles. */
+.site-nav.open{display:grid;grid-template-columns:1fr;align-content:start;gap:.45rem;}
+.site-nav a{color:var(--t1);font-weight:600;font-size:1.08rem;padding:1rem 1.15rem;min-height:58px;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:flex-start;text-align:left;transition:all .18s;line-height:1.25;}
 .site-nav a:hover,.site-nav a.on{color:var(--p);border-color:rgba(240,123,29,.28);background:rgba(240,123,29,.07);}
 .site-nav .btn--cta{grid-column:1/-1;background:var(--p);color:#fff!important;border-color:var(--p);font-weight:700;min-height:50px;font-size:1rem;}
  
