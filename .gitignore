@@ -2,3 +2,7 @@ vendor/
 *.log
 .env
 config/config.local.php
+
+# Archives de livraison generees localement : ne jamais les versionner,
+# elles seraient publiees telles quelles dans public_html par le deploiement.
+*.zip
