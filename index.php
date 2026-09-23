@@ -321,7 +321,7 @@ if ($route === '' || $route === 'home') {
             <?php endif; ?>
           </div>
         </div>
-      </div>
+      </a>
       <?php endforeach; ?>
     </div>
   </div>

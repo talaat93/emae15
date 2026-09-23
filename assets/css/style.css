@@ -536,11 +536,15 @@ body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:
 .rs-info{font-size:.75rem;color:var(--t2);font-weight:300;}
 .reviews-grid{display:grid;gap:.85rem;}
 .review-card{
+  /* La carte est un lien vers la page Avis : il faut donc la bloquifier
+     et neutraliser la mise en forme par défaut des liens. */
+  display:block;text-decoration:none;color:inherit;
   background:var(--navy);border:1px solid var(--line);
   border-radius:var(--r3);padding:1.35rem;
   position:relative;overflow:hidden;
   transition:border-color .25s;
 }
+.review-card:focus-visible{outline:2px solid var(--p);outline-offset:3px;}
 .review-card:hover{border-color:rgba(240,123,29,.15);}
 .review-card::after{
   content:'\201C';position:absolute;top:-1rem;right:1.1rem;
