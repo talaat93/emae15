@@ -3,6 +3,17 @@ document.addEventListener('DOMContentLoaded', function () {
   var toggle = document.querySelector('.nav-toggle');
   var nav    = document.querySelector('.site-nav');
   if (toggle && nav) {
+    /* Hauteur exacte du panneau : de la base de l'en-tête (variable : il passe
+       sur deux lignes sur les petits écrans) jusqu'au-dessus de la barre CTA. */
+    var sizeNav = function () {
+      if (!nav.classList.contains('open')) { nav.style.maxHeight = ''; return; }
+      if (getComputedStyle(nav).position !== 'absolute') { nav.style.maxHeight = ''; return; }
+      var header = document.querySelector('.site-header');
+      var bar    = document.querySelector('.mob-bar');
+      var barH   = (bar && getComputedStyle(bar).display !== 'none') ? bar.offsetHeight : 0;
+      var top    = header ? header.getBoundingClientRect().bottom : 0;
+      nav.style.maxHeight = Math.max(160, window.innerHeight - top - barH) + 'px';
+    };
     toggle.addEventListener('click', function () {
       var open = toggle.getAttribute('aria-expanded') === 'true';
       toggle.setAttribute('aria-expanded', open ? 'false' : 'true');
@@ -10,13 +21,17 @@ document.addEventListener('DOMContentLoaded', function () {
       var isOpen = nav.classList.contains('open');
       document.body.style.overflow = isOpen ? 'hidden' : '';
       document.body.classList.toggle('nav-open', isOpen);
+      sizeNav();
     });
+    window.addEventListener('resize', sizeNav);
+    window.addEventListener('orientationchange', sizeNav);
     nav.querySelectorAll('a').forEach(function(a){
       a.addEventListener('click', function(){
         nav.classList.remove('open');
         document.body.classList.remove('nav-open');
         toggle.setAttribute('aria-expanded','false');
         document.body.style.overflow='';
+        nav.style.maxHeight='';
       });
     });
   }

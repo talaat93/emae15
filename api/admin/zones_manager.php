@@ -84,7 +84,7 @@ require_once __DIR__ . '/partials/header.php';
         <td style="font-size:.8rem;color:var(--t2);"><?php
           $zcities = zone_cities($z);
           echo e(implode(', ', array_slice($zcities, 0, 4)));
-          if (count($zcities) > 4) echo ' <em>+'.count($zcities)-4.' autres</em>';
+          if (count($zcities) > 4) echo ' <em>+'.(count($zcities) - 4).' autres</em>';
         ?></td>
         <td style="text-align:center;">
           <form method="post" style="display:inline;">

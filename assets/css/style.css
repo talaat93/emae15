@@ -112,7 +112,18 @@ button,input,select,textarea{font:inherit;}
 .nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
 .nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
  
-.site-nav{display:none;flex-direction:column;position:fixed;top:70px;left:0;right:0;bottom:68px;background:#030918;padding:1rem 1rem 1.25rem;overflow-y:auto;z-index:9500;-webkit-transform:translateZ(0);transform:translateZ(0);}
+/* Le panneau est un enfant de .site-header, qui porte un backdrop-filter :
+   celui-ci fait du header le bloc conteneur des enfants en position:fixed.
+   Le panneau était donc calé sur la hauteur du header (~70px) et s'ouvrait
+   en mince bandeau. On l'ancre explicitement sous le header (top:100%),
+   ce qui suit aussi sa hauteur variable selon la largeur d'écran. */
+.site-nav{display:none;flex-direction:column;position:absolute;top:100%;left:0;right:0;
+  max-height:calc(100vh - 150px);max-height:calc(100dvh - 150px);
+  background:#030918;padding:1rem 1rem 1.25rem;overflow-y:auto;-webkit-overflow-scrolling:touch;
+  z-index:9500;border-bottom:1px solid var(--line);box-shadow:0 24px 48px rgba(0,0,0,.55);}
+/* Menu ouvert : on retire le flou du header (inutile, coûteux, et c'est lui
+   qui piégeait le panneau) et on passe le header au-dessus de la barre CTA. */
+body.nav-open .site-header{-webkit-backdrop-filter:none!important;backdrop-filter:none!important;background:rgba(6,16,41,.99);z-index:9600;}
 /* Une seule colonne : sur deux, les libellés longs se coupaient et devenaient illisibles. */
 .site-nav.open{display:grid;grid-template-columns:1fr;align-content:start;gap:.45rem;}
 .site-nav a{color:var(--t1);font-weight:600;font-size:1.08rem;padding:1rem 1.15rem;min-height:58px;border-radius:var(--r2);border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:flex-start;text-align:left;transition:all .18s;line-height:1.25;}
@@ -798,7 +809,8 @@ body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:
 @media(min-width:1024px){
   .wrap{padding:0 2.5rem;}
   .nav-toggle{display:none;}
-  .site-nav{display:flex!important;flex-direction:row;position:static;background:transparent;padding:0;overflow:visible;gap:.2rem;align-items:center;bottom:auto;}
+  .site-nav{display:flex!important;flex-direction:row;position:static;background:transparent;padding:0;overflow:visible;gap:.2rem;align-items:center;bottom:auto;
+    max-height:none;box-shadow:none;border-bottom:none;}
   .site-nav a{font-size:.88rem;padding:.48rem .72rem;border-bottom:none;font-weight:500;}
   .site-nav a.on{color:var(--p);}
   .site-nav .btn-sm{margin-top:0;width:auto;}
