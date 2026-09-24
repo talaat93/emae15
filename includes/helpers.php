@@ -1529,7 +1529,9 @@ function all_dispatchers(): array
 ═══════════════════════════════════════════════════ */
 function all_clients_list(int $limit = 200, int $offset = 0): array
 {
-    try { return db_fetch_all("SELECT * FROM clients ORDER BY lastname, firstname LIMIT ? OFFSET ?", [$limit, $offset]); }
+    // Entiers insérés directement : liés en paramètre, MySQL les recevrait comme du texte et refuserait la requête.
+    $limit = max(1, $limit); $offset = max(0, $offset);
+    try { return db_fetch_all("SELECT * FROM clients ORDER BY lastname, firstname LIMIT {$limit} OFFSET {$offset}"); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1600,33 +1602,34 @@ function intervention_status_config(): array
 function intervention_category_config(): array
 {
     return [
-        'electricite'    => ['label' => 'Électricité',   'icon' => '⚡', 'color' => '#fbbf24'],
-        'plomberie'      => ['label' => 'Plomberie',     'icon' => '💧', 'color' => '#60a5fa'],
-        'chauffage'      => ['label' => 'Chauffage',     'icon' => '🔥', 'color' => '#f87171'],
-        'climatisation'  => ['label' => 'Climatisation', 'icon' => '❄️', 'color' => '#34d399'],
-        'multitechnique' => ['label' => 'Multitechnique','icon' => '🔧', 'color' => '#a78bfa'],
-        'ascenseur'      => ['label' => 'Ascenseur',     'icon' => '🛗', 'color' => '#fb923c'],
-        'maintenance'    => ['label' => 'Maintenance',   'icon' => '🔩', 'color' => '#94a3b8'],
-        'depannage'      => ['label' => 'Dépannage',     'icon' => '🛠️', 'color' => '#f472b6'],
-        'renovation'     => ['label' => 'Rénovation',    'icon' => '🏗️', 'color' => '#6ee7b7'],
+        'electricite'    => ['label' => 'Électricité',   'icon' => '', 'color' => '#fbbf24'],
+        'plomberie'      => ['label' => 'Plomberie',     'icon' => '', 'color' => '#60a5fa'],
+        'chauffage'      => ['label' => 'Chauffage',     'icon' => '', 'color' => '#f87171'],
+        'climatisation'  => ['label' => 'Climatisation', 'icon' => '', 'color' => '#34d399'],
+        'multitechnique' => ['label' => 'Multitechnique','icon' => '', 'color' => '#a78bfa'],
+        'ascenseur'      => ['label' => 'Ascenseur',     'icon' => '', 'color' => '#fb923c'],
+        'maintenance'    => ['label' => 'Maintenance',   'icon' => '', 'color' => '#94a3b8'],
+        'depannage'      => ['label' => 'Dépannage',     'icon' => '', 'color' => '#f472b6'],
+        'renovation'     => ['label' => 'Rénovation',    'icon' => '', 'color' => '#6ee7b7'],
     ];
 }
 
 function intervention_status_badge(string $status): string
 {
     $cfg = intervention_status_config();
-    $c = $cfg[$status] ?? ['label' => $status, 'color' => '#8fa0c4', 'bg' => 'rgba(143,160,196,.15)'];
-    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .7rem;border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.04em;color:'.$c['color'].';background:'.$c['bg'].';border:1px solid '.$c['color'].'55;">'
-        . '<span style="width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;"></span>'
+    $c = $cfg[$status] ?? ['label' => $status, 'color' => '#8c99ad', 'bg' => 'rgba(140,153,173,.15)'];
+    return '<span style="display:inline-flex;align-items:center;gap:.35rem;padding:.15rem .6rem;border-radius:99px;font-size:.74rem;font-weight:600;white-space:nowrap;color:#17223b;background:'.$c['color'].'1f;">'
+        . '<span style="width:7px;height:7px;border-radius:50%;background:'.$c['color'].';flex-shrink:0;"></span>'
         . e($c['label']) . '</span>';
 }
 
 function intervention_category_badge(string $cat): string
 {
     $cfg = intervention_category_config();
-    $c = $cfg[$cat] ?? ['label' => $cat, 'icon' => '🔧', 'color' => '#8fa0c4'];
-    return '<span style="display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:8px;font-size:.72rem;font-weight:700;color:'.$c['color'].';background:'.$c['color'].'22;border:1px solid '.$c['color'].'44;">'
-        . $c['icon'] . ' ' . e($c['label']) . '</span>';
+    $c = $cfg[$cat] ?? ['label' => $cat, 'icon' => '', 'color' => '#8c99ad'];
+    return '<span style="display:inline-flex;align-items:center;gap:.35rem;font-size:.8rem;font-weight:500;color:#5a6a82;white-space:nowrap;">'
+        . '<span style="width:8px;height:8px;border-radius:2px;background:'.$c['color'].';flex-shrink:0;"></span>'
+        . e($c['label']) . '</span>';
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1721,6 +1724,8 @@ function update_intervention(int $id, array $data): void
                 'materials_needed','notes_admin','quote_accepted','amount_ht','amount_ttc','deposit','remaining',
                 'payment_method','status','tech_report','tech_photos','tech_materials_used','tech_time_spent',
                 'tech_signature','tech_client_name','tech_started_at','tech_arrived_at','tech_completed_at',
+                'tech_fault_label','tech_realizable','tech_bad_use','tech_device_number','tech_elevator_restored',
+                'tech_ticket_time','tech_close_time','tech_notes_extra',
                 'latitude','longitude'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {
@@ -1729,6 +1734,38 @@ function update_intervention(int $id, array $data): void
     if (empty($sets)) return;
     $params[] = $id;
     db_execute("UPDATE interventions SET " . implode(', ', $sets) . " WHERE id = ?", $params);
+}
+
+/** Liste de matériel lisible : accepte du texte libre ou la liste JSON du formulaire. */
+function materials_text(?string $raw): string
+{
+    $raw = trim((string)$raw);
+    $list = json_decode($raw, true);
+    if (!is_array($list)) return $raw;
+    $out = [];
+    foreach ($list as $m) {
+        if (is_array($m)) {
+            $name = trim((string)($m['name'] ?? $m['label'] ?? ''));
+            $qty  = trim((string)($m['qty'] ?? '').' '.(string)($m['unit'] ?? ''));
+            if ($name !== '') $out[] = $name.($qty !== '' ? ' ('.$qty.')' : '');
+        } elseif (is_scalar($m) && trim((string)$m) !== '') {
+            $out[] = trim((string)$m);
+        }
+    }
+    return implode("\n", $out);
+}
+
+/** Chemins des photos d'une intervention, quel que soit leur format d'enregistrement
+ *  (ancienne liste de chemins ou nouvelle liste {type, path}). */
+function intervention_photo_paths(array $iv): array
+{
+    $raw = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
+    $out = [];
+    foreach (is_array($raw) ? $raw : [] as $ph) {
+        $path = is_array($ph) ? (string)($ph['path'] ?? '') : (string)$ph;
+        if ($path !== '') $out[] = $path;
+    }
+    return $out;
 }
 
 function log_intervention_history(int $id, ?string $from, string $to, string $actor_type, int $actor_id, string $actor_name, string $note = ''): void

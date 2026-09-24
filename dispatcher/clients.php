@@ -40,7 +40,7 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
     <span></span><span></span><span></span>
   </button>
   <div class="d-topbar-title">
-    <span class="d-topbar-ico">👥</span> Clients
+    <span class="d-topbar-ico"></span> Clients
   </div>
   <div class="d-topbar-actions">
     <button onclick="toggleForm()" class="d-btn d-btn-primary d-btn-sm" id="btn-new">
@@ -56,7 +56,7 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
     <div class="d-card">
       <div class="d-card-header">
         <span class="d-card-title">Nouveau client</span>
-        <button onclick="toggleForm()" style="background:none;border:none;color:#8fa0c4;cursor:pointer;font-size:1.2rem;">✕</button>
+        <button onclick="toggleForm()" style="background:none;border:none;color:var(--d-t2);cursor:pointer;font-size:1.2rem;" aria-label="Fermer">×</button>
       </div>
       <div class="d-card-body">
         <form method="post" id="form-client">
@@ -111,7 +111,7 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
           </div>
 
           <div style="display:flex;gap:.75rem;margin-top:1.25rem;">
-            <button type="submit" class="d-btn d-btn-primary">✓ Créer le client</button>
+            <button type="submit" class="d-btn d-btn-primary">Créer le client</button>
             <button type="button" onclick="toggleForm()" class="d-btn d-btn-outline">Annuler</button>
           </div>
         </form>
@@ -125,13 +125,13 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
       <form method="get" style="display:flex;gap:.75rem;align-items:center;">
         <input type="text" name="q" value="<?= e($q) ?>" class="d-input" style="flex:1;max-width:420px;"
                placeholder="Rechercher par nom, prénom, téléphone, ville…">
-        <button type="submit" class="d-btn d-btn-primary d-btn-sm">🔍 Rechercher</button>
+        <button type="submit" class="d-btn d-btn-primary d-btn-sm">Rechercher</button>
         <?php if ($q !== ''): ?>
-        <a href="<?= e(url_for('dispatcher/clients.php')) ?>" class="d-btn d-btn-outline d-btn-sm">✕ Effacer</a>
+        <a href="<?= e(url_for('dispatcher/clients.php')) ?>" class="d-btn d-btn-outline d-btn-sm">Effacer</a>
         <?php endif; ?>
       </form>
       <?php if ($q !== ''): ?>
-      <div style="margin-top:.5rem;font-size:.8rem;color:#8fa0c4;"><?= count($clients) ?> résultat<?= count($clients) > 1 ? 's' : '' ?> pour « <?= e($q) ?> »</div>
+      <div style="margin-top:.5rem;font-size:.8rem;color:var(--d-t2);"><?= count($clients) ?> résultat<?= count($clients) > 1 ? 's' : '' ?> pour « <?= e($q) ?> »</div>
       <?php endif; ?>
     </div>
   </div>
@@ -156,8 +156,8 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
         <tbody>
           <?php if (empty($clients)): ?>
           <tr>
-            <td colspan="6" style="text-align:center;padding:3rem 0;color:#8fa0c4;">
-              <div style="font-size:2rem;margin-bottom:.5rem;">👥</div>
+            <td colspan="6" style="text-align:center;padding:3rem 0;color:var(--d-t2);">
+              <div style="font-size:2rem;margin-bottom:.5rem;"></div>
               <?= $q !== '' ? 'Aucun client trouvé pour cette recherche.' : 'Aucun client enregistré.' ?>
               <?php if ($q === ''): ?><br><button onclick="toggleForm()" class="d-btn d-btn-primary d-btn-sm" style="margin-top:.75rem;">+ Créer le premier client</button><?php endif; ?>
             </td>
@@ -177,9 +177,9 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
               <div style="display:flex;align-items:center;gap:.65rem;">
                 <div style="width:34px;height:34px;border-radius:50%;background:rgba(238,125,26,.2);color:#ee7d1a;display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;flex-shrink:0;"><?= e($initials) ?></div>
                 <div>
-                  <div style="font-weight:700;color:#e8ecf5;font-size:.88rem;"><?= e($fullName) ?></div>
+                  <div style="font-weight:700;color:var(--d-t1);font-size:.88rem;"><?= e($fullName) ?></div>
                   <?php if (!empty($client['email'])): ?>
-                  <div style="font-size:.72rem;color:#8fa0c4;"><?= e($client['email']) ?></div>
+                  <div style="font-size:.72rem;color:var(--d-t2);"><?= e($client['email']) ?></div>
                   <?php endif; ?>
                 </div>
               </div>
@@ -189,15 +189,15 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
                 <?= e($client['phone']) ?>
               </a>
             </td>
-            <td style="color:#8fa0c4;font-size:.85rem;"><?= $city !== '' ? e($city) : '—' ?></td>
+            <td style="color:var(--d-t2);font-size:.85rem;"><?= $city !== '' ? e($city) : '—' ?></td>
             <td style="text-align:center;">
               <?php if ($intCount > 0): ?>
                 <span style="display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:rgba(59,130,246,.15);color:#60a5fa;font-size:.78rem;font-weight:700;"><?= $intCount ?></span>
               <?php else: ?>
-                <span style="color:#8fa0c4;font-size:.8rem;">—</span>
+                <span style="color:var(--d-t2);font-size:.8rem;">—</span>
               <?php endif; ?>
             </td>
-            <td style="color:#8fa0c4;font-size:.82rem;"><?= e($createdAt) ?></td>
+            <td style="color:var(--d-t2);font-size:.82rem;"><?= e($createdAt) ?></td>
             <td style="text-align:right;">
               <div style="display:flex;gap:.4rem;justify-content:flex-end;">
                 <a href="<?= e(url_for('dispatcher/client_view.php?id='.(int)$client['id'])) ?>" class="d-btn d-btn-outline d-btn-xs">

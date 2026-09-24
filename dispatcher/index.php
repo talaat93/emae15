@@ -1,279 +1,268 @@
 <?php
 declare(strict_types=1);
-$pageTitle  = 'Dashboard';
+$pageTitle   = "Aujourd'hui";
 $dispSection = 'dashboard';
 require __DIR__.'/partials/header.php';
 
-// ─── Data ───────────────────────────────────────────────────
-$kpis        = dispatcher_kpis();
-$todayIvs    = all_interventions(['date' => date('Y-m-d')]);
-$urgentIvs   = all_interventions(['urgency' => true]);
-// Limit urgent list to 5 for the panel
-$urgentPanel = array_slice($urgentIvs, 0, 5);
+// ─── Données ────────────────────────────────────────────────
+$today    = date('Y-m-d');
+$kpis     = dispatcher_kpis();
+$todayIvs = all_interventions(['date' => $today]);
+$statusCfg = intervention_status_config();
 
-// Helper: format a scheduled time
-function fmt_time(?string $t): string {
-    if ($t === null || $t === '') return '—';
-    return substr($t, 0, 5);
+$closed = ['terminé', 'annulé', 'payé', 'facturé', 'devis_envoyé'];
+
+// À planifier : tout ce qui n'a pas encore de technicien ou de date.
+$toPlan = array_values(array_filter(all_interventions(), static function (array $iv) use ($closed): bool {
+    if (in_array($iv['status'] ?? '', $closed, true)) return false;
+    return empty($iv['technician_id']) || empty($iv['scheduled_date']) || in_array($iv['status'] ?? '', ['nouveau', 'confirmé'], true);
+}));
+
+try {
+    $techs = db_fetch_all("SELECT id, name FROM technicians WHERE status = 'actif' ORDER BY name");
+} catch (Throwable $e) { $techs = []; }
+
+// Interventions du jour rangées par technicien (0 = non assigné).
+$byTech = [];
+foreach ($todayIvs as $iv) {
+    if (($iv['status'] ?? '') === 'annulé') continue;
+    $byTech[(int)($iv['technician_id'] ?? 0)][] = $iv;
 }
-// Helper: client full name
+
+$inProgress = count(array_filter($todayIvs, static fn($i) => in_array($i['status'] ?? '', ['en_route', 'sur_place'], true)));
+
+// ─── Aide à l'affichage ─────────────────────────────────────
+function fr_long_date(string $ymd): string {
+    $j = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    $m = ['','janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    $t = strtotime($ymd);
+    return ucfirst($j[(int)date('w', $t)]).' '.(int)date('j', $t).' '.$m[(int)date('n', $t)].' '.date('Y', $t);
+}
 function client_name(array $iv): string {
     $n = trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? ''));
-    return $n !== '' ? $n : '(inconnu)';
+    return $n !== '' ? $n : 'Client inconnu';
+}
+function minutes_of(?string $t): ?int {
+    if ($t === null || $t === '') return null;
+    return (int)substr($t, 0, 2) * 60 + (int)substr($t, 3, 2);
 }
 
-$viewBase = url_for('dispatcher/intervention_view.php');
+// Plage horaire du planning : 7h–19h, élargie si une intervention en sort.
+$dayStart = 7 * 60; $dayEnd = 19 * 60;
+foreach ($todayIvs as $iv) {
+    $s = minutes_of($iv['scheduled_time'] ?? null);
+    if ($s === null) continue;
+    $dayStart = min($dayStart, intdiv($s, 60) * 60);
+    $dayEnd   = max($dayEnd, (int)ceil(($s + max(30, (int)($iv['duration_estimate'] ?? 60))) / 60) * 60);
+}
+$span = max(60, $dayEnd - $dayStart);
+$nowMin = (int)date('G') * 60 + (int)date('i');
+
+$viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view.php?id='.(int)$iv['id']);
 ?>
-<!-- ─── TOPBAR ─── -->
+<style>
+.dash-kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1.25rem; }
+.dash-alert { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+.dash-alert a { display:inline-flex; align-items:center; gap:.4rem; padding:.45rem .8rem; border-radius:8px; font-size:.84rem; font-weight:600; text-decoration:none; }
+.dash-alert .is-red { background:#fef2f2; color:#b91c1c; border:1px solid #f5c2c2; }
+.dash-alert .is-amber { background:#fffbeb; color:#92400e; border:1px solid #f6dfa4; }
+.dash-grid { display:grid; grid-template-columns:minmax(0,1fr); gap:1.25rem; }
+
+/* Planning du jour */
+.plan { overflow-x:auto; }
+.plan-inner { min-width:720px; }
+.plan-head, .plan-row { display:grid; grid-template-columns:170px 1fr; }
+.plan-head { border-bottom:1px solid var(--d-border); background:var(--d-card-2); }
+.plan-hours { position:relative; height:30px; }
+.plan-hours span { position:absolute; top:7px; font-size:.72rem; color:var(--d-t3); transform:translateX(-50%); }
+.plan-row { border-bottom:1px solid var(--d-border); min-height:58px; }
+.plan-row:last-child { border-bottom:none; }
+.plan-who { padding:.65rem 1rem; display:flex; align-items:center; gap:.6rem; border-right:1px solid var(--d-border); }
+.plan-who .av { width:28px; height:28px; border-radius:50%; background:#e8edf5; color:var(--d-navy); font-size:.75rem; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.plan-who .nm { font-size:.85rem; font-weight:600; color:var(--d-t1); line-height:1.2; }
+.plan-who .ct { font-size:.74rem; color:var(--d-t3); }
+.plan-lane { position:relative; background-image:linear-gradient(to right, var(--d-border) 1px, transparent 1px); background-size:var(--hour) 100%; }
+.plan-now { position:absolute; top:0; bottom:0; width:2px; background:var(--d-orange); z-index:2; }
+.plan-job { position:absolute; top:8px; bottom:8px; border-radius:6px; padding:.25rem .5rem; overflow:hidden; text-decoration:none; background:#fff; border:1px solid var(--d-border-2); border-left-width:4px; z-index:1; min-width:36px; }
+.plan-job:hover { box-shadow:0 2px 8px rgba(16,24,40,.12); z-index:3; }
+.plan-job .t { font-size:.7rem; color:var(--d-t2); white-space:nowrap; }
+.plan-job .c { font-size:.78rem; font-weight:600; color:var(--d-t1); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.plan-job.is-urgent { background:#fef2f2; border-color:#f5c2c2; }
+.plan-untimed { padding:.5rem 1rem .75rem; display:flex; gap:.4rem; flex-wrap:wrap; border-top:1px dashed var(--d-border); }
+.plan-untimed a { font-size:.78rem; text-decoration:none; color:var(--d-t1); background:var(--d-card-2); border:1px solid var(--d-border); border-radius:6px; padding:.2rem .5rem; }
+.plan-legend { display:flex; gap:1rem; flex-wrap:wrap; font-size:.76rem; color:var(--d-t2); }
+.plan-legend i { display:inline-block; width:9px; height:9px; border-radius:2px; margin-right:.3rem; vertical-align:-1px; }
+
+/* À planifier */
+.todo-list { display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); }
+.todo-item { display:block; padding:.75rem 1.1rem; border-bottom:1px solid var(--d-border); border-right:1px solid var(--d-border); text-decoration:none; color:inherit; }
+.todo-item:hover { background:var(--d-card-2); }
+.todo-top { display:flex; justify-content:space-between; gap:.5rem; align-items:center; }
+.todo-name { font-size:.88rem; font-weight:600; color:var(--d-t1); }
+.todo-meta { font-size:.78rem; color:var(--d-t2); margin-top:.2rem; display:flex; gap:.6rem; flex-wrap:wrap; }
+.todo-miss { color:var(--d-warning); }
+.tag-urgent { font-size:.7rem; font-weight:700; color:#b91c1c; background:#fef2f2; border-radius:4px; padding:.05rem .4rem; }
+
+@media (max-width:768px) { .d-topbar { flex-wrap:wrap; } .hide-sm { display:none !important; } }
+@media (max-width:768px) { .dash-kpis { grid-template-columns:repeat(2,1fr); } }
+</style>
+
 <div class="d-topbar">
   <div>
-    <div class="d-topbar-title">🏠 Dashboard</div>
-    <div class="d-topbar-sub">Vue en temps réel — <?= date('l d F Y') ?></div>
+    <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
+    <div>
+      <div class="d-topbar-title">Aujourd'hui</div>
+      <div class="d-topbar-sub"><?= e(fr_long_date($today)) ?></div>
+    </div>
   </div>
   <div class="d-topbar-actions">
-    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary d-btn--sm">➕ Nouvelle intervention</a>
-    <span style="font-size:.75rem;color:#4a5f8a;" id="refresh-timer">Actualisation dans 5:00</span>
+    <a href="<?= e(url_for('dispatcher/calendar.php')) ?>" class="d-btn d-btn--sm hide-sm">Planning</a>
+    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary d-btn--sm">+ Nouvelle intervention</a>
   </div>
 </div>
 
-<!-- ─── CONTENT ─── -->
 <div class="d-content">
 
-  <!-- ═══════════ KPI GRID ═══════════ -->
-  <div class="d-grid-4" style="margin-bottom:1.75rem;">
-
-    <!-- Aujourd'hui -->
-    <div class="kpi-card blue">
-      <div class="kpi-icon">📅</div>
-      <div class="kpi-value"><?= $kpis['today_total'] ?></div>
-      <div class="kpi-label">Interventions aujourd'hui</div>
-    </div>
-
-    <!-- En attente / Confirmées -->
-    <div class="kpi-card orange">
-      <div class="kpi-icon">⏳</div>
-      <div class="kpi-value"><?= $kpis['waiting'] ?></div>
-      <div class="kpi-label">En attente / Confirmées</div>
-    </div>
-
-    <!-- En cours -->
-    <div class="kpi-card cyan">
-      <div class="kpi-icon">🚗</div>
-      <div class="kpi-value"><?= $kpis['in_progress'] ?></div>
-      <div class="kpi-label">En cours (en route + sur place)</div>
-    </div>
-
-    <!-- Terminées aujourd'hui -->
+  <div class="dash-kpis">
+    <a class="kpi-card orange" href="#a-planifier">
+      <div class="kpi-value"><?= count($toPlan) ?></div>
+      <div class="kpi-label">À planifier</div>
+    </a>
+    <a class="kpi-card blue" href="<?= e(url_for('dispatcher/interventions.php?date_from='.$today.'&date_to='.$today)) ?>">
+      <div class="kpi-value"><?= (int)$kpis['today_total'] ?></div>
+      <div class="kpi-label">Prévues aujourd'hui</div>
+    </a>
+    <a class="kpi-card cyan" href="<?= e(url_for('dispatcher/map.php')) ?>">
+      <div class="kpi-value"><?= (int)$kpis['in_progress'] ?></div>
+      <div class="kpi-label">En cours sur le terrain</div>
+    </a>
     <div class="kpi-card green">
-      <div class="kpi-icon">✅</div>
-      <div class="kpi-value"><?= $kpis['done_today'] ?></div>
+      <div class="kpi-value"><?= (int)$kpis['done_today'] ?></div>
       <div class="kpi-label">Terminées aujourd'hui</div>
     </div>
+  </div>
 
-    <!-- Urgences actives -->
-    <div class="kpi-card red">
-      <div class="kpi-icon">🚨</div>
-      <div class="kpi-value"><?= $kpis['urgent'] ?></div>
-      <div class="kpi-label">Urgences actives</div>
-    </div>
+  <?php if ($kpis['urgent'] > 0 || $kpis['late'] > 0): ?>
+  <div class="dash-alert">
+    <?php if ($kpis['urgent'] > 0): ?>
+      <a class="is-red" href="<?= e(url_for('dispatcher/interventions.php?urgency=1')) ?>"><?= (int)$kpis['urgent'] ?> intervention<?= $kpis['urgent'] > 1 ? 's' : '' ?> urgente<?= $kpis['urgent'] > 1 ? 's' : '' ?> en cours de traitement</a>
+    <?php endif; ?>
+    <?php if ($kpis['late'] > 0): ?>
+      <a class="is-amber" href="<?= e(url_for('dispatcher/interventions.php')) ?>"><?= (int)$kpis['late'] ?> intervention<?= $kpis['late'] > 1 ? 's' : '' ?> en retard (date dépassée, non terminée)</a>
+    <?php endif; ?>
+  </div>
+  <?php endif; ?>
 
-    <!-- En retard -->
-    <div class="kpi-card red">
-      <div class="kpi-icon">⚠️</div>
-      <div class="kpi-value"><?= $kpis['late'] ?></div>
-      <div class="kpi-label">En retard</div>
-    </div>
+  <div class="dash-grid">
 
-    <!-- Techniciens actifs -->
-    <div class="kpi-card">
-      <div class="kpi-icon">👷</div>
-      <div class="kpi-value"><?= $kpis['techs_active'] ?></div>
-      <div class="kpi-label">Techniciens actifs</div>
-    </div>
-
-    <!-- CA du mois -->
-    <div class="kpi-card green">
-      <div class="kpi-icon">💶</div>
-      <div class="kpi-value"><?= number_format($kpis['ca_month'], 0, ',', ' ') ?> €</div>
-      <div class="kpi-label">CA du mois (HT)</div>
-    </div>
-
-  </div><!-- /.d-grid-4 -->
-
-  <!-- ═══════════ TWO-COLUMN LAYOUT ═══════════ -->
-  <div style="display:grid;grid-template-columns:1fr 380px;gap:1.5rem;align-items:start;">
-
-    <!-- ─── TODAY'S INTERVENTIONS ─── -->
+    <!-- Planning du jour -->
     <div class="d-card">
       <div class="d-card-head">
-        <span class="d-card-title">📋 Interventions du jour</span>
-        <div style="display:flex;align-items:center;gap:.6rem;">
-          <span style="font-size:.75rem;color:#8fa0c4;"><?= count($todayIvs) ?> intervention<?= count($todayIvs) !== 1 ? 's' : '' ?></span>
-          <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">Tout voir →</a>
-        </div>
-      </div>
-
-      <?php if (empty($todayIvs)): ?>
-        <div class="d-empty">
-          <div class="d-empty-icon">📭</div>
-          <div>Aucune intervention planifiée aujourd'hui</div>
-          <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary d-btn--sm" style="margin-top:1rem;">➕ Créer une intervention</a>
-        </div>
-      <?php else: ?>
-        <div style="overflow-x:auto;">
-          <table class="d-table">
-            <thead>
-              <tr>
-                <th>Réf.</th>
-                <th>Client</th>
-                <th>Catégorie</th>
-                <th>Statut</th>
-                <th>Heure</th>
-                <th>Technicien</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($todayIvs as $iv): ?>
-              <tr>
-                <td>
-                  <?php if ((int)($iv['urgency'] ?? 0)): ?>
-                    <span class="urgency-dot" title="Urgence"></span>
-                  <?php endif; ?>
-                  <a href="<?= e($viewBase.'?id='.(int)$iv['id']) ?>" style="color:#F07B1D;text-decoration:none;font-weight:700;font-size:.82rem;">
-                    <?= e($iv['ref'] ?? '#'.(int)$iv['id']) ?>
-                  </a>
-                </td>
-                <td>
-                  <a href="<?= e($viewBase.'?id='.(int)$iv['id']) ?>" style="color:#e8ecf5;text-decoration:none;font-weight:600;">
-                    <?= e(client_name($iv)) ?>
-                  </a>
-                  <?php if (!empty($iv['client_city'])): ?>
-                    <div style="font-size:.72rem;color:#4a5f8a;"><?= e($iv['client_city']) ?></div>
-                  <?php endif; ?>
-                </td>
-                <td>
-                  <?php if (!empty($iv['category'])): ?>
-                    <?= intervention_category_badge((string)$iv['category']) ?>
-                  <?php else: ?>
-                    <span style="color:#4a5f8a;font-size:.78rem;">—</span>
-                  <?php endif; ?>
-                </td>
-                <td><?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?></td>
-                <td style="color:#8fa0c4;font-size:.82rem;white-space:nowrap;"><?= e(fmt_time($iv['scheduled_time'] ?? null)) ?></td>
-                <td style="font-size:.82rem;color:#8fa0c4;">
-                  <?= e($iv['tech_name'] ?? '—') ?>
-                </td>
-                <td>
-                  <a href="<?= e($viewBase.'?id='.(int)$iv['id']) ?>" class="d-btn d-btn--ghost d-btn--sm">Voir</a>
-                </td>
-              </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-      <?php endif; ?>
-    </div><!-- /.d-card today -->
-
-    <!-- ─── URGENCES PANEL ─── -->
-    <div class="d-card" style="border-color:rgba(239,68,68,.2);background:rgba(239,68,68,.03);">
-      <div class="d-card-head" style="border-color:rgba(239,68,68,.15);">
-        <span class="d-card-title" style="color:#ef4444;">🚨 Urgences actives</span>
-        <span style="font-size:.75rem;color:#8fa0c4;"><?= count($urgentIvs) ?> au total</span>
-      </div>
-
-      <?php if (empty($urgentIvs)): ?>
-        <div class="d-empty" style="padding:2rem 1rem;">
-          <div style="font-size:1.5rem;margin-bottom:.5rem;">✅</div>
-          <div style="font-size:.82rem;color:#4a5f8a;">Aucune urgence active</div>
-        </div>
-      <?php else: ?>
-        <div style="padding:.5rem 0;">
-          <?php foreach ($urgentPanel as $iv): ?>
-          <a href="<?= e($viewBase.'?id='.(int)$iv['id']) ?>" style="display:block;padding:.9rem 1.25rem;border-bottom:1px solid rgba(239,68,68,.08);text-decoration:none;transition:background .15s;"
-             onmouseover="this.style.background='rgba(239,68,68,.06)'" onmouseout="this.style.background='transparent'">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.35rem;">
-              <span style="font-size:.78rem;font-weight:800;color:#F07B1D;"><?= e($iv['ref'] ?? '#'.(int)$iv['id']) ?></span>
-              <?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?>
-            </div>
-            <div style="font-size:.84rem;font-weight:700;color:#e8ecf5;margin-bottom:.2rem;"><?= e(client_name($iv)) ?></div>
-            <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
-              <?php if (!empty($iv['category'])): ?>
-                <?= intervention_category_badge((string)$iv['category']) ?>
-              <?php endif; ?>
-              <?php if (!empty($iv['scheduled_date'])): ?>
-                <span style="font-size:.72rem;color:#8fa0c4;">📅 <?= e(date('d/m', strtotime((string)$iv['scheduled_date']))) ?><?= !empty($iv['scheduled_time']) ? ' '.e(fmt_time($iv['scheduled_time'])) : '' ?></span>
-              <?php else: ?>
-                <span style="font-size:.72rem;color:#ef4444;">Non planifiée</span>
-              <?php endif; ?>
-              <?php if (!empty($iv['tech_name'])): ?>
-                <span style="font-size:.72rem;color:#8fa0c4;">👷 <?= e($iv['tech_name']) ?></span>
-              <?php else: ?>
-                <span style="font-size:.72rem;color:#f59e0b;">⚠️ Non assignée</span>
-              <?php endif; ?>
-            </div>
-          </a>
+        <div class="d-card-title">Planning du jour</div>
+        <div class="plan-legend">
+          <?php foreach (['nouveau', 'assigné', 'en_route', 'sur_place', 'terminé'] as $st): ?>
+            <span><i style="background:<?= e($statusCfg[$st]['color']) ?>"></i><?= e($statusCfg[$st]['label']) ?></span>
           <?php endforeach; ?>
-          <?php if (count($urgentIvs) > 5): ?>
-          <div style="padding:.75rem 1.25rem;text-align:center;">
-            <a href="<?= e(url_for('dispatcher/interventions.php').'?urgency=1') ?>" class="d-btn d-btn--danger d-btn--sm">
-              Voir toutes les <?= count($urgentIvs) ?> urgences
-            </a>
+        </div>
+      </div>
+      <div class="plan">
+        <div class="plan-inner" style="--hour:calc(100% / <?= $span / 60 ?>);">
+          <div class="plan-head">
+            <div></div>
+            <div class="plan-hours">
+              <?php for ($m = $dayStart + 60; $m < $dayEnd; $m += 60): ?>
+                <span style="left:<?= round(($m - $dayStart) / $span * 100, 3) ?>%"><?= intdiv($m, 60) ?>h</span>
+              <?php endfor; ?>
+            </div>
           </div>
+          <?php
+          $lanes = [];
+          foreach ($techs as $t) $lanes[(int)$t['id']] = (string)$t['name'];
+          foreach (array_keys($byTech) as $tid) if ($tid > 0 && !isset($lanes[$tid])) $lanes[$tid] = (string)($byTech[$tid][0]['tech_name'] ?? 'Technicien');
+          if (!empty($byTech[0])) $lanes[0] = 'Non assigné';
+          ?>
+          <?php if (empty($lanes)): ?>
+            <div class="d-empty">Aucun technicien actif. Ajoutez-en depuis l'administration.</div>
           <?php endif; ?>
+          <?php foreach ($lanes as $tid => $tname): $jobs = $byTech[$tid] ?? []; $untimed = []; ?>
+          <div class="plan-row">
+            <div class="plan-who">
+              <div class="av"><?= $tid === 0 ? '?' : e(mb_strtoupper(mb_substr($tname, 0, 1, 'UTF-8'), 'UTF-8')) ?></div>
+              <div>
+                <div class="nm"><?= e($tname) ?></div>
+                <div class="ct"><?= count($jobs) ?> intervention<?= count($jobs) > 1 ? 's' : '' ?></div>
+              </div>
+            </div>
+            <div class="plan-lane">
+              <?php if ($nowMin > $dayStart && $nowMin < $dayEnd): ?>
+                <div class="plan-now" style="left:<?= round(($nowMin - $dayStart) / $span * 100, 3) ?>%"></div>
+              <?php endif; ?>
+              <?php foreach ($jobs as $iv):
+                $s = minutes_of($iv['scheduled_time'] ?? null);
+                if ($s === null) { $untimed[] = $iv; continue; }
+                $d = max(30, (int)($iv['duration_estimate'] ?? 60));
+                $col = $statusCfg[$iv['status'] ?? '']['color'] ?? '#8c99ad';
+              ?>
+                <a class="plan-job<?= !empty($iv['urgency']) ? ' is-urgent' : '' ?>" href="<?= e($viewUrl($iv)) ?>"
+                   style="left:<?= round(($s - $dayStart) / $span * 100, 3) ?>%;width:<?= round($d / $span * 100, 3) ?>%;border-left-color:<?= e($col) ?>;"
+                   title="<?= e(substr((string)$iv['scheduled_time'], 0, 5).' · '.client_name($iv).' · '.($iv['type_label'] ?? '').' · '.($statusCfg[$iv['status'] ?? '']['label'] ?? '')) ?>">
+                  <div class="t"><?= e(substr((string)$iv['scheduled_time'], 0, 5)) ?> · <?= e($iv['client_city'] ?? '') ?></div>
+                  <div class="c"><?= e(client_name($iv)) ?></div>
+                </a>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php if ($untimed): ?>
+            <div class="plan-untimed">
+              <span style="font-size:.76rem;color:var(--d-t3);">Sans heure :</span>
+              <?php foreach ($untimed as $iv): ?><a href="<?= e($viewUrl($iv)) ?>"><?= e(client_name($iv)) ?></a><?php endforeach; ?>
+            </div>
+          <?php endif; ?>
+          <?php endforeach; ?>
         </div>
+      </div>
+    </div>
+
+    <!-- À planifier -->
+    <div class="d-card" id="a-planifier">
+      <div class="d-card-head">
+        <div class="d-card-title">À planifier</div>
+        <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">Tout voir</a>
+      </div>
+      <?php if (empty($toPlan)): ?>
+        <div class="d-empty">Tout est planifié.</div>
+      <?php else: ?>
+        <div class="todo-list">
+        <?php foreach (array_slice($toPlan, 0, 12) as $iv):
+          $miss = [];
+          if (empty($iv['technician_id']))  $miss[] = 'technicien';
+          if (empty($iv['scheduled_date'])) $miss[] = 'date';
+        ?>
+        <a class="todo-item" href="<?= e($viewUrl($iv)) ?>">
+          <div class="todo-top">
+            <span class="todo-name"><?= e(client_name($iv)) ?></span>
+            <?php if (!empty($iv['urgency'])): ?><span class="tag-urgent">Urgent</span><?php endif; ?>
+          </div>
+          <div class="todo-meta">
+            <?= intervention_category_badge((string)($iv['category'] ?? '')) ?>
+            <?php if (!empty($iv['client_city'])): ?><span><?= e($iv['client_city']) ?></span><?php endif; ?>
+            <?php if (!empty($iv['scheduled_date'])): ?><span><?= e(date('d/m', strtotime($iv['scheduled_date']))) ?></span><?php endif; ?>
+            <?php if ($miss): ?><span class="todo-miss">Sans <?= e(implode(' ni ', $miss)) ?></span><?php endif; ?>
+          </div>
+        </a>
+        <?php endforeach; ?>
+        </div>
+        <?php if (count($toPlan) > 12): ?>
+          <div style="padding:.6rem 1.1rem;font-size:.8rem;color:var(--d-t2);">+ <?= count($toPlan) - 12 ?> autre(s)</div>
+        <?php endif; ?>
       <?php endif; ?>
-    </div><!-- /.d-card urgences -->
-
-  </div><!-- /.two-col -->
-
-  <!-- ─── STATS ROW ─── -->
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1.5rem;">
-    <div class="d-card">
-      <div class="d-card-body" style="display:flex;align-items:center;gap:1rem;">
-        <div style="font-size:1.8rem;">💶</div>
-        <div>
-          <div style="font-size:.72rem;color:#8fa0c4;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.15rem;">CA aujourd'hui</div>
-          <div style="font-family:'Syne',Arial,sans-serif;font-size:1.3rem;font-weight:800;color:#22c55e;"><?= number_format($kpis['ca_today'], 0, ',', ' ') ?> €</div>
-        </div>
-      </div>
     </div>
-    <div class="d-card">
-      <div class="d-card-body" style="display:flex;align-items:center;gap:1rem;">
-        <div style="font-size:1.8rem;">📊</div>
-        <div>
-          <div style="font-size:.72rem;color:#8fa0c4;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.15rem;">CA cette semaine</div>
-          <div style="font-family:'Syne',Arial,sans-serif;font-size:1.3rem;font-weight:800;color:#3b82f6;"><?= number_format($kpis['ca_week'], 0, ',', ' ') ?> €</div>
-        </div>
-      </div>
-    </div>
-    <div class="d-card">
-      <div class="d-card-body" style="display:flex;align-items:center;gap:1rem;">
-        <div style="font-size:1.8rem;">📋</div>
-        <div>
-          <div style="font-size:.72rem;color:#8fa0c4;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.15rem;">Total interventions</div>
-          <div style="font-family:'Syne',Arial,sans-serif;font-size:1.3rem;font-weight:800;color:#e8ecf5;"><?= $kpis['total'] ?></div>
-        </div>
-      </div>
-    </div>
-  </div><!-- /.stats row -->
 
-</div><!-- /.d-content -->
+  </div>
+</div>
 
 <script>
-// ─── Countdown auto-refresh (5 minutes) ───
-(function(){
-  var secs = 300;
-  var el   = document.getElementById('refresh-timer');
-  if (!el) return;
-  var iv = setInterval(function(){
-    secs--;
-    if (secs <= 0) { clearInterval(iv); location.reload(); return; }
-    var m = Math.floor(secs / 60);
-    var s = secs % 60;
-    el.textContent = 'Actualisation dans ' + m + ':' + (s < 10 ? '0' : '') + s;
-  }, 1000);
-})();
+// Actualisation discrète toutes les 5 minutes (sauf si l'onglet est caché).
+setInterval(function () { if (!document.hidden) location.reload(); }, 300000);
 </script>
-
 <?php require __DIR__.'/partials/footer.php'; ?>

@@ -461,6 +461,25 @@ if (!file_exists($_mf17)) {
     unset($_me, $__sql, $__old, $__crd);
 }
 unset($_mf17);
+// Auto-migration v15.18 — colonnes du rapport technicien. Rejoue la v15.9
+// (perdue un temps lors d'un import) : sans elles, le rapport ne s'enregistre pas.
+$_mf18 = __DIR__.'/../storage/.mig_v15_rapport_tech';
+if (!file_exists($_mf18)) {
+    foreach ([
+        "ALTER TABLE interventions ADD COLUMN tech_fault_label VARCHAR(255) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_realizable TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_bad_use TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_device_number VARCHAR(120) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_elevator_restored TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_ticket_time TIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_close_time TIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_notes_extra TEXT NULL",
+        "ALTER TABLE interventions MODIFY COLUMN tech_signature MEDIUMTEXT NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf18, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf18);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

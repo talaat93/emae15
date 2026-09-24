@@ -67,8 +67,8 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
     <span></span><span></span><span></span>
   </button>
   <div class="d-topbar-title">
-    <a href="<?= e(url_for('dispatcher/clients.php')) ?>" style="color:#8fa0c4;text-decoration:none;font-size:.85rem;">Clients</a>
-    <span style="color:#8fa0c4;margin:0 .4rem;">/</span>
+    <a href="<?= e(url_for('dispatcher/clients.php')) ?>" style="color:var(--d-t2);text-decoration:none;font-size:.85rem;">Clients</a>
+    <span style="color:var(--d-t2);margin:0 .4rem;">/</span>
     <span class="d-topbar-ico" style="margin:0;"><?= e($fullName) ?></span>
   </div>
   <div class="d-topbar-actions">
@@ -92,40 +92,40 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
               <?= e($initials) ?>
             </div>
             <div>
-              <div style="font-size:1rem;font-weight:800;color:#e8ecf5;"><?= e($fullName) ?></div>
-              <div style="font-size:.75rem;color:#8fa0c4;margin-top:.15rem;">Client #<?= $id ?></div>
+              <div style="font-size:1rem;font-weight:800;color:var(--d-t1);"><?= e($fullName) ?></div>
+              <div style="font-size:.75rem;color:var(--d-t2);margin-top:.15rem;">Client #<?= $id ?></div>
             </div>
           </div>
-          <button onclick="toggleEdit()" id="btn-edit" class="d-btn d-btn-outline d-btn-xs">✏️ Modifier</button>
+          <button onclick="toggleEdit()" id="btn-edit" class="d-btn d-btn-outline d-btn-xs">Modifier</button>
         </div>
         <div class="d-card-body">
 
           <!-- Vue lecture -->
           <div id="client-view">
             <?php $rows = [
-              ['📞', 'Téléphone', '<a href="tel:'.e(preg_replace('/\s+/','',$client['phone']??'')).'" style="color:#ee7d1a;font-weight:700;text-decoration:none;">'.e($client['phone'] ?? '—').'</a>'],
-              ['✉️', 'Email', !empty($client['email']) ? '<a href="mailto:'.e($client['email']).'" style="color:#60a5fa;text-decoration:none;">'.e($client['email']).'</a>' : '—'],
-              ['📍', 'Adresse', array_filter([
+              ['', 'Téléphone', '<a href="tel:'.e(preg_replace('/\s+/','',$client['phone']??'')).'" style="color:#ee7d1a;font-weight:700;text-decoration:none;">'.e($client['phone'] ?? '—').'</a>'],
+              ['', 'Email', !empty($client['email']) ? '<a href="mailto:'.e($client['email']).'" style="color:#60a5fa;text-decoration:none;">'.e($client['email']).'</a>' : '—'],
+              ['', 'Adresse', array_filter([
                   $client['address'] ?? '',
                   trim(($client['postal_code']??'').' '.($client['city']??''))
               ]) ? implode(', ', array_filter([
                   $client['address'] ?? '',
                   trim(($client['postal_code']??'').' '.($client['city']??''))
               ])) : '—'],
-              ['🏢', 'Étage / Bât.', $client['floor'] ?? '—'],
-              ['🔑', 'Digicode', $client['digicode'] ?? '—'],
-              ['🚪', 'Accès', $client['access_info'] ?? '—'],
-              ['📝', 'Notes', $client['notes'] ?? '—'],
+              ['', 'Étage / Bât.', $client['floor'] ?? '—'],
+              ['', 'Digicode', $client['digicode'] ?? '—'],
+              ['', 'Accès', $client['access_info'] ?? '—'],
+              ['', 'Notes', $client['notes'] ?? '—'],
             ]; ?>
             <?php foreach ($rows as [$ico, $label, $val]): ?>
-            <div style="display:flex;gap:.65rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid rgba(255,255,255,.05);">
+            <div style="display:flex;gap:.65rem;align-items:flex-start;padding:.55rem 0;border-bottom:1px solid var(--d-border);">
               <span style="font-size:.9rem;flex-shrink:0;width:1.2rem;"><?= $ico ?></span>
-              <span style="font-size:.78rem;color:#8fa0c4;width:80px;flex-shrink:0;padding-top:.1rem;"><?= e($label) ?></span>
-              <span style="font-size:.85rem;color:#e8ecf5;flex:1;"><?= $val ?></span>
+              <span style="font-size:.78rem;color:var(--d-t2);width:80px;flex-shrink:0;padding-top:.1rem;"><?= e($label) ?></span>
+              <span style="font-size:.85rem;color:var(--d-t1);flex:1;"><?= $val ?></span>
             </div>
             <?php endforeach; ?>
             <?php if (!empty($client['created_at'])): ?>
-            <div style="font-size:.72rem;color:#8fa0c4;padding-top:.65rem;">Client créé le <?= e(date('d/m/Y', strtotime($client['created_at']))) ?></div>
+            <div style="font-size:.72rem;color:var(--d-t2);padding-top:.65rem;">Client créé le <?= e(date('d/m/Y', strtotime($client['created_at']))) ?></div>
             <?php endif; ?>
           </div>
 
@@ -182,7 +182,7 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
               <textarea name="notes" class="d-input d-textarea" rows="2"><?= e($client['notes'] ?? '') ?></textarea>
             </div>
             <div style="display:flex;gap:.65rem;margin-top:1rem;">
-              <button type="submit" class="d-btn d-btn-primary">✓ Enregistrer</button>
+              <button type="submit" class="d-btn d-btn-primary">Enregistrer</button>
               <button type="button" onclick="toggleEdit()" class="d-btn d-btn-outline">Annuler</button>
             </div>
           </form>
@@ -197,22 +197,22 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:.85rem;">
             <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);border-radius:8px;padding:.85rem;text-align:center;">
               <div style="font-size:1.6rem;font-weight:800;color:#60a5fa;"><?= $totalInterventions ?></div>
-              <div style="font-size:.72rem;color:#8fa0c4;margin-top:.15rem;">Intervention<?= $totalInterventions > 1 ? 's' : '' ?></div>
+              <div style="font-size:.72rem;color:var(--d-t2);margin-top:.15rem;">Intervention<?= $totalInterventions > 1 ? 's' : '' ?></div>
             </div>
             <div style="background:rgba(20,184,166,.08);border:1px solid rgba(20,184,166,.2);border-radius:8px;padding:.85rem;text-align:center;">
               <div style="font-size:1.6rem;font-weight:800;color:#14b8a6;"><?= $totalAmount > 0 ? number_format($totalAmount, 0, ',', ' ') : '—' ?></div>
-              <div style="font-size:.72rem;color:#8fa0c4;margin-top:.15rem;"><?= $totalAmount > 0 ? '€ TTC total' : 'Montant N/D' ?></div>
+              <div style="font-size:.72rem;color:var(--d-t2);margin-top:.15rem;"><?= $totalAmount > 0 ? '€ TTC total' : 'Montant N/D' ?></div>
             </div>
           </div>
           <?php if ($firstDate): ?>
-          <div style="margin-top:.85rem;font-size:.8rem;color:#8fa0c4;">
-            <div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid rgba(255,255,255,.05);">
+          <div style="margin-top:.85rem;font-size:.8rem;color:var(--d-t2);">
+            <div style="display:flex;justify-content:space-between;padding:.35rem 0;border-bottom:1px solid var(--d-border);">
               <span>Première intervention</span>
-              <span style="color:#e8ecf5;font-weight:600;"><?= e(date('d/m/Y', strtotime($firstDate))) ?></span>
+              <span style="color:var(--d-t1);font-weight:600;"><?= e(date('d/m/Y', strtotime($firstDate))) ?></span>
             </div>
             <div style="display:flex;justify-content:space-between;padding:.35rem 0;">
               <span>Dernière intervention</span>
-              <span style="color:#e8ecf5;font-weight:600;"><?= e(date('d/m/Y', strtotime($lastDate))) ?></span>
+              <span style="color:var(--d-t1);font-weight:600;"><?= e(date('d/m/Y', strtotime($lastDate))) ?></span>
             </div>
           </div>
           <?php endif; ?>
@@ -234,8 +234,8 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
           <span class="d-card-title">Historique des interventions (<?= $totalInterventions ?>)</span>
         </div>
         <?php if (empty($interventions)): ?>
-        <div style="padding:3rem;text-align:center;color:#8fa0c4;">
-          <div style="font-size:2.5rem;margin-bottom:.75rem;">📋</div>
+        <div style="padding:3rem;text-align:center;color:var(--d-t2);">
+          <div style="font-size:2.5rem;margin-bottom:.75rem;"></div>
           <div style="font-size:.88rem;">Aucune intervention pour ce client.</div>
           <a href="<?= e(url_for('dispatcher/intervention_new.php?client_id='.$id)) ?>" class="d-btn d-btn-primary d-btn-sm" style="margin-top:1rem;">
             Créer la première intervention →
@@ -259,8 +259,8 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
             <tbody>
               <?php foreach ($interventions as $interv): ?>
               <?php
-                $catConf = $categoryConfig[$interv['category'] ?? ''] ?? ['label'=>$interv['category']??'—','icon'=>'🔧','color'=>'#8fa0c4'];
-                $stConf  = $statusConfig[$interv['status'] ?? '']   ?? ['label'=>$interv['status']??'—','color'=>'#8fa0c4','bg'=>'rgba(143,160,196,.15)'];
+                $catConf = $categoryConfig[$interv['category'] ?? ''] ?? ['label'=>$interv['category']??'—','icon'=>'','color'=>'#8fa0c4'];
+                $stConf  = $statusConfig[$interv['status'] ?? '']   ?? ['label'=>$interv['status']??'—','color'=>'#8fa0c4','bg'=>'var(--d-card-2)'];
                 $schedDate = !empty($interv['scheduled_date']) ? date('d/m/Y', strtotime($interv['scheduled_date'])) : '—';
                 $amountTtc = !empty($interv['amount_ttc']) ? number_format((float)$interv['amount_ttc'], 2, ',', ' ').' €' : '—';
               ?>
@@ -270,15 +270,15 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
                     <?= e($interv['ref'] ?? '#'.$interv['id']) ?>
                   </a>
                   <?php if (!empty($interv['urgency'])): ?>
-                  <span style="color:#ef4444;font-size:.65rem;font-weight:800;margin-left:.25rem;">🚨</span>
+                  <span style="color:#ef4444;font-size:.65rem;font-weight:800;margin-left:.25rem;"></span>
                   <?php endif; ?>
                 </td>
-                <td style="color:#8fa0c4;font-size:.82rem;"><?= e($schedDate) ?></td>
+                <td style="color:var(--d-t2);font-size:.82rem;"><?= e($schedDate) ?></td>
                 <td><?= intervention_category_badge($interv['category'] ?? '') ?></td>
-                <td style="color:#e8ecf5;font-size:.82rem;"><?= e($interv['type_label'] ?? '—') ?></td>
+                <td style="color:var(--d-t1);font-size:.82rem;"><?= e($interv['type_label'] ?? '—') ?></td>
                 <td><?= intervention_status_badge($interv['status'] ?? '') ?></td>
-                <td style="color:#8fa0c4;font-size:.82rem;"><?= e($interv['tech_name'] ?? '—') ?></td>
-                <td style="text-align:right;color:#e8ecf5;font-size:.85rem;font-weight:600;"><?= e($amountTtc) ?></td>
+                <td style="color:var(--d-t2);font-size:.82rem;"><?= e($interv['tech_name'] ?? '—') ?></td>
+                <td style="text-align:right;color:var(--d-t1);font-size:.85rem;font-weight:600;"><?= e($amountTtc) ?></td>
                 <td style="text-align:right;">
                   <a href="<?= e(url_for('dispatcher/intervention_view.php?id='.(int)$interv['id'])) ?>" class="d-btn d-btn-outline d-btn-xs">Voir</a>
                 </td>
@@ -302,11 +302,11 @@ function toggleEdit() {
   if (form.style.display === 'none') {
     view.style.display = 'none';
     form.style.display = 'block';
-    btn.textContent = '✕ Annuler';
+    btn.textContent = 'Annuler';
   } else {
     view.style.display = 'block';
     form.style.display = 'none';
-    btn.textContent = '✏️ Modifier';
+    btn.textContent = 'Modifier';
   }
 }
 </script>

@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/../../includes/bootstrap.php';
+// Les pages traitent leurs formulaires après avoir inclus cet en-tête, puis
+// redirigent : la sortie est mise en tampon pour que la redirection reste possible.
+ob_start();
 $disp = require_dispatcher_auth();
 $dispCurrent = basename($_SERVER['PHP_SELF'] ?? '');
 $dispSection = $dispSection ?? '';
@@ -21,8 +24,8 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <title><?= e($pageTitle ?? 'Dispatcher') ?> — <?= e(company_name()) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800;900&family=Outfit:wght@300;400;500;600;700;800&display=swap"></noscript>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
 <link rel="stylesheet" href="<?= e(asset_url('assets/css/dispatcher.css')) ?>">
 <?= $extraHead ?? '' ?>
 </head>
@@ -32,74 +35,50 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <aside class="d-sidebar" id="d-sidebar">
   <div class="d-sidebar-brand">
     <?php $logo=site_logo_path(); if(trim($logo)!==''&&file_exists(__DIR__.'/../../'.$logo)): ?>
-      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:140px;height:auto;display:block;" loading="lazy"></a>
+      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:130px;max-height:40px;height:auto;display:block;filter:brightness(0) invert(1);"></a>
     <?php else: ?>
-      <a href="<?= e(url_for('dispatcher/index.php')) ?>" style="text-decoration:none;">
-        <div class="logo-text">EM<span>AE</span></div>
-      </a>
+      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><div class="logo-text">EM<span>AE</span></div></a>
     <?php endif; ?>
-    <div class="d-sidebar-version">Dispatcher v15</div>
+    <div class="d-sidebar-version">Planification</div>
   </div>
+  <div class="d-sidebar-cta">
+    <a class="d-btn d-btn--primary" href="<?= e(url_for('dispatcher/intervention_new.php')) ?>">+ Nouvelle intervention</a>
+  </div>
+  <nav class="d-nav">
+    <a class="d-nav-item <?= disp_is_active(['index.php'],'dashboard') ?>" href="<?= e(url_for('dispatcher/index.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></span> Aujourd'hui<?php if($urgentCount>0):?><span class="d-nav-badge red" title="Urgences"><?= $urgentCount ?></span><?php endif;?>
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['interventions.php','intervention_view.php','intervention_new.php'],'interventions') ?>" href="<?= e(url_for('dispatcher/interventions.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span> Interventions<?php if($waitingCount>0):?><span class="d-nav-badge" title="À traiter"><?= $waitingCount ?></span><?php endif;?>
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['calendar.php'],'calendar') ?>" href="<?= e(url_for('dispatcher/calendar.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/></svg></span> Planning
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['map.php'],'map') ?>" href="<?= e(url_for('dispatcher/map.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4 3 6.5v13.5l6-2.5 6 2.5 6-2.5V4l-6 2.5z"/><path d="M9 4v13.5M15 6.5V20"/></svg></span> Carte
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['clients.php','client_view.php'],'clients') ?>" href="<?= e(url_for('dispatcher/clients.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.3 3.3-5.5 6.5-5.5s5.9 2.2 6.5 5.5"/><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4M18 14.8c1.8.8 3.1 2.7 3.5 5.2"/></svg></span> Clients
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['tasks.php'],'tasks') ?>" href="<?= e(url_for('dispatcher/tasks.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="m8 12 3 3 5-6"/></svg></span> Tâches<?php if ($tasksBadge > 0): ?><span class="d-nav-badge"><?= $tasksBadge ?></span><?php endif; ?>
+    </a>
+    <div class="d-nav-group">Réglages</div>
+    <a class="d-nav-item <?= disp_is_active(['presets.php'],'presets') ?>" href="<?= e(url_for('dispatcher/presets.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span> Listes prédéfinies
+    </a>
+    <a class="d-nav-item" href="<?= e(url_for('')) ?>" target="_blank" rel="noopener">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span> Voir le site
+    </a>
+  </nav>
   <div class="d-sidebar-user">
     <div class="avatar"><?= e(mb_strtoupper(mb_substr((string)($disp['name']??'?'),0,1,'UTF-8'),'UTF-8')) ?></div>
     <div>
       <div class="user-name"><?= e($disp['name']) ?></div>
       <div class="user-role">Dispatcher</div>
     </div>
+    <a class="user-out" href="<?= e(url_for('dispatcher/logout.php')) ?>" title="Déconnexion" aria-label="Déconnexion"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a>
   </div>
-  <nav class="d-nav">
-    <div class="d-nav-group">Vue d'ensemble</div>
-    <a class="d-nav-item <?= disp_is_active(['index.php'],'dashboard') ?>" href="<?= e(url_for('dispatcher/index.php')) ?>">
-      <span class="nav-ico">🏠</span> Dashboard
-    </a>
-
-    <div class="d-nav-group">Interventions</div>
-    <a class="d-nav-item <?= disp_is_active(['interventions.php'],'interventions') ?>" href="<?= e(url_for('dispatcher/interventions.php')) ?>">
-      <span class="nav-ico">📋</span> Toutes les interventions
-      <?php if($waitingCount>0):?><span class="d-nav-badge"><?= $waitingCount ?></span><?php endif;?>
-    </a>
-    <a class="d-nav-item <?= disp_is_active(['intervention_new.php'],'intervention_new') ?>" href="<?= e(url_for('dispatcher/intervention_new.php')) ?>">
-      <span class="nav-ico">➕</span> Nouvelle intervention
-    </a>
-    <a class="d-nav-item <?= disp_is_active(['calendar.php'],'calendar') ?>" href="<?= e(url_for('dispatcher/calendar.php')) ?>">
-      <span class="nav-ico">📅</span> Calendrier
-    </a>
-    <a class="d-nav-item <?= disp_is_active(['map.php'],'map') ?>" href="<?= e(url_for('dispatcher/map.php')) ?>">
-      <span class="nav-ico">🗺️</span> Carte GPS
-    </a>
-
-    <div class="d-nav-group">Clients</div>
-    <a class="d-nav-item <?= disp_is_active(['clients.php'],'clients') ?>" href="<?= e(url_for('dispatcher/clients.php')) ?>">
-      <span class="nav-ico">👥</span> Clients
-    </a>
-
-    <div class="d-nav-group">Tâches</div>
-    <a class="d-nav-item <?= disp_is_active(['tasks.php'],'tasks') ?>" href="<?= e(url_for('dispatcher/tasks.php')) ?>">
-      <span class="nav-ico">📋</span> Tâches &amp; Rappels
-      <?php if ($tasksBadge > 0): ?>
-        <span class="d-nav-badge red"><?= $tasksBadge ?></span>
-      <?php endif; ?>
-    </a>
-
-    <div class="d-nav-group">Équipe</div>
-    <a class="d-nav-item" href="<?= e(url_for('tech/dashboard.php')) ?>" target="_blank">
-      <span class="nav-ico">👷</span> Espace Technicien
-    </a>
-    <?php if($urgentCount>0):?>
-    <div style="margin:.5rem 1rem;padding:.65rem .9rem;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.25);border-radius:8px;font-size:.78rem;color:#ef4444;font-weight:700;">
-      🚨 <?= $urgentCount ?> urgence<?= $urgentCount>1?'s':'' ?> active<?= $urgentCount>1?'s':'' ?>
-    </div>
-    <?php endif;?>
-
-    <div class="d-nav-group">Paramètres</div>
-    <a class="d-nav-item <?= disp_is_active(['presets.php'],'presets') ?>" href="<?= e(url_for('dispatcher/presets.php')) ?>">
-      <span class="nav-ico">⚙️</span> Presets
-    </a>
-
-    <div class="d-nav-group">Compte</div>
-    <a class="d-nav-item" href="<?= e(url_for('')) ?>" target="_blank"><span class="nav-ico">🌐</span> Voir le site</a>
-    <a class="d-nav-item" href="<?= e(url_for('dispatcher/logout.php')) ?>"><span class="nav-ico">🚪</span> Déconnexion</a>
-  </nav>
 </aside>
 <!-- MAIN -->
 <div class="d-main">

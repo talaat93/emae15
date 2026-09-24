@@ -45,19 +45,19 @@ $catsCfg    = intervention_category_config();
 <div class="d-topbar">
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
-    <div class="d-topbar-title">⚙️ Gestion des presets</div>
+    <div class="d-topbar-title">Gestion des presets</div>
   </div>
 </div>
 
 <div class="d-content">
 
   <!-- Onglets -->
-  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:.75rem;flex-wrap:wrap;">
+  <div style="display:flex;gap:.5rem;margin-bottom:1.5rem;border-bottom:1px solid var(--d-border);padding-bottom:.75rem;flex-wrap:wrap;">
     <?php
     $tabs = [
-        'intervention_type' => ['label'=>'Types d\'interventions', 'icon'=>'🔧'],
-        'material'          => ['label'=>'Matériaux',              'icon'=>'🔩'],
-        'photo_type'        => ['label'=>'Types de photos',        'icon'=>'📷'],
+        'intervention_type' => ['label'=>'Types d\'interventions', 'icon'=>''],
+        'material'          => ['label'=>'Matériaux',              'icon'=>''],
+        'photo_type'        => ['label'=>'Types de photos',        'icon'=>''],
     ];
     foreach ($tabs as $tk => $tv): ?>
       <a href="?tab=<?= urlencode($tk) ?>"
@@ -81,11 +81,11 @@ $catsCfg    = intervention_category_config();
   ?>
   <div class="d-card" style="margin-bottom:1.5rem;">
     <div class="d-card-head">
-      <div class="d-card-title">🔧 Types d'interventions</div>
+      <div class="d-card-title">Types d'interventions</div>
     </div>
     <div class="d-card-body">
       <?php if (empty($items)): ?>
-        <p style="color:#8fa0c4;font-size:.88rem;">Aucun preset défini.</p>
+        <p style="color:var(--d-t2);font-size:.88rem;">Aucun preset défini.</p>
       <?php else: ?>
         <?php foreach ($grouped as $cat => $catItems): ?>
           <?php $catLabel = $cat !== '' ? (($catsCfg[$cat]['icon'] ?? '') . ' ' . ($catsCfg[$cat]['label'] ?? ucfirst($cat))) : 'Général'; ?>
@@ -98,9 +98,9 @@ $catsCfg    = intervention_category_config();
                   <input type="hidden" name="post_action"  value="delete">
                   <input type="hidden" name="preset_id"    value="<?= (int)$item['id'] ?>">
                   <input type="hidden" name="active_tab"   value="intervention_type">
-                  <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(240,123,29,.1);border:1px solid rgba(240,123,29,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:#e8ecf5;">
+                  <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(240,123,29,.1);border:1px solid rgba(240,123,29,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:var(--d-t1);">
                     <?= e($item['label']) ?>
-                    <button type="submit" onclick="return confirm('Supprimer ce preset ?')" style="background:none;border:none;color:#8fa0c4;cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">✕</button>
+                    <button type="submit" onclick="return confirm('Supprimer ce preset ?')" style="background:none;border:none;color:var(--d-t2);cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">×</button>
                   </span>
                 </form>
               <?php endforeach; ?>
@@ -114,7 +114,7 @@ $catsCfg    = intervention_category_config();
   <!-- Formulaire ajout -->
   <div class="d-card">
     <div class="d-card-head">
-      <div class="d-card-title">➕ Ajouter un type d'intervention</div>
+      <div class="d-card-title">Ajouter un type d'intervention</div>
     </div>
     <div class="d-card-body">
       <form method="post">
@@ -137,7 +137,7 @@ $catsCfg    = intervention_category_config();
             <input type="text" name="label" class="d-input" placeholder="Ex: Remplacement contacteur" required>
           </div>
         </div>
-        <button type="submit" class="d-btn d-btn--primary d-btn--sm">✅ Ajouter</button>
+        <button type="submit" class="d-btn d-btn--primary d-btn--sm">Ajouter</button>
       </form>
     </div>
   </div>
@@ -149,11 +149,11 @@ $catsCfg    = intervention_category_config();
   ?>
   <div class="d-card" style="margin-bottom:1.5rem;">
     <div class="d-card-head">
-      <div class="d-card-title">🔩 Matériaux</div>
+      <div class="d-card-title">Matériaux</div>
     </div>
     <div class="d-card-body">
       <?php if (empty($items)): ?>
-        <p style="color:#8fa0c4;font-size:.88rem;">Aucun matériau défini.</p>
+        <p style="color:var(--d-t2);font-size:.88rem;">Aucun matériau défini.</p>
       <?php else: ?>
         <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
           <?php foreach ($items as $item): ?>
@@ -162,9 +162,9 @@ $catsCfg    = intervention_category_config();
               <input type="hidden" name="post_action" value="delete">
               <input type="hidden" name="preset_id"   value="<?= (int)$item['id'] ?>">
               <input type="hidden" name="active_tab"  value="material">
-              <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:#e8ecf5;">
+              <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:var(--d-t1);">
                 <?= e($item['label']) ?>
-                <button type="submit" onclick="return confirm('Supprimer ce matériau ?')" style="background:none;border:none;color:#8fa0c4;cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">✕</button>
+                <button type="submit" onclick="return confirm('Supprimer ce matériau ?')" style="background:none;border:none;color:var(--d-t2);cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">×</button>
               </span>
             </form>
           <?php endforeach; ?>
@@ -176,7 +176,7 @@ $catsCfg    = intervention_category_config();
   <!-- Formulaire ajout -->
   <div class="d-card">
     <div class="d-card-head">
-      <div class="d-card-title">➕ Ajouter un matériau</div>
+      <div class="d-card-title">Ajouter un matériau</div>
     </div>
     <div class="d-card-body">
       <form method="post">
@@ -189,7 +189,7 @@ $catsCfg    = intervention_category_config();
           <label>Nom du matériau <span style="color:#ef4444">*</span></label>
           <input type="text" name="label" class="d-input" placeholder="Ex: Câble H07V-K 2.5mm²" required>
         </div>
-        <button type="submit" class="d-btn d-btn--primary d-btn--sm">✅ Ajouter</button>
+        <button type="submit" class="d-btn d-btn--primary d-btn--sm">Ajouter</button>
       </form>
     </div>
   </div>
@@ -201,11 +201,11 @@ $catsCfg    = intervention_category_config();
   ?>
   <div class="d-card" style="margin-bottom:1.5rem;">
     <div class="d-card-head">
-      <div class="d-card-title">📷 Types de photos</div>
+      <div class="d-card-title">Types de photos</div>
     </div>
     <div class="d-card-body">
       <?php if (empty($items)): ?>
-        <p style="color:#8fa0c4;font-size:.88rem;">Aucun type de photo défini.</p>
+        <p style="color:var(--d-t2);font-size:.88rem;">Aucun type de photo défini.</p>
       <?php else: ?>
         <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
           <?php foreach ($items as $item): ?>
@@ -214,9 +214,9 @@ $catsCfg    = intervention_category_config();
               <input type="hidden" name="post_action" value="delete">
               <input type="hidden" name="preset_id"   value="<?= (int)$item['id'] ?>">
               <input type="hidden" name="active_tab"  value="photo_type">
-              <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:#e8ecf5;">
+              <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(6,182,212,.1);border:1px solid rgba(6,182,212,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:var(--d-t1);">
                 <?= e($item['label']) ?>
-                <button type="submit" onclick="return confirm('Supprimer ce type de photo ?')" style="background:none;border:none;color:#8fa0c4;cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">✕</button>
+                <button type="submit" onclick="return confirm('Supprimer ce type de photo ?')" style="background:none;border:none;color:var(--d-t2);cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">×</button>
               </span>
             </form>
           <?php endforeach; ?>
@@ -228,7 +228,7 @@ $catsCfg    = intervention_category_config();
   <!-- Formulaire ajout -->
   <div class="d-card">
     <div class="d-card-head">
-      <div class="d-card-title">➕ Ajouter un type de photo</div>
+      <div class="d-card-title">Ajouter un type de photo</div>
     </div>
     <div class="d-card-body">
       <form method="post">
@@ -241,7 +241,7 @@ $catsCfg    = intervention_category_config();
           <label>Libellé <span style="color:#ef4444">*</span></label>
           <input type="text" name="label" class="d-input" placeholder="Ex: Photo avant intervention" required>
         </div>
-        <button type="submit" class="d-btn d-btn--primary d-btn--sm">✅ Ajouter</button>
+        <button type="submit" class="d-btn d-btn--primary d-btn--sm">Ajouter</button>
       </form>
     </div>
   </div>

@@ -143,7 +143,7 @@ function fmt_dur(int $mins): string {
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
     <div>
-      <div class="d-topbar-title">📋 <?= e($iv['ref'] ?? 'INT #'.$id) ?></div>
+      <div class="d-topbar-title"><?= e($iv['ref'] ?? 'INT #'.$id) ?></div>
       <div class="d-topbar-sub">
         <?= e(trim(($iv['lastname']??'').' '.($iv['firstname']??''))) ?>
         <?php if (!empty($iv['client_city'])): ?> · <?= e($iv['client_city']) ?><?php endif; ?>
@@ -152,8 +152,8 @@ function fmt_dur(int $mins): string {
   </div>
   <div class="d-topbar-actions">
     <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">← Retour</a>
-    <a href="<?= e(url_for('dispatcher/rapport_pdf.php')).'?id='.$id ?>" target="_blank" class="d-btn d-btn--secondary d-btn--sm">📄 PDF</a>
-    <button type="button" id="btn-toggle-edit" class="d-btn d-btn--primary d-btn--sm">✏️ Modifier</button>
+    <a href="<?= e(url_for('dispatcher/rapport_pdf.php')).'?id='.$id ?>" target="_blank" class="d-btn d-btn--secondary d-btn--sm">PDF</a>
+    <button type="button" id="btn-toggle-edit" class="d-btn d-btn--primary d-btn--sm">Modifier</button>
   </div>
 </div>
 
@@ -173,7 +173,7 @@ function fmt_dur(int $mins): string {
         <!-- CLIENT CARD -->
         <div class="d-card">
           <div class="d-card-head">
-            <div class="d-card-title">👤 Client</div>
+            <div class="d-card-title">Client</div>
             <?php if (!empty($iv['client_id'])): ?>
               <a href="<?= e(url_for('dispatcher/intervention_new.php').'?client_id='.(int)$iv['client_id']) ?>"
                  class="d-btn d-btn--ghost d-btn--sm" style="font-size:.74rem;">+ Nouvelle interv.</a>
@@ -198,7 +198,7 @@ function fmt_dur(int $mins): string {
               <span class="d-info-label">Email</span>
               <span class="d-info-value">
                 <a href="mailto:<?= e($iv['client_email']) ?>"
-                   style="color:#8fa0c4;text-decoration:none;"><?= e($iv['client_email']) ?></a>
+                   style="color:var(--d-t2);text-decoration:none;"><?= e($iv['client_email']) ?></a>
               </span>
             </div>
             <?php endif; ?>
@@ -226,7 +226,7 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['access_info'])): ?>
             <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
               <span class="d-info-label">Accès</span>
-              <span style="font-size:.84rem;color:#e8ecf5;line-height:1.5;"><?= nl2br(e($iv['access_info'])) ?></span>
+              <span style="font-size:.84rem;color:var(--d-t1);line-height:1.5;"><?= nl2br(e($iv['access_info'])) ?></span>
             </div>
             <?php endif; ?>
           </div>
@@ -235,7 +235,7 @@ function fmt_dur(int $mins): string {
         <!-- TECHNIQUE CARD -->
         <div class="d-card" style="margin-top:1.25rem;">
           <div class="d-card-head">
-            <div class="d-card-title">🔧 Technique</div>
+            <div class="d-card-title">Technique</div>
             <div><?= intervention_category_badge((string)($iv['category'] ?? '')) ?></div>
           </div>
           <div class="d-card-body">
@@ -254,44 +254,73 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['fault_reported'])): ?>
             <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
               <span class="d-info-label">Panne signalée</span>
-              <span style="font-size:.84rem;color:#e8ecf5;line-height:1.5;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:6px;padding:.6rem .75rem;"><?= nl2br(e($iv['fault_reported'])) ?></span>
+              <span style="font-size:.84rem;color:var(--d-t1);line-height:1.5;background:rgba(239,68,68,.05);border:1px solid rgba(239,68,68,.15);border-radius:6px;padding:.6rem .75rem;"><?= nl2br(e($iv['fault_reported'])) ?></span>
             </div>
             <?php endif; ?>
             <?php if (!empty($iv['description'])): ?>
             <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
               <span class="d-info-label">Description</span>
-              <span style="font-size:.84rem;color:#e8ecf5;line-height:1.5;"><?= nl2br(e($iv['description'])) ?></span>
+              <span style="font-size:.84rem;color:var(--d-t1);line-height:1.5;"><?= nl2br(e($iv['description'])) ?></span>
             </div>
             <?php endif; ?>
-            <?php if (!empty($iv['materials_needed'])): ?>
+            <?php if (materials_text($iv['materials_needed'] ?? '') !== ''): ?>
             <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
               <span class="d-info-label">Matériel nécessaire</span>
-              <span style="font-size:.84rem;color:#8fa0c4;line-height:1.5;"><?= nl2br(e($iv['materials_needed'])) ?></span>
+              <span style="font-size:.84rem;color:var(--d-t2);line-height:1.5;"><?= nl2br(e(materials_text($iv['materials_needed']))) ?></span>
             </div>
             <?php endif; ?>
           </div>
         </div>
 
         <!-- RAPPORT TECHNICIEN (si terminal) -->
-        <?php if ($isTerminal && (!empty($iv['tech_report']) || !empty($iv['tech_time_spent']))): ?>
+        <?php if ($isTerminal && (!empty($iv['tech_report']) || !empty($iv['tech_time_spent']) || !empty($iv['tech_fault_label']) || !empty($iv['tech_signature']) || intervention_photo_paths($iv))): ?>
         <div class="d-card" style="margin-top:1.25rem;">
           <div class="d-card-head">
-            <div class="d-card-title">📝 Rapport technicien</div>
+            <div class="d-card-title">Rapport technicien</div>
             <?php if (!empty($iv['tech_completed_at'])): ?>
-              <span style="font-size:.76rem;color:#8fa0c4;">Terminé le <?= e(date('d/m/Y à H:i', strtotime($iv['tech_completed_at']))) ?></span>
+              <span style="font-size:.76rem;color:var(--d-t2);">Terminé le <?= e(date('d/m/Y à H:i', strtotime($iv['tech_completed_at']))) ?></span>
             <?php endif; ?>
           </div>
           <div class="d-card-body">
+            <?php
+            $yn = static fn($v) => $v === null || $v === '' ? null : ((int)$v ? 'Oui' : 'Non');
+            $facts = array_filter([
+                'Intitulé de la panne'  => $iv['tech_fault_label'] ?? null,
+                'N° d\'appareil'        => $iv['tech_device_number'] ?? null,
+                'Réalisable'            => $yn($iv['tech_realizable'] ?? null),
+                'Mauvaise utilisation'  => $yn($iv['tech_bad_use'] ?? null),
+                'Ascenseur remis en service' => $yn($iv['tech_elevator_restored'] ?? null),
+                'Arrivée sur place'     => !empty($iv['tech_arrived_at']) ? date('d/m/Y H:i', strtotime($iv['tech_arrived_at'])) : null,
+            ], static fn($v) => $v !== null && $v !== '');
+            ?>
+            <?php foreach ($facts as $label => $val): ?>
+            <div class="d-info-row"><span class="d-info-label"><?= e($label) ?></span><span class="d-info-value"><?= e($val) ?></span></div>
+            <?php endforeach; ?>
             <?php if (!empty($iv['tech_report'])): ?>
-            <div style="margin-bottom:1rem;">
-              <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Rapport</div>
-              <div style="font-size:.87rem;color:#e8ecf5;line-height:1.6;background:rgba(255,255,255,.03);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_report'])) ?></div>
+            <div style="margin:1rem 0;">
+              <div class="d-label">Constat et travaux réalisés</div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_report'])) ?></div>
             </div>
             <?php endif; ?>
-            <?php if (!empty($iv['tech_materials_used'])): ?>
+            <?php if (!empty($iv['tech_notes_extra'])): ?>
             <div style="margin-bottom:1rem;">
-              <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Matériaux utilisés</div>
-              <div style="font-size:.87rem;color:#e8ecf5;line-height:1.6;"><?= nl2br(e($iv['tech_materials_used'])) ?></div>
+              <div class="d-label">Remarques du technicien</div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;"><?= nl2br(e($iv['tech_notes_extra'])) ?></div>
+            </div>
+            <?php endif; ?>
+            <?php
+            $usedMats = json_decode((string)($iv['tech_materials_used'] ?? ''), true);
+            if (is_array($usedMats) && $usedMats): ?>
+            <div style="margin-bottom:1rem;">
+              <div class="d-label">Matériel utilisé</div>
+              <?php foreach ($usedMats as $um): if (!is_array($um) || empty($um['name'])) continue; ?>
+                <div class="d-info-row"><span><?= e($um['name']) ?></span><span class="d-info-value"><?= e(trim(($um['qty'] ?? '').' '.($um['unit'] ?? ''))) ?></span></div>
+              <?php endforeach; ?>
+            </div>
+            <?php elseif (!empty($iv['tech_materials_used']) && !is_array($usedMats)): ?>
+            <div style="margin-bottom:1rem;">
+              <div class="d-label">Matériel utilisé</div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;"><?= nl2br(e($iv['tech_materials_used'])) ?></div>
             </div>
             <?php endif; ?>
             <?php if (!empty($iv['tech_time_spent'])): ?>
@@ -308,24 +337,20 @@ function fmt_dur(int $mins): string {
             <?php endif; ?>
             <?php if (!empty($iv['tech_signature'])): ?>
             <div style="margin-top:.75rem;">
-              <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Signature client</div>
-              <img src="<?= e($iv['tech_signature']) ?>" alt="Signature" style="max-width:200px;background:#fff;border-radius:4px;border:1px solid rgba(255,255,255,.1);" loading="lazy">
+              <div style="font-size:.75rem;font-weight:700;color:var(--d-t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Signature client</div>
+              <img src="<?= e($iv['tech_signature']) ?>" alt="Signature" style="max-width:200px;background:#fff;border-radius:4px;border:1px solid var(--d-border);" loading="lazy">
             </div>
             <?php endif; ?>
             <?php
-            $photos = [];
-            if (!empty($iv['tech_photos'])) {
-                $p = json_decode((string)$iv['tech_photos'], true);
-                if (is_array($p)) $photos = $p;
-            }
+            $photos = intervention_photo_paths($iv);
             if (!empty($photos)): ?>
             <div style="margin-top:1rem;">
-              <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;">Photos (<?= count($photos) ?>)</div>
+              <div style="font-size:.75rem;font-weight:700;color:var(--d-t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.6rem;">Photos (<?= count($photos) ?>)</div>
               <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
                 <?php foreach ($photos as $ph): ?>
                   <a href="<?= e(asset_url($ph)) ?>" target="_blank">
                     <img src="<?= e(asset_url($ph)) ?>" alt="Photo intervention" width="80" height="80"
-                         style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid rgba(255,255,255,.1);" loading="lazy">
+                         style="width:80px;height:80px;object-fit:cover;border-radius:6px;border:1px solid var(--d-border);" loading="lazy">
                   </a>
                 <?php endforeach; ?>
               </div>
@@ -338,12 +363,12 @@ function fmt_dur(int $mins): string {
         <!-- HISTORIQUE -->
         <div class="d-card" style="margin-top:1.25rem;">
           <div class="d-card-head">
-            <div class="d-card-title">🕒 Historique</div>
+            <div class="d-card-title">Historique</div>
           </div>
           <div class="d-card-body">
             <?php if (empty($history)): ?>
               <div class="d-empty" style="padding:1.5rem 0;">
-                <div class="d-empty-icon" style="font-size:1.5rem;">📄</div>
+                <div class="d-empty-icon" style="font-size:1.5rem;"></div>
                 <div>Aucun historique disponible.</div>
               </div>
             <?php else: ?>
@@ -354,18 +379,18 @@ function fmt_dur(int $mins): string {
                   <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;">
                     <?php if (!empty($h['status_from'])): ?>
                       <?= intervention_status_badge((string)$h['status_from']) ?>
-                      <span style="color:#4a5f8a;font-size:.8rem;">→</span>
+                      <span style="color:var(--d-t3);font-size:.8rem;">→</span>
                     <?php endif; ?>
                     <?= intervention_status_badge((string)$h['status_to']) ?>
                   </div>
-                  <div style="font-size:.78rem;color:#8fa0c4;margin-top:.3rem;">
+                  <div style="font-size:.78rem;color:var(--d-t2);margin-top:.3rem;">
                     <?= e($h['actor_name'] ?? 'Système') ?>
                     <?php if (!empty($h['created_at'])): ?>
                       · <?= e(date('d/m/Y à H:i', strtotime($h['created_at']))) ?>
                     <?php endif; ?>
                   </div>
                   <?php if (!empty($h['note'])): ?>
-                    <div style="font-size:.8rem;color:#8fa0c4;font-style:italic;margin-top:.2rem;"><?= e($h['note']) ?></div>
+                    <div style="font-size:.8rem;color:var(--d-t2);font-style:italic;margin-top:.2rem;"><?= e($h['note']) ?></div>
                   <?php endif; ?>
                 </div>
               </li>
@@ -386,16 +411,16 @@ function fmt_dur(int $mins): string {
           <!-- Client info (read-only in edit mode) -->
           <div class="d-card" style="margin-bottom:1.25rem;">
             <div class="d-card-head">
-              <div class="d-card-title">👤 Client (non modifiable ici)</div>
+              <div class="d-card-title">Client (non modifiable ici)</div>
             </div>
-            <div class="d-card-body" style="font-size:.87rem;color:#8fa0c4;">
+            <div class="d-card-body" style="font-size:.87rem;color:var(--d-t2);">
               <?= e(trim(($iv['lastname']??'').' '.($iv['firstname']??''))) ?> · <?= e($iv['client_phone'] ?? '') ?>
             </div>
           </div>
 
           <!-- Section Planification -->
           <div class="d-card" style="margin-bottom:1.25rem;">
-            <div class="d-card-head"><div class="d-card-title">📅 Planification</div></div>
+            <div class="d-card-head"><div class="d-card-title">Planification</div></div>
             <div class="d-card-body">
               <div class="d-grid-3">
                 <div class="d-field">
@@ -437,9 +462,9 @@ function fmt_dur(int $mins): string {
                   </select>
                 </div>
                 <div class="d-field" style="display:flex;align-items:center;gap:.6rem;padding-top:1.8rem;">
-                  <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:#e8ecf5;margin-bottom:0;">
+                  <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--d-t1);margin-bottom:0;">
                     <input type="checkbox" name="urgency" value="1" <?=!empty($iv['urgency'])?'checked':''?> style="width:auto;accent-color:#ef4444;">
-                    🚨 Urgence
+                    Urgence
                   </label>
                 </div>
               </div>
@@ -460,7 +485,7 @@ function fmt_dur(int $mins): string {
 
           <!-- Section Technique -->
           <div class="d-card" style="margin-bottom:1.25rem;">
-            <div class="d-card-head"><div class="d-card-title">🔧 Technique</div></div>
+            <div class="d-card-head"><div class="d-card-title">Technique</div></div>
             <div class="d-card-body">
               <div class="d-grid-2">
                 <div class="d-field">
@@ -498,7 +523,7 @@ function fmt_dur(int $mins): string {
 
           <!-- Section Financier -->
           <div class="d-card" style="margin-bottom:1.25rem;">
-            <div class="d-card-head"><div class="d-card-title">💶 Financier</div></div>
+            <div class="d-card-head"><div class="d-card-title">Financier</div></div>
             <div class="d-card-body">
               <div class="d-grid-3">
                 <div class="d-field">
@@ -529,9 +554,9 @@ function fmt_dur(int $mins): string {
                 </div>
               </div>
               <div class="d-field" style="display:flex;align-items:center;gap:.6rem;">
-                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:#e8ecf5;margin-bottom:0;">
+                <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--d-t1);margin-bottom:0;">
                   <input type="checkbox" name="quote_accepted" value="1" <?=!empty($iv['quote_accepted'])?'checked':''?> style="width:auto;accent-color:#22c55e;">
-                  ✅ Devis accepté
+                  Devis accepté
                 </label>
               </div>
               <div class="d-field" style="margin-top:1rem;">
@@ -543,7 +568,7 @@ function fmt_dur(int $mins): string {
 
           <div style="display:flex;gap:.75rem;justify-content:flex-end;padding-bottom:1.5rem;">
             <button type="button" id="btn-cancel-edit" class="d-btn d-btn--secondary">Annuler</button>
-            <button type="submit" class="d-btn d-btn--primary">💾 Enregistrer</button>
+            <button type="submit" class="d-btn d-btn--primary">Enregistrer</button>
           </div>
         </form>
       </div><!-- /#edit-mode -->
@@ -558,22 +583,22 @@ function fmt_dur(int $mins): string {
 
       <!-- STATUT CARD -->
       <div class="d-card">
-        <div class="d-card-head"><div class="d-card-title">🚦 Statut</div></div>
+        <div class="d-card-head"><div class="d-card-title">Statut</div></div>
         <div class="d-card-body">
           <div style="margin-bottom:1rem;">
             <?= intervention_status_badge($currentStatus) ?>
             <?php if (!empty($iv['urgency'])): ?>
-              <span class="d-badge-urgency" style="margin-left:.4rem;">🚨 Urgence</span>
+              <span class="d-badge-urgency" style="margin-left:.4rem;">Urgence</span>
             <?php endif; ?>
           </div>
 
           <?php if (!empty($nexts)): ?>
-          <div style="font-size:.75rem;font-weight:700;color:#8fa0c4;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">
+          <div style="font-size:.75rem;font-weight:700;color:var(--d-t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.5rem;">
             Faire passer à :
           </div>
           <div style="display:flex;flex-direction:column;gap:.5rem;">
             <?php foreach ($nexts as $ns): ?>
-              <?php $nsCfg = $statusCfg[$ns] ?? ['label'=>$ns,'color'=>'#8fa0c4','bg'=>'rgba(143,160,196,.15)']; ?>
+              <?php $nsCfg = $statusCfg[$ns] ?? ['label'=>$ns,'color'=>'#8fa0c4','bg'=>'var(--d-card-2)']; ?>
               <form method="post">
                 <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
                 <input type="hidden" name="action"      value="quick_status">
@@ -585,25 +610,25 @@ function fmt_dur(int $mins): string {
             <?php endforeach; ?>
           </div>
           <?php else: ?>
-            <div style="font-size:.8rem;color:#4a5f8a;font-style:italic;">Aucune transition disponible</div>
+            <div style="font-size:.8rem;color:var(--d-t3);font-style:italic;">Aucune transition disponible</div>
           <?php endif; ?>
         </div>
       </div>
 
       <!-- PLANNING CARD -->
       <div class="d-card">
-        <div class="d-card-head"><div class="d-card-title">📅 Planification</div></div>
+        <div class="d-card-head"><div class="d-card-title">Planification</div></div>
         <div class="d-card-body">
           <div class="d-info-row">
             <span class="d-info-label">Date</span>
             <span class="d-info-value">
-              <?= !empty($iv['scheduled_date']) ? e(date('d/m/Y', strtotime($iv['scheduled_date']))) : '<span style="color:#4a5f8a">—</span>' ?>
+              <?= !empty($iv['scheduled_date']) ? e(date('d/m/Y', strtotime($iv['scheduled_date']))) : '<span style="color:var(--d-t3)">—</span>' ?>
             </span>
           </div>
           <div class="d-info-row">
             <span class="d-info-label">Heure</span>
             <span class="d-info-value">
-              <?= !empty($iv['scheduled_time']) ? e(substr($iv['scheduled_time'],0,5)) : '<span style="color:#4a5f8a">—</span>' ?>
+              <?= !empty($iv['scheduled_time']) ? e(substr($iv['scheduled_time'],0,5)) : '<span style="color:var(--d-t3)">—</span>' ?>
             </span>
           </div>
           <div class="d-info-row">
@@ -621,20 +646,20 @@ function fmt_dur(int $mins): string {
                 <div><?= e($assignedTech['name']) ?></div>
                 <?php if (!empty($assignedTech['phone'])): ?>
                   <a href="tel:<?= e(preg_replace('/\s+/','',$assignedTech['phone'])) ?>"
-                     style="font-size:.77rem;color:#8fa0c4;text-decoration:none;"><?= e($assignedTech['phone']) ?></a>
+                     style="font-size:.77rem;color:var(--d-t2);text-decoration:none;"><?= e($assignedTech['phone']) ?></a>
                 <?php endif; ?>
               <?php else: ?>
-                <span style="color:#4a5f8a;">Non assigné</span>
+                <span style="color:var(--d-t3);">Non assigné</span>
               <?php endif; ?>
             </span>
           </div>
           <div class="d-info-row">
             <span class="d-info-label">Dispatcher</span>
-            <span class="d-info-value" style="color:#8fa0c4;"><?= e($iv['disp_name'] ?? '—') ?></span>
+            <span class="d-info-value" style="color:var(--d-t2);"><?= e($iv['disp_name'] ?? '—') ?></span>
           </div>
           <div class="d-info-row">
             <span class="d-info-label">Créée le</span>
-            <span class="d-info-value" style="color:#8fa0c4;font-size:.8rem;">
+            <span class="d-info-value" style="color:var(--d-t2);font-size:.8rem;">
               <?= !empty($iv['created_at']) ? e(date('d/m/Y', strtotime($iv['created_at']))) : '—' ?>
             </span>
           </div>
@@ -644,22 +669,22 @@ function fmt_dur(int $mins): string {
       <!-- FINANCIER CARD -->
       <div class="d-card">
         <div class="d-card-head">
-          <div class="d-card-title">💶 Financier</div>
+          <div class="d-card-title">Financier</div>
           <?php if (!empty($iv['quote_accepted'])): ?>
-            <span style="font-size:.72rem;color:#22c55e;font-weight:700;">✅ Devis accepté</span>
+            <span style="font-size:.72rem;color:#22c55e;font-weight:700;">Devis accepté</span>
           <?php endif; ?>
         </div>
         <div class="d-card-body">
           <div class="d-info-row">
             <span class="d-info-label">Montant HT</span>
-            <span class="d-info-value" style="color:#e8ecf5;">
-              <?= $amtHt > 0 ? e(fmt_money($amtHt)) : '<span style="color:#4a5f8a">—</span>' ?>
+            <span class="d-info-value" style="color:var(--d-t1);">
+              <?= $amtHt > 0 ? e(fmt_money($amtHt)) : '<span style="color:var(--d-t3)">—</span>' ?>
             </span>
           </div>
           <div class="d-info-row">
             <span class="d-info-label">Montant TTC</span>
             <span class="d-info-value" style="color:#F07B1D;font-weight:700;">
-              <?= $amtTtc > 0 ? e(fmt_money($amtTtc)) : '<span style="color:#4a5f8a">—</span>' ?>
+              <?= $amtTtc > 0 ? e(fmt_money($amtTtc)) : '<span style="color:var(--d-t3)">—</span>' ?>
             </span>
           </div>
           <?php if ((float)($iv['deposit'] ?? 0) > 0): ?>
@@ -685,27 +710,27 @@ function fmt_dur(int $mins): string {
 
       <!-- ACTIONS CARD -->
       <div class="d-card">
-        <div class="d-card-head"><div class="d-card-title">⚡ Actions</div></div>
+        <div class="d-card-head"><div class="d-card-title">Actions</div></div>
         <div class="d-card-body" style="display:flex;flex-direction:column;gap:.6rem;">
 
           <!-- Modifier -->
           <button type="button" id="btn-edit-2" class="d-btn d-btn--primary d-btn--sm" style="width:100%;justify-content:center;">
-            ✏️ Modifier la fiche
+            Modifier la fiche
           </button>
 
           <!-- PDF -->
           <a href="<?= e(url_for('dispatcher/rapport_pdf.php')).'?id='.$id ?>" target="_blank"
              class="d-btn d-btn--secondary d-btn--sm" style="width:100%;justify-content:center;">
-            📄 Télécharger PDF
+            Télécharger PDF
           </a>
 
           <!-- SMS Client -->
           <?php if (!empty($iv['client_phone'])): ?>
           <button type="button" class="d-btn d-btn--ghost d-btn--sm" style="width:100%;justify-content:center;"
                   onclick="document.getElementById('sms-panel-client').style.display=document.getElementById('sms-panel-client').style.display==='none'?'block':'none';">
-            📱 SMS Client
+            SMS Client
           </button>
-          <div id="sms-panel-client" style="display:none;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.75rem;">
+          <div id="sms-panel-client" style="display:none;background:var(--d-card-2);border:1px solid var(--d-border);border-radius:8px;padding:.75rem;">
             <form method="post">
               <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
               <input type="hidden" name="action"      value="send_sms">
@@ -724,9 +749,9 @@ function fmt_dur(int $mins): string {
           <?php if (!empty($iv['tech_phone'])): ?>
           <button type="button" class="d-btn d-btn--ghost d-btn--sm" style="width:100%;justify-content:center;"
                   onclick="document.getElementById('sms-panel-tech').style.display=document.getElementById('sms-panel-tech').style.display==='none'?'block':'none';">
-            📱 SMS Technicien
+            SMS Technicien
           </button>
-          <div id="sms-panel-tech" style="display:none;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.75rem;">
+          <div id="sms-panel-tech" style="display:none;background:var(--d-card-2);border:1px solid var(--d-border);border-radius:8px;padding:.75rem;">
             <form method="post">
               <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
               <input type="hidden" name="action"      value="send_sms">
@@ -742,12 +767,12 @@ function fmt_dur(int $mins): string {
           <?php endif; ?>
 
           <!-- Supprimer -->
-          <div style="margin-top:.25rem;border-top:1px solid rgba(255,255,255,.06);padding-top:.75rem;">
+          <div style="margin-top:.25rem;border-top:1px solid var(--d-border);padding-top:.75rem;">
             <form method="post" onsubmit="return confirm('Confirmer la suppression de cette intervention ? Cette action est irréversible.');">
               <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
               <input type="hidden" name="action"     value="delete">
               <button type="submit" class="d-btn d-btn--danger d-btn--sm" style="width:100%;justify-content:center;">
-                🗑 Supprimer l'intervention
+                Supprimer l'intervention
               </button>
             </form>
           </div>
@@ -755,7 +780,7 @@ function fmt_dur(int $mins): string {
           <?php if (!empty($iv['notes_admin'])): ?>
           <div style="margin-top:.5rem;background:rgba(240,123,29,.06);border:1px solid rgba(240,123,29,.15);border-radius:8px;padding:.65rem .75rem;">
             <div style="font-size:.7rem;font-weight:700;color:#F07B1D;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.3rem;">Notes internes</div>
-            <div style="font-size:.8rem;color:#e8ecf5;line-height:1.5;"><?= nl2br(e($iv['notes_admin'])) ?></div>
+            <div style="font-size:.8rem;color:var(--d-t1);line-height:1.5;"><?= nl2br(e($iv['notes_admin'])) ?></div>
           </div>
           <?php endif; ?>
 
@@ -786,7 +811,7 @@ function fmt_dur(int $mins): string {
   function showView(){
     if(editMode) editMode.style.display = 'none';
     if(viewMode) viewMode.style.display = 'block';
-    if(btnToggle) btnToggle.textContent = '✏️ Modifier';
+    if(btnToggle) btnToggle.textContent = 'Modifier';
     window.scrollTo({top:0,behavior:'smooth'});
   }
 
