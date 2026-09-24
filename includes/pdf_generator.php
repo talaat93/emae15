@@ -12,6 +12,13 @@ class InterventionPdfGenerator
     private const LIGHT_BG = '#F5F7FA';
     private const BORDER = '#D9DDE8';
 
+    // Le gabarit CSS interpole {$this->NAVY} etc. : une constante ne s'y
+    // substitue pas, il faut des propriétés.
+    private string $NAVY     = self::NAVY;
+    private string $ORANGE   = self::ORANGE;
+    private string $LIGHT_BG = self::LIGHT_BG;
+    private string $BORDER   = self::BORDER;
+
     /** Root of the application (directory containing /includes) */
     private string $appRoot;
 
