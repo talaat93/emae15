@@ -93,29 +93,22 @@ $validStatuses = array_keys($statusCfg);
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
     <div>
-      <div class="d-topbar-title">📋 Interventions</div>
+      <div class="d-topbar-title">Interventions</div>
+      <div class="d-topbar-sub"><?= count($interventions) ?> résultat<?= count($interventions) > 1 ? 's' : '' ?></div>
     </div>
   </div>
   <div class="d-topbar-actions">
-    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary">➕ Nouvelle</a>
+    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary d-btn--sm">+ Nouvelle intervention</a>
   </div>
 </div>
 
 <div class="d-content">
 
-  <!-- PAGE HEADER -->
-  <div class="d-page-header">
-    <div>
-      <div class="d-page-title">Interventions (<?= count($interventions) ?>)</div>
-      <div class="d-page-sub">Gestion et suivi de toutes les interventions</div>
-    </div>
-    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary">➕ Nouvelle intervention</a>
-  </div>
-
+  <style>.iv-row{cursor:pointer}</style>
   <!-- FILTRES -->
   <form method="get" action="" id="form-filters">
     <div class="d-filters">
-      <input type="search" name="search" placeholder="🔍 Rechercher réf, client, ville…"
+      <input type="search" name="search" placeholder="Rechercher réf, client, ville…"
              value="<?= e($fSearch) ?>" style="min-width:220px;">
       <select name="status">
         <option value="">Tous les statuts</option>
@@ -135,7 +128,7 @@ $validStatuses = array_keys($statusCfg);
           <option value="<?= (int)$t['id'] ?>" <?= $fTechId === (int)$t['id'] ? 'selected' : '' ?>><?= e($t['name']) ?></option>
         <?php endforeach; ?>
       </select>
-      <label style="display:flex;align-items:center;gap:.4rem;color:#8fa0c4;font-size:.84rem;cursor:pointer;white-space:nowrap;">
+      <label style="display:flex;align-items:center;gap:.4rem;color:var(--d-t2);font-size:.84rem;cursor:pointer;white-space:nowrap;">
         <input type="checkbox" name="urgency" value="1" <?= $fUrgency ? 'checked' : '' ?> style="width:auto;accent-color:#ef4444;">
         Urgence uniquement
       </label>
@@ -143,7 +136,7 @@ $validStatuses = array_keys($statusCfg);
       <input type="date" name="date_to"   value="<?= e($fDateTo) ?>"   title="Date fin"   style="width:auto;">
       <button type="submit" class="d-btn d-btn--secondary d-btn--sm">Filtrer</button>
       <?php if ($fStatus || $fCat || $fTechId || $fUrgency || $fSearch || $fDateFrom || $fDateTo): ?>
-        <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">✕ Réinitialiser</a>
+        <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">Réinitialiser</a>
       <?php endif; ?>
     </div>
   </form>
@@ -152,10 +145,10 @@ $validStatuses = array_keys($statusCfg);
   <div class="d-card">
     <?php if (empty($interventions)): ?>
       <div class="d-empty">
-        <div class="d-empty-icon">📭</div>
-        <div style="font-size:1rem;font-weight:700;color:#8fa0c4;margin-bottom:.5rem;">Aucune intervention trouvée</div>
-        <div style="font-size:.84rem;color:#4a5f8a;">Modifiez vos filtres ou créez une nouvelle intervention.</div>
-        <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary" style="margin-top:1.25rem;">➕ Nouvelle intervention</a>
+        <div class="d-empty-icon"></div>
+        <div style="font-size:1rem;font-weight:700;color:var(--d-t2);margin-bottom:.5rem;">Aucune intervention trouvée</div>
+        <div style="font-size:.84rem;color:var(--d-t3);">Modifiez vos filtres ou créez une nouvelle intervention.</div>
+        <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary" style="margin-top:1.25rem;">Nouvelle intervention</a>
       </div>
     <?php else: ?>
     <div style="overflow-x:auto;">
@@ -164,103 +157,47 @@ $validStatuses = array_keys($statusCfg);
           <tr>
             <th>Réf</th>
             <th>Client</th>
-            <th>Ville</th>
-            <th>Catégorie</th>
-            <th>Type</th>
-            <th>Urg.</th>
-            <th>Date / Heure</th>
+            <th>Intervention</th>
+            <th>Date</th>
             <th>Technicien</th>
             <th>Statut</th>
-            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <?php foreach ($interventions as $iv): ?>
-          <tr>
-            <!-- Réf -->
-            <td>
-              <a href="<?= e(url_for('dispatcher/intervention_view.php').'?id='.(int)$iv['id']) ?>"
-                 style="font-weight:700;color:#F07B1D;text-decoration:none;font-size:.82rem;font-family:'Syne',sans-serif;">
+          <?php foreach ($interventions as $iv):
+            $ivUrl = url_for('dispatcher/intervention_view.php').'?id='.(int)$iv['id'];
+          ?>
+          <tr class="iv-row" onclick="if(!event.target.closest('a'))location.href=this.dataset.href" data-href="<?= e($ivUrl) ?>">
+            <td style="white-space:nowrap;">
+              <a href="<?= e($ivUrl) ?>" style="font-weight:600;color:var(--d-t1);text-decoration:none;font-size:.82rem;">
                 <?= e($iv['ref'] ?? 'INT #'.(int)$iv['id']) ?>
               </a>
             </td>
-
-            <!-- Client -->
             <td>
-              <div style="font-weight:600;color:#e8ecf5;">
+              <div style="font-weight:600;color:var(--d-t1);">
                 <?= e(trim(($iv['lastname']??'').' '.($iv['firstname']??''))) ?>
+                <?php if (!empty($iv['urgency'])): ?><span class="d-badge-urgency" style="margin-left:.35rem;">Urgent</span><?php endif; ?>
               </div>
-              <?php if (!empty($iv['client_phone'])): ?>
-                <div style="font-size:.75rem;color:#8fa0c4;">
-                  <a href="tel:<?= e(preg_replace('/\s+/','',$iv['client_phone'])) ?>" style="color:#8fa0c4;text-decoration:none;"><?= e($iv['client_phone']) ?></a>
-                </div>
-              <?php endif; ?>
+              <div style="font-size:.78rem;color:var(--d-t2);"><?= e($iv['client_city'] ?? '') ?></div>
             </td>
-
-            <!-- Ville -->
-            <td style="color:#8fa0c4;font-size:.84rem;"><?= e($iv['client_city'] ?? '—') ?></td>
-
-            <!-- Catégorie -->
-            <td><?= intervention_category_badge((string)($iv['category'] ?? '')) ?></td>
-
-            <!-- Type -->
-            <td style="color:#8fa0c4;font-size:.82rem;max-width:130px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-              <?= e($iv['type_label'] ?? '—') ?>
-            </td>
-
-            <!-- Urgence -->
             <td>
-              <?php if (!empty($iv['urgency'])): ?>
-                <span class="urgency-dot" title="Urgence"></span>
-              <?php else: ?>
-                <span style="color:#4a5f8a;font-size:.8rem;">—</span>
+              <div><?= intervention_category_badge((string)($iv['category'] ?? '')) ?></div>
+              <?php if (!empty($iv['type_label'])): ?>
+                <div style="font-size:.78rem;color:var(--d-t2);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><?= e($iv['type_label']) ?></div>
               <?php endif; ?>
             </td>
-
-            <!-- Date / Heure -->
-            <td style="font-size:.83rem;white-space:nowrap;">
+            <td style="font-size:.84rem;white-space:nowrap;">
               <?php if (!empty($iv['scheduled_date'])): ?>
-                <div style="color:#e8ecf5;"><?= e(date('d/m/Y', strtotime($iv['scheduled_date']))) ?></div>
-                <?php if (!empty($iv['scheduled_time'])): ?>
-                  <div style="color:#8fa0c4;"><?= e(substr($iv['scheduled_time'],0,5)) ?></div>
-                <?php endif; ?>
+                <?= e(date('d/m/Y', strtotime($iv['scheduled_date']))) ?>
+                <?php if (!empty($iv['scheduled_time'])): ?><span style="color:var(--d-t2);"> · <?= e(substr($iv['scheduled_time'],0,5)) ?></span><?php endif; ?>
               <?php else: ?>
-                <span style="color:#4a5f8a;">Non planifiée</span>
+                <span style="color:var(--d-warning);">À planifier</span>
               <?php endif; ?>
             </td>
-
-            <!-- Technicien -->
-            <td style="font-size:.84rem;color:<?= !empty($iv['tech_name']) ? '#e8ecf5' : '#4a5f8a' ?>;">
+            <td style="font-size:.84rem;color:<?= !empty($iv['tech_name']) ? 'var(--d-t1)' : 'var(--d-warning)' ?>;">
               <?= e($iv['tech_name'] ?? 'Non assigné') ?>
             </td>
-
-            <!-- Statut -->
             <td><?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?></td>
-
-            <!-- Actions -->
-            <td>
-              <div style="display:flex;align-items:center;gap:.4rem;flex-wrap:nowrap;">
-                <a href="<?= e(url_for('dispatcher/intervention_view.php').'?id='.(int)$iv['id']) ?>"
-                   class="d-btn d-btn--secondary d-btn--sm">Voir</a>
-
-                <!-- Quick status update -->
-                <form method="post" action="" style="display:inline;">
-                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-                  <input type="hidden" name="action" value="update_status">
-                  <input type="hidden" name="id" value="<?= (int)$iv['id'] ?>">
-                  <select name="new_status"
-                          onchange="this.form.submit()"
-                          style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:#e8ecf5;padding:.3rem .5rem;font-size:.75rem;font-family:inherit;cursor:pointer;outline:none;">
-                    <option value="">— Statut</option>
-                    <?php foreach ($statusCfg as $sk => $sv): ?>
-                      <option value="<?= e($sk) ?>" <?= ($iv['status'] ?? '') === $sk ? 'selected' : '' ?>>
-                        <?= e($sv['label']) ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                </form>
-              </div>
-            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>
@@ -270,7 +207,7 @@ $validStatuses = array_keys($statusCfg);
   </div>
 
   <!-- PAGINATION / COUNT -->
-  <div style="margin-top:.75rem;font-size:.8rem;color:#4a5f8a;text-align:right;">
+  <div style="margin-top:.75rem;font-size:.8rem;color:var(--d-t3);text-align:right;">
     <?= count($interventions) ?> résultat<?= count($interventions) > 1 ? 's' : '' ?>
   </div>
 

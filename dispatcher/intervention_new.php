@@ -119,7 +119,7 @@ $post = $_POST;
 <div class="d-topbar">
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
-    <div class="d-topbar-title">➕ Nouvelle intervention</div>
+    <div class="d-topbar-title">Nouvelle intervention</div>
   </div>
   <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--secondary d-btn--sm">← Retour</a>
 </div>
@@ -128,7 +128,7 @@ $post = $_POST;
 
 <?php if (!empty($errors)): ?>
   <div class="d-flash d-flash--error" style="margin-bottom:1.25rem;">
-    ⚠️ <?= implode(' • ', array_map('e', $errors)) ?>
+    <?= implode(' • ', array_map('e', $errors)) ?>
   </div>
 <?php endif; ?>
 
@@ -143,20 +143,20 @@ $post = $_POST;
   ══════════════════════════════════════════════ -->
   <div class="d-card d-form-section" style="margin-bottom:1.25rem;">
     <div class="d-card-head">
-      <div class="d-card-title">👤 Section 1 — Client</div>
+      <div class="d-card-title">Client</div>
     </div>
     <div class="d-card-body">
       <div class="d-form-section-title">Mode client</div>
 
       <!-- Radio -->
       <div style="display:flex;gap:1.25rem;margin-bottom:1.25rem;">
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;color:#e8ecf5;">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;color:var(--d-t1);">
           <input type="radio" name="client_mode" value="existing" id="r-existing"
                  <?= (($post['client_mode'] ?? 'existing') === 'existing') ? 'checked' : '' ?>
                  style="width:auto;accent-color:#F07B1D;">
           Client existant
         </label>
-        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;color:#e8ecf5;">
+        <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.9rem;color:var(--d-t1);">
           <input type="radio" name="client_mode" value="new" id="r-new"
                  <?= (($post['client_mode'] ?? '') === 'new') ? 'checked' : '' ?>
                  style="width:auto;accent-color:#F07B1D;">
@@ -170,11 +170,11 @@ $post = $_POST;
         <div class="d-field" style="position:relative;">
           <label for="client-search">Nom, téléphone, ville…</label>
           <input type="text" id="client-search" placeholder="Commencez à taper…" autocomplete="off">
-          <div id="client-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:#061029;border:1px solid rgba(255,255,255,.12);border-radius:8px;max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+          <div id="client-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--d-border);border-radius:8px;max-height:220px;overflow-y:auto;margin-top:2px;"></div>
         </div>
-        <div id="client-selected" style="display:none;background:rgba(240,123,29,.08);border:1px solid rgba(240,123,29,.2);border-radius:8px;padding:.85rem 1rem;font-size:.88rem;color:#e8ecf5;margin-top:.25rem;">
+        <div id="client-selected" style="display:none;background:rgba(240,123,29,.08);border:1px solid rgba(240,123,29,.2);border-radius:8px;padding:.85rem 1rem;font-size:.88rem;color:var(--d-t1);margin-top:.25rem;">
           <span id="client-selected-text"></span>
-          <button type="button" id="client-clear" style="margin-left:1rem;background:transparent;border:none;color:#8fa0c4;cursor:pointer;font-size:.8rem;">✕ Changer</button>
+          <button type="button" id="client-clear" style="margin-left:1rem;background:transparent;border:none;color:var(--d-t2);cursor:pointer;font-size:.8rem;">Changer</button>
         </div>
       </div>
 
@@ -230,9 +230,9 @@ $post = $_POST;
           <textarea name="new_access_info" placeholder="Interphone, gardien, clé chez voisin…"><?= e($post['new_access_info'] ?? '') ?></textarea>
         </div>
         <button type="button" id="btn-geocode" class="d-btn d-btn--secondary d-btn--sm">
-          📍 Géolocaliser l'adresse
+          Géolocaliser l'adresse
         </button>
-        <span id="geocode-result" style="margin-left:.75rem;font-size:.8rem;color:#8fa0c4;"></span>
+        <span id="geocode-result" style="margin-left:.75rem;font-size:.8rem;color:var(--d-t2);"></span>
       </div>
 
     </div>
@@ -243,7 +243,7 @@ $post = $_POST;
   ══════════════════════════════════════════════ -->
   <div class="d-card d-form-section" style="margin-bottom:1.25rem;">
     <div class="d-card-head">
-      <div class="d-card-title">📅 Section 2 — Planification</div>
+      <div class="d-card-title">Planification</div>
     </div>
     <div class="d-card-body">
       <div class="d-grid-3">
@@ -291,11 +291,11 @@ $post = $_POST;
           </select>
         </div>
         <div class="d-field" style="display:flex;align-items:center;gap:.65rem;padding-top:1.8rem;">
-          <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:#e8ecf5;margin-bottom:0;">
+          <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--d-t1);margin-bottom:0;">
             <input type="checkbox" name="urgency" value="1"
                    <?= !empty($post['urgency']) ? 'checked' : '' ?>
                    style="width:auto;accent-color:#ef4444;">
-            🚨 Urgence
+            Urgence
           </label>
         </div>
       </div>
@@ -307,7 +307,7 @@ $post = $_POST;
   ══════════════════════════════════════════════ -->
   <div class="d-card d-form-section" style="margin-bottom:1.25rem;">
     <div class="d-card-head">
-      <div class="d-card-title">🔧 Section 3 — Technique</div>
+      <div class="d-card-title">Technique</div>
     </div>
     <div class="d-card-body">
       <div class="d-grid-2">
@@ -355,9 +355,9 @@ $post = $_POST;
         <textarea name="description" placeholder="Informations complémentaires, contexte, historique…"><?= e($post['description'] ?? '') ?></textarea>
       </div>
       <!-- Matériaux prévus -->
-      <div class="d-form-section-title">🔩 Matériaux prévus</div>
+      <div class="d-form-section-title">Matériaux prévus</div>
       <div id="materials-container"></div>
-      <button type="button" onclick="addMaterialRow()" class="d-btn d-btn--ghost d-btn--sm" style="margin-bottom:.75rem;">➕ Ajouter un matériau</button>
+      <button type="button" onclick="addMaterialRow()" class="d-btn d-btn--ghost d-btn--sm" style="margin-bottom:.75rem;">Ajouter un matériau</button>
       <input type="hidden" name="materials_json" id="materials_json" value="<?= e($post['materials_json'] ?? '[]') ?>">
       <!-- Champ texte libre pour compatibilité -->
       <div class="d-field" style="display:none;">
@@ -371,7 +371,7 @@ $post = $_POST;
   ══════════════════════════════════════════════ -->
   <div class="d-card d-form-section" style="margin-bottom:1.25rem;">
     <div class="d-card-head">
-      <div class="d-card-title">💶 Section 4 — Financier</div>
+      <div class="d-card-title">Financier</div>
     </div>
     <div class="d-card-body">
       <div class="d-grid-3">
@@ -391,11 +391,11 @@ $post = $_POST;
           </select>
         </div>
         <div class="d-field" style="display:flex;align-items:center;gap:.65rem;padding-top:1.8rem;">
-          <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:#e8ecf5;margin-bottom:0;">
+          <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;text-transform:none;letter-spacing:0;font-size:.9rem;color:var(--d-t1);margin-bottom:0;">
             <input type="checkbox" name="quote_accepted" value="1"
                    <?= !empty($post['quote_accepted']) ? 'checked' : '' ?>
                    style="width:auto;accent-color:#22c55e;">
-            ✅ Devis accepté
+            Devis accepté
           </label>
         </div>
       </div>
@@ -409,7 +409,7 @@ $post = $_POST;
   <!-- SAVEBAR -->
   <div class="d-savebar">
     <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--secondary">Annuler</a>
-    <button type="submit" class="d-btn d-btn--primary d-btn--lg">✅ Créer l'intervention</button>
+    <button type="submit" class="d-btn d-btn--primary d-btn--lg">Créer l'intervention</button>
   </div>
 
 </form>
@@ -452,20 +452,20 @@ $post = $_POST;
           .then(function(r){ return r.json(); })
           .then(function(data){
             if(!Array.isArray(data) || data.length === 0){
-              dropdown.innerHTML = '<div style="padding:.75rem 1rem;color:#8fa0c4;font-size:.85rem;">Aucun résultat</div>';
+              dropdown.innerHTML = '<div style="padding:.75rem 1rem;color:var(--d-t2);font-size:.85rem;">Aucun résultat</div>';
               dropdown.style.display = 'block';
               return;
             }
             dropdown.innerHTML = data.map(function(c){
               var name = (c.lastname||'') + ' ' + (c.firstname||'');
               var sub  = [c.phone, c.city].filter(Boolean).join(' · ');
-              return '<div class="client-result" data-id="'+c.id+'" data-name="'+encodeURIComponent(name.trim())+'" data-phone="'+encodeURIComponent(c.phone||'')+'" style="padding:.7rem 1rem;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06);font-size:.87rem;">'
-                + '<div style="font-weight:700;color:#e8ecf5;">'+escHtml(name.trim())+'</div>'
-                + (sub ? '<div style="font-size:.77rem;color:#8fa0c4;">'+escHtml(sub)+'</div>' : '')
+              return '<div class="client-result" data-id="'+c.id+'" data-name="'+encodeURIComponent(name.trim())+'" data-phone="'+encodeURIComponent(c.phone||'')+'" style="padding:.7rem 1rem;cursor:pointer;border-bottom:1px solid var(--d-border);font-size:.87rem;">'
+                + '<div style="font-weight:700;color:var(--d-t1);">'+escHtml(name.trim())+'</div>'
+                + (sub ? '<div style="font-size:.77rem;color:var(--d-t2);">'+escHtml(sub)+'</div>' : '')
                 + '</div>';
             }).join('');
             dropdown.querySelectorAll('.client-result').forEach(function(el){
-              el.addEventListener('mouseenter', function(){ this.style.background='rgba(255,255,255,.06)'; });
+              el.addEventListener('mouseenter', function(){ this.style.background='var(--d-border)'; });
               el.addEventListener('mouseleave', function(){ this.style.background=''; });
               el.addEventListener('click', function(){
                 var id   = this.dataset.id;
@@ -513,7 +513,7 @@ $post = $_POST;
       var postal = (document.getElementById('new-postal-code') || {}).value || '';
       var city   = (document.getElementById('new-city')        || {}).value || '';
       if(!addr && !city){ geoResult.textContent='Remplissez l\'adresse ou la ville.'; return; }
-      geoResult.textContent = '⏳ Géolocalisation…';
+      geoResult.textContent = 'Géolocalisation…';
       btnGeo.disabled = true;
       fetch(apiBase + '?action=geocode&address=' + encodeURIComponent(addr) + '&postal=' + encodeURIComponent(postal) + '&city=' + encodeURIComponent(city))
         .then(function(r){ return r.json(); })
@@ -521,14 +521,14 @@ $post = $_POST;
           if(d.lat && d.lng){
             inpLat.value       = d.lat;
             inpLng.value       = d.lng;
-            geoResult.textContent = '✅ Lat: '+d.lat+', Lng: '+d.lng;
+            geoResult.textContent = 'Lat: '+d.lat+', Lng: '+d.lng;
             geoResult.style.color = '#22c55e';
           } else {
-            geoResult.textContent = '⚠️ Adresse introuvable.';
+            geoResult.textContent = 'Adresse introuvable.';
             geoResult.style.color = '#f59e0b';
           }
         })
-        .catch(function(){ geoResult.textContent = '❌ Erreur de géolocalisation.'; })
+        .catch(function(){ geoResult.textContent = 'Erreur de géolocalisation.'; })
         .finally(function(){ btnGeo.disabled = false; });
     });
   }
@@ -712,7 +712,7 @@ $post = $_POST;
       // Supprimer
       var delBtn = document.createElement('button');
       delBtn.type = 'button';
-      delBtn.textContent = '✕';
+      delBtn.textContent = '×';
       delBtn.className = 'd-btn d-btn--ghost d-btn--sm';
       delBtn.style.cssText = 'color:#ef4444;flex-shrink:0;';
       delBtn.addEventListener('click', function(){

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/../includes/bootstrap.php';
+require_once __DIR__.'/_ui.php';
 $tech   = require_tech_auth();
 $techId = (int)$tech['id'];
 
@@ -12,8 +13,8 @@ function load_iv(int $id, int $techId): ?array {
         return db_fetch(
             "SELECT i.*, c.id AS c_id, c.lastname, c.firstname, c.phone AS client_phone,
                     c.address AS client_address, c.city AS client_city, c.postal_code AS client_postal,
-                    c.floor AS client_floor, c.digicode AS client_digicode, c.email AS client_email,
-                    d.name AS disp_name
+                    c.floor AS client_floor, c.digicode AS client_digicode, c.access_info AS client_access,
+                    c.email AS client_email, d.name AS disp_name
              FROM interventions i
              LEFT JOIN clients c ON c.id = i.client_id
              LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
@@ -23,82 +24,98 @@ function load_iv(int $id, int $techId): ?array {
     } catch (Throwable $e) { return null; }
 }
 
+/** Photos enregistrées, toujours sous la forme [{type, path}]. */
+function iv_photos(array $iv): array {
+    $raw = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
+    $out = [];
+    foreach (is_array($raw) ? $raw : [] as $ph) {
+        if (is_array($ph) && !empty($ph['path'])) $out[] = ['type' => (string)($ph['type'] ?? ''), 'path' => (string)$ph['path']];
+        elseif (is_string($ph) && $ph !== '') $out[] = ['type' => '', 'path' => $ph];
+    }
+    return $out;
+}
+
 $iv = load_iv($id, $techId);
 if (!$iv) { header('Location: '.url_for('tech/dashboard.php')); exit; }
 
+$self = url_for('tech/disp_intervention.php?id='.$id);
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    verify_csrf();
     $action = trim((string)($_POST['action'] ?? ''));
 
     if ($action === 'status') {
         $ns = trim((string)($_POST['status'] ?? ''));
-        if (in_array($ns, ['en_route','sur_place','terminé'], true)) {
+        if (in_array($ns, ['en_route', 'sur_place'], true) && $ns !== ($iv['status'] ?? '')) {
             $upd = ['status' => $ns];
-            if ($ns === 'en_route'  && empty($iv['tech_started_at']))   $upd['tech_started_at']   = date('Y-m-d H:i:s');
-            if ($ns === 'sur_place' && empty($iv['tech_arrived_at']))   $upd['tech_arrived_at']   = date('Y-m-d H:i:s');
-            if ($ns === 'terminé'   && empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = date('Y-m-d H:i:s');
+            if ($ns === 'en_route'  && empty($iv['tech_started_at'])) $upd['tech_started_at'] = date('Y-m-d H:i:s');
+            if ($ns === 'sur_place' && empty($iv['tech_arrived_at'])) $upd['tech_arrived_at'] = date('Y-m-d H:i:s');
             update_intervention($id, $upd);
             log_intervention_history($id, $iv['status'], $ns, 'tech', $techId, (string)$tech['name']);
+            flash('success', $ns === 'en_route' ? 'Trajet démarré. Le dispatcher est informé.' : 'Arrivée enregistrée.');
         }
-        header('Location: ?id='.$id.'&saved=1'); exit;
+        if (($_POST['back'] ?? '') === 'list') redirect_to('tech/dashboard.php');
+        header('Location: '.$self); exit;
     }
 
-    if ($action === 'report') {
-        // Photos — migration vers format structuré {type, path}
-        $photosRaw = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
-        if (!is_array($photosRaw)) $photosRaw = [];
-        // Normaliser en tableau structuré
-        $photos = [];
-        foreach ($photosRaw as $ph) {
-            if (is_array($ph) && isset($ph['path'])) { $photos[] = $ph; }
-            elseif (is_string($ph) && $ph !== '') { $photos[] = ['type'=>'', 'path'=>$ph]; }
-        }
+    if ($action === 'report' && !in_array($iv['status'] ?? '', ['terminé', 'facturé', 'payé', 'annulé'], true)) {
+        $photos = iv_photos($iv);
         if (!empty($_FILES['photos']['name'][0])) {
             $dir = __DIR__.'/../storage/uploads/interventions/'.$id.'/';
             if (!is_dir($dir)) mkdir($dir, 0775, true);
-            $mime_map = ['image/jpeg'=>'jpg','image/png'=>'png','image/webp'=>'webp'];
+            $mimeMap   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
             $photoType = trim((string)($_POST['photo_type_label'] ?? ''));
             foreach ($_FILES['photos']['tmp_name'] as $i => $tmp) {
                 if (($_FILES['photos']['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
                 $mt = mime_content_type($tmp) ?: '';
-                if (!isset($mime_map[$mt])) continue;
-                $fn = 'tech_'.$id.'_'.date('YmdHis').'_'.bin2hex(random_bytes(3)).'.'.$mime_map[$mt];
+                if (!isset($mimeMap[$mt])) continue;
+                $fn = 'tech_'.$id.'_'.date('YmdHis').'_'.bin2hex(random_bytes(3)).'.'.$mimeMap[$mt];
                 if (move_uploaded_file($tmp, $dir.$fn)) {
-                    $photos[] = ['type'=>$photoType, 'path'=>'storage/uploads/interventions/'.$id.'/'.$fn];
+                    $photos[] = ['type' => $photoType, 'path' => 'storage/uploads/interventions/'.$id.'/'.$fn];
                 }
             }
         }
-        // Matériaux utilisés
-        $matsJson = trim((string)($_POST['tech_materials_used'] ?? '[]'));
-        if ($matsJson === '' || $matsJson === 'null') $matsJson = '[]';
-        // Validation JSON basique
-        $matsDecoded = json_decode($matsJson, true);
-        if (!is_array($matsDecoded)) $matsJson = '[]';
 
-        $real  = ($_POST['tech_realizable']        ?? '') === '' ? null : (int)$_POST['tech_realizable'];
-        $bad   = ($_POST['tech_bad_use']            ?? '') === '' ? null : (int)$_POST['tech_bad_use'];
-        $elev  = ($_POST['tech_elevator_restored']  ?? '') === '' ? null : (int)$_POST['tech_elevator_restored'];
+        $mats = json_decode(trim((string)($_POST['tech_materials_used'] ?? '[]')), true);
+        $mats = is_array($mats) ? array_values(array_filter($mats, static fn($m) => is_array($m) && trim((string)($m['name'] ?? '')) !== '')) : [];
+
+        $yn = static fn(string $k) => ($_POST[$k] ?? '') === '' ? null : (int)$_POST[$k];
         $upd = [
-            'tech_fault_label'       => trim((string)($_POST['tech_fault_label']    ?? '')),
-            'tech_report'            => trim((string)($_POST['tech_report']          ?? '')),
-            'tech_notes_extra'       => trim((string)($_POST['tech_notes_extra']     ?? '')),
-            'tech_device_number'     => trim((string)($_POST['tech_device_number']   ?? '')),
-            'tech_ticket_time'       => trim((string)($_POST['tech_ticket_time']     ?? '')) ?: null,
-            'tech_close_time'        => trim((string)($_POST['tech_close_time']      ?? '')) ?: null,
-            'tech_realizable'        => $real,
-            'tech_bad_use'           => $bad,
-            'tech_elevator_restored' => $elev,
+            'tech_fault_label'       => trim((string)($_POST['tech_fault_label'] ?? '')),
+            'tech_report'            => trim((string)($_POST['tech_report'] ?? '')),
+            'tech_notes_extra'       => trim((string)($_POST['tech_notes_extra'] ?? '')),
+            'tech_device_number'     => trim((string)($_POST['tech_device_number'] ?? '')),
+            'tech_ticket_time'       => trim((string)($_POST['tech_ticket_time'] ?? '')) ?: null,
+            'tech_realizable'        => $yn('tech_realizable'),
+            'tech_bad_use'           => $yn('tech_bad_use'),
+            'tech_elevator_restored' => $yn('tech_elevator_restored'),
             'tech_photos'            => json_encode($photos),
-            'tech_materials_used'    => $matsJson,
+            'tech_materials_used'    => json_encode($mats, JSON_UNESCAPED_UNICODE),
+            'tech_client_name'       => trim((string)($_POST['tech_client_name'] ?? '')) ?: null,
         ];
+        // Signature du client : image PNG dessinée à l'écran, conservée telle quelle.
+        $sig = (string)($_POST['tech_signature'] ?? '');
+        if ($sig === 'clear') {
+            $upd['tech_signature'] = null;
+        } elseif (str_starts_with($sig, 'data:image/png;base64,') && strlen($sig) < 600000
+                  && base64_decode(substr($sig, 22), true) !== false) {
+            $upd['tech_signature'] = $sig;
+        }
+
         if (!empty($_POST['mark_complete'])) {
+            $now = date('Y-m-d H:i:s');
             $upd['status'] = 'terminé';
-            if (empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = date('Y-m-d H:i:s');
+            if (empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = $now;
+            if (empty($iv['tech_arrived_at']))   $upd['tech_arrived_at']   = $now;
+            if (empty($iv['tech_close_time']))   $upd['tech_close_time']   = date('H:i');
             update_intervention($id, $upd);
-            log_intervention_history($id, $iv['status'], 'terminé', 'tech', $techId, (string)$tech['name'], 'Clôturé via portail tech');
+            log_intervention_history($id, $iv['status'], 'terminé', 'tech', $techId, (string)$tech['name'], 'Clôturée depuis l\'application technicien');
+            flash('success', 'Intervention terminée. Le rapport est disponible.');
         } else {
             update_intervention($id, $upd);
+            flash('success', 'Rapport enregistré.');
         }
-        header('Location: ?id='.$id.'&saved=1&tab=cr'); exit;
+        header('Location: '.$self.(empty($_POST['mark_complete']) ? '#rapport' : '')); exit;
     }
 
     if ($action === 'update_client') {
@@ -106,878 +123,510 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($cid > 0) {
             try {
                 db_execute(
-                    "UPDATE clients SET lastname=?, phone=?, address=?, city=?, postal_code=? WHERE id=?",
+                    "UPDATE clients SET phone = ?, address = ?, postal_code = ?, city = ?, floor = ?, digicode = ? WHERE id = ?",
                     [
-                        trim((string)($_POST['client_name']   ?? '')),
-                        trim((string)($_POST['client_phone']  ?? '')),
-                        trim((string)($_POST['client_address']?? '')),
-                        trim((string)($_POST['client_city']   ?? '')),
+                        trim((string)($_POST['client_phone'] ?? '')),
+                        trim((string)($_POST['client_address'] ?? '')),
                         trim((string)($_POST['client_postal'] ?? '')),
-                        $cid
+                        trim((string)($_POST['client_city'] ?? '')),
+                        trim((string)($_POST['client_floor'] ?? '')),
+                        trim((string)($_POST['client_digicode'] ?? '')),
+                        $cid,
                     ]
                 );
+                flash('success', 'Coordonnées du client mises à jour.');
             } catch (Throwable $e) {}
         }
-        header('Location: ?id='.$id.'&saved=1'); exit;
+        header('Location: '.$self); exit;
     }
 
     if ($action === 'update_financial') {
-        $upd = [
-            'amount_ht'      => (float)str_replace(',','.',(string)($_POST['amount_ht']      ?? 0)),
-            'amount_ttc'     => (float)str_replace(',','.',(string)($_POST['amount_ttc']     ?? 0)),
-            'deposit'        => (float)str_replace(',','.',(string)($_POST['deposit']        ?? 0)),
-            'payment_method' => trim((string)($_POST['payment_method'] ?? '')),
-        ];
-        update_intervention($id, $upd);
-        header('Location: ?id='.$id.'&saved=1'); exit;
+        $num = static fn(string $k) => ($v = trim(str_replace(',', '.', (string)($_POST[$k] ?? '')))) === '' ? null : (float)$v;
+        update_intervention($id, [
+            'amount_ht'      => $num('amount_ht'),
+            'amount_ttc'     => $num('amount_ttc'),
+            'deposit'        => $num('deposit'),
+            'payment_method' => trim((string)($_POST['payment_method'] ?? '')) ?: null,
+        ]);
+        flash('success', 'Paiement mis à jour.');
+        header('Location: '.$self); exit;
     }
+
+    header('Location: '.$self); exit;
 }
 
-$iv     = load_iv($id, $techId) ?? $iv;
-$photos = json_decode((string)($iv['tech_photos'] ?? '[]'), true);
-if (!is_array($photos)) $photos = [];
-
+// ─── Affichage ───────────────────────────────────────────────
 $status   = (string)($iv['status'] ?? 'nouveau');
-$isDone   = in_array($status, ['terminé','facturé','payé'], true);
-$clientName = trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? ''));
-$activeTab  = (($_GET['tab'] ?? '') === 'cr') ? 'cr' : 'details';
-$saved      = isset($_GET['saved']);
+$isDone   = in_array($status, ['terminé', 'facturé', 'payé', 'devis_envoyé'], true);
+$isCancel = $status === 'annulé';
+$locked   = $isDone || $isCancel;
+$photos   = iv_photos($iv);
+$mats     = json_decode((string)($iv['tech_materials_used'] ?? '[]'), true);
+$mats     = is_array($mats) ? $mats : [];
+$clientName = trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? '')) ?: 'Client';
+$addr     = ta_address($iv['client_address'] ?? '', $iv['client_postal'] ?? '', $iv['client_city'] ?? '');
+$catLabel = intervention_category_config()[$iv['category'] ?? '']['label'] ?? '';
+$isLift   = ($iv['category'] ?? '') === 'ascenseur';
+$hm       = static fn(?string $dt) => $dt ? date('H:i', strtotime($dt)) : '';
 
-$statusLabels = [
-    'nouveau'=>'Nouveau','confirmé'=>'Confirmé','assigné'=>'Assigné',
-    'en_route'=>'En route','sur_place'=>'Sur place','terminé'=>'Réalisée',
-    'devis_envoyé'=>'Devis envoyé','facturé'=>'Facturé','payé'=>'Payé','annulé'=>'Annulé',
-];
-$statusColors = [
-    'nouveau'=>'#94a3b8','confirmé'=>'#3b82f6','assigné'=>'#f59e0b',
-    'en_route'=>'#f97316','sur_place'=>'#8b5cf6','terminé'=>'#22c55e',
-    'devis_envoyé'=>'#06b6d4','facturé'=>'#10b981','payé'=>'#16a34a','annulé'=>'#ef4444',
-];
-
-$history = [];
 try {
-    $history = db_fetch_all(
-        "SELECT * FROM intervention_history WHERE intervention_id=? ORDER BY created_at DESC LIMIT 20",
-        [$id]
-    );
-} catch (Throwable $e) {}
+    $history = db_fetch_all("SELECT * FROM intervention_history WHERE intervention_id = ? ORDER BY created_at DESC LIMIT 20", [$id]);
+} catch (Throwable $e) { $history = []; }
 
-$e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
-?><!DOCTYPE html>
-<html lang="fr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
-<meta name="robots" content="noindex,nofollow">
-<title><?= $e($iv['ref'] ?? 'INT #'.$id) ?> — <?= $e(company_name()) ?></title>
-<link rel="stylesheet" href="<?= $e(asset_url('assets/css/tech.css')) ?>">
-<style>
-/* ── Tabs ── */
-.prx-tabs { display:grid; grid-template-columns:1fr 1fr; gap:0; background:#e2e8f0; padding:.5rem; gap:.4rem; border-radius:0; }
-.prx-tab {
-  display:flex; align-items:center; justify-content:center; gap:.5rem;
-  padding:.75rem; border-radius:10px; font-size:.88rem; font-weight:600;
-  background:transparent; color:#64748b; border:none; cursor:pointer; transition:all .15s;
-}
-.prx-tab.active { background:#fff; color:#1e293b; box-shadow:0 1px 4px rgba(0,0,0,.12); }
-.prx-tab svg { width:20px; height:20px; }
-/* ── Accordion ── */
-.prx-section { background:#fff; border-radius:12px; margin-bottom:.75rem; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,.06); }
-.prx-section-hd {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:.85rem 1.1rem; background:#dbeafe; border-bottom:1px solid #e2e8f0;
-  cursor:pointer; user-select:none;
-}
-.prx-section-hd span { font-size:.78rem; font-weight:800; letter-spacing:.08em; color:#1e3a8a; text-transform:uppercase; }
-.prx-section-hd .chevron { transition:transform .2s; color:#3b82f6; font-size:1.1rem; }
-.prx-section-hd.closed .chevron { transform:rotate(-90deg); }
-.prx-section-body { padding:0; }
-.prx-section-body.hidden { display:none; }
-/* ── Info rows ── */
-.prx-row {
-  display:flex; align-items:center; justify-content:space-between;
-  padding:.8rem 1.1rem; border-bottom:1px solid #f1f5f9; gap:.5rem;
-}
-.prx-row:last-child { border-bottom:none; }
-.prx-row-label { font-size:.83rem; color:#64748b; flex-shrink:0; min-width:100px; }
-.prx-row-value { font-size:.83rem; font-weight:600; text-align:right; flex:1; }
-.prx-row-actions { display:flex; gap:.4rem; flex-shrink:0; }
-.prx-icon-btn {
-  width:34px; height:34px; border-radius:50%; background:#dbeafe; border:none;
-  display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:.9rem;
-}
-/* ── Status badge ── */
-.prx-status-badge {
-  display:inline-flex; align-items:center; padding:.3rem .85rem;
-  border-radius:20px; font-size:.78rem; font-weight:700; border:1.5px solid currentColor;
-}
-/* ── Compte rendu fields ── */
-.cr-field { margin-bottom:0; }
-.cr-field-hd {
-  display:flex; align-items:center; gap:.55rem;
-  padding:.85rem 1.1rem; border-bottom:1px solid #f1f5f9;
-  background:#f8fafc;
-}
-.cr-field-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.88rem; flex-shrink:0; }
-.cr-field-icon.grey  { background:#e2e8f0; }
-.cr-field-icon.blue  { background:#dbeafe; }
-.cr-field-icon.green { background:#dcfce7; }
-.cr-field-icon.orange{ background:#ffedd5; }
-.cr-field-icon.purple{ background:#ede9fe; }
-.cr-field-label { font-size:.8rem; color:#64748b; font-weight:500; }
-.cr-field-body { padding:.75rem 1.1rem; border-bottom:1px solid #f1f5f9; }
-.cr-field-body:last-child { border-bottom:none; }
-.cr-field-value { font-size:.9rem; font-weight:600; color:#1e293b; }
-.cr-field-value.muted { color:#94a3b8; font-style:italic; font-weight:400; }
-.cr-input { width:100%; padding:.6rem .85rem; border:1.5px solid #e2e8f0; border-radius:8px; font-size:.9rem; font-family:inherit; background:#fff; }
-.cr-input:focus { border-color:#F07B1D; outline:none; }
-.cr-textarea { width:100%; padding:.6rem .85rem; border:1.5px solid #e2e8f0; border-radius:8px; font-size:.9rem; font-family:inherit; background:#fff; min-height:80px; resize:vertical; }
-.cr-textarea:focus { border-color:#F07B1D; outline:none; }
-.cr-toggle { display:flex; gap:.4rem; justify-content:flex-end; }
-.cr-toggle-btn {
-  padding:.4rem 1rem; border-radius:20px; font-size:.82rem; font-weight:700;
-  border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; cursor:pointer;
-  transition:all .15s;
-}
-.cr-toggle-btn.active-yes { background:#dcfce7; border-color:#16a34a; color:#16a34a; }
-.cr-toggle-btn.active-no  { background:#fee2e2; border-color:#dc2626; color:#dc2626; }
-/* ── Photo grid ── */
-.prx-photos { display:grid; grid-template-columns:repeat(2,1fr); gap:.5rem; padding:.75rem 1.1rem; }
-.prx-photo { aspect-ratio:1; border-radius:8px; overflow:hidden; background:#f1f5f9; }
-.prx-photo img { width:100%; height:100%; object-fit:cover; }
-.prx-photo-add {
-  aspect-ratio:1; border-radius:8px; border:2px dashed #cbd5e1;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  gap:.3rem; cursor:pointer; color:#94a3b8; font-size:.78rem; background:#f8fafc;
-}
-/* ── History ── */
-.prx-hist-item { padding:.75rem 1.1rem; border-bottom:1px solid #f1f5f9; }
-.prx-hist-item:last-child { border-bottom:none; }
-.prx-hist-date { font-size:.74rem; color:#94a3b8; margin-bottom:.2rem; }
-.prx-hist-text { font-size:.83rem; font-weight:600; }
-/* ── Action bar ── */
-.prx-action-bar {
-  position:fixed; bottom:0; left:0; right:0; z-index:400;
-  padding:.75rem 1rem; background:#fff; border-top:1px solid #e2e8f0;
-  display:flex; gap:.5rem;
-  box-shadow:0 -4px 20px rgba(0,0,0,.08);
-}
-.prx-action-bar.with-safe { padding-bottom:calc(.75rem + env(safe-area-inset-bottom)); }
-.prx-ab-btn {
-  flex:1; padding:.75rem; border-radius:12px; font-size:.84rem; font-weight:700;
-  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:.4rem;
-}
-.prx-ab-route   { background:#fff3e0; color:#f97316; }
-.prx-ab-place   { background:#ede9fe; color:#7c3aed; }
-.prx-ab-done    { background:#dcfce7; color:#16a34a; }
-.prx-ab-save    { background:#f1f5f9; color:#1e293b; }
-.prx-ab-close   { background:#16a34a; color:#fff; }
-/* ── Flash ── */
-.prx-flash { padding:.75rem 1.1rem; background:#dcfce7; color:#14532d; font-size:.84rem; font-weight:600; text-align:center; }
-/* ── Edit modal ── */
-.prx-modal-overlay {
-  position:fixed; inset:0; z-index:500; background:rgba(0,0,0,.5);
-  display:flex; align-items:flex-end; opacity:0; pointer-events:none; transition:opacity .2s;
-}
-.prx-modal-overlay.open { opacity:1; pointer-events:all; }
-.prx-modal {
-  background:#fff; border-radius:20px 20px 0 0; width:100%; max-height:85vh;
-  overflow-y:auto; transform:translateY(100%); transition:transform .25s;
-  padding:1.25rem 1.1rem calc(1.25rem + env(safe-area-inset-bottom));
-}
-.prx-modal-overlay.open .prx-modal { transform:translateY(0); }
-.prx-modal-title { font-size:1rem; font-weight:800; margin-bottom:1rem; color:#1e293b; }
-.prx-modal-field { margin-bottom:.75rem; }
-.prx-modal-field label { display:block; font-size:.78rem; color:#64748b; font-weight:600; margin-bottom:.3rem; }
-.prx-modal-field input, .prx-modal-field select {
-  width:100%; padding:.65rem .9rem; border:1.5px solid #e2e8f0; border-radius:10px;
-  font-size:.9rem; font-family:inherit; background:#fff;
-}
-.prx-modal-field input:focus, .prx-modal-field select:focus { border-color:#F07B1D; outline:none; }
-.tab-content { display:none; }
-.tab-content.active { display:block; }
-</style>
-</head>
-<body>
+$cur = match (true) {
+    $isDone               => 3,
+    $status === 'sur_place' => 2,
+    $status === 'en_route'  => 1,
+    default               => 0,
+};
+$steps = [
+    ['Planifiée', !empty($iv['scheduled_time']) ? substr((string)$iv['scheduled_time'], 0, 5) : ''],
+    ['En route',  $hm($iv['tech_started_at'] ?? null)],
+    ['Sur place', $hm($iv['tech_arrived_at'] ?? null)],
+    ['Terminée',  $hm($iv['tech_completed_at'] ?? null)],
+];
 
-<!-- ── Header ── -->
-<div class="t-header">
-  <a href="<?= $e(url_for('tech/dashboard.php')) ?>" class="t-header-back">‹ Retour</a>
-  <div class="t-brand">EM<span>AE</span></div>
-  <div class="t-header-right">
-    <span class="prx-status-badge" style="color:<?= $e($statusColors[$status] ?? '#94a3b8') ?>;border-color:<?= $e($statusColors[$status] ?? '#94a3b8') ?>;background:<?= $e($statusColors[$status] ?? '#94a3b8') ?>18;">
-      <?= $e($statusLabels[$status] ?? $status) ?>
-    </span>
+$csrf = csrf_token();
+ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
+?>
+<header class="ta-top">
+  <a class="ta-icon-btn" href="<?= e(url_for('tech/dashboard.php')) ?>" aria-label="Retour"><?= ta_icon('back') ?></a>
+  <div class="grow">
+    <h1><?= e($clientName) ?></h1>
+    <div class="sub"><?= e(trim(($iv['ref'] ?? '').' · '.($catLabel ?: 'Intervention'), ' ·')) ?></div>
   </div>
-</div>
+  <?= ta_pill($status) ?>
+</header>
 
-<?php if ($saved): ?>
-<div class="prx-flash">✅ Enregistré avec succès</div>
+<?php if (!$isCancel): ?>
+<div class="ta-steps" aria-label="Avancement">
+  <?php foreach ($steps as $i => [$label, $when]): ?>
+    <div class="ta-step <?= $i < $cur || ($i === 3 && $isDone) ? 'done' : ($i === $cur ? 'cur' : '') ?>">
+      <i></i><?= e($label) ?><small><?= e($when ?: ' ') ?></small>
+    </div>
+  <?php endforeach; ?>
+</div>
 <?php endif; ?>
 
-<!-- ── Tabs ── -->
-<div class="prx-tabs">
-  <button class="prx-tab <?= $activeTab==='details'?'active':'' ?>" onclick="switchTab('details')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-  </button>
-  <button class="prx-tab <?= $activeTab==='cr'?'active':'' ?>" onclick="switchTab('cr')">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-  </button>
-</div>
+<main class="ta-main <?= $locked ? '' : 'has-bar' ?>">
+  <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
+  <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
+  <?php if ($isCancel): ?><div class="ta-flash err">Cette intervention a été annulée par le dispatcher.</div><?php endif; ?>
 
-<div style="padding-bottom:<?= $isDone ? '1.5rem' : '5.5rem' ?>;">
-
-<!-- ════════════ TAB DÉTAILS ════════════ -->
-<div id="tab-details" class="tab-content <?= $activeTab==='details'?'active':'' ?>" style="padding:.75rem .85rem 0;">
-
-  <!-- CLIENT -->
-  <div class="prx-section">
-    <div class="prx-section-hd" onclick="toggleSection(this)">
-      <span>CLIENT</span>
-      <span class="chevron">⌄</span>
+  <!-- Client & accès -->
+  <section class="ta-card">
+    <div class="ta-card-h">
+      <h3>Client et accès</h3>
+      <?php if (!$locked): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
     </div>
-    <div class="prx-section-body">
-      <div class="prx-row">
-        <span class="prx-row-label">Client</span>
-        <span class="prx-row-value"><?= $e($clientName ?: '—') ?></span>
-        <div class="prx-row-actions">
-          <button class="prx-icon-btn" onclick="openModal('modal-client')" title="Modifier">✏️</button>
-        </div>
-      </div>
-      <div class="prx-row">
-        <span class="prx-row-label">Réf.</span>
-        <span class="prx-row-value"><?= $e($iv['ref'] ?? 'INT #'.$id) ?></span>
-      </div>
-      <?php if (!empty($iv['client_address'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Adresse</span>
-        <div style="display:flex;align-items:center;gap:.5rem;justify-content:flex-end;">
-          <span class="prx-row-value"><?= $e($iv['client_address']) ?><?= !empty($iv['client_city']) ? ', '.$e($iv['client_city']) : '' ?></span>
-          <div class="prx-row-actions">
-            <a href="https://maps.google.com/?q=<?= urlencode(($iv['client_address']??'').' '.($iv['client_city']??'')) ?>" target="_blank" class="prx-icon-btn" title="Maps">📍</a>
-            <button class="prx-icon-btn" onclick="copyText('<?= $e(($iv['client_address']??'').' '.($iv['client_city']??'')) ?>')" title="Copier">📋</button>
-          </div>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['client_phone'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Téléphone</span>
-        <div style="display:flex;align-items:center;gap:.5rem;justify-content:flex-end;">
-          <span class="prx-row-value" style="color:#2563eb;"><?= $e($iv['client_phone']) ?></span>
-          <a href="tel:<?= $e(preg_replace('/\s+/','',(string)$iv['client_phone'])) ?>" class="prx-icon-btn" title="Appeler">📞</a>
-        </div>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['client_floor']) || !empty($iv['client_digicode'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Accès</span>
-        <span class="prx-row-value" style="color:#64748b;">
-          <?= !empty($iv['client_floor'])   ? 'Étage '.$e($iv['client_floor']) : '' ?>
-          <?= !empty($iv['client_digicode'])? ' — Code : '.$e($iv['client_digicode']) : '' ?>
-        </span>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <!-- INTERVENTION -->
-  <div class="prx-section">
-    <div class="prx-section-hd" onclick="toggleSection(this)">
-      <span>INTERVENTION</span>
-      <span class="chevron">⌄</span>
-    </div>
-    <div class="prx-section-body">
-      <div class="prx-row">
-        <span class="prx-row-label">Statut</span>
-        <span class="prx-status-badge" style="color:<?= $e($statusColors[$status]??'#94a3b8') ?>;border-color:<?= $e($statusColors[$status]??'#94a3b8') ?>;background:<?= $e($statusColors[$status]??'#94a3b8') ?>18;">
-          <?= $e($statusLabels[$status] ?? $status) ?>
-        </span>
-      </div>
-      <?php if (!empty($iv['category'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Catégorie</span>
-        <span class="prx-row-value"><?= $e(ucfirst($iv['category'])) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['type_label'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Type</span>
-        <span class="prx-row-value"><?= $e($iv['type_label']) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['scheduled_date'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Planifié le</span>
-        <span class="prx-row-value" style="color:#2563eb;">
-          <?= $e(date('d/m/Y', strtotime((string)$iv['scheduled_date']))) ?>
-          <?= !empty($iv['scheduled_time']) ? ' à '.substr((string)$iv['scheduled_time'],0,5) : '' ?>
-        </span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['tech_started_at'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Début</span>
-        <span class="prx-row-value"><?= $e(date('d/m/Y à H:i', strtotime((string)$iv['tech_started_at']))) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['tech_arrived_at'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Arrivée site</span>
-        <span class="prx-row-value"><?= $e(date('d/m/Y à H:i', strtotime((string)$iv['tech_arrived_at']))) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['tech_completed_at'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Fin</span>
-        <span class="prx-row-value"><?= $e(date('d/m/Y à H:i', strtotime((string)$iv['tech_completed_at']))) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['duration_estimate'])): ?>
-      <div class="prx-row">
-        <span class="prx-row-label">Durée prévue</span>
-        <span class="prx-row-value"><?= $e((int)$iv['duration_estimate'] >= 60 ? intdiv((int)$iv['duration_estimate'],60).'h'.((int)$iv['duration_estimate']%60?sprintf('%02d',(int)$iv['duration_estimate']%60):'') : $iv['duration_estimate'].' min') ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['description'])): ?>
-      <div class="prx-row" style="flex-direction:column;align-items:flex-start;gap:.3rem;">
-        <span class="prx-row-label">Description</span>
-        <span style="font-size:.84rem;color:#1e293b;line-height:1.5;"><?= $e($iv['description']) ?></span>
-      </div>
-      <?php endif; ?>
-      <?php if (!empty($iv['notes_admin'])): ?>
-      <div class="prx-row" style="flex-direction:column;align-items:flex-start;gap:.3rem;background:#fffbeb;">
-        <span class="prx-row-label" style="color:#92400e;">⚠️ Instructions dispatcher</span>
-        <span style="font-size:.84rem;color:#92400e;line-height:1.5;"><?= $e($iv['notes_admin']) ?></span>
-      </div>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <!-- FINANCIER -->
-  <?php if (!empty($iv['amount_ht']) || !empty($iv['amount_ttc'])): ?>
-  <div class="prx-section">
-    <div class="prx-section-hd" onclick="toggleSection(this)">
-      <span>FINANCIER</span>
-      <span class="chevron">⌄</span>
-    </div>
-    <div class="prx-section-body">
-      <?php if (!empty($iv['amount_ht'])): ?>
-      <div class="prx-row"><span class="prx-row-label">Montant HT</span><span class="prx-row-value"><?= $e(number_format((float)$iv['amount_ht'],2,',',' ')) ?> €</span></div>
-      <?php endif; ?>
-      <?php if (!empty($iv['amount_ttc'])): ?>
-      <div class="prx-row"><span class="prx-row-label">Montant TTC</span><span class="prx-row-value"><?= $e(number_format((float)$iv['amount_ttc'],2,',',' ')) ?> €</span></div>
-      <?php endif; ?>
-      <?php if (!empty($iv['deposit'])): ?>
-      <div class="prx-row"><span class="prx-row-label">Acompte</span><span class="prx-row-value"><?= $e(number_format((float)$iv['deposit'],2,',',' ')) ?> €</span></div>
-      <?php endif; ?>
-      <?php if (!empty($iv['payment_method'])): ?>
-      <div class="prx-row"><span class="prx-row-label">Règlement</span><span class="prx-row-value"><?= $e($iv['payment_method']) ?></span></div>
-      <?php endif; ?>
-      <div class="prx-row" style="justify-content:center;">
-        <button class="t-btn-sm t-btn-outline" onclick="openModal('modal-financial')" style="padding:.45rem 1rem;font-size:.8rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;cursor:pointer;">✏️ Modifier</button>
-      </div>
-    </div>
-  </div>
-  <?php endif; ?>
-
-  <!-- HISTORIQUE -->
-  <div class="prx-section">
-    <div class="prx-section-hd closed" onclick="toggleSection(this)">
-      <span>HISTORIQUE</span>
-      <span class="chevron">⌄</span>
-    </div>
-    <div class="prx-section-body hidden">
-      <?php if (empty($history)): ?>
-        <div class="prx-row"><span style="color:#94a3b8;font-size:.83rem;">Aucun historique</span></div>
-      <?php else: ?>
-        <?php foreach ($history as $h): ?>
-        <div class="prx-hist-item">
-          <div class="prx-hist-date"><?= $e(date('d/m/Y à H:i', strtotime((string)$h['created_at']))) ?> — <?= $e($h['actor_name'] ?? $h['actor_type']) ?></div>
-          <div class="prx-hist-text">
-            <?php if ($h['status_from'] && $h['status_to']): ?>
-              <?= $e($h['status_from']) ?> → <strong><?= $e($h['status_to']) ?></strong>
-            <?php else: ?>
-              <?= $e($h['status_to']) ?>
-            <?php endif; ?>
-            <?php if (!empty($h['note'])): ?> <span style="color:#64748b;font-weight:400;">— <?= $e($h['note']) ?></span><?php endif; ?>
-          </div>
-        </div>
-        <?php endforeach; ?>
-      <?php endif; ?>
-    </div>
-  </div>
-
-  <a href="<?= $e(url_for('dispatcher/rapport_pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
-
-</div><!-- /tab-details -->
-
-<!-- ════════════ TAB COMPTE RENDU ════════════ -->
-<div id="tab-cr" class="tab-content <?= $activeTab==='cr'?'active':'' ?>" style="padding:.75rem .85rem 0;">
-
-<?php if ($isDone): ?>
-  <!-- READ-ONLY mode -->
-  <div class="prx-section">
-    <div class="prx-section-hd"><span>COMPTE RENDU</span><span class="chevron">⌄</span></div>
-    <div class="prx-section-body">
-
-      <?php if (!empty($iv['notes_admin'])): ?>
-      <div class="cr-field-hd"><div class="cr-field-icon grey">ℹ️</div><div class="cr-field-label">Informations à destination du technicien</div></div>
-      <div class="cr-field-body"><div class="cr-field-value"><?= $e($iv['notes_admin']) ?></div></div>
-      <?php endif; ?>
-
-      <div class="cr-field-hd"><div class="cr-field-icon grey">Abc</div><div class="cr-field-label">Intitulé de la panne</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_fault_label'])?'muted':'' ?>"><?= $e($iv['tech_fault_label'] ?: '—') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon blue">🗓️</div><div class="cr-field-label">Date</div></div>
-      <div class="cr-field-body"><div class="cr-field-value"><?= !empty($iv['scheduled_date']) ? $e(date('d/m/Y', strtotime((string)$iv['scheduled_date']))) : '—' ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure de réception du ticket</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_ticket_time'])?'muted':'' ?>"><?= $e($iv['tech_ticket_time'] ? substr((string)$iv['tech_ticket_time'],0,5) : '—') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon green">✅</div><div class="cr-field-label">Intervention réalisable ?</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= $iv['tech_realizable']===null?'muted':'' ?>"><?= $iv['tech_realizable']===null ? '—' : ($iv['tech_realizable'] ? 'Oui' : 'Non') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure arrivée sur site</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_arrived_at'])?'muted':'' ?>"><?= !empty($iv['tech_arrived_at']) ? $e(date('H:i', strtotime((string)$iv['tech_arrived_at']))) : '—' ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon orange">🔢</div><div class="cr-field-label">Numéro d'appareil</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_device_number'])?'muted':'' ?>"><?= $e($iv['tech_device_number'] ?: '—') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon grey">📝</div><div class="cr-field-label">Descriptif de la panne</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_report'])?'muted':'' ?>"><?= $e($iv['tech_report'] ?: '—') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon grey">📋</div><div class="cr-field-label">Informations complémentaires</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_notes_extra'])?'muted':'' ?>"><?= $e($iv['tech_notes_extra'] ?: '—') ?></div></div>
-
-      <?php if (!empty($photos)): ?>
-      <div class="cr-field-hd"><div class="cr-field-icon purple">📷</div><div class="cr-field-label">Photos (<?= count($photos) ?>)</div></div>
-      <div class="prx-photos">
-        <?php foreach ($photos as $ph): ?>
-          <div class="prx-photo"><a href="<?= $e(asset_url($ph)) ?>" target="_blank"><img src="<?= $e(asset_url($ph)) ?>" alt="" loading="lazy"></a></div>
-        <?php endforeach; ?>
-      </div>
-      <?php endif; ?>
-
-      <div class="cr-field-hd"><div class="cr-field-icon green">🔧</div><div class="cr-field-label">Ascenseur remis en service ?</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= $iv['tech_elevator_restored']===null?'muted':'' ?>"><?= $iv['tech_elevator_restored']===null ? '—' : ($iv['tech_elevator_restored'] ? 'Oui' : 'Non') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon green">✅</div><div class="cr-field-label">Intervention terminée ?</div></div>
-      <div class="cr-field-body"><div class="cr-field-value">Oui</div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon orange">⚠️</div><div class="cr-field-label">Panne liée à une mauvaise utilisation ?</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= $iv['tech_bad_use']===null?'muted':'' ?>"><?= $iv['tech_bad_use']===null ? '—' : ($iv['tech_bad_use'] ? 'Oui' : 'Non') ?></div></div>
-
-      <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure de clôture</div></div>
-      <div class="cr-field-body"><div class="cr-field-value <?= empty($iv['tech_close_time'])?'muted':'' ?>"><?= $e($iv['tech_close_time'] ? substr((string)$iv['tech_close_time'],0,5) : (empty($iv['tech_completed_at']) ? '—' : date('H:i', strtotime((string)$iv['tech_completed_at'])))) ?></div></div>
-
-    </div>
-  </div>
-
-  <a href="<?= $e(url_for('dispatcher/rapport_pdf.php?id=').$id) ?>" target="_blank" class="t-btn t-btn-pdf" style="margin:.25rem 0 1.5rem;display:flex;align-items:center;justify-content:center;gap:.4rem;">📄 Rapport PDF</a>
-
-<?php else: ?>
-  <!-- EDITABLE mode -->
-  <form method="post" enctype="multipart/form-data" id="form-cr">
-    <input type="hidden" name="action"                value="report">
-    <input type="hidden" name="tech_realizable"       id="inp-realizable"  value="<?= $iv['tech_realizable']       !== null ? (int)$iv['tech_realizable']       : '' ?>">
-    <input type="hidden" name="tech_bad_use"          id="inp-baduse"      value="<?= $iv['tech_bad_use']          !== null ? (int)$iv['tech_bad_use']          : '' ?>">
-    <input type="hidden" name="tech_elevator_restored" id="inp-elevator"   value="<?= $iv['tech_elevator_restored'] !== null ? (int)$iv['tech_elevator_restored'] : '' ?>">
-
-    <div class="prx-section">
-      <div class="prx-section-hd"><span>COMPTE RENDU</span><span class="chevron">⌄</span></div>
-      <div class="prx-section-body">
-
-        <?php if (!empty($iv['notes_admin'])): ?>
-        <div class="cr-field-hd"><div class="cr-field-icon grey">ℹ️</div><div class="cr-field-label">Informations à destination du technicien</div></div>
-        <div class="cr-field-body" style="background:#fffbeb;"><div style="font-size:.85rem;color:#92400e;line-height:1.5;"><?= $e($iv['notes_admin']) ?></div></div>
+    <div class="ta-card-b">
+      <div style="font-weight:600;"><?= e($clientName) ?></div>
+      <?php if ($addr !== ''): ?><div class="ta-text" style="margin-top:.15rem;"><?= e($addr) ?></div><?php endif; ?>
+      <?php
+      $access = array_filter([
+          !empty($iv['client_floor']) ? 'Étage '.$iv['client_floor'] : '',
+          !empty($iv['client_digicode']) ? 'Code '.$iv['client_digicode'] : '',
+          (string)($iv['client_access'] ?? ''),
+      ]);
+      ?>
+      <?php if ($access): ?><div class="ta-muted" style="font-size:.88rem;margin-top:.25rem;"><?= e(implode(' · ', $access)) ?></div><?php endif; ?>
+      <div style="display:flex;gap:.5rem;margin-top:.8rem;">
+        <?php if (!empty($iv['client_phone'])): ?>
+          <a class="ta-btn grow" href="<?= e(ta_tel($iv['client_phone'])) ?>"><?= ta_icon('phone') ?>Appeler</a>
         <?php endif; ?>
+        <?php if ($addr !== ''): ?>
+          <a class="ta-btn grow" href="<?= e(ta_route_url($addr)) ?>" target="_blank" rel="noopener"><?= ta_icon('route') ?>Itinéraire</a>
+        <?php endif; ?>
+      </div>
+    </div>
+  </section>
 
-        <div class="cr-field-hd"><div class="cr-field-icon grey">Abc</div><div class="cr-field-label">Intitulé de la panne</div></div>
-        <div class="cr-field-body"><input type="text" name="tech_fault_label" class="cr-input" value="<?= $e($iv['tech_fault_label'] ?? '') ?>" placeholder="Ex: 06001477"></div>
+  <!-- Demande -->
+  <section class="ta-card">
+    <div class="ta-card-h"><h3>Demande</h3></div>
+    <div class="ta-card-b">
+      <?php if (!empty($iv['type_label']) || $catLabel): ?>
+        <div style="font-weight:600;"><?= e($iv['type_label'] ?: $catLabel) ?></div>
+      <?php endif; ?>
+      <div class="ta-row"><span>Date</span><span><?= !empty($iv['scheduled_date']) ? e(ta_fr_date($iv['scheduled_date'])).(!empty($iv['scheduled_time']) ? ' à '.e(substr((string)$iv['scheduled_time'], 0, 5)) : '') : 'À confirmer' ?></span></div>
+      <?php if (!empty($iv['duration_estimate'])): ?><div class="ta-row"><span>Durée prévue</span><span><?= e(ta_duration((int)$iv['duration_estimate'])) ?></span></div><?php endif; ?>
+      <?php if (!empty($iv['urgency'])): ?><div class="ta-row"><span>Priorité</span><span><span class="ta-urgent">Urgent</span></span></div><?php endif; ?>
+      <?php if (!empty($iv['installation_type'])): ?><div class="ta-row"><span>Installation</span><span><?= e($iv['installation_type']) ?></span></div><?php endif; ?>
+      <?php if (!empty($iv['description'])): ?><div class="ta-text" style="margin-top:.6rem;"><?= e($iv['description']) ?></div><?php endif; ?>
+      <?php if (!empty($iv['fault_reported'])): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Panne signalée : <?= e($iv['fault_reported']) ?></div><?php endif; ?>
+      <?php if (($mn = materials_text($iv['materials_needed'] ?? '')) !== ''): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Matériel à prévoir :
+<?= e($mn) ?></div><?php endif; ?>
+      <?php if (!empty($iv['notes_admin'])): ?><div class="ta-note"><b>Consignes du dispatcher</b><?= e($iv['notes_admin']) ?></div><?php endif; ?>
+    </div>
+  </section>
 
-        <div class="cr-field-hd"><div class="cr-field-icon blue">🗓️</div><div class="cr-field-label">Date</div></div>
-        <div class="cr-field-body"><div class="cr-field-value" style="color:#94a3b8;"><?= !empty($iv['scheduled_date']) ? $e(date('d/m/Y', strtotime((string)$iv['scheduled_date']))) : date('d/m/Y') ?></div></div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure de réception du ticket</div></div>
-        <div class="cr-field-body"><input type="time" name="tech_ticket_time" class="cr-input" value="<?= $e($iv['tech_ticket_time'] ? substr((string)$iv['tech_ticket_time'],0,5) : '') ?>"></div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon green">✅</div><div class="cr-field-label">Intervention réalisable ?</div></div>
-        <div class="cr-field-body">
-          <div class="cr-toggle">
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_realizable']==='1'?'active-yes':'' ?>" onclick="setToggle('realizable','1',this)">Oui</button>
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_realizable']==='0'?'active-no':'' ?>"  onclick="setToggle('realizable','0',this)">Non</button>
-          </div>
-        </div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure arrivée sur site</div></div>
-        <div class="cr-field-body"><input type="time" name="tech_arrived_time" class="cr-input" value="<?= !empty($iv['tech_arrived_at']) ? $e(date('H:i', strtotime((string)$iv['tech_arrived_at']))) : '' ?>"></div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon orange">🔢</div><div class="cr-field-label">Numéro d'appareil</div></div>
-        <div class="cr-field-body"><input type="text" name="tech_device_number" class="cr-input" value="<?= $e($iv['tech_device_number'] ?? '') ?>" placeholder="Ex: ASC-001"></div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon grey">📝</div><div class="cr-field-label">Descriptif de la panne</div></div>
-        <div class="cr-field-body"><textarea name="tech_report" class="cr-textarea" placeholder="Décrivez la panne constatée et les travaux réalisés…"><?= $e($iv['tech_report'] ?? '') ?></textarea></div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon grey">📋</div><div class="cr-field-label">Informations complémentaires</div></div>
-        <div class="cr-field-body"><textarea name="tech_notes_extra" class="cr-textarea" placeholder="Informations supplémentaires…"><?= $e($iv['tech_notes_extra'] ?? '') ?></textarea></div>
-
-        <!-- Matériaux utilisés -->
-        <div class="cr-field-hd"><div class="cr-field-icon orange">🔩</div><div class="cr-field-label">Matériaux utilisés</div></div>
-        <div class="cr-field-body">
-          <div id="materials-cr-container"></div>
-          <button type="button" onclick="addMaterialCrRow()" style="margin-top:.5rem;padding:.4rem .85rem;border-radius:8px;border:1.5px solid #e2e8f0;background:#f8fafc;color:#1e293b;font-size:.82rem;cursor:pointer;">➕ Ajouter matériau</button>
-          <input type="hidden" name="tech_materials_used" id="tech_materials_used_json" value="<?= $e(is_string($iv['tech_materials_used'] ?? null) ? (string)$iv['tech_materials_used'] : '[]') ?>">
-        </div>
-
-        <!-- Photos -->
-        <div class="cr-field-hd"><div class="cr-field-icon purple">📷</div><div class="cr-field-label">Photos complémentaires</div></div>
-        <?php
-        $photosStructured = [];
-        foreach ($photos as $ph) {
-            if (is_array($ph)) { $photosStructured[] = $ph; }
-            else { $photosStructured[] = ['type'=>'', 'path'=>(string)$ph]; }
-        }
-        ?>
-        <?php if (!empty($photosStructured)): ?>
-        <div class="prx-photos">
-          <?php foreach ($photosStructured as $ph): ?>
-            <div class="prx-photo" style="position:relative;">
-              <?php if (!empty($ph['type'])): ?>
-                <div style="font-size:.68rem;text-align:center;padding:.15rem .3rem;background:rgba(0,0,0,.45);color:#fff;position:absolute;bottom:0;left:0;right:0;"><?= $e($ph['type']) ?></div>
-              <?php endif; ?>
-              <img src="<?= $e(asset_url($ph['path'])) ?>" alt="" loading="lazy">
-            </div>
+  <!-- Rapport -->
+  <?php if ($locked): ?>
+  <section class="ta-card" id="rapport">
+    <div class="ta-card-h">
+      <h3>Rapport d'intervention</h3>
+      <a href="<?= e(url_for('dispatcher/rapport_pdf.php?id='.$id)) ?>" target="_blank" rel="noopener">PDF</a>
+    </div>
+    <div class="ta-card-b">
+      <?php
+      $yesNo = static fn($v) => $v === null || $v === '' ? '—' : ((int)$v ? 'Oui' : 'Non');
+      $rows = [
+          'Intitulé de la panne' => $iv['tech_fault_label'] ?? '',
+          'N° d\'appareil'       => $iv['tech_device_number'] ?? '',
+          'Réalisable'           => $yesNo($iv['tech_realizable'] ?? null),
+          'Mauvaise utilisation' => $yesNo($iv['tech_bad_use'] ?? null),
+      ];
+      if ($isLift) $rows['Ascenseur remis en service'] = $yesNo($iv['tech_elevator_restored'] ?? null);
+      $rows['Arrivée'] = $hm($iv['tech_arrived_at'] ?? null);
+      $rows['Fin'] = !empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : $hm($iv['tech_completed_at'] ?? null);
+      foreach ($rows as $k => $v): if ((string)$v === '') continue; ?>
+        <div class="ta-row"><span><?= e($k) ?></span><span><?= e($v) ?></span></div>
+      <?php endforeach; ?>
+      <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e($iv['tech_report']) ?></div><?php endif; ?>
+      <?php if (!empty($iv['tech_notes_extra'])): ?><div class="ta-label" style="margin-top:.7rem;">Remarques</div><div class="ta-text"><?= e($iv['tech_notes_extra']) ?></div><?php endif; ?>
+      <?php if ($mats): ?>
+        <div class="ta-label" style="margin-top:.7rem;">Matériel utilisé</div>
+        <?php foreach ($mats as $m): if (!is_array($m)) continue; ?>
+          <div class="ta-row"><span><?= e($m['name'] ?? '') ?></span><span><?= e(trim(($m['qty'] ?? '').' '.($m['unit'] ?? ''))) ?></span></div>
+        <?php endforeach; ?>
+      <?php endif; ?>
+      <?php if ($photos): ?>
+        <div class="ta-label" style="margin-top:.7rem;">Photos</div>
+        <div class="ta-photos">
+          <?php foreach ($photos as $ph): ?>
+            <a class="ta-photo" href="<?= e(asset_url($ph['path'])) ?>" target="_blank"><img src="<?= e(asset_url($ph['path'])) ?>" alt="" loading="lazy"><?php if ($ph['type']): ?><span><?= e($ph['type']) ?></span><?php endif; ?></a>
           <?php endforeach; ?>
         </div>
+      <?php endif; ?>
+      <?php if (!empty($iv['tech_signature'])): ?>
+        <div class="ta-label" style="margin-top:.7rem;">Signature<?= !empty($iv['tech_client_name']) ? ' — '.e($iv['tech_client_name']) : '' ?></div>
+        <div class="ta-sig"><img src="<?= e($iv['tech_signature']) ?>" alt="Signature du client"></div>
+      <?php endif; ?>
+    </div>
+  </section>
+  <?php else: $early = $status !== 'sur_place'; ?>
+  <?php if ($early): ?>
+  <section class="ta-card" id="report-teaser">
+    <div class="ta-card-b" style="display:flex;align-items:center;gap:.75rem;">
+      <div style="flex:1;">
+        <div style="font-weight:600;">Rapport d'intervention</div>
+        <div class="ta-muted" style="font-size:.88rem;">Il s'ouvre automatiquement à votre arrivée sur place.</div>
+      </div>
+      <button type="button" class="ta-btn" onclick="document.getElementById('form-cr').hidden=false;this.closest('section').remove();setupCanvas();">Remplir</button>
+    </div>
+  </section>
+  <?php endif; ?>
+  <form method="post" enctype="multipart/form-data" id="form-cr" <?= $early ? 'hidden' : '' ?>>
+    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+    <input type="hidden" name="action" value="report">
+    <input type="hidden" name="tech_materials_used" id="mats-json" value="<?= e(json_encode($mats, JSON_UNESCAPED_UNICODE)) ?>">
+    <input type="hidden" name="tech_signature" id="sig-data" value="">
+
+    <section class="ta-card" id="rapport">
+      <div class="ta-card-h"><h3>Rapport d'intervention</h3></div>
+      <div class="ta-card-b">
+        <div class="ta-field">
+          <label for="f-fault">Intitulé de la panne</label>
+          <input class="ta-input" id="f-fault" type="text" name="tech_fault_label" value="<?= e($iv['tech_fault_label'] ?? '') ?>" placeholder="Ex. : disjoncteur différentiel défectueux">
+        </div>
+        <div class="ta-field">
+          <label for="f-report">Constat et travaux réalisés</label>
+          <textarea class="ta-textarea" id="f-report" name="tech_report" placeholder="Ce que vous avez constaté, ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+          <div>
+            <label class="ta-label" for="f-dev">N° d'appareil</label>
+            <input class="ta-input" id="f-dev" type="text" name="tech_device_number" value="<?= e($iv['tech_device_number'] ?? '') ?>" placeholder="Facultatif">
+          </div>
+          <div>
+            <label class="ta-label" for="f-ticket">Heure du ticket</label>
+            <input class="ta-input" id="f-ticket" type="time" name="tech_ticket_time" value="<?= e(!empty($iv['tech_ticket_time']) ? substr((string)$iv['tech_ticket_time'], 0, 5) : '') ?>">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ta-card">
+      <div class="ta-card-h"><h3>Contrôles</h3></div>
+      <div class="ta-card-b" style="padding-top:.4rem;padding-bottom:.4rem;">
+        <?php
+        $checks = ['tech_realizable' => 'Intervention réalisable', 'tech_bad_use' => 'Panne due à une mauvaise utilisation'];
+        if ($isLift) $checks['tech_elevator_restored'] = 'Ascenseur remis en service';
+        foreach ($checks as $name => $label):
+          $v = $iv[$name] ?? null; $v = ($v === null || $v === '') ? '' : (string)(int)$v; ?>
+          <div class="ta-yn">
+            <span><?= e($label) ?></span>
+            <div class="ta-seg" data-for="<?= e($name) ?>">
+              <input type="hidden" name="<?= e($name) ?>" value="<?= e($v) ?>">
+              <button type="button" data-v="1" class="<?= $v === '1' ? 'on-yes' : '' ?>">Oui</button>
+              <button type="button" data-v="0" class="<?= $v === '0' ? 'on-no' : '' ?>">Non</button>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
+    </section>
+
+    <section class="ta-card">
+      <div class="ta-card-h"><h3>Matériel utilisé</h3><button type="button" onclick="addMat()">+ Ajouter</button></div>
+      <div class="ta-card-b">
+        <div id="mats"></div>
+        <div id="mats-empty" class="ta-muted" style="font-size:.9rem;">Aucun matériel saisi.</div>
+      </div>
+    </section>
+
+    <section class="ta-card">
+      <div class="ta-card-h"><h3>Photos</h3><span class="ta-muted" style="font-size:.85rem;"><?= count($photos) ?></span></div>
+      <div class="ta-card-b">
+        <?php if ($photos): ?>
+          <div class="ta-photos">
+            <?php foreach ($photos as $ph): ?>
+              <a class="ta-photo" href="<?= e(asset_url($ph['path'])) ?>" target="_blank"><img src="<?= e(asset_url($ph['path'])) ?>" alt="" loading="lazy"><?php if ($ph['type']): ?><span><?= e($ph['type']) ?></span><?php endif; ?></a>
+            <?php endforeach; ?>
+          </div>
         <?php endif; ?>
-        <div class="cr-field-body">
-          <div style="margin-bottom:.5rem;">
-            <label style="font-size:.78rem;color:#64748b;display:block;margin-bottom:.3rem;">Type de photo</label>
-            <select id="photo-type-select" class="cr-input">
-              <option value="">— Optionnel —</option>
-              <?php foreach (get_presets('photo_type') as $pt): ?>
-                <option value="<?= $e($pt['label']) ?>"><?= $e($pt['label']) ?></option>
-              <?php endforeach; ?>
+        <?php $photoTypes = get_presets('photo_type'); if ($photoTypes): ?>
+          <div class="ta-field">
+            <select class="ta-select" name="photo_type_label" aria-label="Type de photo">
+              <option value="">Type de photo (facultatif)</option>
+              <?php foreach ($photoTypes as $pt): ?><option value="<?= e($pt['label']) ?>"><?= e($pt['label']) ?></option><?php endforeach; ?>
             </select>
           </div>
-          <input type="file" id="photo-input" name="photos[]" multiple accept="image/*" capture="environment" style="display:none;" onchange="updatePhotoLabel(this)">
-          <div class="prx-photo-add" onclick="document.getElementById('photo-input').click();" style="height:80px;border-radius:10px;aspect-ratio:unset;">
-            <span style="font-size:1.4rem;">📷</span>
-            <span id="photo-label">Ajouter des photos</span>
-          </div>
-        </div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon green">🔧</div><div class="cr-field-label">Ascenseur remis en service ?</div></div>
-        <div class="cr-field-body">
-          <div class="cr-toggle">
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_elevator_restored']==='1'?'active-yes':'' ?>" onclick="setToggle('elevator','1',this)">Oui</button>
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_elevator_restored']==='0'?'active-no':'' ?>"  onclick="setToggle('elevator','0',this)">Non</button>
-          </div>
-        </div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon green">✅</div><div class="cr-field-label">Intervention terminée ?</div></div>
-        <div class="cr-field-body">
-          <div class="cr-toggle">
-            <button type="button" class="cr-toggle-btn" onclick="submitComplete()">Oui ✓</button>
-          </div>
-        </div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon orange">⚠️</div><div class="cr-field-label">Panne liée à une mauvaise utilisation ?</div></div>
-        <div class="cr-field-body">
-          <div class="cr-toggle">
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_bad_use']==='1'?'active-yes':'' ?>" onclick="setToggle('baduse','1',this)">Oui</button>
-            <button type="button" class="cr-toggle-btn <?= (string)$iv['tech_bad_use']==='0'?'active-no':'' ?>"  onclick="setToggle('baduse','0',this)">Non</button>
-          </div>
-        </div>
-
-        <div class="cr-field-hd"><div class="cr-field-icon blue">🕐</div><div class="cr-field-label">Heure de clôture</div></div>
-        <div class="cr-field-body"><input type="time" name="tech_close_time" class="cr-input" value="<?= $e($iv['tech_close_time'] ? substr((string)$iv['tech_close_time'],0,5) : '') ?>"></div>
-
+        <?php endif; ?>
+        <input type="file" id="photo-input" name="photos[]" multiple accept="image/*" capture="environment" hidden>
+        <button type="button" class="ta-drop" onclick="document.getElementById('photo-input').click()"><?= ta_icon('camera') ?><span id="photo-label">Prendre ou ajouter des photos</span></button>
       </div>
+    </section>
+
+    <section class="ta-card">
+      <div class="ta-card-h"><h3>Remarques</h3></div>
+      <div class="ta-card-b">
+        <textarea class="ta-textarea" name="tech_notes_extra" placeholder="Informations utiles pour le bureau ou la prochaine visite (facultatif)"><?= e($iv['tech_notes_extra'] ?? '') ?></textarea>
+      </div>
+    </section>
+
+    <section class="ta-card">
+      <div class="ta-card-h"><h3>Signature du client</h3></div>
+      <div class="ta-card-b">
+        <div class="ta-field">
+          <input class="ta-input" type="text" name="tech_client_name" value="<?= e($iv['tech_client_name'] ?? '') ?>" placeholder="Nom du signataire">
+        </div>
+        <div class="ta-sig" id="sig-box">
+          <?php if (!empty($iv['tech_signature'])): ?>
+            <img src="<?= e($iv['tech_signature']) ?>" alt="Signature enregistrée" id="sig-saved">
+          <?php endif; ?>
+          <canvas id="sig-canvas" <?= !empty($iv['tech_signature']) ? 'hidden' : '' ?>></canvas>
+          <button type="button" class="ta-sig-clear" onclick="clearSig()">Effacer</button>
+        </div>
+        <div class="ta-muted" style="font-size:.8rem;margin-top:.35rem;">Faites signer le client avec le doigt.</div>
+      </div>
+    </section>
+    <?php if ($early): ?>
+      <button type="button" class="ta-btn" style="width:100%;margin-bottom:.8rem;" onclick="saveReport()"><?= ta_icon('save') ?>Enregistrer le rapport</button>
+    <?php endif; ?>
+  </form>
+  <?php endif; ?>
+
+  <?php if (!empty($iv['amount_ht']) || !empty($iv['amount_ttc']) || !empty($iv['deposit'])): ?>
+  <details class="ta-card">
+    <summary class="ta-card-h"><h3>Paiement</h3></summary>
+    <div class="ta-card-b">
+      <?php foreach (['amount_ht' => 'Montant HT', 'amount_ttc' => 'Montant TTC', 'deposit' => 'Acompte'] as $k => $l): if (empty($iv[$k])) continue; ?>
+        <div class="ta-row"><span><?= $l ?></span><span><?= e(number_format((float)$iv[$k], 2, ',', ' ')) ?> €</span></div>
+      <?php endforeach; ?>
+      <?php if (!empty($iv['payment_method'])): ?><div class="ta-row"><span>Règlement</span><span><?= e($iv['payment_method']) ?></span></div><?php endif; ?>
+      <?php if (!$locked): ?><button type="button" class="ta-btn" style="width:100%;margin-top:.6rem;" onclick="openSheet('sheet-pay')">Modifier le paiement</button><?php endif; ?>
+    </div>
+  </details>
+  <?php endif; ?>
+
+  <?php if ($history): ?>
+  <details class="ta-card">
+    <summary class="ta-card-h"><h3>Historique</h3></summary>
+    <div class="ta-card-b">
+      <?php $stc = intervention_status_config(); foreach ($history as $h): ?>
+        <div class="ta-hist">
+          <?= e($stc[$h['status_to']]['label'] ?? $h['status_to']) ?><?= !empty($h['note']) ? ' — '.e($h['note']) : '' ?>
+          <small><?= e(date('d/m/Y H:i', strtotime((string)$h['created_at']))) ?> · <?= e($h['actor_name'] ?: $h['actor_type']) ?></small>
+        </div>
+      <?php endforeach; ?>
+    </div>
+  </details>
+  <?php endif; ?>
+</main>
+
+<?php if (!$locked): ?>
+<div class="ta-bar"><div class="ta-bar-in">
+  <?php if (in_array($status, ['nouveau', 'confirmé', 'assigné'], true) || $status === 'en_route'):
+    [$next, $label, $ico] = $status === 'en_route' ? ['sur_place', 'Je suis arrivé', 'arrive'] : ['en_route', 'Je pars', 'car']; ?>
+    <form method="post" style="flex:1;display:flex;">
+      <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+      <input type="hidden" name="action" value="status">
+      <input type="hidden" name="status" value="<?= e($next) ?>">
+      <button type="submit" class="ta-btn <?= $next === 'en_route' ? 'dark' : 'primary' ?> grow"><?= ta_icon($ico) ?><?= e($label) ?></button>
+    </form>
+  <?php else: ?>
+    <button type="button" class="ta-btn grow" onclick="saveReport()"><?= ta_icon('save') ?>Enregistrer</button>
+    <button type="button" class="ta-btn ok grow" onclick="finish()"><?= ta_icon('check') ?>Terminer</button>
+  <?php endif; ?>
+</div></div>
+
+<!-- Modifier les coordonnées -->
+<div class="ta-sheet" id="sheet-client" onclick="if(event.target===this)closeSheet(this.id)">
+  <form class="ta-sheet-in" method="post">
+    <h3>Coordonnées du client</h3>
+    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+    <input type="hidden" name="action" value="update_client">
+    <div class="ta-field"><label>Téléphone</label><input class="ta-input" type="tel" name="client_phone" value="<?= e($iv['client_phone'] ?? '') ?>"></div>
+    <div class="ta-field"><label>Adresse</label><input class="ta-input" type="text" name="client_address" value="<?= e($iv['client_address'] ?? '') ?>"></div>
+    <div style="display:grid;grid-template-columns:110px 1fr;gap:.6rem;" class="ta-field">
+      <div><label class="ta-label">Code postal</label><input class="ta-input" type="text" name="client_postal" value="<?= e($iv['client_postal'] ?? '') ?>" inputmode="numeric"></div>
+      <div><label class="ta-label">Ville</label><input class="ta-input" type="text" name="client_city" value="<?= e($iv['client_city'] ?? '') ?>"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+      <div><label class="ta-label">Étage</label><input class="ta-input" type="text" name="client_floor" value="<?= e($iv['client_floor'] ?? '') ?>"></div>
+      <div><label class="ta-label">Digicode</label><input class="ta-input" type="text" name="client_digicode" value="<?= e($iv['client_digicode'] ?? '') ?>"></div>
+    </div>
+    <div class="ta-sheet-actions">
+      <button type="button" class="ta-btn grow" onclick="closeSheet('sheet-client')">Annuler</button>
+      <button type="submit" class="ta-btn primary grow">Enregistrer</button>
     </div>
   </form>
-<?php endif; ?>
-
-</div><!-- /tab-cr -->
-
-</div><!-- /padding wrapper -->
-
-<!-- ── Status Action Bar ── -->
-<?php if (!$isDone): ?>
-<div class="prx-action-bar with-safe" id="action-bar">
-  <?php if ($status === 'assigné' || $status === 'confirmé' || $status === 'nouveau'): ?>
-    <form method="post" style="flex:1;">
-      <input type="hidden" name="action" value="status">
-      <input type="hidden" name="status" value="en_route">
-      <button type="submit" class="prx-ab-btn prx-ab-route" style="width:100%;">🚗 En route</button>
-    </form>
-  <?php elseif ($status === 'en_route'): ?>
-    <form method="post" style="flex:1;">
-      <input type="hidden" name="action" value="status">
-      <input type="hidden" name="status" value="sur_place">
-      <button type="submit" class="prx-ab-btn prx-ab-place" style="width:100%;">📍 Sur place</button>
-    </form>
-  <?php elseif ($status === 'sur_place'): ?>
-    <button type="button" class="prx-ab-btn prx-ab-save" style="flex:1;" onclick="saveReport()">💾 Enregistrer</button>
-    <button type="button" class="prx-ab-btn prx-ab-close" style="flex:1;" onclick="submitComplete()">✅ Clôturer</button>
-  <?php else: ?>
-    <button type="button" class="prx-ab-btn prx-ab-save" style="flex:1;" onclick="saveReport()">💾 Enregistrer</button>
-    <button type="button" class="prx-ab-btn prx-ab-close" style="flex:1;" onclick="submitComplete()">✅ Clôturer</button>
-  <?php endif; ?>
-</div>
-<?php endif; ?>
-
-<!-- ── Modal Modifier Client ── -->
-<div class="prx-modal-overlay" id="modal-client">
-  <div class="prx-modal">
-    <div class="prx-modal-title">✏️ Modifier les infos client</div>
-    <form method="post">
-      <input type="hidden" name="action" value="update_client">
-      <div class="prx-modal-field">
-        <label>Nom complet</label>
-        <input type="text" name="client_name" value="<?= $e(trim(($iv['lastname']??'').' '.($iv['firstname']??''))) ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Téléphone</label>
-        <input type="tel" name="client_phone" value="<?= $e($iv['client_phone'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Adresse</label>
-        <input type="text" name="client_address" value="<?= $e($iv['client_address'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Ville</label>
-        <input type="text" name="client_city" value="<?= $e($iv['client_city'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Code postal</label>
-        <input type="text" name="client_postal" value="<?= $e($iv['client_postal'] ?? '') ?>">
-      </div>
-      <button type="submit" class="t-btn t-btn-primary" style="margin-top:.5rem;">💾 Enregistrer</button>
-      <button type="button" class="t-btn t-btn-outline" style="margin-top:.5rem;" onclick="closeModal('modal-client')">Annuler</button>
-    </form>
-  </div>
 </div>
 
-<!-- ── Modal Financier ── -->
-<div class="prx-modal-overlay" id="modal-financial">
-  <div class="prx-modal">
-    <div class="prx-modal-title">💶 Modifier le financier</div>
-    <form method="post">
-      <input type="hidden" name="action" value="update_financial">
-      <div class="prx-modal-field">
-        <label>Montant HT (€)</label>
-        <input type="number" name="amount_ht" step="0.01" value="<?= $e($iv['amount_ht'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Montant TTC (€)</label>
-        <input type="number" name="amount_ttc" step="0.01" value="<?= $e($iv['amount_ttc'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Acompte (€)</label>
-        <input type="number" name="deposit" step="0.01" value="<?= $e($iv['deposit'] ?? '') ?>">
-      </div>
-      <div class="prx-modal-field">
-        <label>Mode de règlement</label>
-        <select name="payment_method">
-          <option value="">— Choisir —</option>
-          <?php foreach (['Chèque','Virement','Espèces','Carte bancaire','Prélèvement'] as $pm): ?>
-            <option value="<?= $e($pm) ?>" <?= ($iv['payment_method']??'')===$pm?'selected':'' ?>><?= $e($pm) ?></option>
-          <?php endforeach; ?>
-        </select>
-      </div>
-      <button type="submit" class="t-btn t-btn-primary" style="margin-top:.5rem;">💾 Enregistrer</button>
-      <button type="button" class="t-btn t-btn-outline" style="margin-top:.5rem;" onclick="closeModal('modal-financial')">Annuler</button>
-    </form>
-  </div>
+<!-- Modifier le paiement -->
+<div class="ta-sheet" id="sheet-pay" onclick="if(event.target===this)closeSheet(this.id)">
+  <form class="ta-sheet-in" method="post">
+    <h3>Paiement</h3>
+    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+    <input type="hidden" name="action" value="update_financial">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+      <div><label class="ta-label">Montant HT (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="amount_ht" value="<?= e($iv['amount_ht'] ?? '') ?>"></div>
+      <div><label class="ta-label">Montant TTC (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="amount_ttc" value="<?= e($iv['amount_ttc'] ?? '') ?>"></div>
+    </div>
+    <div class="ta-field"><label>Acompte (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="deposit" value="<?= e($iv['deposit'] ?? '') ?>"></div>
+    <div class="ta-field"><label>Mode de règlement</label>
+      <select class="ta-select" name="payment_method">
+        <option value="">—</option>
+        <?php foreach (['Carte bancaire', 'Chèque', 'Espèces', 'Virement', 'Prélèvement'] as $pm): ?>
+          <option value="<?= e($pm) ?>" <?= ($iv['payment_method'] ?? '') === $pm ? 'selected' : '' ?>><?= e($pm) ?></option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <div class="ta-sheet-actions">
+      <button type="button" class="ta-btn grow" onclick="closeSheet('sheet-pay')">Annuler</button>
+      <button type="submit" class="ta-btn primary grow">Enregistrer</button>
+    </div>
+  </form>
 </div>
 
 <script>
-function switchTab(tab) {
-  document.querySelectorAll('.tab-content').forEach(function(el){ el.classList.remove('active'); });
-  document.querySelectorAll('.prx-tab').forEach(function(el){ el.classList.remove('active'); });
-  document.getElementById('tab-'+tab).classList.add('active');
-  var idx = tab === 'details' ? 0 : 1;
-  document.querySelectorAll('.prx-tab')[idx].classList.add('active');
-  history.replaceState(null,'','?id=<?= $id ?>&tab='+tab);
-}
+function openSheet(id){ document.getElementById(id).classList.add('open'); }
+function closeSheet(id){ document.getElementById(id).classList.remove('open'); }
 
-function toggleSection(hd) {
-  hd.classList.toggle('closed');
-  var body = hd.nextElementSibling;
-  body.classList.toggle('hidden');
-}
+// Oui / Non
+document.querySelectorAll('.ta-seg').forEach(function (seg) {
+  var input = seg.querySelector('input');
+  seg.querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var v = b.dataset.v === input.value ? '' : b.dataset.v;
+      input.value = v;
+      seg.querySelectorAll('button').forEach(function (x) { x.className = ''; });
+      if (v !== '') b.className = v === '1' ? 'on-yes' : 'on-no';
+    });
+  });
+});
 
-function setToggle(field, val, btn) {
-  var inp = document.getElementById('inp-'+field);
-  var btns = btn.closest('.cr-toggle').querySelectorAll('.cr-toggle-btn');
-  btns.forEach(function(b){ b.classList.remove('active-yes','active-no'); });
-  if (inp.value === val) { inp.value = ''; return; }
-  inp.value = val;
-  btn.classList.add(val === '1' ? 'active-yes' : 'active-no');
-}
+// Photos
+var photoInput = document.getElementById('photo-input');
+if (photoInput) photoInput.addEventListener('change', function () {
+  var n = this.files ? this.files.length : 0;
+  document.getElementById('photo-label').textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' prête' + (n > 1 ? 's' : '') + ' — enregistrez pour les envoyer' : 'Prendre ou ajouter des photos';
+});
 
+// Matériel utilisé
+var matPresets = <?= json_encode(array_values(array_map(static fn($p) => (string)$p['label'], get_presets('material'))), JSON_UNESCAPED_UNICODE) ?>;
+var mats = [];
+try { mats = JSON.parse(document.getElementById('mats-json').value) || []; } catch (e) { mats = []; }
+var units = ['pièce', 'm', 'ml', 'kg', 'L', 'boîte'];
+function el(tag, attrs) { var n = document.createElement(tag); for (var k in attrs) n[k] = attrs[k]; return n; }
+function syncMats() {
+  document.getElementById('mats-json').value = JSON.stringify(mats.filter(function (m) { return m.name; }));
+  document.getElementById('mats-empty').style.display = mats.length ? 'none' : '';
+}
+function renderMats() {
+  var box = document.getElementById('mats'); if (!box) return;
+  box.innerHTML = '';
+  mats.forEach(function (m, i) {
+    var row = el('div', { className: 'ta-mat' });
+    var known = !m.name || matPresets.indexOf(m.name) > -1;
+    var sel = el('select', { className: 'ta-select' });
+    sel.appendChild(el('option', { value: '', textContent: 'Choisir…' }));
+    matPresets.forEach(function (p) { sel.appendChild(el('option', { value: p, textContent: p, selected: p === m.name })); });
+    sel.appendChild(el('option', { value: '__autre__', textContent: 'Autre…', selected: !known }));
+    var qty = el('input', { className: 'ta-input', type: 'number', min: '0', step: '0.1', inputMode: 'decimal', value: m.qty || '', placeholder: 'Qté' });
+    var unit = el('select', { className: 'ta-select' });
+    units.forEach(function (u) { unit.appendChild(el('option', { value: u, textContent: u, selected: u === (m.unit || 'pièce') })); });
+    var del = el('button', { type: 'button', className: 'ta-mat-del', textContent: '×', title: 'Retirer' });
+    var other = el('input', { className: 'ta-input other', type: 'text', placeholder: 'Nom du matériel', value: known ? '' : m.name });
+    other.hidden = known;
+    sel.onchange = function () {
+      if (sel.value === '__autre__') { other.hidden = false; other.focus(); m.name = other.value; }
+      else { other.hidden = true; m.name = sel.value; }
+      syncMats();
+    };
+    other.oninput = function () { m.name = other.value; syncMats(); };
+    qty.oninput = function () { m.qty = qty.value; syncMats(); };
+    unit.onchange = function () { m.unit = unit.value; syncMats(); };
+    del.onclick = function () { mats.splice(i, 1); renderMats(); };
+    row.append(sel, qty, unit, del, other);
+    box.appendChild(row);
+  });
+  syncMats();
+}
+function addMat() { mats.push({ name: '', qty: '1', unit: 'pièce' }); renderMats(); }
+renderMats();
+
+// Signature
+var canvas = document.getElementById('sig-canvas'), sigDirty = false;
+function setupCanvas() {
+  if (!canvas || canvas.hidden) return;
+  var r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+  canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+  var ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+  ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#17223b';
+  var drawing = false;
+  function pos(e) { var b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
+  canvas.addEventListener('pointerdown', function (e) { drawing = true; sigDirty = true; canvas.setPointerCapture(e.pointerId); var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
+  canvas.addEventListener('pointermove', function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+  canvas.addEventListener('pointerup', function () { drawing = false; });
+  canvas.addEventListener('pointercancel', function () { drawing = false; });
+}
+function clearSig() {
+  var saved = document.getElementById('sig-saved');
+  if (saved) { saved.remove(); document.getElementById('sig-data').value = 'clear'; }
+  if (canvas) {
+    var wasHidden = canvas.hidden; canvas.hidden = false;
+    if (wasHidden) setupCanvas(); else canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+  }
+  sigDirty = false;
+}
+setupCanvas();
+
+function beforeSubmit() {
+  if (sigDirty && canvas) document.getElementById('sig-data').value = canvas.toDataURL('image/png');
+}
 function saveReport() {
-  switchTab('cr');
-  document.getElementById('form-cr').submit();
+  var f = document.getElementById('form-cr'); if (!f) return;
+  beforeSubmit(); f.submit();
 }
-
-function submitComplete() {
-  if (!confirm('Confirmer la clôture de cette intervention ?')) return;
-  switchTab('cr');
-  var form = document.getElementById('form-cr');
-  if (!form) return;
-  var inp = document.createElement('input');
-  inp.type='hidden'; inp.name='mark_complete'; inp.value='1';
-  form.appendChild(inp);
-  form.submit();
-}
-
-function updatePhotoLabel(input) {
-  var lbl = document.getElementById('photo-label');
-  if (input.files && input.files.length > 0)
-    lbl.textContent = input.files.length + ' photo(s) sélectionnée(s)';
-}
-
-function openModal(id) {
-  document.getElementById(id).classList.add('open');
-  document.body.style.overflow = 'hidden';
-}
-function closeModal(id) {
-  document.getElementById(id).classList.remove('open');
-  document.body.style.overflow = '';
-}
-document.querySelectorAll('.prx-modal-overlay').forEach(function(overlay){
-  overlay.addEventListener('click', function(e){
-    if (e.target === overlay) closeModal(overlay.id);
-  });
-});
-
-function copyText(text) {
-  if (navigator.clipboard) { navigator.clipboard.writeText(text); }
-  else { var ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
-}
-
-// Auto-scroll to top on tab switch
-window.addEventListener('load', function(){
-  if (window.location.search.indexOf('saved=1') > -1) {
-    window.scrollTo(0,0);
-  }
-});
-
-/* ── Matériaux utilisés (compte rendu tech) ── */
-var crMaterialPresets = [];
-var crMaterialRows    = [];
-
-(function(){
-  // Charger les presets matériaux via l'API dispatcher
-  var apiBase = <?= json_encode(url_for('dispatcher/api.php')) ?>;
-  fetch(apiBase + '?action=get_presets&type=material')
-    .then(function(r){ return r.json(); })
-    .then(function(data){ if (Array.isArray(data)) { crMaterialPresets = data; renderCrMaterials(); } })
-    .catch(function(){});
-
-  // Restaurer depuis le champ caché
-  var jsonInp = document.getElementById('tech_materials_used_json');
-  if (jsonInp && jsonInp.value && jsonInp.value !== '[]') {
-    try {
-      var parsed = JSON.parse(jsonInp.value);
-      if (Array.isArray(parsed)) { crMaterialRows = parsed; }
-    } catch(e){}
-  }
-})();
-
-function renderCrMaterials() {
-  var container = document.getElementById('materials-cr-container');
-  if (!container) return;
-  container.innerHTML = '';
-  crMaterialRows.forEach(function(row, idx) {
-    var div = document.createElement('div');
-    div.style.cssText = 'display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem;flex-wrap:wrap;';
-    // Sélect
-    var sel = document.createElement('select');
-    sel.style.cssText = 'flex:2;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;background:#fff;';
-    sel.innerHTML = '<option value="">— Choisir —</option>';
-    crMaterialPresets.forEach(function(p){
-      var opt = document.createElement('option');
-      opt.value = p.label; opt.textContent = p.label;
-      if (p.label === row.name) opt.selected = true;
-      sel.appendChild(opt);
-    });
-    var otherOpt = document.createElement('option');
-    otherOpt.value = '__autre__'; otherOpt.textContent = 'Autre…';
-    if (row.name && !crMaterialPresets.find(function(p){ return p.label===row.name; })) otherOpt.selected = true;
-    sel.appendChild(otherOpt);
-    // Custom input
-    var customInp = document.createElement('input');
-    customInp.type = 'text'; customInp.placeholder = 'Nom matériau';
-    customInp.style.cssText = 'flex:2;padding:.45rem .7rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;';
-    var isCustom = row.name && !crMaterialPresets.find(function(p){ return p.label===row.name; });
-    customInp.style.display = isCustom ? 'block' : 'none';
-    customInp.value = isCustom ? row.name : '';
-    sel.addEventListener('change', function(){
-      if (this.value === '__autre__') { customInp.style.display = 'block'; crMaterialRows[idx].name = ''; }
-      else { customInp.style.display = 'none'; crMaterialRows[idx].name = this.value; customInp.value = ''; }
-      syncCrMatsJson();
-    });
-    customInp.addEventListener('input', function(){ crMaterialRows[idx].name = this.value; syncCrMatsJson(); });
-    // Qty
-    var qtyInp = document.createElement('input');
-    qtyInp.type = 'number'; qtyInp.min = '0'; qtyInp.step = '0.1'; qtyInp.placeholder = 'Qté';
-    qtyInp.style.cssText = 'width:70px;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;';
-    qtyInp.value = row.qty || '';
-    qtyInp.addEventListener('input', function(){ crMaterialRows[idx].qty = this.value; syncCrMatsJson(); });
-    // Unit
-    var unitSel = document.createElement('select');
-    unitSel.style.cssText = 'width:80px;padding:.45rem .5rem;border:1.5px solid #e2e8f0;border-radius:8px;font-size:.85rem;font-family:inherit;background:#fff;';
-    ['pièce','m','ml','kg','L','boîte'].forEach(function(u){
-      var o = document.createElement('option');
-      o.value = u; o.textContent = u;
-      if (u === row.unit) o.selected = true;
-      unitSel.appendChild(o);
-    });
-    unitSel.addEventListener('change', function(){ crMaterialRows[idx].unit = this.value; syncCrMatsJson(); });
-    // Delete
-    var delBtn = document.createElement('button');
-    delBtn.type = 'button'; delBtn.textContent = '✕';
-    delBtn.style.cssText = 'background:#fee2e2;border:none;color:#dc2626;border-radius:8px;padding:.35rem .6rem;cursor:pointer;font-size:.85rem;';
-    delBtn.addEventListener('click', function(){ crMaterialRows.splice(idx,1); renderCrMaterials(); syncCrMatsJson(); });
-    div.appendChild(sel); div.appendChild(customInp); div.appendChild(qtyInp); div.appendChild(unitSel); div.appendChild(delBtn);
-    container.appendChild(div);
-  });
-}
-
-function syncCrMatsJson() {
-  var jsonInp = document.getElementById('tech_materials_used_json');
-  if (!jsonInp) return;
-  var arr = crMaterialRows.filter(function(r){ return r.name; });
-  jsonInp.value = JSON.stringify(arr);
-}
-
-window.addMaterialCrRow = function() {
-  crMaterialRows.push({ name:'', qty:'1', unit:'pièce' });
-  renderCrMaterials();
-  syncCrMatsJson();
-};
-
-/* ── Type de photo — envoyer dans un champ caché avant upload ── */
-var photoTypeSelect = document.getElementById('photo-type-select');
-if (photoTypeSelect) {
-  photoTypeSelect.addEventListener('change', function(){
-    // Ajouter un input caché pour le type de photo
-    var existing = document.getElementById('_photo_type_hidden');
-    if (!existing) {
-      existing = document.createElement('input');
-      existing.type = 'hidden';
-      existing.id = '_photo_type_hidden';
-      existing.name = 'photo_type_label';
-      var formCr = document.getElementById('form-cr');
-      if (formCr) formCr.appendChild(existing);
-    }
-    existing.value = this.value;
-  });
+function finish() {
+  var f = document.getElementById('form-cr'); if (!f) return;
+  if (!confirm('Terminer l\'intervention ? Le rapport ne sera plus modifiable.')) return;
+  beforeSubmit();
+  f.appendChild(el('input', { type: 'hidden', name: 'mark_complete', value: '1' }));
+  f.submit();
 }
 </script>
+<?php endif; ?>
 </body>
 </html>

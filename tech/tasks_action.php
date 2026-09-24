@@ -13,6 +13,11 @@ $action = (string)($_POST['action'] ?? '');
 $taskId = (int)($_POST['task_id'] ?? 0);
 
 if ($action === 'complete' && $taskId > 0) {
+    // Un technicien ne clôt que ses rappels ou les rappels adressés à tous.
+    try { $task = db_fetch('SELECT technician_id FROM tasks WHERE id = ?', [$taskId]); } catch (Throwable $e) { $task = null; }
+    if (!$task || (!empty($task['technician_id']) && (int)$task['technician_id'] !== (int)$tech['id'])) {
+        redirect_to('tech/dashboard.php');
+    }
     update_task($taskId, ['status' => 'done']);
     flash('success', 'Tâche marquée comme terminée.');
 }

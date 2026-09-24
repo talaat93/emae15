@@ -9,11 +9,7 @@ if ($id <= 0) { redirect_to('dispatcher/interventions.php'); }
 $iv = get_intervention_by_id($id);
 if (!$iv) { flash('error', 'Intervention introuvable.'); redirect_to('dispatcher/interventions.php'); }
 
-$photos = [];
-if (!empty($iv['tech_photos'])) {
-    $p = json_decode((string)$iv['tech_photos'], true);
-    if (is_array($p)) $photos = $p;
-}
+$photos = intervention_photo_paths($iv);
 
 $catConf = intervention_category_config();
 $stConf  = intervention_status_config();
@@ -214,7 +210,7 @@ a{color:inherit;text-decoration:none;}
   </div>
 
   <!-- ── Description technique ── -->
-  <?php if (!empty($iv['fault_reported']) || !empty($iv['description']) || !empty($iv['materials_needed'])): ?>
+  <?php if (!empty($iv['fault_reported']) || !empty($iv['description']) || materials_text($iv['materials_needed'] ?? '') !== ''): ?>
   <div class="section">
     <div class="section-head"><span class="ico">📋</span> Description technique</div>
     <div class="section-body">
@@ -230,10 +226,10 @@ a{color:inherit;text-decoration:none;}
         <div class="text-block"><?= e_pdf($iv['description']) ?></div>
       </div>
       <?php endif; ?>
-      <?php if (!empty($iv['materials_needed'])): ?>
+      <?php if (materials_text($iv['materials_needed'] ?? '') !== ''): ?>
       <div>
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:.35rem;">Matériaux nécessaires</div>
-        <div class="text-block"><?= e_pdf($iv['materials_needed']) ?></div>
+        <div class="text-block"><?= e_pdf(materials_text($iv['materials_needed'])) ?></div>
       </div>
       <?php endif; ?>
     </div>

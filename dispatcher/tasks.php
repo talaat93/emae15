@@ -71,10 +71,10 @@ require_once __DIR__.'/partials/header.php';
     <button class="d-menu-btn" id="d-menu-toggle" style="background:none;border:none;cursor:pointer;padding:.35rem;color:var(--d-txt2);">
       <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <h1 class="d-topbar-title">📋 Tâches &amp; Rappels</h1>
+    <h1 class="d-topbar-title">Tâches &amp; Rappels</h1>
   </div>
   <div style="display:flex;align-items:center;gap:.65rem;">
-    <a href="#create-form" class="d-btn d-btn--primary" style="font-size:.82rem;">➕ Nouvelle tâche</a>
+    <a href="#create-form" class="d-btn d-btn--primary" style="font-size:.82rem;">Nouvelle tâche</a>
   </div>
 </div>
 
@@ -108,7 +108,7 @@ require_once __DIR__.'/partials/header.php';
       </div>
       <?php if ($filterUrgent || $filterTechId > 0 || $filterStatus !== 'all'): ?>
       <div style="display:flex;align-items:flex-end;">
-        <a href="dispatcher/tasks.php" class="d-btn" style="font-size:.78rem;padding:.45rem .85rem;">✕ Réinitialiser</a>
+        <a href="dispatcher/tasks.php" class="d-btn" style="font-size:.78rem;padding:.45rem .85rem;">Réinitialiser</a>
       </div>
       <?php endif; ?>
     </form>
@@ -120,7 +120,7 @@ require_once __DIR__.'/partials/header.php';
     <div>
       <?php if (empty($tasks)): ?>
       <div class="d-card" style="text-align:center;padding:3rem 1.5rem;color:var(--d-txt2);">
-        <div style="font-size:2.5rem;margin-bottom:.75rem;">📋</div>
+        <div style="font-size:2.5rem;margin-bottom:.75rem;"></div>
         <div style="font-weight:700;font-size:1rem;margin-bottom:.35rem;">Aucune tâche trouvée</div>
         <div style="font-size:.85rem;">Créez votre première tâche avec le formulaire →</div>
       </div>
@@ -140,24 +140,24 @@ require_once __DIR__.'/partials/header.php';
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
               <?php if ($isUrgent && !$isDone): ?>
-              <span style="background:#ef4444;color:#fff;font-size:.62rem;font-weight:800;padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;">🚨 URGENT</span>
+              <span style="background:#ef4444;color:#fff;font-size:.62rem;font-weight:800;padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;">URGENT</span>
               <?php endif; ?>
               <?php if ($isDone): ?>
-              <span style="background:#10b981;color:#fff;font-size:.62rem;font-weight:800;padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;">✅ TERMINÉ</span>
+              <span style="background:#10b981;color:#fff;font-size:.62rem;font-weight:800;padding:.15rem .5rem;border-radius:20px;text-transform:uppercase;letter-spacing:.06em;">TERMINÉ</span>
               <?php endif; ?>
               <span class="d-card-title" style="font-size:.97rem;<?= $isDone ? 'text-decoration:line-through;color:var(--d-txt2);' : '' ?>"><?= e($tk['title']) ?></span>
             </div>
             <div style="display:flex;flex-wrap:wrap;gap:.35rem .85rem;font-size:.77rem;color:var(--d-txt2);">
               <?php if (!empty($tk['tech_name'])): ?>
-              <span>👷 <?= e($tk['tech_name']) ?></span>
+              <span><?= e($tk['tech_name']) ?></span>
               <?php else: ?>
-              <span style="color:var(--d-txt3);">👷 Tous / non assigné</span>
+              <span style="color:var(--d-txt3);">Tous / non assigné</span>
               <?php endif; ?>
               <?php if ($dueStr !== ''): ?>
-              <span>📅 <?= e($dueStr) ?></span>
+              <span><?= e($dueStr) ?></span>
               <?php endif; ?>
               <?php if (!empty($tk['disp_name'])): ?>
-              <span>👤 <?= e($tk['disp_name']) ?></span>
+              <span><?= e($tk['disp_name']) ?></span>
               <?php endif; ?>
             </div>
             <?php if (!empty($tk['description'])): ?>
@@ -172,13 +172,13 @@ require_once __DIR__.'/partials/header.php';
               <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
               <input type="hidden" name="action" value="complete">
               <input type="hidden" name="task_id" value="<?= (int)$tk['id'] ?>">
-              <button type="submit" class="d-btn d-btn--primary" style="font-size:.75rem;padding:.4rem .75rem;" title="Marquer terminée">✅</button>
+              <button type="submit" class="d-btn d-btn--primary" style="font-size:.75rem;padding:.4rem .75rem;" title="Marquer terminée">Terminer</button>
             </form>
             <form method="post" action="" style="display:inline;" onsubmit="return confirm('Supprimer cette tâche ?')">
               <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
               <input type="hidden" name="action" value="delete">
               <input type="hidden" name="task_id" value="<?= (int)$tk['id'] ?>">
-              <button type="submit" class="d-btn" style="font-size:.75rem;padding:.4rem .75rem;color:#ef4444;border-color:#fecaca;" title="Supprimer">🗑</button>
+              <button type="submit" class="d-btn" style="font-size:.75rem;padding:.4rem .75rem;color:#ef4444;border-color:#fecaca;" title="Supprimer">Supprimer</button>
             </form>
           </div>
           <?php else: ?>
@@ -186,7 +186,7 @@ require_once __DIR__.'/partials/header.php';
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="delete">
             <input type="hidden" name="task_id" value="<?= (int)$tk['id'] ?>">
-            <button type="submit" class="d-btn" style="font-size:.75rem;padding:.4rem .75rem;color:#ef4444;border-color:#fecaca;flex-shrink:0;" title="Supprimer">🗑</button>
+            <button type="submit" class="d-btn" style="font-size:.75rem;padding:.4rem .75rem;color:#ef4444;border-color:#fecaca;flex-shrink:0;" title="Supprimer">Supprimer</button>
           </form>
           <?php endif; ?>
         </div>
@@ -199,7 +199,7 @@ require_once __DIR__.'/partials/header.php';
     <div id="create-form">
       <div class="d-card" style="position:sticky;top:1.25rem;">
         <div class="d-card-head" style="padding:1rem 1.25rem .75rem;">
-          <h2 class="d-card-title">➕ Nouvelle tâche</h2>
+          <h2 class="d-card-title">Nouvelle tâche</h2>
         </div>
         <form method="post" action="" style="padding:0 1.25rem 1.25rem;">
           <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -239,12 +239,12 @@ require_once __DIR__.'/partials/header.php';
           <div class="d-field" style="margin-bottom:1rem;">
             <label style="display:flex;align-items:center;gap:.6rem;cursor:pointer;font-size:.85rem;font-weight:600;color:var(--d-txt1);">
               <input type="checkbox" name="urgent" value="1" style="accent-color:#ef4444;width:16px;height:16px;">
-              <span style="color:#ef4444;">🚨 Tâche URGENTE</span>
+              <span style="color:#ef4444;">Tâche URGENTE</span>
             </label>
           </div>
 
           <button type="submit" class="d-btn d-btn--primary" style="width:100%;justify-content:center;">
-            ➕ Créer la tâche
+            Créer la tâche
           </button>
         </form>
       </div>
