@@ -52,26 +52,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ns === 'sur_place' && empty($iv['tech_arrived_at'])) $upd['tech_arrived_at'] = date('Y-m-d H:i:s');
             update_intervention($id, $upd);
             log_intervention_history($id, $iv['status'], $ns, 'tech', $techId, (string)$tech['name']);
+            if ($ns === 'en_route') notify_client_en_route($id);
             flash('success', $ns === 'en_route' ? 'Trajet démarré. Le dispatcher est informé.' : 'Arrivée enregistrée.');
         }
         if (($_POST['back'] ?? '') === 'list') redirect_to('tech/dashboard.php');
         header('Location: '.$self); exit;
     }
 
-    if ($action === 'report' && !in_array($iv['status'] ?? '', ['terminé', 'facturé', 'payé', 'annulé'], true)) {
+    $ajax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
+    $isOpen = !in_array($iv['status'] ?? '', ['terminé', 'facturé', 'payé', 'annulé', 'devis_envoyé'], true);
+
+    // Retirer une photo déjà envoyée (tant que l'intervention n'est pas terminée).
+    if ($action === 'delete_photo' && $isOpen) {
+        $photos = iv_photos($iv);
+        $idx = (int)($_POST['idx'] ?? -1);
+        if (isset($photos[$idx])) {
+            $file = realpath(__DIR__.'/../'.$photos[$idx]['path']);
+            $base = realpath(__DIR__.'/../storage/uploads/interventions/'.$id);
+            if ($file && $base && str_starts_with($file, $base)) @unlink($file);
+            array_splice($photos, $idx, 1);
+            update_intervention($id, ['tech_photos' => json_encode($photos)]);
+        }
+        header('Content-Type: application/json'); echo json_encode(['ok' => true]); exit;
+    }
+
+    if ($action === 'report' && $isOpen) {
         $photos = iv_photos($iv);
         if (!empty($_FILES['photos']['name'][0])) {
             $dir = __DIR__.'/../storage/uploads/interventions/'.$id.'/';
             if (!is_dir($dir)) mkdir($dir, 0775, true);
-            $mimeMap   = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
-            $photoType = trim((string)($_POST['photo_type_label'] ?? ''));
+            $mimeMap = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+            $types   = (array)($_POST['photo_types'] ?? []);
             foreach ($_FILES['photos']['tmp_name'] as $i => $tmp) {
                 if (($_FILES['photos']['error'][$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
                 $mt = mime_content_type($tmp) ?: '';
                 if (!isset($mimeMap[$mt])) continue;
                 $fn = 'tech_'.$id.'_'.date('YmdHis').'_'.bin2hex(random_bytes(3)).'.'.$mimeMap[$mt];
                 if (move_uploaded_file($tmp, $dir.$fn)) {
-                    $photos[] = ['type' => $photoType, 'path' => 'storage/uploads/interventions/'.$id.'/'.$fn];
+                    $photos[] = ['type' => mb_substr(trim((string)($types[$i] ?? '')), 0, 120), 'path' => 'storage/uploads/interventions/'.$id.'/'.$fn];
                 }
             }
         }
@@ -79,7 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mats = json_decode(trim((string)($_POST['tech_materials_used'] ?? '[]')), true);
         $mats = is_array($mats) ? array_values(array_filter($mats, static fn($m) => is_array($m) && trim((string)($m['name'] ?? '')) !== '')) : [];
 
-        $yn = static fn(string $k) => ($_POST[$k] ?? '') === '' ? null : (int)$_POST[$k];
+        $yn  = static fn(string $k) => ($_POST[$k] ?? '') === '' ? null : (int)$_POST[$k];
+        $num = static fn(string $k) => ($v = trim(str_replace([',', ' '], ['.', ''], (string)($_POST[$k] ?? '')))) === '' ? null : (float)$v;
+        $pay = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
         $upd = [
             'tech_fault_label'       => trim((string)($_POST['tech_fault_label'] ?? '')),
             'tech_report'            => trim((string)($_POST['tech_report'] ?? '')),
@@ -92,30 +112,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_photos'            => json_encode($photos),
             'tech_materials_used'    => json_encode($mats, JSON_UNESCAPED_UNICODE),
             'tech_client_name'       => trim((string)($_POST['tech_client_name'] ?? '')) ?: null,
+            'payment_status'         => $pay,
         ];
-        // Signature du client : image PNG dessinée à l'écran, conservée telle quelle.
-        $sig = (string)($_POST['tech_signature'] ?? '');
-        if ($sig === 'clear') {
-            $upd['tech_signature'] = null;
-        } elseif (str_starts_with($sig, 'data:image/png;base64,') && strlen($sig) < 600000
-                  && base64_decode(substr($sig, 22), true) !== false) {
-            $upd['tech_signature'] = $sig;
+        if ($pay === 'payé') {
+            $upd['payment_method'] = trim((string)($_POST['payment_method'] ?? '')) ?: null;
+            $upd['amount_ttc']     = $num('amount_ttc') ?? ($iv['amount_ttc'] !== null ? (float)$iv['amount_ttc'] : null);
+            if (empty($iv['paid_at'])) $upd['paid_at'] = date('Y-m-d H:i:s');
+        } elseif ($pay === 'non_payé') {
+            $upd['paid_at'] = null;
+        }
+        // Signatures : images PNG dessinées au doigt, conservées telles quelles.
+        foreach (['client_signature', 'tech_signature'] as $sk) {
+            $sig = (string)($_POST[$sk] ?? '');
+            if ($sig === 'clear') {
+                $upd[$sk] = null;
+            } elseif (str_starts_with($sig, 'data:image/png;base64,') && strlen($sig) < 600000
+                      && base64_decode(substr($sig, 22), true) !== false) {
+                $upd[$sk] = $sig;
+            }
         }
 
+        $message = 'Rapport enregistré.';
+        $done = false;
         if (!empty($_POST['mark_complete'])) {
+            // Tout ce qui est marqué d'une * doit être rempli pour clôturer.
+            $after = array_merge($iv, $upd);
+            $missing = [];
+            if (trim((string)$after['tech_report']) === '')      $missing[] = 'le constat et les travaux réalisés';
+            $haveTypes = array_column(iv_photos($after), 'type');
+            $lackPhotos = array_diff(intervention_photos_required($iv), $haveTypes);
+            if ($lackPhotos)                                      $missing[] = 'les photos demandées ('.implode(', ', $lackPhotos).')';
+            if (empty($after['payment_status']))                  $missing[] = 'le paiement (payé ou non)';
+            if (trim((string)$after['tech_client_name']) === '')  $missing[] = 'le nom du client signataire';
+            if (empty($after['client_signature']))                $missing[] = 'la signature du client';
+            if (empty($after['tech_signature']))                  $missing[] = 'votre signature';
+            if ($missing) {
+                update_intervention($id, $upd);
+                flash('error', 'Rapport enregistré, mais pour terminer il manque : '.implode(', ', $missing).'.');
+                if ($ajax) { header('Content-Type: application/json'); echo json_encode(['redirect' => $self.'#rapport']); exit; }
+                header('Location: '.$self.'#rapport'); exit;
+            }
             $now = date('Y-m-d H:i:s');
             $upd['status'] = 'terminé';
             if (empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = $now;
             if (empty($iv['tech_arrived_at']))   $upd['tech_arrived_at']   = $now;
             if (empty($iv['tech_close_time']))   $upd['tech_close_time']   = date('H:i');
-            update_intervention($id, $upd);
-            log_intervention_history($id, $iv['status'], 'terminé', 'tech', $techId, (string)$tech['name'], 'Clôturée depuis l\'application technicien');
-            flash('success', 'Intervention terminée. Le rapport est disponible.');
-        } else {
-            update_intervention($id, $upd);
-            flash('success', 'Rapport enregistré.');
+            $done = true;
+            $message = 'Intervention terminée. Le rapport est disponible.';
         }
-        header('Location: '.$self.(empty($_POST['mark_complete']) ? '#rapport' : '')); exit;
+        update_intervention($id, $upd);
+        if ($done) {
+            log_intervention_history($id, $iv['status'], 'terminé', 'tech', $techId, (string)$tech['name'], 'Clôturée depuis l\'application technicien');
+        }
+        flash('success', $message);
+        $to = $self.($done ? '' : '#rapport');
+        if ($ajax) { header('Content-Type: application/json'); echo json_encode(['redirect' => $to]); exit; }
+        header('Location: '.$to); exit;
     }
 
     if ($action === 'update_client') {
@@ -235,7 +287,8 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           <a class="ta-btn grow" href="<?= e(ta_tel($iv['client_phone'])) ?>"><?= ta_icon('phone') ?>Appeler</a>
         <?php endif; ?>
         <?php if ($addr !== ''): ?>
-          <a class="ta-btn grow" href="<?= e(ta_route_url($addr)) ?>" target="_blank" rel="noopener"><?= ta_icon('route') ?>Itinéraire</a>
+          <a class="ta-btn grow waze" href="<?= e(ta_waze_url($addr)) ?>" target="_blank" rel="noopener"><?= ta_icon('waze') ?>Waze</a>
+          <a class="ta-btn grow" href="<?= e(ta_route_url($addr)) ?>" target="_blank" rel="noopener"><?= ta_icon('route') ?>Maps</a>
         <?php endif; ?>
       </div>
     </div>
@@ -298,10 +351,17 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           <?php endforeach; ?>
         </div>
       <?php endif; ?>
-      <?php if (!empty($iv['tech_signature'])): ?>
-        <div class="ta-label" style="margin-top:.7rem;">Signature<?= !empty($iv['tech_client_name']) ? ' — '.e($iv['tech_client_name']) : '' ?></div>
-        <div class="ta-sig"><img src="<?= e($iv['tech_signature']) ?>" alt="Signature du client"></div>
+      <?php if (!empty($iv['payment_status'])): ?>
+        <div class="ta-label" style="margin-top:.7rem;">Paiement</div>
+        <div class="ta-row"><span>Statut</span><span><?= $iv['payment_status'] === 'payé' ? 'Payé' : 'Non payé' ?></span></div>
+        <?php if (!empty($iv['payment_method'])): ?><div class="ta-row"><span>Règlement</span><span><?= e($iv['payment_method']) ?></span></div><?php endif; ?>
+        <?php if (!empty($iv['amount_ttc'])): ?><div class="ta-row"><span>Montant TTC</span><span><?= e(number_format((float)$iv['amount_ttc'], 2, ',', ' ')) ?> €</span></div><?php endif; ?>
       <?php endif; ?>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.7rem;">
+        <?php foreach (['client_signature' => 'Client'.(!empty($iv['tech_client_name']) ? ' — '.$iv['tech_client_name'] : ''), 'tech_signature' => 'Technicien'] as $sk => $sl): if (empty($iv[$sk])) continue; ?>
+          <div><div class="ta-label"><?= e($sl) ?></div><div class="ta-sig"><img src="<?= e($iv[$sk]) ?>" alt="Signature <?= e($sl) ?>" style="height:90px;"></div></div>
+        <?php endforeach; ?>
+      </div>
     </div>
   </section>
   <?php else: $early = $status !== 'sur_place'; ?>
@@ -312,7 +372,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <div style="font-weight:600;">Rapport d'intervention</div>
         <div class="ta-muted" style="font-size:.88rem;">Il s'ouvre automatiquement à votre arrivée sur place.</div>
       </div>
-      <button type="button" class="ta-btn" onclick="document.getElementById('form-cr').hidden=false;this.closest('section').remove();setupCanvas();">Remplir</button>
+      <button type="button" class="ta-btn" onclick="document.getElementById('form-cr').hidden=false;this.closest('section').remove();initPads();">Remplir</button>
     </div>
   </section>
   <?php endif; ?>
@@ -320,7 +380,8 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
     <input type="hidden" name="action" value="report">
     <input type="hidden" name="tech_materials_used" id="mats-json" value="<?= e(json_encode($mats, JSON_UNESCAPED_UNICODE)) ?>">
-    <input type="hidden" name="tech_signature" id="sig-data" value="">
+    <input type="hidden" name="client_signature" id="sig-client-data" value="">
+    <input type="hidden" name="tech_signature" id="sig-tech-data" value="">
 
     <section class="ta-card" id="rapport">
       <div class="ta-card-h"><h3>Rapport d'intervention</h3></div>
@@ -330,8 +391,8 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           <input class="ta-input" id="f-fault" type="text" name="tech_fault_label" value="<?= e($iv['tech_fault_label'] ?? '') ?>" placeholder="Ex. : disjoncteur différentiel défectueux">
         </div>
         <div class="ta-field">
-          <label for="f-report">Constat et travaux réalisés</label>
-          <textarea class="ta-textarea" id="f-report" name="tech_report" placeholder="Ce que vous avez constaté, ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+          <label for="f-report" class="req">Constat et travaux réalisés</label>
+          <textarea class="ta-textarea" id="f-report" name="tech_report" data-req="le constat et les travaux réalisés" placeholder="Ce que vous avez constaté, ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
           <div>
@@ -374,26 +435,41 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       </div>
     </section>
 
-    <section class="ta-card">
-      <div class="ta-card-h"><h3>Photos</h3><span class="ta-muted" style="font-size:.85rem;"><?= count($photos) ?></span></div>
+    <?php $reqPhotos = intervention_photos_required($iv); $photoTypes = get_presets('photo_type'); ?>
+    <section class="ta-card" id="photos">
+      <div class="ta-card-h"><h3 class="<?= $reqPhotos ? 'req' : '' ?>">Photos</h3><span class="ta-muted" style="font-size:.85rem;" id="photo-count"><?= count($photos) ?></span></div>
       <div class="ta-card-b">
-        <?php if ($photos): ?>
-          <div class="ta-photos">
-            <?php foreach ($photos as $ph): ?>
-              <a class="ta-photo" href="<?= e(asset_url($ph['path'])) ?>" target="_blank"><img src="<?= e(asset_url($ph['path'])) ?>" alt="" loading="lazy"><?php if ($ph['type']): ?><span><?= e($ph['type']) ?></span><?php endif; ?></a>
+        <?php if ($reqPhotos): ?>
+          <div class="ta-label">Demandées par le dispatcher</div>
+          <div id="req-photos" style="margin-bottom:.8rem;">
+            <?php foreach ($reqPhotos as $rp): ?>
+              <div class="ta-req-photo" data-type="<?= e($rp) ?>">
+                <i></i><span><?= e($rp) ?></span>
+                <button type="button" class="ta-btn" onclick="pickPhoto(<?= e(json_encode($rp)) ?>)"><?= ta_icon('camera') ?>Photo</button>
+              </div>
             <?php endforeach; ?>
           </div>
         <?php endif; ?>
-        <?php $photoTypes = get_presets('photo_type'); if ($photoTypes): ?>
-          <div class="ta-field">
-            <select class="ta-select" name="photo_type_label" aria-label="Type de photo">
-              <option value="">Type de photo (facultatif)</option>
+        <div class="ta-photos" id="photo-grid">
+          <?php foreach ($photos as $i => $ph): ?>
+            <div class="ta-photo" data-type="<?= e($ph['type']) ?>">
+              <a href="<?= e(asset_url($ph['path'])) ?>" target="_blank"><img src="<?= e(asset_url($ph['path'])) ?>" alt="" loading="lazy"></a>
+              <?php if ($ph['type']): ?><span><?= e($ph['type']) ?></span><?php endif; ?>
+              <button type="button" class="ta-photo-del" onclick="deleteSaved(this, <?= (int)$i ?>)" aria-label="Retirer la photo">×</button>
+            </div>
+          <?php endforeach; ?>
+        </div>
+        <div style="display:flex;gap:.5rem;">
+          <?php if ($photoTypes): ?>
+            <select class="ta-select" id="photo-type" aria-label="Type de photo" style="flex:1;">
+              <option value="">Type (facultatif)</option>
               <?php foreach ($photoTypes as $pt): ?><option value="<?= e($pt['label']) ?>"><?= e($pt['label']) ?></option><?php endforeach; ?>
             </select>
-          </div>
-        <?php endif; ?>
-        <input type="file" id="photo-input" name="photos[]" multiple accept="image/*" capture="environment" hidden>
-        <button type="button" class="ta-drop" onclick="document.getElementById('photo-input').click()"><?= ta_icon('camera') ?><span id="photo-label">Prendre ou ajouter des photos</span></button>
+          <?php endif; ?>
+          <button type="button" class="ta-btn primary" style="flex:1;" onclick="pickPhoto(null)"><?= ta_icon('camera') ?>Ajouter</button>
+        </div>
+        <input type="file" id="photo-input" multiple accept="image/*" hidden>
+        <div class="ta-muted" style="font-size:.8rem;margin-top:.4rem;">Vous pouvez en ajouter autant que nécessaire, en plusieurs fois.</div>
       </div>
     </section>
 
@@ -404,39 +480,59 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       </div>
     </section>
 
-    <section class="ta-card">
-      <div class="ta-card-h"><h3>Signature du client</h3></div>
+    <section class="ta-card" id="paiement">
+      <div class="ta-card-h"><h3 class="req">Paiement</h3></div>
+      <div class="ta-card-b">
+        <?php $ps = (string)($iv['payment_status'] ?? ''); ?>
+        <div class="ta-yn">
+          <span>Le client a-t-il payé ?</span>
+          <div class="ta-seg" id="pay-seg">
+            <input type="hidden" name="payment_status" value="<?= e($ps) ?>" data-req="le paiement (payé ou non)">
+            <button type="button" data-v="payé" class="<?= $ps === 'payé' ? 'on-yes' : '' ?>">Oui</button>
+            <button type="button" data-v="non_payé" class="<?= $ps === 'non_payé' ? 'on-no' : '' ?>">Non</button>
+          </div>
+        </div>
+        <div id="pay-details" <?= $ps === 'payé' ? '' : 'hidden' ?> style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem;">
+          <div>
+            <label class="ta-label">Règlement</label>
+            <select class="ta-select" name="payment_method">
+              <option value="">—</option>
+              <?php foreach (['Carte bancaire', 'Chèque', 'Espèces', 'Virement'] as $pm): ?>
+                <option value="<?= e($pm) ?>" <?= ($iv['payment_method'] ?? '') === $pm ? 'selected' : '' ?>><?= e($pm) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div>
+            <label class="ta-label">Montant TTC (€)</label>
+            <input class="ta-input" type="text" inputmode="decimal" name="amount_ttc" value="<?= $iv['amount_ttc'] !== null ? e(number_format((float)$iv['amount_ttc'], 2, ',', '')) : '' ?>" placeholder="0,00">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ta-card" id="signatures">
+      <div class="ta-card-h"><h3>Signatures</h3></div>
       <div class="ta-card-b">
         <div class="ta-field">
-          <input class="ta-input" type="text" name="tech_client_name" value="<?= e($iv['tech_client_name'] ?? '') ?>" placeholder="Nom du signataire">
+          <label class="req" for="f-signer">Nom du client signataire</label>
+          <input class="ta-input" id="f-signer" type="text" name="tech_client_name" value="<?= e($iv['tech_client_name'] ?? '') ?>" placeholder="Ex. : M. Dupont" data-req="le nom du client signataire">
         </div>
-        <div class="ta-sig" id="sig-box">
-          <?php if (!empty($iv['tech_signature'])): ?>
-            <img src="<?= e($iv['tech_signature']) ?>" alt="Signature enregistrée" id="sig-saved">
-          <?php endif; ?>
-          <canvas id="sig-canvas" <?= !empty($iv['tech_signature']) ? 'hidden' : '' ?>></canvas>
-          <button type="button" class="ta-sig-clear" onclick="clearSig()">Effacer</button>
-        </div>
-        <div class="ta-muted" style="font-size:.8rem;margin-top:.35rem;">Faites signer le client avec le doigt.</div>
+        <?php foreach (['client' => ['client_signature', 'Signature du client'], 'tech' => ['tech_signature', 'Votre signature ('.$tech['name'].')']] as $pk => [$col, $plabel]): ?>
+          <div class="ta-field">
+            <div class="ta-label req"><?= e($plabel) ?></div>
+            <div class="ta-sig" data-pad="<?= $pk ?>" data-saved="<?= !empty($iv[$col]) ? '1' : '' ?>" data-req="<?= $pk === 'client' ? 'la signature du client' : 'votre signature' ?>">
+              <?php if (!empty($iv[$col])): ?><img src="<?= e($iv[$col]) ?>" alt="Signature enregistrée"><?php endif; ?>
+              <canvas <?= !empty($iv[$col]) ? 'hidden' : '' ?>></canvas>
+              <button type="button" class="ta-sig-clear">Effacer</button>
+            </div>
+          </div>
+        <?php endforeach; ?>
       </div>
     </section>
     <?php if ($early): ?>
       <button type="button" class="ta-btn" style="width:100%;margin-bottom:.8rem;" onclick="saveReport()"><?= ta_icon('save') ?>Enregistrer le rapport</button>
     <?php endif; ?>
   </form>
-  <?php endif; ?>
-
-  <?php if (!empty($iv['amount_ht']) || !empty($iv['amount_ttc']) || !empty($iv['deposit'])): ?>
-  <details class="ta-card">
-    <summary class="ta-card-h"><h3>Paiement</h3></summary>
-    <div class="ta-card-b">
-      <?php foreach (['amount_ht' => 'Montant HT', 'amount_ttc' => 'Montant TTC', 'deposit' => 'Acompte'] as $k => $l): if (empty($iv[$k])) continue; ?>
-        <div class="ta-row"><span><?= $l ?></span><span><?= e(number_format((float)$iv[$k], 2, ',', ' ')) ?> €</span></div>
-      <?php endforeach; ?>
-      <?php if (!empty($iv['payment_method'])): ?><div class="ta-row"><span>Règlement</span><span><?= e($iv['payment_method']) ?></span></div><?php endif; ?>
-      <?php if (!$locked): ?><button type="button" class="ta-btn" style="width:100%;margin-top:.6rem;" onclick="openSheet('sheet-pay')">Modifier le paiement</button><?php endif; ?>
-    </div>
-  </details>
   <?php endif; ?>
 
   <?php if ($history): ?>
@@ -493,32 +589,6 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   </form>
 </div>
 
-<!-- Modifier le paiement -->
-<div class="ta-sheet" id="sheet-pay" onclick="if(event.target===this)closeSheet(this.id)">
-  <form class="ta-sheet-in" method="post">
-    <h3>Paiement</h3>
-    <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
-    <input type="hidden" name="action" value="update_financial">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
-      <div><label class="ta-label">Montant HT (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="amount_ht" value="<?= e($iv['amount_ht'] ?? '') ?>"></div>
-      <div><label class="ta-label">Montant TTC (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="amount_ttc" value="<?= e($iv['amount_ttc'] ?? '') ?>"></div>
-    </div>
-    <div class="ta-field"><label>Acompte (€)</label><input class="ta-input" type="number" step="0.01" inputmode="decimal" name="deposit" value="<?= e($iv['deposit'] ?? '') ?>"></div>
-    <div class="ta-field"><label>Mode de règlement</label>
-      <select class="ta-select" name="payment_method">
-        <option value="">—</option>
-        <?php foreach (['Carte bancaire', 'Chèque', 'Espèces', 'Virement', 'Prélèvement'] as $pm): ?>
-          <option value="<?= e($pm) ?>" <?= ($iv['payment_method'] ?? '') === $pm ? 'selected' : '' ?>><?= e($pm) ?></option>
-        <?php endforeach; ?>
-      </select>
-    </div>
-    <div class="ta-sheet-actions">
-      <button type="button" class="ta-btn grow" onclick="closeSheet('sheet-pay')">Annuler</button>
-      <button type="submit" class="ta-btn primary grow">Enregistrer</button>
-    </div>
-  </form>
-</div>
-
 <script>
 function openSheet(id){ document.getElementById(id).classList.add('open'); }
 function closeSheet(id){ document.getElementById(id).classList.remove('open'); }
@@ -531,20 +601,76 @@ document.querySelectorAll('.ta-seg').forEach(function (seg) {
       var v = b.dataset.v === input.value ? '' : b.dataset.v;
       input.value = v;
       seg.querySelectorAll('button').forEach(function (x) { x.className = ''; });
-      if (v !== '') b.className = v === '1' ? 'on-yes' : 'on-no';
+      if (v !== '') b.className = (v === '1' || v === 'payé') ? 'on-yes' : 'on-no';
+      if (seg.id === 'pay-seg') document.getElementById('pay-details').hidden = v !== 'payé';
     });
   });
 });
 
-// Photos
+// Photos : ajoutées en plusieurs fois, réduites avant l'envoi, envoyées à l'enregistrement.
+var pending = [];               // [{blob, type, url}]
 var photoInput = document.getElementById('photo-input');
+var pickType = null;
+function pickPhoto(type) {
+  var sel = document.getElementById('photo-type');
+  pickType = type !== null ? type : (sel ? sel.value : '');
+  photoInput.value = '';
+  photoInput.click();
+}
+function shrink(file) {
+  return new Promise(function (resolve) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { resolve(file); return; }
+    var img = new Image(), url = URL.createObjectURL(file);
+    img.onload = function () {
+      var max = 1800, w = img.naturalWidth, h = img.naturalHeight, r = Math.min(1, max / Math.max(w, h));
+      var c = document.createElement('canvas'); c.width = Math.round(w * r); c.height = Math.round(h * r);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob(function (b) { resolve(b && b.size < file.size ? b : file); }, 'image/jpeg', 0.82);
+    };
+    img.onerror = function () { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+function refreshPhotos() {
+  var grid = document.getElementById('photo-grid');
+  grid.querySelectorAll('.is-pending').forEach(function (n) { n.remove(); });
+  pending.forEach(function (p, i) {
+    var d = el('div', { className: 'ta-photo is-pending' });
+    d.dataset.type = p.type;
+    d.appendChild(el('img', { src: p.url, alt: '' }));
+    if (p.type) d.appendChild(el('span', { textContent: p.type }));
+    d.appendChild(el('em', { textContent: 'À envoyer' }));
+    var x = el('button', { type: 'button', className: 'ta-photo-del', textContent: '×' });
+    x.onclick = function () { URL.revokeObjectURL(p.url); pending.splice(i, 1); refreshPhotos(); };
+    d.appendChild(x);
+    grid.appendChild(d);
+  });
+  var types = Array.prototype.map.call(grid.querySelectorAll('.ta-photo'), function (n) { return n.dataset.type; });
+  document.getElementById('photo-count').textContent = grid.querySelectorAll('.ta-photo').length;
+  document.querySelectorAll('.ta-req-photo').forEach(function (r) { r.classList.toggle('ok', types.indexOf(r.dataset.type) > -1); });
+}
 if (photoInput) photoInput.addEventListener('change', function () {
-  var n = this.files ? this.files.length : 0;
-  document.getElementById('photo-label').textContent = n ? n + ' photo' + (n > 1 ? 's' : '') + ' prête' + (n > 1 ? 's' : '') + ' — enregistrez pour les envoyer' : 'Prendre ou ajouter des photos';
+  var files = Array.prototype.slice.call(this.files || []), type = pickType || '';
+  Promise.all(files.map(shrink)).then(function (blobs) {
+    blobs.forEach(function (b) { pending.push({ blob: b, type: type, url: URL.createObjectURL(b) }); });
+    refreshPhotos();
+  });
 });
+function deleteSaved(btn, idx) {
+  if (!confirm('Retirer cette photo ?')) return;
+  var fd = new FormData();
+  fd.append('csrf_token', <?= json_encode($csrf) ?>); fd.append('action', 'delete_photo'); fd.append('idx', idx);
+  fetch(location.href, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
+    .then(function () { location.reload(); });
+}
+if (document.getElementById('photo-grid')) refreshPhotos();
 
 // Matériel utilisé
-var matPresets = <?= json_encode(array_values(array_map(static fn($p) => (string)$p['label'], get_presets('material'))), JSON_UNESCAPED_UNICODE) ?>;
+var matPresets = <?= json_encode(array_values(array_map(static fn($p) => ['label' => (string)$p['label'], 'cat' => (string)($p['category'] ?? '')], get_presets('material'))), JSON_UNESCAPED_UNICODE) ?>;
+var matGroups = <?= json_encode(array_map(static fn($c) => $c['label'], intervention_category_config()) + ['' => 'Divers'], JSON_UNESCAPED_UNICODE) ?>;
+var ivCat = <?= json_encode((string)($iv['category'] ?? '')) ?>;
+var matLabels = matPresets.map(function (p) { return p.label; });
 var mats = [];
 try { mats = JSON.parse(document.getElementById('mats-json').value) || []; } catch (e) { mats = []; }
 var units = ['pièce', 'm', 'ml', 'kg', 'L', 'boîte'];
@@ -558,10 +684,18 @@ function renderMats() {
   box.innerHTML = '';
   mats.forEach(function (m, i) {
     var row = el('div', { className: 'ta-mat' });
-    var known = !m.name || matPresets.indexOf(m.name) > -1;
+    var known = !m.name || matLabels.indexOf(m.name) > -1;
     var sel = el('select', { className: 'ta-select' });
     sel.appendChild(el('option', { value: '', textContent: 'Choisir…' }));
-    matPresets.forEach(function (p) { sel.appendChild(el('option', { value: p, textContent: p, selected: p === m.name })); });
+    // Le métier de l'intervention d'abord, puis le reste.
+    var cats = Object.keys(matGroups).sort(function (a, b) { return (b === ivCat) - (a === ivCat); });
+    cats.forEach(function (c) {
+      var items = matPresets.filter(function (p) { return p.cat === c; });
+      if (!items.length) return;
+      var og = el('optgroup', { label: matGroups[c] });
+      items.forEach(function (p) { og.appendChild(el('option', { value: p.label, textContent: p.label, selected: p.label === m.name })); });
+      sel.appendChild(og);
+    });
     sel.appendChild(el('option', { value: '__autre__', textContent: 'Autre…', selected: !known }));
     var qty = el('input', { className: 'ta-input', type: 'number', min: '0', step: '0.1', inputMode: 'decimal', value: m.qty || '', placeholder: 'Qté' });
     var unit = el('select', { className: 'ta-select' });
@@ -586,45 +720,96 @@ function renderMats() {
 function addMat() { mats.push({ name: '', qty: '1', unit: 'pièce' }); renderMats(); }
 renderMats();
 
-// Signature
-var canvas = document.getElementById('sig-canvas'), sigDirty = false;
-function setupCanvas() {
-  if (!canvas || canvas.hidden) return;
-  var r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
-  canvas.width = r.width * dpr; canvas.height = r.height * dpr;
-  var ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
-  ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#17223b';
-  var drawing = false;
-  function pos(e) { var b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
-  canvas.addEventListener('pointerdown', function (e) { drawing = true; sigDirty = true; canvas.setPointerCapture(e.pointerId); var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
-  canvas.addEventListener('pointermove', function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
-  canvas.addEventListener('pointerup', function () { drawing = false; });
-  canvas.addEventListener('pointercancel', function () { drawing = false; });
+// Signatures au doigt (client et technicien)
+var pads = {};
+function initPads() {
+  document.querySelectorAll('.ta-sig[data-pad]').forEach(function (box) {
+    var key = box.dataset.pad;
+    if (pads[key] && pads[key].ready) return;
+    var canvas = box.querySelector('canvas'), pad = pads[key] = { dirty: false, cleared: false, ready: false, box: box, canvas: canvas };
+    box.querySelector('.ta-sig-clear').onclick = function () {
+      var img = box.querySelector('img');
+      if (img) { img.remove(); pad.cleared = true; box.dataset.saved = ''; }
+      canvas.hidden = false; pad.dirty = false; pad.ready = false; setup();
+    };
+    function setup() {
+      if (canvas.hidden || box.offsetParent === null) return;
+      var r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+      canvas.width = r.width * dpr; canvas.height = r.height * dpr;
+      var ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr);
+      ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#17223b';
+      if (pad.ready) return; pad.ready = true;
+      var drawing = false;
+      function pos(e) { var b = canvas.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
+      canvas.addEventListener('pointerdown', function (e) { drawing = true; pad.dirty = true; canvas.setPointerCapture(e.pointerId); var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
+      canvas.addEventListener('pointermove', function (e) { if (!drawing) return; var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke(); });
+      canvas.addEventListener('pointerup', function () { drawing = false; });
+      canvas.addEventListener('pointercancel', function () { drawing = false; });
+    }
+    setup();
+  });
 }
-function clearSig() {
-  var saved = document.getElementById('sig-saved');
-  if (saved) { saved.remove(); document.getElementById('sig-data').value = 'clear'; }
-  if (canvas) {
-    var wasHidden = canvas.hidden; canvas.hidden = false;
-    if (wasHidden) setupCanvas(); else canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
-  }
-  sigDirty = false;
-}
-setupCanvas();
+initPads();
 
-function beforeSubmit() {
-  if (sigDirty && canvas) document.getElementById('sig-data').value = canvas.toDataURL('image/png');
+function collectSignatures() {
+  [['client', 'sig-client-data'], ['tech', 'sig-tech-data']].forEach(function (k) {
+    var pad = pads[k[0]], inp = document.getElementById(k[1]);
+    if (!pad || !inp) return;
+    inp.value = pad.dirty ? pad.canvas.toDataURL('image/png') : (pad.cleared ? 'clear' : '');
+  });
 }
-function saveReport() {
-  var f = document.getElementById('form-cr'); if (!f) return;
-  beforeSubmit(); f.submit();
+function missingFields() {
+  var miss = [];
+  var f = document.getElementById('form-cr');
+  f.querySelectorAll('[data-req]').forEach(function (n) {
+    if (n.classList.contains('ta-sig')) {
+      var pad = pads[n.dataset.pad];
+      if (!(n.dataset.saved || (pad && pad.dirty))) miss.push(n.dataset.req);
+    } else if (!n.value.trim()) miss.push(n.dataset.req);
+  });
+  var lack = [];
+  document.querySelectorAll('.ta-req-photo:not(.ok)').forEach(function (r) { lack.push(r.dataset.type); });
+  if (lack.length) miss.push('les photos demandées (' + lack.join(', ') + ')');
+  return miss;
 }
+var sending = false;
+function send(complete) {
+  var f = document.getElementById('form-cr'); if (!f || sending) return;
+  collectSignatures();
+  var fd = new FormData(f);
+  pending.forEach(function (p, i) { fd.append('photos[]', p.blob, 'photo-' + (i + 1) + '.jpg'); fd.append('photo_types[]', p.type); });
+  if (complete) fd.append('mark_complete', '1');
+  sending = true;
+  document.querySelectorAll('.ta-bar button').forEach(function (b) { b.disabled = true; });
+  var label = document.querySelector('.ta-bar .ta-btn.ok, .ta-bar .ta-btn:last-child');
+  if (label) label.dataset.txt = label.innerHTML, label.innerHTML = pending.length ? 'Envoi des photos…' : 'Enregistrement…';
+  fetch(location.pathname + location.search, { method: 'POST', body: fd, headers: { 'X-Requested-With': 'fetch' } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var to = new URL(d.redirect, location.href);
+      if (to.pathname + to.search === location.pathname + location.search) {
+        history.replaceState(null, '', to.hash || location.pathname + location.search);
+        location.reload();
+      } else {
+        location.href = to.href;
+      }
+    })
+    .catch(function () {
+      sending = false;
+      document.querySelectorAll('.ta-bar button').forEach(function (b) { b.disabled = false; });
+      if (label && label.dataset.txt) label.innerHTML = label.dataset.txt;
+      alert('Envoi impossible : vérifiez votre connexion puis réessayez. Rien n\'a été perdu sur cet écran.');
+    });
+}
+function saveReport() { var f = document.getElementById('form-cr'); if (f) { f.hidden = false; send(false); } }
 function finish() {
-  var f = document.getElementById('form-cr'); if (!f) return;
+  var miss = missingFields();
+  if (miss.length) {
+    alert('Pour terminer, complétez :\n• ' + miss.join('\n• '));
+    return;
+  }
   if (!confirm('Terminer l\'intervention ? Le rapport ne sera plus modifiable.')) return;
-  beforeSubmit();
-  f.appendChild(el('input', { type: 'hidden', name: 'mark_complete', value: '1' }));
-  f.submit();
+  send(true);
 }
 </script>
 <?php endif; ?>

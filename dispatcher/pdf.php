@@ -313,6 +313,9 @@ a{color:inherit;text-decoration:none;}
           <span class="fin-value"><?= e_pdf($iv['payment_method']) ?></span>
         </div>
         <?php endif; ?>
+        <?php if (!empty($iv['payment_status'])): ?>
+        <div class="fin-row"><span class="fin-label">Paiement</span><span class="fin-value"><?= $iv['payment_status'] === 'payé' ? 'Réglé' : 'Non réglé' ?></span></div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
@@ -354,7 +357,11 @@ a{color:inherit;text-decoration:none;}
           <?php else: ?>
           <div class="sig-name"><?= e_pdf($clientName) ?></div>
           <?php endif; ?>
+          <?php if (!empty($iv['client_signature'])): ?>
+            <img src="<?= e_pdf($iv['client_signature']) ?>" alt="Signature client" style="max-width:100%;max-height:60px;margin-top:.5rem;">
+          <?php else: ?>
           <div class="sig-canvas"></div>
+          <?php endif; ?>
         </div>
       </div>
     </div>

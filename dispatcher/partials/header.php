@@ -17,6 +17,29 @@ function disp_is_active(array $files, string $section = ''): string {
 try { $urgentCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN ('terminé','annulé','payé')")['c']??0); } catch(Throwable $e) { $urgentCount=0; }
 try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0); } catch(Throwable $e) { $waitingCount=0; }
 $tasksBadge = dispatcher_pending_tasks_count();
+
+/** Choix des photos à demander au technicien (cases à cocher + saisie libre). */
+function disp_photo_request_field(array $selected): string
+{
+    $presets = array_map(static fn($p) => (string)$p['label'], get_presets('photo_type'));
+    $others  = array_values(array_diff($selected, $presets));
+    $h = '<div class="d-field"><label>Photos à demander au technicien</label><div class="d-chips">';
+    foreach ($presets as $p) {
+        $h .= '<label class="d-chip"><input type="checkbox" name="photos_required[]" value="'.e($p).'"'.(in_array($p, $selected, true) ? ' checked' : '').'><span>'.e($p).'</span></label>';
+    }
+    $h .= '</div><input type="text" name="photos_required_other" value="'.e(implode(', ', $others)).'" placeholder="Autres photos, séparées par des virgules (ex. : compteur, plaque chaudière)" style="margin-top:.5rem;">'
+        . '<div style="font-size:.78rem;color:var(--d-t2);margin-top:.3rem;">Le technicien ne pourra pas clôturer sans ces photos.</div></div>';
+    return $h;
+}
+
+/** Lecture du champ ci-dessus : JSON prêt à enregistrer (null si aucune photo demandée). */
+function disp_photo_request_value(): ?string
+{
+    $list = array_map('trim', (array)($_POST['photos_required'] ?? []));
+    foreach (explode(',', (string)($_POST['photos_required_other'] ?? '')) as $o) $list[] = trim($o);
+    $list = array_values(array_unique(array_filter($list, static fn($v) => $v !== '' && mb_strlen($v) <= 120)));
+    return $list ? json_encode($list, JSON_UNESCAPED_UNICODE) : null;
+}
 ?><!DOCTYPE html>
 <html lang="fr"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
@@ -26,6 +49,7 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"></noscript>
+<link rel="icon" href="<?= e(asset_url('assets/img/icon-192.png')) ?>">
 <link rel="stylesheet" href="<?= e(asset_url('assets/css/dispatcher.css')) ?>">
 <?= $extraHead ?? '' ?>
 </head>
@@ -34,11 +58,7 @@ $tasksBadge = dispatcher_pending_tasks_count();
 <!-- SIDEBAR -->
 <aside class="d-sidebar" id="d-sidebar">
   <div class="d-sidebar-brand">
-    <?php $logo=site_logo_path(); if(trim($logo)!==''&&file_exists(__DIR__.'/../../'.$logo)): ?>
-      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="max-width:130px;max-height:40px;height:auto;display:block;filter:brightness(0) invert(1);"></a>
-    <?php else: ?>
-      <a href="<?= e(url_for('dispatcher/index.php')) ?>"><div class="logo-text">EM<span>AE</span></div></a>
-    <?php endif; ?>
+    <a href="<?= e(url_for('dispatcher/index.php')) ?>"><img src="<?= e(asset_url('assets/img/logo-emae-clair.png')) ?>" alt="<?= e(company_name()) ?>" class="d-logo"></a>
     <div class="d-sidebar-version">Planification</div>
   </div>
   <div class="d-sidebar-cta">
@@ -66,6 +86,9 @@ $tasksBadge = dispatcher_pending_tasks_count();
     <div class="d-nav-group">Réglages</div>
     <a class="d-nav-item <?= disp_is_active(['presets.php'],'presets') ?>" href="<?= e(url_for('dispatcher/presets.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span> Listes prédéfinies
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['settings.php'],'settings') ?>" href="<?= e(url_for('dispatcher/settings.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span> Notifications
     </a>
     <a class="d-nav-item" href="<?= e(url_for('')) ?>" target="_blank" rel="noopener">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg></span> Voir le site

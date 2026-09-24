@@ -25,12 +25,18 @@ $co = htmlspecialchars(company_name(), ENT_QUOTES);
 <meta name="robots" content="noindex,nofollow">
 <title>Espace Technicien — <?= $co ?></title>
 <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/css/tech.css'), ENT_QUOTES) ?>">
+<link rel="manifest" href="<?= htmlspecialchars(url_for('tech/manifest.php'), ENT_QUOTES) ?>">
+<link rel="icon" href="<?= htmlspecialchars(asset_url('assets/img/icon-192.png'), ENT_QUOTES) ?>">
+<link rel="apple-touch-icon" href="<?= htmlspecialchars(asset_url('assets/img/apple-touch-icon.png'), ENT_QUOTES) ?>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="EMAE Tech">
+<meta name="theme-color" content="#16243f">
 </head><body>
 
 <div class="t-login-page">
   <div class="t-login-hero">
     <div class="t-login-logo-wrap">
-      <div class="t-login-logo-text">EM<span>AE</span></div>
+      <img src="<?= htmlspecialchars(asset_url('assets/img/logo-emae-clair.png'), ENT_QUOTES) ?>" alt="EMAE" style="display:block;width:230px;max-width:75vw;height:auto;margin:0 auto;">
     </div>
     <div class="t-login-welcome">Bienvenue Technicien&nbsp;!</div>
     <div class="t-login-sub">Connectez-vous à votre espace de travail</div>

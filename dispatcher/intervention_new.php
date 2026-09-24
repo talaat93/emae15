@@ -11,6 +11,8 @@ $errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
+    // Vérifié avant tout : un client ne doit pas être créé si le formulaire est refusé.
+    if (trim((string)($_POST['category'] ?? '')) === '') $errors[] = 'Choisissez la catégorie de l\'intervention.';
 
     $clientMode = trim((string)($_POST['client_mode'] ?? 'existing'));
 
@@ -79,6 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         $ivId = create_intervention($data);
+        if (($pr = disp_photo_request_value()) !== null) update_intervention($ivId, ['photos_required' => $pr]);
         log_intervention_history($ivId, null, 'nouveau', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Création de l\'intervention');
 
         /* Si technicien assigné → statut assigné */
@@ -86,20 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             update_intervention($ivId, ['status' => 'assigné']);
             log_intervention_history($ivId, 'nouveau', 'assigné', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Technicien assigné à la création');
 
-            /* SMS au technicien */
-            $tech = get_tech_by_id($techId);
-            if ($tech && !empty($tech['phone'])) {
-                $iv = get_intervention_by_id($ivId);
-                $client = get_client_by_id($clientId);
-                $smsMsg = company_name().' — Nouvelle intervention '
-                    . ($iv['ref'] ?? '#'.$ivId)
-                    . ($urgencyVal ? ' [URGENT]' : '')
-                    . '. Client: '.($client['lastname'] ?? '').' '.($client['firstname'] ?? '')
-                    . '. Tél: '.($client['phone'] ?? '')
-                    . '. Adresse: '.($client['address'] ?? '').' '.($client['postal_code'] ?? '').' '.($client['city'] ?? '')
-                    . ($data['scheduled_date'] ? '. Date: '.date('d/m/Y', strtotime($data['scheduled_date'])) : '');
-                send_sms_dispatcher((string)$tech['phone'], mb_substr($smsMsg, 0, 160));
-            }
+            notify_intervention_assigned($ivId);
         }
 
         flash('success', 'Intervention créée avec succès.');
@@ -120,6 +110,7 @@ $post = $_POST;
   <div style="display:flex;align-items:center;gap:.75rem;">
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
     <div class="d-topbar-title">Nouvelle intervention</div>
+    <div class="d-topbar-sub">Les champs marqués <span style="color:var(--d-danger);font-weight:700;">*</span> sont obligatoires</div>
   </div>
   <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--secondary d-btn--sm">← Retour</a>
 </div>
@@ -168,9 +159,9 @@ $post = $_POST;
       <div id="block-existing" style="display:<?= (($post['client_mode'] ?? 'existing') === 'existing') ? 'block' : 'none' ?>;">
         <div class="d-form-section-title">Rechercher un client</div>
         <div class="d-field" style="position:relative;">
-          <label for="client-search">Nom, téléphone, ville…</label>
+          <label for="client-search" class="req">Client : nom, prénom, téléphone, adresse ou ville</label>
           <input type="text" id="client-search" placeholder="Commencez à taper…" autocomplete="off">
-          <div id="client-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--d-border);border-radius:8px;max-height:220px;overflow-y:auto;margin-top:2px;"></div>
+          <div id="client-dropdown" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--d-border);border-radius:8px;max-height:320px;overflow-y:auto;margin-top:2px;box-shadow:0 8px 24px rgba(16,24,40,.12);"></div>
         </div>
         <div id="client-selected" style="display:none;background:rgba(240,123,29,.08);border:1px solid rgba(240,123,29,.2);border-radius:8px;padding:.85rem 1rem;font-size:.88rem;color:var(--d-t1);margin-top:.25rem;">
           <span id="client-selected-text"></span>
@@ -183,7 +174,7 @@ $post = $_POST;
         <div class="d-form-section-title">Informations du nouveau client</div>
         <div class="d-grid-2">
           <div class="d-field">
-            <label>Nom <span style="color:#ef4444">*</span></label>
+            <label class="req">Nom</label>
             <input type="text" name="new_lastname" value="<?= e($post['new_lastname'] ?? '') ?>" placeholder="Dupont">
           </div>
           <div class="d-field">
@@ -193,7 +184,7 @@ $post = $_POST;
         </div>
         <div class="d-grid-2">
           <div class="d-field">
-            <label>Téléphone <span style="color:#ef4444">*</span></label>
+            <label class="req">Téléphone</label>
             <input type="tel" name="new_phone" value="<?= e($post['new_phone'] ?? '') ?>" placeholder="06 12 34 56 78">
           </div>
           <div class="d-field">
@@ -312,8 +303,8 @@ $post = $_POST;
     <div class="d-card-body">
       <div class="d-grid-2">
         <div class="d-field">
-          <label>Catégorie</label>
-          <select name="category" id="category-select">
+          <label class="req">Catégorie</label>
+          <select name="category" id="category-select" required>
             <option value="">Choisir une catégorie</option>
             <?php $catSel = $post['category'] ?? '';
             foreach ($catsCfg as $ck => $cv): ?>
@@ -354,6 +345,7 @@ $post = $_POST;
         <label>Description détaillée</label>
         <textarea name="description" placeholder="Informations complémentaires, contexte, historique…"><?= e($post['description'] ?? '') ?></textarea>
       </div>
+      <?= disp_photo_request_field(array_map('strval', (array)($post['photos_required'] ?? []))) ?>
       <!-- Matériaux prévus -->
       <div class="d-form-section-title">Matériaux prévus</div>
       <div id="materials-container"></div>
@@ -457,11 +449,13 @@ $post = $_POST;
               return;
             }
             dropdown.innerHTML = data.map(function(c){
-              var name = (c.lastname||'') + ' ' + (c.firstname||'');
-              var sub  = [c.phone, c.city].filter(Boolean).join(' · ');
-              return '<div class="client-result" data-id="'+c.id+'" data-name="'+encodeURIComponent(name.trim())+'" data-phone="'+encodeURIComponent(c.phone||'')+'" style="padding:.7rem 1rem;cursor:pointer;border-bottom:1px solid var(--d-border);font-size:.87rem;">'
-                + '<div style="font-weight:700;color:var(--d-t1);">'+escHtml(name.trim())+'</div>'
-                + (sub ? '<div style="font-size:.77rem;color:var(--d-t2);">'+escHtml(sub)+'</div>' : '')
+              var name = ((c.lastname||'') + ' ' + (c.firstname||'')).trim() || c.name || 'Client';
+              var addr = [c.address, [c.postal_code, c.city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+              var line2 = [c.phone, c.email].filter(Boolean).join(' · ');
+              return '<div class="client-result" data-id="'+c.id+'" data-name="'+encodeURIComponent(name)+'" data-phone="'+encodeURIComponent(c.phone||'')+'" data-addr="'+encodeURIComponent(addr)+'" style="padding:.65rem 1rem;cursor:pointer;border-bottom:1px solid var(--d-border);font-size:.87rem;">'
+                + '<div style="font-weight:600;color:var(--d-t1);">'+escHtml(name)+'</div>'
+                + (addr ? '<div style="font-size:.8rem;color:var(--d-t1);">'+escHtml(addr)+'</div>' : '')
+                + (line2 ? '<div style="font-size:.77rem;color:var(--d-t2);">'+escHtml(line2)+'</div>' : '')
                 + '</div>';
             }).join('');
             dropdown.querySelectorAll('.client-result').forEach(function(el){
@@ -472,7 +466,8 @@ $post = $_POST;
                 var name = decodeURIComponent(this.dataset.name);
                 var ph   = decodeURIComponent(this.dataset.phone);
                 clientIdInp.value = id;
-                selectedText.textContent = name + (ph ? '  ·  ' + ph : '');
+                var ad   = decodeURIComponent(this.dataset.addr || '');
+                selectedText.textContent = [name, ph, ad].filter(Boolean).join('  ·  ');
                 selectedBox.style.display  = 'block';
                 searchInput.style.display  = 'none';
                 dropdown.style.display     = 'none';
@@ -643,12 +638,15 @@ $post = $_POST;
       sel.className = 'd-input';
       sel.style.flex = '2';
       sel.innerHTML = '<option value="">— Choisir —</option>';
+      var groups = {};
       materialPresets.forEach(function(p){
+        var g = p.group || 'Général';
+        if (!groups[g]) { groups[g] = document.createElement('optgroup'); groups[g].label = g; sel.appendChild(groups[g]); }
         var opt = document.createElement('option');
         opt.value = p.label;
         opt.textContent = p.label;
         if (p.label === row.name) opt.selected = true;
-        sel.appendChild(opt);
+        groups[g].appendChild(opt);
       });
       var otherOpt2 = document.createElement('option');
       otherOpt2.value = '__autre__';

@@ -30,7 +30,7 @@ $co = htmlspecialchars(company_name(), ENT_QUOTES, 'UTF-8');
 <style>
 .login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem;background:radial-gradient(ellipse at 20% 50%,rgba(240,123,29,.08) 0%,transparent 60%),radial-gradient(ellipse at 80% 20%,rgba(59,130,246,.06) 0%,transparent 55%),var(--d-bg,#040d1f);}
 .login-card{width:100%;max-width:420px;}
-.login-logo{font-family:'Syne',Arial,sans-serif;font-size:2rem;font-weight:900;color:#fff;letter-spacing:.04em;margin-bottom:.25rem;}
+.login-logo{display:block;width:240px;max-width:80%;height:auto;margin-bottom:1rem;}
 .login-logo span{color:#F07B1D;}
 .login-badge{display:inline-block;background:rgba(240,123,29,.12);color:#F07B1D;border:1px solid rgba(240,123,29,.3);border-radius:99px;font-size:.72rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .75rem;margin-bottom:1.5rem;}
 .login-box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.09);border-radius:16px;padding:2rem;}
@@ -49,7 +49,7 @@ $co = htmlspecialchars(company_name(), ENT_QUOTES, 'UTF-8');
 </head><body class="d-body">
 <div class="login-page">
   <div class="login-card">
-    <div class="login-logo">EM<span>AE</span></div>
+    <img class="login-logo" src="<?= htmlspecialchars(asset_url('assets/img/logo-emae-clair.png'),ENT_QUOTES,'UTF-8') ?>" alt="EMAE">
     <div class="login-badge">Espace Dispatcher</div>
     <div class="login-box">
       <div class="login-title">Connexion</div>

@@ -146,29 +146,38 @@ $catsCfg    = intervention_category_config();
   // ── Onglet Matériaux ──
   elseif ($activeTab === 'material'):
     $items = $allPresets['material'];
+    $grouped = [];
+    foreach ($items as $item) $grouped[(string)($item['category'] ?? '')][] = $item;
+    uksort($grouped, static fn($x, $y) => ($x === '') <=> ($y === '') ?: strcmp($x, $y));
   ?>
   <div class="d-card" style="margin-bottom:1.5rem;">
     <div class="d-card-head">
-      <div class="d-card-title">Matériaux</div>
+      <div class="d-card-title">Matériel</div>
+      <span style="font-size:.8rem;color:var(--d-t2);"><?= count($items) ?> articles</span>
     </div>
     <div class="d-card-body">
       <?php if (empty($items)): ?>
-        <p style="color:var(--d-t2);font-size:.88rem;">Aucun matériau défini.</p>
+        <p style="color:var(--d-t2);font-size:.88rem;">Aucun matériel défini.</p>
       <?php else: ?>
-        <div style="display:flex;flex-wrap:wrap;gap:.5rem;">
-          <?php foreach ($items as $item): ?>
-            <form method="post" style="display:inline;">
-              <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
-              <input type="hidden" name="post_action" value="delete">
-              <input type="hidden" name="preset_id"   value="<?= (int)$item['id'] ?>">
-              <input type="hidden" name="active_tab"  value="material">
-              <span style="display:inline-flex;align-items:center;gap:.35rem;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:20px;padding:.3rem .75rem;font-size:.83rem;color:var(--d-t1);">
-                <?= e($item['label']) ?>
-                <button type="submit" onclick="return confirm('Supprimer ce matériau ?')" style="background:none;border:none;color:var(--d-t2);cursor:pointer;padding:0;font-size:.75rem;line-height:1;" title="Supprimer">×</button>
-              </span>
-            </form>
-          <?php endforeach; ?>
-        </div>
+        <?php foreach ($grouped as $cat => $catItems): ?>
+          <div style="margin-bottom:1.25rem;">
+            <div style="font-size:.75rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--d-t2);margin-bottom:.5rem;"><?= e($cat !== '' ? ($catsCfg[$cat]['label'] ?? ucfirst($cat)) : 'Divers') ?> · <?= count($catItems) ?></div>
+            <div style="display:flex;flex-wrap:wrap;gap:.4rem;">
+              <?php foreach ($catItems as $item): ?>
+                <form method="post" style="display:inline;">
+                  <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
+                  <input type="hidden" name="post_action" value="delete">
+                  <input type="hidden" name="preset_id"   value="<?= (int)$item['id'] ?>">
+                  <input type="hidden" name="active_tab"  value="material">
+                  <span style="display:inline-flex;align-items:center;gap:.35rem;background:var(--d-card-2);border:1px solid var(--d-border);border-radius:20px;padding:.25rem .7rem;font-size:.83rem;color:var(--d-t1);">
+                    <?= e($item['label']) ?>
+                    <button type="submit" onclick="return confirm('Supprimer ce matériel ?')" style="background:none;border:none;color:var(--d-t2);cursor:pointer;padding:0;font-size:.85rem;line-height:1;" title="Supprimer">×</button>
+                  </span>
+                </form>
+              <?php endforeach; ?>
+            </div>
+          </div>
+        <?php endforeach; ?>
       <?php endif; ?>
     </div>
   </div>
@@ -183,8 +192,14 @@ $catsCfg    = intervention_category_config();
         <input type="hidden" name="csrf_token"  value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="post_action" value="add">
         <input type="hidden" name="type"        value="material">
-        <input type="hidden" name="category"    value="">
         <input type="hidden" name="active_tab"  value="material">
+        <div class="d-field">
+          <label>Métier</label>
+          <select name="category" class="d-select">
+            <option value="">Divers (tous métiers)</option>
+            <?php foreach ($catsCfg as $ck => $cv): ?><option value="<?= e($ck) ?>"><?= e($cv['label']) ?></option><?php endforeach; ?>
+          </select>
+        </div>
         <div class="d-field" style="margin-bottom:1rem;">
           <label>Nom du matériau <span style="color:#ef4444">*</span></label>
           <input type="text" name="label" class="d-input" placeholder="Ex: Câble H07V-K 2.5mm²" required>

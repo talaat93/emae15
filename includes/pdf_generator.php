@@ -547,6 +547,15 @@ HTML;
             $html .= '<div style="font-size:8pt;color:#555;margin-bottom:4px;">'
                    . $this->e($iv['tech_client_name']) . '</div>';
         }
+        $sig = (string)($iv['client_signature'] ?? '');
+        if (str_starts_with($sig, 'data:image/')) {
+            $html .= '<img class="sig-img" src="' . htmlspecialchars($sig, ENT_QUOTES) . '" alt="Signature du client">';
+        }
+        if (!empty($iv['payment_status'])) {
+            $html .= '<div style="font-size:7.5pt;color:#555;margin-top:4px;">Paiement : '
+                   . ($iv['payment_status'] === 'payé' ? 'réglé' . (!empty($iv['payment_method']) ? ' (' . $this->e($iv['payment_method']) . ')' : '') : 'non réglé')
+                   . '</div>';
+        }
         return $html;
     }
 

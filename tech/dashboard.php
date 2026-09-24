@@ -55,7 +55,7 @@ function ta_next_step(array $iv): ?array
     return match ($iv['status'] ?? '') {
         'nouveau', 'confirmé', 'assigné' => ['en_route', 'Je pars', 'car'],
         'en_route'  => ['sur_place', 'Je suis arrivé', 'arrive'],
-        'sur_place' => ['report', 'Rédiger le rapport', 'doc'],
+        'sur_place' => ['report', 'Rapport', 'doc'],
         default     => null,
     };
 }
@@ -103,7 +103,7 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
             <a class="ta-btn sq" href="<?= e(ta_tel($iv['client_phone'])) ?>" aria-label="Appeler le client"><?= ta_icon('phone') ?></a>
           <?php endif; ?>
           <?php if ($addr !== ''): ?>
-            <a class="ta-btn sq" href="<?= e(ta_route_url($addr)) ?>" target="_blank" rel="noopener" aria-label="Itinéraire"><?= ta_icon('route') ?></a>
+            <a class="ta-btn sq waze" href="<?= e(ta_waze_url($addr)) ?>" target="_blank" rel="noopener" aria-label="Ouvrir dans Waze"><?= ta_icon('waze') ?></a>
           <?php endif; ?>
           <?php if ($step[0] === 'report'): ?>
             <a class="ta-btn primary grow" href="<?= e($url.'#rapport') ?>"><?= ta_icon($step[2]) ?><?= e($step[1]) ?></a>
@@ -126,6 +126,7 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
 ta_head('Ma journée — '.company_name());
 ?>
 <header class="ta-top">
+  <?= ta_logo() ?>
   <div class="grow">
     <h1><?= $view === 'today' ? 'Bonjour '.e($firstName) : ($view === 'next' ? 'À venir' : 'Terminées') ?></h1>
     <div class="sub"><?= $view === 'today' ? e(ta_fr_date($today)) : e($techName) ?></div>
@@ -137,6 +138,7 @@ ta_head('Ma journée — '.company_name());
   <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
 
+  <?= ta_install_card() ?>
   <?php if ($view === 'today'): ?>
 
     <div class="ta-h2">Mes interventions <span><?= count($todayList) ?></span></div>
