@@ -4,11 +4,11 @@ require_once __DIR__.'/../includes/bootstrap.php';
 $tech = require_tech_auth();
 
 $id = (int)($_GET['id'] ?? 0);
-if ($id <= 0) { header('Location: '.url_for('tech/index.php')); exit; }
+if ($id <= 0) { header('Location: '.url_for('tech/dashboard.php')); exit; }
 
 try { $q = db_fetch('SELECT * FROM quotes WHERE id = ? AND technician_id = ?', [$id, (int)$tech['id']]); }
 catch (Throwable $ex) { $q = null; }
-if (!$q) { header('Location: '.url_for('tech/index.php')); exit; }
+if (!$q) { header('Location: '.url_for('tech/dashboard.php')); exit; }
 
 $photos     = json_decode((string)($q['tech_photos'] ?? '[]'), true);
 if (!is_array($photos)) $photos = [];
