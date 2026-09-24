@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'create') {
         $title = trim((string)($_POST['title'] ?? ''));
         if ($title !== '') {
-            create_task([
+            $newTask = create_task([
                 'dispatcher_id' => $dispId,
                 'technician_id' => !empty($_POST['technician_id']) ? (int)$_POST['technician_id'] : null,
                 'title'         => $title,
@@ -23,7 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'urgent'        => isset($_POST['urgent']) ? 1 : 0,
                 'status'        => 'pending',
             ]);
-            flash('success', 'Tâche créée avec succès.');
+            notify_task_created($newTask);
+            flash('success', 'Tâche créée. Le technicien est prévenu.');
         } else {
             flash('error', 'Le titre est obligatoire.');
         }
@@ -82,7 +83,7 @@ require_once __DIR__.'/partials/header.php';
 
   <!-- Filters bar -->
   <div class="d-card" style="margin-bottom:1.25rem;">
-    <form method="get" action="" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;">
+    <form method="get" action="" style="display:flex;flex-wrap:wrap;gap:.75rem;align-items:flex-end;padding:.9rem 1.1rem .1rem;">
       <div class="d-field" style="min-width:150px;">
         <label class="d-label">Statut</label>
         <select name="status" class="d-select" onchange="this.form.submit()">

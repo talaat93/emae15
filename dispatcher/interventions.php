@@ -33,6 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 log_intervention_history($pid, $current['status'], 'assigné', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Technicien assigné');
             }
             update_intervention($pid, $data);
+            if ($techId > 0 && $techId !== (int)($current['technician_id'] ?? 0)) notify_intervention_assigned($pid);
             flash('success', 'Technicien assigné.');
         }
     }
@@ -60,6 +61,7 @@ $fUrgency  = !empty($_GET['urgency']);
 $fSearch   = trim((string)($_GET['search']        ?? ''));
 $fDateFrom = trim((string)($_GET['date_from']     ?? ''));
 $fDateTo   = trim((string)($_GET['date_to']       ?? ''));
+$fPay      = in_array($_GET['paiement'] ?? '', ['payé', 'non_payé', 'a_renseigner'], true) ? (string)$_GET['paiement'] : '';
 
 $filters = [];
 if ($fStatus)   $filters['status']        = $fStatus;
@@ -79,6 +81,11 @@ if ($fDateFrom !== '') {
 if ($fDateTo !== '') {
     $interventions = array_filter($interventions, fn($iv) =>
         ($iv['scheduled_date'] ?? '') !== '' && $iv['scheduled_date'] <= $fDateTo);
+}
+if ($fPay !== '') {
+    $interventions = array_filter($interventions, static fn($iv) =>
+        $fPay === 'a_renseigner' ? empty($iv['payment_status']) && in_array($iv['status'] ?? '', ['terminé', 'facturé'], true)
+                                 : ($iv['payment_status'] ?? '') === $fPay);
 }
 $interventions = array_values($interventions);
 
@@ -134,6 +141,12 @@ $validStatuses = array_keys($statusCfg);
       </label>
       <input type="date" name="date_from" value="<?= e($fDateFrom) ?>" title="Date début" style="width:auto;">
       <input type="date" name="date_to"   value="<?= e($fDateTo) ?>"   title="Date fin"   style="width:auto;">
+      <select name="paiement" title="Paiement">
+        <option value="">Paiement : tous</option>
+        <option value="non_payé" <?= $fPay === 'non_payé' ? 'selected' : '' ?>>Non payées</option>
+        <option value="a_renseigner" <?= $fPay === 'a_renseigner' ? 'selected' : '' ?>>Terminées, paiement à renseigner</option>
+        <option value="payé" <?= $fPay === 'payé' ? 'selected' : '' ?>>Payées</option>
+      </select>
       <button type="submit" class="d-btn d-btn--secondary d-btn--sm">Filtrer</button>
       <?php if ($fStatus || $fCat || $fTechId || $fUrgency || $fSearch || $fDateFrom || $fDateTo): ?>
         <a href="<?= e(url_for('dispatcher/interventions.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">Réinitialiser</a>
@@ -197,7 +210,12 @@ $validStatuses = array_keys($statusCfg);
             <td style="font-size:.84rem;color:<?= !empty($iv['tech_name']) ? 'var(--d-t1)' : 'var(--d-warning)' ?>;">
               <?= e($iv['tech_name'] ?? 'Non assigné') ?>
             </td>
-            <td><?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?></td>
+            <td>
+              <?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?>
+              <?php if (!empty($iv['payment_status']) || in_array($iv['status'] ?? '', ['terminé', 'facturé'], true)): ?>
+                <div style="margin-top:.25rem;"><?= payment_badge($iv['payment_status'] ?? null) ?></div>
+              <?php endif; ?>
+            </td>
           </tr>
           <?php endforeach; ?>
         </tbody>

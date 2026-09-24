@@ -14,6 +14,14 @@ if (empty($_SESSION['disp_id']) && empty($_SESSION['admin_id']) && empty($_SESSI
 header('Content-Type: application/json; charset=utf-8');
 $action = trim((string)($_GET['action'] ?? $_POST['action'] ?? ''));
 
+// Un technicien n'a accès qu'à la lecture des listes prédéfinies : les modifications
+// d'interventions passent par sa propre fiche, qui vérifie qu'elle lui est attribuée.
+if (empty($_SESSION['disp_id']) && empty($_SESSION['admin_id']) && $action !== 'get_presets') {
+    http_response_code(403);
+    echo json_encode(['error' => 'Non autorisé']);
+    exit;
+}
+
 try {
     switch ($action) {
 
@@ -25,6 +33,9 @@ try {
             foreach ($rows as $c) {
                 $out[] = [
                     'id'          => (int)$c['id'],
+                    'lastname'    => (string)($c['lastname'] ?? ''),
+                    'firstname'   => (string)($c['firstname'] ?? ''),
+                    'email'       => (string)($c['email'] ?? ''),
                     'name'        => trim($c['lastname'].' '.($c['firstname'] ?? '')),
                     'phone'       => $c['phone'] ?? '',
                     'city'        => $c['city'] ?? '',
@@ -143,29 +154,18 @@ try {
                     $upd['status'] = 'assigné';
                 }
             }
+            $before = get_intervention_by_id($id);
             update_intervention($id, $upd);
             $actorId   = (int)($_SESSION['disp_id'] ?? $_SESSION['admin_id'] ?? 0);
             $actorName = (string)($_SESSION['disp_name'] ?? 'Admin');
-            // SMS to tech
-            if ($techId > 0) {
-                try {
-                    $t = db_fetch("SELECT name, phone FROM technicians WHERE id=?", [$techId]);
-                    if ($t && !empty($t['phone'])) {
-                        $iv = get_intervention_by_id($id);
-                        $msg = "EMAE — Nouvelle mission assignée : ".($iv['ref']??'INT #'.$id)
-                             ." — ".trim(($iv['firstname']??'').'' .($iv['lastname']??''))
-                             ." — ".($iv['client_city']??'')
-                             ." — ".($iv['scheduled_date']??'');
-                        send_sms_dispatcher($t['phone'], $msg);
-                    }
-                } catch (Throwable $e) {}
-            }
+            if ($techId > 0 && $techId !== (int)($before['technician_id'] ?? 0)) notify_intervention_assigned($id);
             log_intervention_history($id, null, 'assigné', 'dispatcher', $actorId, $actorName, "Tech ID: $techId");
             echo json_encode(['success' => true]);
             break;
 
         // ── Marqueurs carte ────────────────────────────────────
         case 'map_markers':
+            geocode_missing_interventions(8);
             try {
                 $rows = db_fetch_all(
                     "SELECT i.id, i.ref, i.status, i.category, i.urgency, i.latitude, i.longitude,
@@ -175,6 +175,7 @@ try {
                      LEFT JOIN clients c ON c.id = i.client_id
                      LEFT JOIN technicians t ON t.id = i.technician_id
                      WHERE i.latitude IS NOT NULL AND i.longitude IS NOT NULL
+                     AND NOT (i.latitude = 0 AND i.longitude = 0)
                      AND i.status NOT IN ('annulé','payé')
                      ORDER BY i.urgency DESC, i.created_at DESC"
                 );
@@ -205,6 +206,32 @@ try {
             $postal  = trim((string)($_GET['postal']  ?? ''));
             $result  = geocode_address($address, $city, $postal);
             echo json_encode($result);
+            break;
+
+        // ── Listes prédéfinies (types d'intervention, matériel, photos) ──
+        case 'get_presets':
+            $type = trim((string)($_GET['type'] ?? ''));
+            if (!in_array($type, ['intervention_type', 'material', 'photo_type'], true)) { echo json_encode([]); break; }
+            $rows = get_presets($type, trim((string)($_GET['category'] ?? '')));
+            $catCfg = intervention_category_config();
+            echo json_encode(array_map(static fn($p) => [
+                'id'       => (int)$p['id'],
+                'label'    => (string)$p['label'],
+                'category' => (string)($p['category'] ?? ''),
+                'group'    => ($p['category'] ?? '') !== '' ? ($catCfg[$p['category']]['label'] ?? ucfirst((string)$p['category'])) : 'Général',
+            ], $rows));
+            break;
+
+        case 'save_preset':
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST' || (empty($_SESSION['disp_id']) && empty($_SESSION['admin_id']))) {
+                http_response_code(403); echo json_encode(['error' => 'Non autorisé']); break;
+            }
+            $type  = trim((string)($_POST['type'] ?? ''));
+            $label = trim((string)($_POST['label'] ?? ''));
+            if (!in_array($type, ['intervention_type', 'material', 'photo_type'], true) || $label === '' || mb_strlen($label) > 255) {
+                echo json_encode(['error' => 'Paramètres invalides']); break;
+            }
+            echo json_encode(['success' => true, 'id' => save_preset($type, $label, trim((string)($_POST['category'] ?? '')))]);
             break;
 
         // ── KPIs ───────────────────────────────────────────────

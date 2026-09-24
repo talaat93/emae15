@@ -54,7 +54,8 @@ a { color: var(--d-blue); }
   scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.12) transparent;
 }
 .d-sidebar-brand { padding: 1.15rem 1.1rem .9rem; flex-shrink: 0; }
-.d-sidebar-brand a { text-decoration: none; }
+.d-sidebar-brand a { text-decoration: none; display: block; }
+.d-sidebar-brand .d-logo { display: block; width: 170px; max-width: 100%; height: auto; }
 .d-sidebar-brand .logo-text {
   font-size: 1.35rem; font-weight: 800; color: #fff; letter-spacing: .04em; line-height: 1;
 }
@@ -279,6 +280,14 @@ span.d-badge { background: var(--d-danger); color: #fff; font-size: .68rem; font
 .d-info-value { font-weight: 500; text-align: right; color: var(--d-t1); }
 
 /* ─── STATUS PILL (utilisée par les pages refondues) ─── */
+.d-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.d-chip { cursor: pointer; position: relative; }
+.d-chip input { position: absolute; opacity: 0; pointer-events: none; }
+.d-chip span { display: inline-block; padding: .3rem .7rem; border-radius: 99px; border: 1px solid var(--d-border-2); font-size: .82rem; color: var(--d-t1); background: #fff; }
+.d-chip input:checked + span { background: var(--d-navy); border-color: var(--d-navy); color: #fff; }
+.d-chip input:focus-visible + span { box-shadow: 0 0 0 3px rgba(240,123,29,.3); }
+.req::after, .d-field label.req::after { content: ' *'; color: var(--d-danger); font-weight: 700; }
+
 .d-pill {
   display: inline-flex; align-items: center; gap: .35rem; padding: .15rem .6rem;
   border-radius: 99px; font-size: .74rem; font-weight: 600; white-space: nowrap;

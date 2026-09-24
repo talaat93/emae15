@@ -1543,9 +1543,25 @@ function get_client_by_id(int $id): ?array
 
 function search_clients(string $q): array
 {
-    if (trim($q) === '') return [];
-    $like = '%' . $q . '%';
-    try { return db_fetch_all("SELECT * FROM clients WHERE lastname LIKE ? OR firstname LIKE ? OR phone LIKE ? OR city LIKE ? ORDER BY lastname LIMIT 20", [$like, $like, $like, $like]); }
+    // Chaque mot doit se retrouver dans au moins un champ : « Jean Petit Dijon » fonctionne.
+    // Un numéro de téléphone tapé avec espaces ou points est cherché en entier.
+    if (preg_match('/^[\d\s.+-]{4,}$/', trim($q))) {
+        $digits = preg_replace('/\D/', '', $q);
+        try { return db_fetch_all("SELECT * FROM clients WHERE REPLACE(REPLACE(REPLACE(phone,' ',''),'.',''),'-','') LIKE ? ORDER BY lastname, firstname LIMIT 20", ['%'.$digits.'%']); }
+        catch (Throwable $e) { return []; }
+    }
+    $words = array_slice(preg_split('/\s+/', trim($q), -1, PREG_SPLIT_NO_EMPTY) ?: [], 0, 5);
+    if (!$words) return [];
+    $where = []; $params = [];
+    foreach ($words as $w) {
+        $like = '%'.$w.'%';
+        $digits = preg_replace('/\D/', '', $w);
+        $cond = 'lastname LIKE ? OR firstname LIKE ? OR city LIKE ? OR postal_code LIKE ? OR address LIKE ? OR email LIKE ? OR phone LIKE ?';
+        array_push($params, $like, $like, $like, $like, $like, $like, $like);
+        if (strlen($digits) >= 3) { $cond .= " OR REPLACE(REPLACE(REPLACE(phone,' ',''),'.',''),'-','') LIKE ?"; $params[] = '%'.$digits.'%'; }
+        $where[] = '('.$cond.')';
+    }
+    try { return db_fetch_all('SELECT * FROM clients WHERE '.implode(' AND ', $where).' ORDER BY lastname, firstname LIMIT 20', $params); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1726,6 +1742,7 @@ function update_intervention(int $id, array $data): void
                 'tech_signature','tech_client_name','tech_started_at','tech_arrived_at','tech_completed_at',
                 'tech_fault_label','tech_realizable','tech_bad_use','tech_device_number','tech_elevator_restored',
                 'tech_ticket_time','tech_close_time','tech_notes_extra',
+                'client_signature','photos_required','payment_status','paid_at',
                 'latitude','longitude'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {
@@ -1753,6 +1770,25 @@ function materials_text(?string $raw): string
         }
     }
     return implode("\n", $out);
+}
+
+/** Pastille « Payé / Non payé / À renseigner ». */
+function payment_badge(?string $status): string
+{
+    [$label, $fg, $bg] = match ((string)$status) {
+        'payé'     => ['Payé', '#166534', '#dcfce7'],
+        'non_payé' => ['Non payé', '#991b1b', '#fee2e2'],
+        default    => ['À renseigner', '#5a6a82', '#eef1f5'],
+    };
+    return '<span style="display:inline-block;padding:.12rem .55rem;border-radius:99px;font-size:.74rem;font-weight:600;color:'.$fg.';background:'.$bg.';white-space:nowrap;">'.$label.'</span>';
+}
+
+/** Photos que le dispatcher demande au technicien (liste de libellés). */
+function intervention_photos_required(array $iv): array
+{
+    $raw = json_decode((string)($iv['photos_required'] ?? ''), true);
+    if (!is_array($raw)) return [];
+    return array_values(array_unique(array_filter(array_map(static fn($v) => trim((string)$v), $raw), static fn($v) => $v !== '')));
 }
 
 /** Chemins des photos d'une intervention, quel que soit leur format d'enregistrement
@@ -1820,6 +1856,8 @@ function dispatcher_kpis(): array
 ═══════════════════════════════════════════════════ */
 function send_sms_dispatcher(string $to, string $message): bool
 {
+    // Le compte OVH configuré dans l'administration est la passerelle SMS du site.
+    if (send_sms_ovh($to, $message)) return true;
     $apiUrl = setting('sms_api_url', '');
     $apiKey = setting('sms_api_key', '');
     $sender = setting('sms_sender',  'EMAE');
@@ -1843,17 +1881,61 @@ function send_sms_dispatcher(string $to, string $message): bool
 ═══════════════════════════════════════════════════ */
 function geocode_address(string $address, string $city = '', string $postal = ''): array
 {
-    $q   = trim($address . ' ' . $postal . ' ' . $city . ' France');
-    $url = 'https://nominatim.openstreetmap.org/search?q=' . rawurlencode($q) . '&format=json&limit=1&countrycodes=fr';
-    $ctx = stream_context_create(['http'=>['timeout'=>3,'ignore_errors'=>true,'header'=>"User-Agent: EMAE-Dispatcher/1.0\r\n"]]);
+    $q = trim(preg_replace('/\s+/', ' ', $address . ' ' . $postal . ' ' . $city));
+    if ($q === '') return ['lat' => null, 'lng' => null, 'reached' => false];
+    $reached = false;
+    $ctx = stream_context_create(['http' => ['timeout' => 3, 'ignore_errors' => true, 'header' => "User-Agent: EMAE-Dispatcher/1.0\r\n"]]);
+    // Base Adresse Nationale (service public, France) : rapide et précis.
     try {
+        $url  = 'https://api-adresse.data.gouv.fr/search/?limit=1&q=' . rawurlencode($q) . ($postal !== '' ? '&postcode=' . rawurlencode($postal) : '');
+        $json = @file_get_contents($url, false, $ctx);
+        $data = $json !== false ? json_decode($json, true) : null;
+        if (is_array($data)) $reached = true;
+        $c = $data['features'][0]['geometry']['coordinates'] ?? null;
+        if (is_array($c) && count($c) === 2 && ($data['features'][0]['properties']['score'] ?? 0) > 0.3) {
+            return ['lat' => (float)$c[1], 'lng' => (float)$c[0], 'reached' => true];
+        }
+    } catch (Throwable $e) {}
+    // Repli : OpenStreetMap.
+    try {
+        $url  = 'https://nominatim.openstreetmap.org/search?q=' . rawurlencode($q . ' France') . '&format=json&limit=1&countrycodes=fr';
         $json = @file_get_contents($url, false, $ctx);
         if ($json !== false) {
             $data = json_decode($json, true);
-            if (is_array($data) && !empty($data[0])) return ['lat'=>(float)$data[0]['lat'],'lng'=>(float)$data[0]['lon']];
+            if (is_array($data)) $reached = true;
+            if (is_array($data) && !empty($data[0])) return ['lat' => (float)$data[0]['lat'], 'lng' => (float)$data[0]['lon'], 'reached' => true];
         }
     } catch (Throwable $e) {}
-    return ['lat'=>null,'lng'=>null];
+    return ['lat' => null, 'lng' => null, 'reached' => $reached];
+}
+
+/** Complète les coordonnées GPS manquantes de quelques interventions (pour la carte). */
+function geocode_missing_interventions(int $max = 8): int
+{
+    try {
+        $rows = db_fetch_all(
+            "SELECT i.id, c.address, c.city, c.postal_code FROM interventions i
+             JOIN clients c ON c.id = i.client_id
+             WHERE (i.latitude IS NULL OR i.longitude IS NULL)
+               AND i.status NOT IN ('annulé','payé')
+               AND (COALESCE(c.city,'') <> '' OR COALESCE(c.postal_code,'') <> '')
+             ORDER BY i.id DESC LIMIT " . max(1, $max)
+        );
+    } catch (Throwable $e) { return 0; }
+    $n = 0;
+    foreach ($rows as $r) {
+        $g = geocode_address((string)$r['address'], (string)$r['city'], (string)$r['postal_code']);
+        if ($g['lat'] !== null) {
+            update_intervention((int)$r['id'], ['latitude' => $g['lat'], 'longitude' => $g['lng']]);
+            $n++;
+        } elseif ($g['reached']) {
+            // Service joint mais adresse introuvable : 0/0 évite de la rechercher à chaque affichage.
+            update_intervention((int)$r['id'], ['latitude' => 0, 'longitude' => 0]);
+        } else {
+            break; // service injoignable : on réessaiera plus tard
+        }
+    }
+    return $n;
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1941,7 +2023,7 @@ function get_presets(string $type, string $category = ''): array
         if ($category !== '') {
             return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND (category=? OR category='') AND active=1 ORDER BY sort_order,label", [$type, $category]);
         }
-        return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND active=1 ORDER BY sort_order,label", [$type]);
+        return db_fetch_all("SELECT * FROM preset_items WHERE type=? AND active=1 ORDER BY COALESCE(category,''), sort_order, label", [$type]);
     } catch (Throwable $e) { return []; }
 }
 

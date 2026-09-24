@@ -43,6 +43,7 @@ svg.i { width: 20px; height: 20px; flex-shrink: 0; }
   padding: calc(.75rem + env(safe-area-inset-top, 0px)) 1rem .8rem;
   display: flex; align-items: center; gap: .75rem;
 }
+.ta-logo { display: block; height: 30px; width: auto; flex-shrink: 0; }
 .ta-top h1 { font-size: 1.05rem; font-weight: 700; line-height: 1.2; }
 .ta-top .sub { font-size: .8rem; color: rgba(255,255,255,.65); }
 .ta-top .grow { flex: 1; min-width: 0; }
@@ -107,6 +108,7 @@ svg.i { width: 20px; height: 20px; flex-shrink: 0; }
 .ta-btn.dark { background: var(--navy); border-color: var(--navy); color: #fff; }
 .ta-btn.ok { background: var(--ok); border-color: var(--ok); color: #fff; }
 .ta-btn.grow { flex: 1; }
+.ta-btn.waze { color: #0a7fb5; border-color: #bfe6f7; background: #effaff; }
 .ta-btn.sq { width: 44px; padding: 0; flex-shrink: 0; }
 .ta-btn svg { width: 18px; height: 18px; }
 .ta-btn[disabled] { opacity: .6; }
@@ -231,3 +233,29 @@ details.ta-card:not([open]) > summary { border-bottom: 0; }
 .ta-sheet-in { background: #fff; width: 100%; max-width: 640px; margin: 0 auto; border-radius: 16px 16px 0 0; padding: 1.1rem 1rem calc(1rem + var(--safe-b)); max-height: 88vh; overflow-y: auto; }
 .ta-sheet-in h3 { font-size: 1.05rem; margin-bottom: .9rem; }
 .ta-sheet-actions { display: flex; gap: .6rem; margin-top: 1rem; }
+
+/* Champs obligatoires */
+.req::after { content: ' *'; color: var(--red); font-weight: 700; }
+
+/* Photos : suppression, en attente d'envoi, photos demandées */
+.ta-photo a { display: block; width: 100%; height: 100%; }
+.ta-photo-del {
+  position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; border-radius: 50%;
+  background: rgba(15,23,42,.65); color: #fff; font-size: 1rem; line-height: 1; display: flex; align-items: center; justify-content: center;
+}
+.ta-photo em { position: absolute; top: 4px; left: 4px; font-style: normal; font-size: .62rem; font-weight: 700; background: var(--p); color: #fff; border-radius: 4px; padding: .05rem .3rem; }
+.ta-photos:empty { display: none; }
+.ta-req-photo { display: flex; align-items: center; gap: .6rem; padding: .45rem 0; border-bottom: 1px solid #f0f2f5; font-size: .92rem; }
+.ta-req-photo:last-child { border-bottom: 0; }
+.ta-req-photo > span { flex: 1; }
+.ta-req-photo > i { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #c6cfdb; flex-shrink: 0; }
+.ta-req-photo.ok > i { background: var(--ok); border-color: var(--ok); box-shadow: inset 0 0 0 3px #fff; }
+.ta-req-photo .ta-btn { min-height: 36px; padding: .3rem .7rem; font-size: .85rem; }
+
+/* Installation / notifications */
+.ta-install { background: var(--navy); color: #fff; border-radius: var(--r); padding: .9rem 1rem; margin-bottom: .9rem; }
+.ta-install b { display: block; font-size: .98rem; margin-bottom: .2rem; }
+.ta-install span { display: block; font-size: .86rem; color: rgba(255,255,255,.78); }
+.ta-install span b { display: inline; font-size: inherit; color: #fff; }
+.ta-install-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+.ta-install-actions .ta-btn:not(.primary) { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }

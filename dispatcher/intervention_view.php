@@ -23,8 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $data = [
             'technician_id'     => $techId ?: null,
-            'scheduled_date'    => trim((string)($_POST['scheduled_date']    ?? '')),
-            'scheduled_time'    => trim((string)($_POST['scheduled_time']    ?? '')),
+            'scheduled_date'    => trim((string)($_POST['scheduled_date']    ?? '')) ?: null,
+            'scheduled_time'    => trim((string)($_POST['scheduled_time']    ?? '')) ?: null,
             'duration_estimate' => (int)($_POST['duration_estimate']         ?? 60),
             'urgency'           => !empty($_POST['urgency']) ? 1 : 0,
             'priority'          => trim((string)($_POST['priority']          ?? 'normale')),
@@ -34,6 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'fault_reported'    => trim((string)($_POST['fault_reported']    ?? '')),
             'description'       => trim((string)($_POST['description']       ?? '')),
             'materials_needed'  => trim((string)($_POST['materials_needed']  ?? '')),
+            'photos_required'   => disp_photo_request_value(),
             'notes_admin'       => trim((string)($_POST['notes_admin']       ?? '')),
             'quote_accepted'    => !empty($_POST['quote_accepted']) ? 1 : 0,
             'amount_ht'         => trim((string)($_POST['amount_ht']         ?? '')) !== '' ? (float)$_POST['amount_ht'] : null,
@@ -43,7 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'payment_method'    => trim((string)($_POST['payment_method']    ?? '')),
             'status'            => $newStatus,
         ];
+        $techChanged = $techId > 0 && $techId !== (int)($iv['technician_id'] ?? 0);
+        if ($techChanged && in_array($newStatus, ['nouveau', 'confirmé'], true)) {
+            $data['status'] = $newStatus = 'assigné';
+        }
         update_intervention($id, $data);
+        if ($techChanged) notify_intervention_assigned($id);
 
         if ($oldStatus !== $newStatus) {
             log_intervention_history($id, $oldStatus, $newStatus, 'dispatcher', (int)$disp['id'], (string)$disp['name'],
@@ -53,12 +59,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    if ($action === 'set_payment') {
+        $ps = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
+        update_intervention($id, ['payment_status' => $ps, 'paid_at' => $ps === 'payé' ? ($iv['paid_at'] ?: date('Y-m-d H:i:s')) : null]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'],
+            $ps === 'payé' ? 'Marquée payée' : 'Marquée non payée');
+        flash('success', $ps === 'payé' ? 'Intervention marquée payée.' : 'Intervention marquée non payée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+
     if ($action === 'quick_status') {
         $validStatuses = ['nouveau','confirmé','assigné','en_route','sur_place','terminé','devis_envoyé','facturé','payé','annulé'];
         $newStatus = trim((string)($_POST['new_status'] ?? ''));
+        if ($newStatus === 'assigné' && empty($iv['technician_id'])) {
+            flash('error', 'Choisissez d\'abord un technicien (bouton Modifier).');
+            redirect_to('dispatcher/intervention_view.php?id='.$id);
+        }
         if (in_array($newStatus, $validStatuses, true)) {
             $oldStatus = $iv['status'];
-            update_intervention($id, ['status' => $newStatus]);
+            $upd = ['status' => $newStatus];
+            if ($newStatus === 'terminé' && empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = date('Y-m-d H:i:s');
+            if ($newStatus === 'payé') { $upd['payment_status'] = 'payé'; if (empty($iv['paid_at'])) $upd['paid_at'] = date('Y-m-d H:i:s'); }
+            update_intervention($id, $upd);
             log_intervention_history($id, $oldStatus, $newStatus, 'dispatcher', (int)$disp['id'], (string)$disp['name'],
                 trim((string)($_POST['note'] ?? '')));
             flash('success', 'Statut mis à jour.');
@@ -72,7 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone   = $target === 'tech' ? ($iv['tech_phone'] ?? '') : ($iv['client_phone'] ?? '');
         if ($phone !== '' && $msgText !== '') {
             $ok = send_sms_dispatcher($phone, mb_substr($msgText, 0, 160));
-            flash($ok ? 'success' : 'error', $ok ? 'SMS envoyé.' : 'Échec d\'envoi du SMS.');
+            $smsReady = global_setting('ovh_app_key') !== '' && global_setting('ovh_service_name') !== '';
+            flash($ok ? 'success' : 'error', $ok ? 'SMS envoyé.' : ($smsReady ? 'Échec d\'envoi du SMS (vérifiez le numéro).' : 'SMS non envoyé : aucun compte SMS OVH n\'est configuré dans l\'administration.'));
         } else {
             flash('error', 'Numéro ou message manquant.');
         }
@@ -100,11 +123,11 @@ $pageTitle = 'INT #'.$id;
 
 /* Status transitions */
 $nextStatuses = [
-    'nouveau'      => ['confirmé','annulé'],
+    'nouveau'      => ['confirmé','assigné','annulé'],
     'confirmé'     => ['assigné','annulé'],
-    'assigné'      => ['en_route','annulé'],
-    'en_route'     => ['sur_place'],
-    'sur_place'    => ['terminé'],
+    'assigné'      => ['en_route','terminé','annulé'],
+    'en_route'     => ['sur_place','terminé','annulé'],
+    'sur_place'    => ['terminé','annulé'],
     'terminé'      => ['facturé'],
     'facturé'      => ['payé'],
     'devis_envoyé' => ['confirmé','annulé'],
@@ -239,6 +262,18 @@ function fmt_dur(int $mins): string {
             <div><?= intervention_category_badge((string)($iv['category'] ?? '')) ?></div>
           </div>
           <div class="d-card-body">
+            <?php $reqP = intervention_photos_required($iv);
+            if ($reqP):
+              $gotTypes = array_map(static fn($p) => is_array($p) ? (string)($p['type'] ?? '') : '', (array)(json_decode((string)($iv['tech_photos'] ?? '[]'), true) ?: [])); ?>
+            <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
+              <span class="d-info-label">Photos demandées au technicien</span>
+              <div class="d-chips">
+                <?php foreach ($reqP as $rp): $got = in_array($rp, $gotTypes, true); ?>
+                  <span class="d-pill" style="color:<?= $got ? 'var(--d-success)' : 'var(--d-t2)' ?>;background:<?= $got ? '#ecfdf3' : 'var(--d-card-2)' ?>;"><?= e($rp) ?><?= $got ? ' · reçue' : '' ?></span>
+                <?php endforeach; ?>
+              </div>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($iv['type_label'])): ?>
             <div class="d-info-row">
               <span class="d-info-label">Type</span>
@@ -273,7 +308,7 @@ function fmt_dur(int $mins): string {
         </div>
 
         <!-- RAPPORT TECHNICIEN (si terminal) -->
-        <?php if ($isTerminal && (!empty($iv['tech_report']) || !empty($iv['tech_time_spent']) || !empty($iv['tech_fault_label']) || !empty($iv['tech_signature']) || intervention_photo_paths($iv))): ?>
+        <?php if ($isTerminal && (!empty($iv['tech_report']) || !empty($iv['tech_time_spent']) || !empty($iv['tech_fault_label']) || !empty($iv['tech_signature']) || !empty($iv['client_signature']) || intervention_photo_paths($iv))): ?>
         <div class="d-card" style="margin-top:1.25rem;">
           <div class="d-card-head">
             <div class="d-card-title">Rapport technicien</div>
@@ -329,16 +364,18 @@ function fmt_dur(int $mins): string {
               <span class="d-info-value"><?= e(fmt_dur((int)$iv['tech_time_spent'])) ?></span>
             </div>
             <?php endif; ?>
-            <?php if (!empty($iv['tech_client_name'])): ?>
-            <div class="d-info-row">
-              <span class="d-info-label">Signé par</span>
-              <span class="d-info-value"><?= e($iv['tech_client_name']) ?></span>
-            </div>
-            <?php endif; ?>
-            <?php if (!empty($iv['tech_signature'])): ?>
-            <div style="margin-top:.75rem;">
-              <div style="font-size:.75rem;font-weight:700;color:var(--d-t2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:.4rem;">Signature client</div>
-              <img src="<?= e($iv['tech_signature']) ?>" alt="Signature" style="max-width:200px;background:#fff;border-radius:4px;border:1px solid var(--d-border);" loading="lazy">
+            <?php if (!empty($iv['client_signature']) || !empty($iv['tech_signature'])): ?>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-top:.75rem;">
+              <?php foreach (['client_signature' => 'Signature client'.(!empty($iv['tech_client_name']) ? ' — '.$iv['tech_client_name'] : ''), 'tech_signature' => 'Signature technicien'.(!empty($iv['tech_name']) ? ' — '.$iv['tech_name'] : '')] as $sk => $sl): ?>
+                <div>
+                  <div class="d-label"><?= e($sl) ?></div>
+                  <?php if (!empty($iv[$sk])): ?>
+                    <img src="<?= e($iv[$sk]) ?>" alt="<?= e($sl) ?>" style="width:100%;max-width:260px;height:110px;object-fit:contain;background:#fff;border-radius:6px;border:1px solid var(--d-border);" loading="lazy">
+                  <?php else: ?>
+                    <div style="font-size:.84rem;color:var(--d-t3);">Non signée</div>
+                  <?php endif; ?>
+                </div>
+              <?php endforeach; ?>
             </div>
             <?php endif; ?>
             <?php
@@ -516,8 +553,9 @@ function fmt_dur(int $mins): string {
               </div>
               <div class="d-field">
                 <label>Matériel nécessaire</label>
-                <textarea name="materials_needed" style="min-height:70px;"><?=e($iv['materials_needed']??'')?></textarea>
+                <textarea name="materials_needed" style="min-height:70px;"><?=e(materials_text($iv['materials_needed']??''))?></textarea>
               </div>
+              <?= disp_photo_request_field(intervention_photos_required($iv)) ?>
             </div>
           </div>
 
@@ -701,10 +739,21 @@ function fmt_dur(int $mins): string {
           <?php endif; ?>
           <?php if (!empty($iv['payment_method'])): ?>
           <div class="d-info-row">
-            <span class="d-info-label">Paiement</span>
+            <span class="d-info-label">Règlement</span>
             <span class="d-info-value" style="text-transform:capitalize;"><?= e($iv['payment_method']) ?></span>
           </div>
           <?php endif; ?>
+          <?php $ps = (string)($iv['payment_status'] ?? ''); ?>
+          <div class="d-info-row" style="align-items:center;">
+            <span class="d-info-label">Paiement</span>
+            <span class="d-info-value"><?= payment_badge($ps) ?></span>
+          </div>
+          <form method="post" style="display:flex;gap:.5rem;margin-top:.6rem;">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="set_payment">
+            <?php if ($ps !== 'payé'): ?><button type="submit" name="payment_status" value="payé" class="d-btn d-btn--success d-btn--sm">Marquer payé</button><?php endif; ?>
+            <?php if ($ps !== 'non_payé'): ?><button type="submit" name="payment_status" value="non_payé" class="d-btn d-btn--sm">Marquer non payé</button><?php endif; ?>
+          </form>
         </div>
       </div>
 
@@ -738,7 +787,7 @@ function fmt_dur(int $mins): string {
               <div class="d-field" style="margin-bottom:.5rem;">
                 <label>Message (max 160 car.)</label>
                 <textarea name="sms_message" style="min-height:70px;" maxlength="160"
-                          placeholder="Votre message SMS…"><?= e(company_name().' — Votre intervention est '.($statusCfg[$currentStatus]['label']??$currentStatus).'. Pour info: '.company_phone()) ?></textarea>
+                          placeholder="Votre message SMS…"><?= e(company_name().' : bonjour, concernant votre intervention'.(!empty($iv['scheduled_date']) ? ' du '.date('d/m', strtotime($iv['scheduled_date'])) : '').'. Contact : '.global_setting('company_phone', '')) ?></textarea>
               </div>
               <button type="submit" class="d-btn d-btn--primary d-btn--sm" style="width:100%;justify-content:center;">Envoyer SMS</button>
             </form>

@@ -15,6 +15,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/admin_team.php';
 require_once __DIR__ . '/zone_vars.php';
 require_once __DIR__ . '/zones_core.php';
+require_once __DIR__ . '/notifications.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -480,6 +481,47 @@ if (!file_exists($_mf18)) {
     unset($_me, $__sql);
 }
 unset($_mf18);
+// Auto-migration v15.19 — catalogue de matériel par métier (sans doublon).
+$_mf19 = __DIR__.'/../storage/.mig_v15_materiaux';
+if (!file_exists($_mf19)) {
+    try {
+        db_execute("UPDATE preset_items SET label = 'Courroie' WHERE type = 'material' AND label = 'Courroi'");
+        $__order = 10;
+        foreach ((array)require __DIR__.'/materials_catalog.php' as $__cat => $__labels) {
+            foreach ($__labels as $__label) {
+                $__order++;
+                if (!db_fetch("SELECT id FROM preset_items WHERE type = 'material' AND label = ?", [$__label])) {
+                    db_execute("INSERT INTO preset_items (type, category, label, sort_order) VALUES ('material', ?, ?, ?)", [$__cat, $__label, $__order]);
+                }
+            }
+        }
+    } catch (Throwable $_me) {}
+    @file_put_contents($_mf19, date('c'));
+    unset($_me, $__order, $__cat, $__labels, $__label);
+}
+unset($_mf19);
+// Auto-migration v15.20 — signature du client distincte de celle du technicien,
+// photos demandées par le dispatcher, statut de paiement.
+$_mf20 = __DIR__.'/../storage/.mig_v15_rapport_v2';
+if (!file_exists($_mf20)) {
+    foreach ([
+        "ALTER TABLE interventions ADD COLUMN client_signature MEDIUMTEXT NULL",
+        "ALTER TABLE interventions ADD COLUMN photos_required TEXT NULL",
+        "ALTER TABLE interventions ADD COLUMN payment_status VARCHAR(20) NULL",
+        "ALTER TABLE interventions ADD COLUMN paid_at DATETIME NULL",
+        "ALTER TABLE interventions MODIFY COLUMN tech_signature MEDIUMTEXT NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    // Jusqu'ici, la signature enregistrée avec un nom de signataire était celle du client.
+    try {
+        db_execute("UPDATE interventions SET client_signature = tech_signature, tech_signature = NULL
+                    WHERE client_signature IS NULL AND tech_signature IS NOT NULL
+                      AND tech_client_name IS NOT NULL AND tech_client_name <> ''");
+    } catch (Throwable $_me) {}
+    try { db_execute("UPDATE interventions SET payment_status = 'payé' WHERE status = 'payé' AND payment_status IS NULL"); } catch (Throwable $_me) {}
+    @file_put_contents($_mf20, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf20);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
