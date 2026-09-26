@@ -348,6 +348,11 @@ $quote   = $s['quote_id'] ? db_fetch('SELECT * FROM quotes WHERE id = ?', [(int)
     <b>Client déjà connu :</b> <?= e(trim($known['lastname'].' '.$known['firstname'])) ?> — <?= e((string)$known['phone']) ?><?= $known['city'] ? ' — '.e((string)$known['city']) : '' ?>
     · <?= client_intervention_count((int)$known['id']) ?> intervention(s)
     <a href="<?= e(url_for('dispatcher/client_view.php?id='.(int)$known['id'])) ?>" target="_blank" rel="noopener">voir la fiche</a>
+    <?php $kf = client_finance((int)$known['id']); if ($kf['bad_payer']): ?>
+      <div style="margin-top:.4rem;"><?= client_bad_payer_badge((int)$known['id']) ?> <span style="color:#991b1b;"><?= e(implode(', ', $kf['bad_reasons'])) ?> : demandez un règlement sur place ou un acompte.</span></div>
+    <?php elseif ($kf['due'] > 0): ?>
+      <div style="margin-top:.3rem;">Reste dû : <b><?= e(money_fr($kf['due'])) ?></b></div>
+    <?php endif; ?>
   </div>
   <?php endif; ?>
 

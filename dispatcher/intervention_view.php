@@ -269,7 +269,7 @@ function fmt_dur(int $mins): string {
         <!-- CLIENT CARD -->
         <div class="d-card">
           <div class="d-card-head">
-            <div class="d-card-title">Client</div>
+            <div class="d-card-title">Client <?= client_bad_payer_badge(!empty($iv['client_id']) ? (int)$iv['client_id'] : null) ?></div>
             <?php if (!empty($iv['client_id'])): ?>
               <a href="<?= e(url_for('dispatcher/intervention_new.php').'?client_id='.(int)$iv['client_id']) ?>"
                  class="d-btn d-btn--ghost d-btn--sm" style="font-size:.74rem;">+ Nouvelle interv.</a>

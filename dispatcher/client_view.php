@@ -39,7 +39,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'updat
     $client = array_merge($client, $data);
 }
 
+// Note datée (historique des échanges avec le client)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'add_note') {
+    verify_csrf();
+    if (client_add_note($id, (string)($_POST['note'] ?? ''), $disp)) flash('success', 'Note ajoutée.');
+    redirect_to('dispatcher/client_view.php?id='.$id.'#notes');
+}
+
 $interventions = get_client_interventions($id);
+$fin = client_finance($id);
+$clientNotes = client_notes($id);
+$clientDevis = [];
+try { devis_table(); $clientDevis = db_fetch_all('SELECT * FROM devis WHERE client_id = ? ORDER BY id DESC', [$id]); } catch (Throwable $e) {}
 $categoryConfig = intervention_category_config();
 $statusConfig   = intervention_status_config();
 
@@ -79,24 +90,25 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
 </div>
 
 <div class="d-content" style="padding:1.5rem 1.75rem;">
-  <div style="display:grid;grid-template-columns:360px 1fr;gap:1.5rem;align-items:start;">
+  <div class="cv-grid" style="display:grid;grid-template-columns:minmax(0,360px) minmax(0,1fr);gap:1.5rem;align-items:start;">
 
     <!-- Colonne gauche: fiche client -->
     <div>
 
       <!-- Carte identité -->
       <div class="d-card" style="margin-bottom:1.25rem;">
-        <div class="d-card-header" style="align-items:flex-start;">
+        <div class="d-card-header" style="align-items:flex-start;flex-wrap:wrap;gap:.5rem;">
           <div style="display:flex;align-items:center;gap:.85rem;">
             <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,rgba(238,125,26,.3),rgba(238,125,26,.1));color:#ee7d1a;display:flex;align-items:center;justify-content:center;font-size:1.1rem;font-weight:800;flex-shrink:0;border:2px solid rgba(238,125,26,.3);">
               <?= e($initials) ?>
             </div>
             <div>
               <div style="font-size:1rem;font-weight:800;color:var(--d-t1);"><?= e($fullName) ?></div>
-              <div style="font-size:.75rem;color:var(--d-t2);margin-top:.15rem;">Client #<?= $id ?></div>
+              <div style="font-size:.75rem;color:var(--d-t2);margin-top:.15rem;">Client #<?= $id ?><?= ($client['client_type'] ?? '') !== '' ? ' · '.e(ucfirst((string)$client['client_type'])) : '' ?><?= !empty($client['pennylane_customer_id']) ? ' · lié à Pennylane' : '' ?></div>
+              <?php if ($fin['bad_payer']): ?><div style="margin-top:.35rem;"><?= client_bad_payer_badge($id) ?></div><?php endif; ?>
             </div>
           </div>
-          <button onclick="toggleEdit()" id="btn-edit" class="d-btn d-btn-outline d-btn-xs">Modifier</button>
+          <button onclick="toggleEdit()" id="btn-edit" class="d-btn d-btn--sm" style="flex-shrink:0;">Modifier</button>
         </div>
         <div class="d-card-body">
 
@@ -227,8 +239,79 @@ if (!empty($client['firstname'])) $initials .= mb_strtoupper(mb_substr($client['
 
     </div>
 
-    <!-- Colonne droite: historique interventions -->
+    <!-- Colonne droite: finances, documents, historique -->
     <div>
+      <!-- Situation financière -->
+      <div class="d-card" style="margin-bottom:1.25rem;" id="finances">
+        <div class="d-card-header"><span class="d-card-title">Situation financière</span><?= client_bad_payer_badge($id, false) ?></div>
+        <div class="d-card-body">
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.7rem;margin-bottom:.9rem;">
+            <?php foreach ([['Facturé', $fin['billed'], '#1d4ed8'], ['Encaissé', $fin['paid'], '#15803d'], ['Reste dû', $fin['due'], $fin['due'] > 0 ? '#b91c1c' : '#475569'], ['En retard', $fin['late_amount'], $fin['late_amount'] > 0 ? '#b91c1c' : '#475569']] as [$l, $v, $c]): ?>
+              <div style="border:1px solid var(--d-border);border-radius:8px;padding:.6rem .7rem;"><div style="font-size:1.1rem;font-weight:800;color:<?= $c ?>;"><?= e(money_fr((float)$v)) ?></div><div style="font-size:.74rem;color:var(--d-t2);"><?= e($l) ?></div></div>
+            <?php endforeach; ?>
+          </div>
+          <?php if ($fin['bad_payer']): ?><div style="font-size:.84rem;color:#991b1b;margin-bottom:.7rem;">À surveiller : <?= e(implode(', ', $fin['bad_reasons'])) ?>. Demandez un acompte ou un paiement sur place avant d'intervenir.</div><?php endif; ?>
+          <?php if ($fin['invoices']): ?>
+          <table class="d-table" style="font-size:.84rem;">
+            <thead><tr><th>Date</th><th>N°</th><th style="text-align:right;">TTC</th><th style="text-align:right;">Reste</th><th>Statut</th></tr></thead>
+            <tbody>
+            <?php foreach (array_slice($fin['invoices'], 0, 15) as $in): ?>
+              <tr style="cursor:pointer;" onclick="location.href='<?= e(url_for('dispatcher/factures.php?id='.(int)$in['id'])) ?>'">
+                <td><?= e(date('d/m/Y', strtotime((string)($in['issue_date'] ?: $in['created_at'])))) ?></td>
+                <td style="font-weight:600;"><?= e((string)($in['number'] ?: '—')) ?></td>
+                <td style="text-align:right;"><?= e(money_fr((float)$in['total_ttc'])) ?></td>
+                <td style="text-align:right;"><?= in_array($in['status'], ['envoyee', 'validee'], true) ? e(money_fr((float)($in['remaining_ttc'] ?? $in['total_ttc']))) : '' ?></td>
+                <td><?= invoice_badge($in) ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          <?php else: ?><div style="color:var(--d-t2);font-size:.86rem;">Aucune facture pour ce client.</div><?php endif; ?>
+        </div>
+      </div>
+
+      <!-- Documents -->
+      <?php
+      $docs = [];
+      foreach ($clientDevis as $dv) {
+          $docs[] = ['date' => $dv['created_at'], 'label' => 'Devis '.$dv['number'].' — '.money_fr((float)$dv['total_ttc']).' TTC', 'badge' => devis_badge((string)$dv['status']), 'url' => url_for('dispatcher/devis_pdf.php?id='.(int)$dv['id'])];
+          if (!empty($dv['signed_pdf_path'])) $docs[] = ['date' => $dv['signed_at'], 'label' => 'Devis '.$dv['number'].' signé', 'badge' => '', 'url' => url_for('dispatcher/devis_pdf.php?signed=1&id='.(int)$dv['id'])];
+      }
+      foreach ($fin['invoices'] as $in) if (!empty($in['number'])) $docs[] = ['date' => $in['issue_date'] ?: $in['created_at'], 'label' => 'Facture '.$in['number'], 'badge' => '', 'url' => url_for('dispatcher/factures.php?id='.(int)$in['id'])];
+      foreach ($interventions as $ivx) if (in_array($ivx['status'] ?? '', wf_field_done(), true)) $docs[] = ['date' => $ivx['tech_completed_at'] ?? $ivx['created_at'], 'label' => 'Rapport d\'intervention '.($ivx['ref'] ?? ''), 'badge' => '', 'url' => url_for('dispatcher/rapport_pdf.php?id='.(int)$ivx['id'])];
+      usort($docs, static fn($a, $b) => strcmp((string)$b['date'], (string)$a['date']));
+      ?>
+      <div class="d-card" style="margin-bottom:1.25rem;" id="documents">
+        <div class="d-card-header"><span class="d-card-title">Documents (<?= count($docs) ?>)</span></div>
+        <div class="d-card-body">
+          <?php if (!$docs): ?><div style="color:var(--d-t2);font-size:.86rem;">Aucun document.</div><?php endif; ?>
+          <?php foreach (array_slice($docs, 0, 30) as $doc): ?>
+            <div style="display:flex;justify-content:space-between;gap:.6rem;padding:.4rem 0;border-bottom:1px solid var(--d-border);font-size:.86rem;">
+              <a href="<?= e($doc['url']) ?>" target="_blank" rel="noopener" style="color:var(--d-t1);font-weight:600;text-decoration:none;"><?= e($doc['label']) ?></a>
+              <span style="white-space:nowrap;color:var(--d-t2);font-size:.8rem;"><?= $doc['badge'] ?> <?= $doc['date'] ? e(date('d/m/Y', strtotime((string)$doc['date']))) : '' ?></span>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
+      <!-- Notes datées -->
+      <div class="d-card" style="margin-bottom:1.25rem;" id="notes">
+        <div class="d-card-header"><span class="d-card-title">Notes (<?= count($clientNotes) ?>)</span></div>
+        <div class="d-card-body">
+          <form method="post" style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:.8rem;">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="add_note">
+            <textarea name="note" rows="2" required placeholder="Appel, promesse de paiement, préférence du client…" style="flex:1;padding:.5rem .6rem;border:1px solid var(--d-border-2);border-radius:6px;font:inherit;font-size:.86rem;"></textarea>
+            <button type="submit" class="d-btn d-btn--sm d-btn--primary">Ajouter</button>
+          </form>
+          <?php foreach ($clientNotes as $n): ?>
+            <div style="padding:.45rem 0;border-bottom:1px solid var(--d-border);">
+              <div style="font-size:.86rem;white-space:pre-line;"><?= e((string)$n['body']) ?></div>
+              <div style="font-size:.74rem;color:var(--d-t3);margin-top:.15rem;"><?= e(date('d/m/Y H:i', strtotime((string)$n['created_at']))) ?> · <?= e((string)$n['author_name']) ?></div>
+            </div>
+          <?php endforeach; ?>
+        </div>
+      </div>
+
       <div class="d-card">
         <div class="d-card-header">
           <span class="d-card-title">Historique des interventions (<?= $totalInterventions ?>)</span>
@@ -311,4 +394,5 @@ function toggleEdit() {
 }
 </script>
 
+<style>@media (max-width: 980px) { .cv-grid { grid-template-columns: 1fr !important; } } .cv-grid .d-card { overflow-x: auto; }</style>
 <?php require __DIR__.'/partials/footer.php'; ?>
