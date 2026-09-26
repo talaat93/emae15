@@ -11,3 +11,6 @@ config/config.local.php
 storage/logs/
 # Marqueurs des migrations automatiques : propres à chaque base
 storage/.mig_*
+
+# Photos des interventions : données clients, jamais versionnées
+storage/uploads/interventions/

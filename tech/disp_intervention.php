@@ -219,6 +219,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($done) {
             log_intervention_history($id, $iv['status'], 'rapport_rendu', 'technicien', $techId, (string)$tech['name'], 'Rapport rendu depuis l\'application technicien');
             notify_report_submitted($id);
+            review_run_after_response($id);   // relecture (Claude ou contrôles standard) sans faire attendre le technicien
         }
         flash('success', $message);
         $to = $self.($done ? '' : '#rapport');
@@ -320,6 +321,12 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
   <?php if ($isCancel): ?><div class="ta-flash err">Cette intervention a été annulée par le dispatcher.</div><?php endif; ?>
+  <?php if ($status === 'a_revoir'): ?>
+  <div class="ta-flash err" style="font-weight:500;">
+    <b>Rapport à compléter</b><br><?= nl2br(e((string)($iv['review_message'] ?? 'Le bureau vous demande de compléter votre rapport.'))) ?>
+    <div style="margin-top:.4rem;"><a href="#rapport" style="color:inherit;font-weight:700;text-decoration:underline;">Compléter maintenant</a>, puis appuyez sur « Terminer ».</div>
+  </div>
+  <?php endif; ?>
   <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked; ?>
   <?php if ($pending): ?>
   <section class="ta-card" id="reponse" style="border-color:#f59e0b;">
