@@ -1860,7 +1860,7 @@ function update_intervention(int $id, array $data): void
                 'tech_ticket_time','tech_close_time','tech_notes_extra',
                 'client_signature','photos_required','payment_status','paid_at',
                 'housing_over_2y','vat_rate','tech_response','tech_response_at','tech_refusal_reason',
-                'tech_diagnostic','tech_lines','tech_job_completed','tech_incomplete_reason','tech_return_visit',
+                'tech_diagnostic','tech_lines','tech_job_completed','tech_incomplete_reason','tech_return_visit','review_message',
                 'latitude','longitude'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {

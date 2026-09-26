@@ -23,6 +23,7 @@ require_once __DIR__ . '/pennylane.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
+require_once __DIR__ . '/review.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -609,6 +610,15 @@ if (!file_exists($_mf24)) {
     unset($_me, $__sql);
 }
 unset($_mf24);
+// Auto-migration v15.25 — relecture des rapports et brouillons de facture (phase 5)
+$_mf25 = __DIR__.'/../storage/.mig_v15_review';
+if (!file_exists($_mf25)) {
+    try { review_tables(); } catch (Throwable $_me) {}
+    try { db_execute("ALTER TABLE interventions ADD COLUMN review_message TEXT NULL"); } catch (Throwable $_me) {}
+    @file_put_contents($_mf25, date('c'));
+    unset($_me);
+}
+unset($_mf25);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

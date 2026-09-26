@@ -84,6 +84,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    /* ── Relecture du rapport (Claude assiste, le dispatcher décide) ── */
+    if ($action === 'review_run') {
+        @set_time_limit(180);
+        $rr = review_run($id, 'dispatcher', $disp);
+        if (!$rr['ok']) flash('error', (string)$rr['notice']);
+        else flash($rr['complete'] ? 'success' : 'error', ($rr['complete'] ? 'Rapport complet : brouillon de facture préparé.' : 'Rapport incomplet : renvoyé au technicien.')
+            .($rr['notice'] ? ' '.$rr['notice'] : ''));
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
+    }
+    if ($action === 'review_accept' && in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)) {
+        $lr = review_latest($id);
+        review_accept($id, $lr ? (int)$lr['id'] : null, 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Rapport validé par le dispatcher');
+        flash('success', 'Rapport validé : brouillon de facture préparé.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+    }
+    if ($action === 'review_return' && in_array((string)$iv['status'], ['rapport_rendu', 'rapport_verifie', 'facture_brouillon', 'a_revoir'], true)) {
+        $msg = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 1000);
+        if ($msg === '') {
+            flash('error', 'Écrivez le message pour le technicien.');
+        } else {
+            wf_set_status($id, 'a_revoir', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Renvoyé au technicien : '.mb_substr($msg, 0, 200), ['review_message' => $msg]);
+            notify_tech_report_incomplete($id, $msg);
+            flash('success', 'Rapport renvoyé au technicien.');
+        }
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
+    }
+
     if ($action === 'set_payment') {
         $ps = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
         update_intervention($id, ['payment_status' => $ps, 'paid_at' => $ps === 'payé' ? ($iv['paid_at'] ?: date('Y-m-d H:i:s')) : null]);
@@ -440,6 +467,99 @@ function fmt_dur(int $mins): string {
               </div>
             </div>
             <?php endif; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php
+        $review  = review_latest((int)$iv['id']);
+        $invoice = invoice_for_intervention((int)$iv['id']);
+        $canReview = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true);
+        if ($review || $canReview): $rv = $review['result'] ?? []; ?>
+        <!-- RELECTURE DU RAPPORT -->
+        <div class="d-card" id="relecture" style="margin-top:1.25rem;">
+          <div class="d-card-head">
+            <div class="d-card-title">Relecture du rapport</div>
+            <?php if ($review): ?>
+              <span style="font-size:.76rem;color:var(--d-t2);"><?= $review['source'] === 'claude' ? 'par Claude' : 'contrôles standard' ?> · <?= e(date('d/m H:i', strtotime((string)$review['created_at']))) ?></span>
+            <?php endif; ?>
+          </div>
+          <div class="d-card-body">
+            <?php if (!$review): ?>
+              <div style="color:var(--d-t2);font-size:.88rem;">Relecture pas encore faite<?= $currentStatus === 'rapport_rendu' ? ' (elle démarre automatiquement à la remise du rapport)' : '' ?>.</div>
+            <?php else: ?>
+              <?php if (!empty($review['notice'])): ?><div class="d-flash" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;margin-bottom:.7rem;"><?= e((string)$review['notice']) ?></div><?php endif; ?>
+              <div style="font-weight:700;color:<?= (int)$review['complete'] ? 'var(--d-success)' : 'var(--d-danger)' ?>;margin-bottom:.5rem;"><?= (int)$review['complete'] ? 'Rapport complet' : 'Rapport incomplet' ?></div>
+              <?php foreach (['missing' => ['Manques', '#991b1b'], 'inconsistencies' => ['Points à vérifier', '#92400e']] as $rk => [$rl, $rc]): if (empty($rv[$rk])) continue; ?>
+                <div class="d-label" style="margin-top:.4rem;"><?= e($rl) ?></div>
+                <ul style="margin:.2rem 0 .6rem 1.1rem;font-size:.86rem;color:<?= $rc ?>;"><?php foreach ($rv[$rk] as $it): ?><li><?= e((string)$it) ?></li><?php endforeach; ?></ul>
+              <?php endforeach; ?>
+              <?php if (!empty($rv['client_summary'])): ?>
+                <div class="d-label">Résumé proposé pour le client</div>
+                <div style="font-size:.87rem;background:var(--d-card-2);border-radius:6px;padding:.6rem .75rem;margin-bottom:.6rem;"><?= nl2br(e((string)$rv['client_summary'])) ?></div>
+              <?php endif; ?>
+              <?php if ($review['source'] === 'claude' && isset($rv['proposed_total_ttc'])): ?>
+                <div style="font-size:.84rem;color:var(--d-t2);">Proposition de Claude : <b><?= e(implode(', ', array_map(static fn($l) => $l['code'].' ×'.rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ','), $rv['lines'] ?? []))) ?: '—' ?></b>
+                  → <?= e(money_fr((float)$rv['proposed_total_ttc'])) ?> TTC (recalculé par la grille) · déclaré par le technicien : <?= e(money_fr((float)($rv['declared_total_ttc'] ?? 0))) ?> TTC</div>
+              <?php endif; ?>
+            <?php endif; ?>
+            <?php if ($canReview): ?>
+            <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.9rem;">
+              <?php if (in_array($currentStatus, ['rapport_rendu', 'a_revoir'], true)): ?>
+              <form method="post" onsubmit="this.querySelector('button').textContent='Relecture en cours…';">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_run">
+                <button type="submit" class="d-btn d-btn--sm"><?= $review ? 'Relancer la relecture' : 'Lancer la relecture' ?></button>
+              </form>
+              <?php endif; ?>
+              <?php if (in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)): ?>
+              <form method="post" onsubmit="return confirm('Valider le rapport et préparer le brouillon de facture ?');">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_accept">
+                <button type="submit" class="d-btn d-btn--sm d-btn--primary">Valider le rapport et préparer la facture</button>
+              </form>
+              <?php endif; ?>
+            </div>
+            <?php if ($currentStatus !== 'a_revoir'): ?>
+            <details style="margin-top:.7rem;">
+              <summary style="cursor:pointer;font-size:.85rem;color:var(--d-t2);">Renvoyer au technicien…</summary>
+              <form method="post" style="margin-top:.5rem;">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_return">
+                <div class="d-field"><label class="req" for="rv-msg">Message au technicien</label>
+                  <textarea id="rv-msg" name="message" rows="3" required><?= e((string)($rv['message_to_technician'] ?? '')) ?></textarea></div>
+                <button type="submit" class="d-btn d-btn--sm d-btn--danger">Renvoyer</button>
+              </form>
+            </details>
+            <?php else: ?>
+              <div style="font-size:.84rem;color:var(--d-t2);margin-top:.6rem;">Message envoyé au technicien : « <?= e((string)($iv['review_message'] ?? '')) ?> »</div>
+            <?php endif; ?>
+            <?php endif; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php if ($invoice): ?>
+        <!-- FACTURE -->
+        <div class="d-card" id="facture" style="margin-top:1.25rem;">
+          <div class="d-card-head">
+            <div class="d-card-title">Facture <?= $invoice['status'] === 'brouillon' ? '(brouillon à valider)' : e($invoice['number'] ? '— '.$invoice['number'] : '') ?></div>
+            <span style="font-size:.8rem;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?> TTC</span>
+          </div>
+          <div class="d-card-body">
+            <?php if (!empty($invoice['summary'])): ?><div style="font-size:.87rem;margin-bottom:.6rem;"><?= nl2br(e((string)$invoice['summary'])) ?></div><?php endif; ?>
+            <table class="d-table" style="font-size:.84rem;">
+              <tbody>
+              <?php foreach ($invoice['lines'] as $l): ?>
+                <tr><td><?= e((string)$l['label']) ?><?= !empty($l['free']) ? ' <span style="font-size:.7rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:.05rem .35rem;">hors grille</span>' : '' ?></td>
+                  <td style="text-align:right;white-space:nowrap;"><?= ($l['unit'] ?? '') === 'pourcent' ? '' : e(rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',')).' × '.e(money_fr((float)$l['unit_price_ht'])) ?></td>
+                  <td style="text-align:right;white-space:nowrap;"><?= e(money_fr((float)$l['total_ht'])) ?></td></tr>
+              <?php endforeach; ?>
+              </tbody>
+              <tfoot>
+                <tr><td colspan="2" style="text-align:right;">Total HT</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_ht'])) ?></td></tr>
+                <tr><td colspan="2" style="text-align:right;">TVA <?= e(rtrim(rtrim(number_format((float)$invoice['vat_rate'], 1, ',', ''), '0'), ',')) ?> %</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_tva'])) ?></td></tr>
+                <tr><td colspan="2" style="text-align:right;font-weight:700;">Total TTC</td><td style="text-align:right;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?></td></tr>
+              </tfoot>
+            </table>
+            <div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div>
           </div>
         </div>
         <?php endif; ?>

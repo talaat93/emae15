@@ -55,9 +55,10 @@ function wf_dispatcher_transitions(): array
         'assigné'           => ['en_route', 'sur_place', 'a_assigner', 'annulé'],
         'en_route'          => ['sur_place', 'annulé'],
         'sur_place'         => ['annulé'],
-        'a_revoir'          => ['rapport_rendu', 'annulé'],
-        'rapport_rendu'     => ['rapport_verifie', 'a_revoir'],
-        'rapport_verifie'   => ['a_revoir'],
+        // Relecture : boutons dédiés sur la fiche (relancer, valider, renvoyer au technicien).
+        'a_revoir'          => ['annulé'],
+        'rapport_rendu'     => [],
+        'rapport_verifie'   => [],
         'facture_brouillon' => ['a_revoir'],
         'facture_validee'   => ['facture_envoyee'],
         'facture_envoyee'   => ['payé'],
