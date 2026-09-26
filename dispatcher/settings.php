@@ -61,6 +61,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'sync' && function_exists('pennylane_sync_run')) {
             $r = pennylane_sync_run('manuel');
             flash($r['ok'] ? 'success' : 'error', $r['message']);
+        } elseif (in_array($action, ['dup_link', 'dup_ignore'], true)) {
+            // Doublon douteux : le dispatcher confirme le lien ou le rejette.
+            $dup = db_fetch("SELECT * FROM pennylane_duplicates WHERE id = ? AND status = 'a_verifier'", [(int)($_POST['dup_id'] ?? 0)]);
+            if ($dup && $action === 'dup_link') {
+                db_execute('UPDATE clients SET pennylane_customer_id = ?, pennylane_synced_at = NOW() WHERE id = ?', [$dup['pennylane_customer_id'], (int)$dup['client_id']]);
+                db_execute("UPDATE pennylane_duplicates SET status = 'lie' WHERE id = ?", [(int)$dup['id']]);
+                admin_log_safe('pennylane', 'client #'.(int)$dup['client_id'].' lié au client Pennylane '.$dup['pennylane_customer_id'], (int)$disp['id'], (string)$disp['name']);
+                flash('success', 'Clients liés.');
+            } elseif ($dup) {
+                db_execute("UPDATE pennylane_duplicates SET status = 'distinct' WHERE id = ?", [(int)$dup['id']]);
+                flash('success', 'Marqués comme clients différents : le client Pennylane sera importé à la prochaine synchronisation complète.');
+            }
         } else {
             settings_save_secret('pennylane_api_key');
             notif_store_setting('pennylane_simulation', !empty($_POST['pennylane_simulation']) ? '1' : '0');
@@ -236,10 +248,43 @@ function settings_secret_field(string $name, string $label, string $placeholder,
           <div class="d-info-row"><span class="d-info-label">Date</span><span class="d-info-value"><?= e(date('d/m/Y H:i', strtotime((string)$lastSync['at']))) ?></span></div>
           <div class="d-info-row"><span class="d-info-label">Résultat</span><span class="d-info-value"><?= e((string)$lastSync['message']) ?></span></div>
         <?php endif; ?>
+        <?php
+        try {
+            $plStats = db_fetch("SELECT (SELECT COUNT(*) FROM clients WHERE pennylane_customer_id IS NOT NULL AND pennylane_customer_id <> '') AS c,
+                (SELECT COUNT(*) FROM invoices WHERE pennylane_id IS NOT NULL) AS f, (SELECT COUNT(*) FROM price_grid WHERE pennylane_product_id IS NOT NULL) AS p");
+        } catch (Throwable $e) { $plStats = null; }
+        if ($plStats): ?>
+          <div class="d-info-row"><span class="d-info-label">Clients liés</span><span class="d-info-value"><?= (int)$plStats['c'] ?></span></div>
+          <div class="d-info-row"><span class="d-info-label">Factures en cache</span><span class="d-info-value"><?= (int)$plStats['f'] ?></span></div>
+          <div class="d-info-row"><span class="d-info-label">Produits de la grille</span><span class="d-info-value"><?= (int)$plStats['p'] ?></span></div>
+        <?php endif; ?>
         <p style="color:var(--d-t2);margin-top:.8rem;">La synchronisation automatique tourne toutes les 15 minutes via une tâche cron (voir la documentation d'installation).</p>
       </div>
     </div>
   </div>
+  <?php try { $dups = db_fetch_all("SELECT d.*, c.lastname, c.firstname, c.phone, c.email, c.city FROM pennylane_duplicates d JOIN clients c ON c.id = d.client_id WHERE d.status = 'a_verifier' ORDER BY d.id LIMIT 50"); } catch (Throwable $e) { $dups = []; } ?>
+  <?php if ($dups): ?>
+  <div class="d-card" style="margin-top:1.1rem;">
+    <div class="d-card-head"><div class="d-card-title">Doublons possibles à vérifier (<?= count($dups) ?>)</div></div>
+    <table class="d-table" style="font-size:.86rem;">
+      <thead><tr><th>Client EMAE</th><th>Client Pennylane</th><th>Raison</th><th></th></tr></thead>
+      <tbody>
+      <?php foreach ($dups as $d): $pd = json_decode((string)$d['data'], true) ?: []; ?>
+        <tr>
+          <td><b><?= e(trim($d['lastname'].' '.$d['firstname'])) ?></b><div style="color:var(--d-t2);"><?= e(implode(' · ', array_filter([(string)$d['phone'], (string)$d['email'], (string)$d['city']]))) ?></div></td>
+          <td><b><?= e((string)($pd['name'] ?? '')) ?></b><div style="color:var(--d-t2);"><?= e(implode(' · ', array_filter([(string)($pd['phone'] ?? ''), (string)($pd['email'] ?? ''), (string)($pd['city'] ?? '')]))) ?></div></td>
+          <td><?= e((string)$d['reason']) ?></td>
+          <td style="white-space:nowrap;">
+            <form method="post" style="display:inline;"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="dup_id" value="<?= (int)$d['id'] ?>">
+              <button type="submit" name="action" value="dup_link" class="d-btn d-btn--sm d-btn--primary">Même client : lier</button>
+              <button type="submit" name="action" value="dup_ignore" class="d-btn d-btn--sm">Clients différents</button></form>
+          </td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+  <?php endif; ?>
 
 <?php else: ?>
   <form method="post" class="d-card" style="max-width:720px;">

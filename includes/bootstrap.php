@@ -619,6 +619,29 @@ if (!file_exists($_mf25)) {
     unset($_me);
 }
 unset($_mf25);
+// Auto-migration v15.26 — Pennylane (phase 6) : liens clients et produits, doublons à vérifier
+$_mf26 = __DIR__.'/../storage/.mig_v15_pennylane';
+if (!file_exists($_mf26)) {
+    foreach ([
+        "ALTER TABLE clients ADD COLUMN pennylane_customer_id VARCHAR(40) NULL",
+        "ALTER TABLE clients ADD COLUMN pennylane_synced_at DATETIME NULL",
+        "ALTER TABLE clients ADD INDEX idx_pennylane (pennylane_customer_id)",
+        "ALTER TABLE price_grid ADD COLUMN pennylane_price VARCHAR(20) NULL",
+        "CREATE TABLE IF NOT EXISTS pennylane_duplicates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            pennylane_customer_id VARCHAR(40) NOT NULL,
+            client_id INT NOT NULL,
+            reason VARCHAR(190) NULL,
+            data TEXT NULL,
+            status VARCHAR(20) NOT NULL DEFAULT 'a_verifier',
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_pair (pennylane_customer_id, client_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf26, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf26);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

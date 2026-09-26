@@ -14,3 +14,4 @@ storage/.mig_*
 
 # Photos des interventions : données clients, jamais versionnées
 storage/uploads/interventions/
+storage/pennylane_sync.lock
