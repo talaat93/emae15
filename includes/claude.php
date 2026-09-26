@@ -81,7 +81,9 @@ function claude_structured(array $req): array
         $body['fallbacks'] = 'default';
         $headers[] = 'anthropic-beta: server-side-fallback-2026-07-01';
     }
-    $res = integration_http('POST', CLAUDE_API_URL, $headers, $body, (int)($req['timeout'] ?? 60));
+    // URL remplaçable dans config.local.php (tests locaux uniquement).
+    $apiUrl = (string)(app_config()['claude_api_url'] ?? CLAUDE_API_URL);
+    $res = integration_http('POST', $apiUrl, $headers, $body, (int)($req['timeout'] ?? 60));
 
     $json = $res['json'];
     $logCtx = [
