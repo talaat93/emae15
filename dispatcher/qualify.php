@@ -125,10 +125,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         /* ── Création de la fiche ── */
         $c = $sum['client'];
+        // Réponses libres : formats et longueurs ramenés à ceux de la base.
+        $cut = static fn($v, int $n) => mb_substr(trim((string)$v), 0, $n);
+        $c['postal_code'] = preg_match('/\b(\d{5})\b/', (string)$c['postal_code'], $pm) ? $pm[1] : '';
+        foreach (['lastname' => 120, 'firstname' => 120, 'phone' => 80, 'email' => 190, 'address' => 255, 'city' => 190, 'floor' => 40, 'digicode' => 60, 'interphone' => 120, 'access_info' => 1000, 'availability' => 500] as $k => $n) {
+            $c[$k] = $cut($c[$k] ?? '', $n);
+        }
+        if ($c['email'] !== '' && !filter_var($c['email'], FILTER_VALIDATE_EMAIL)) $c['email'] = '';
         $errs = [];
         if ($c['lastname'] === '') $errs[] = 'le nom';
         if ($c['phone'] === '') $errs[] = 'le téléphone';
         if ($c['address'] === '' || $c['city'] === '') $errs[] = 'l\'adresse';
+        if ($c['postal_code'] === '') $errs[] = 'le code postal (5 chiffres)';
         if ($sum['intervention']['description'] === '') $errs[] = 'la description';
         if ($errs) {
             flash('error', 'Complétez '.implode(', ', $errs).' avant de créer la fiche.');
@@ -140,81 +148,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $c['access_info'],
         ])));
 
-        // Client : réutilisation d'un client connu (jamais de doublon silencieux).
-        $clientId = 0;
-        if (($_POST['client_choice'] ?? '') === 'existing') {
-            $clientId = (int)($_POST['existing_client_id'] ?? 0);
-            $existing = $clientId > 0 ? db_fetch('SELECT * FROM clients WHERE id = ?', [$clientId]) : null;
-            if (!$existing) $clientId = 0;
-            else {
-                // Complète uniquement les informations manquantes de la fiche client.
-                $fill = ['firstname' => $c['firstname'], 'email' => $c['email'], 'address' => $c['address'], 'postal_code' => $c['postal_code'],
-                         'city' => $c['city'], 'floor' => $c['floor'], 'digicode' => $c['digicode'], 'access_info' => $access];
-                $sets = []; $params = [];
-                foreach ($fill as $col => $val) {
-                    if (trim((string)$val) !== '' && trim((string)($existing[$col] ?? '')) === '') { $sets[] = $col.' = ?'; $params[] = $val; }
+        try {
+            // Client : réutilisation d'un client connu (jamais de doublon silencieux).
+            $clientId = 0;
+            if (($_POST['client_choice'] ?? '') === 'existing') {
+                $clientId = (int)($_POST['existing_client_id'] ?? 0);
+                $existing = $clientId > 0 ? db_fetch('SELECT * FROM clients WHERE id = ?', [$clientId]) : null;
+                if (!$existing) $clientId = 0;
+                else {
+                    // Complète uniquement les informations manquantes de la fiche client.
+                    $fill = ['firstname' => $c['firstname'], 'email' => $c['email'], 'address' => $c['address'], 'postal_code' => $c['postal_code'],
+                             'city' => $c['city'], 'floor' => $c['floor'], 'digicode' => $c['digicode'], 'access_info' => $access];
+                    $sets = []; $params = [];
+                    foreach ($fill as $col => $val) {
+                        if (trim((string)$val) !== '' && trim((string)($existing[$col] ?? '')) === '') { $sets[] = $col.' = ?'; $params[] = $val; }
+                    }
+                    if ($sets) { $params[] = $clientId; db_execute('UPDATE clients SET '.implode(', ', $sets).' WHERE id = ?', $params); }
                 }
-                if ($sets) { $params[] = $clientId; db_execute('UPDATE clients SET '.implode(', ', $sets).' WHERE id = ?', $params); }
             }
-        }
-        if ($clientId === 0) {
-            $clientId = create_client([
-                'lastname' => $c['lastname'], 'firstname' => $c['firstname'], 'phone' => $c['phone'], 'email' => $c['email'],
-                'address' => $c['address'], 'postal_code' => $c['postal_code'], 'city' => $c['city'],
-                'floor' => $c['floor'], 'digicode' => $c['digicode'], 'access_info' => $access, 'notes' => '',
-            ]);
-        }
-        if ($clientType !== null) db_execute('UPDATE clients SET client_type = ? WHERE id = ?', [$clientType, $clientId]);
+            if ($clientId === 0) {
+                $clientId = create_client([
+                    'lastname' => $c['lastname'], 'firstname' => $c['firstname'], 'phone' => $c['phone'], 'email' => $c['email'],
+                    'address' => $c['address'], 'postal_code' => $c['postal_code'], 'city' => $c['city'],
+                    'floor' => $c['floor'], 'digicode' => $c['digicode'], 'access_info' => $access, 'notes' => '',
+                ]);
+            }
+            if ($clientType !== null) db_execute('UPDATE clients SET client_type = ? WHERE id = ?', [$clientType, $clientId]);
 
-        $iv = $sum['intervention'];
-        $housing = $c['housing_over_2y'] === 'oui' ? 1 : ($c['housing_over_2y'] === 'non' ? 0 : null);
-        $vat = iv_vat_rate(['housing_over_2y' => $housing], ['client_type' => $clientType]);
-        $est = qual_estimate($lines, $vat);
-        $notes = array_filter([
-            $c['availability'] !== '' ? 'Disponibilités : '.$c['availability'] : '',
-            $c['occupant'] !== 'inconnu' && $c['occupant'] !== '' ? 'Occupant : '.($c['occupant'] === 'proprietaire' ? 'propriétaire' : 'locataire') : '',
-            !empty($s['state']['danger']['detected']) ? 'DANGER signalé à l\'appel : '.$s['state']['danger']['kind'] : '',
-            $iv['skills'] ? 'Compétences : '.implode(', ', $iv['skills']) : '',
-            $est['lines'] ? 'Estimation indicative donnée au client : '.money_fr($est['range_min']).' à '.money_fr($est['range_max']).' TTC ('
-                .implode(', ', array_map(static fn($l) => $l['code'].($l['qty'] != 1 ? ' ×'.rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',') : ''), $est['lines'])).')' : '',
-        ]);
-        $ivId = create_intervention([
-            'client_id'         => $clientId,
-            'dispatcher_id'     => (int)$disp['id'],
-            'technician_id'     => null,
-            'scheduled_date'    => '',
-            'scheduled_time'    => '',
-            'duration_estimate' => (int)$iv['duration_minutes'],
-            'urgency'           => $iv['urgency'] ? 1 : 0,
-            'priority'          => $iv['priority'],
-            'category'          => $iv['category'],
-            'type_label'        => $iv['fault_type'],
-            'installation_type' => '',
-            'fault_reported'    => $iv['fault_type'],
-            'description'       => $iv['description'],
-            'materials_needed'  => $iv['materials'] ? json_encode(array_map(static fn($m) => ['name' => $m], $iv['materials']), JSON_UNESCAPED_UNICODE) : '',
-            'notes_admin'       => implode("\n", $notes),
-            'quote_accepted'    => 0,
-            'amount_ht'         => null,
-            'payment_method'    => '',
-            'status'            => 'a_assigner',
-            'latitude'          => '',
-            'longitude'         => '',
-        ]);
-        update_intervention($ivId, ['housing_over_2y' => $housing]);
-        db_execute('UPDATE interventions SET quote_id = ?, qualification_id = ? WHERE id = ?', [$s['quote_id'] ?: null, $sid, $ivId]);
-        log_intervention_history($ivId, null, 'a_assigner', 'dispatcher', (int)$disp['id'], (string)$disp['name'],
-            'Création depuis la qualification d\'appel'.($s['mode'] === 'claude' ? ' (assistée par Claude)' : ''));
-        if (!empty($s['quote_id'])) {
-            try { db_execute("UPDATE quotes SET status = 'planifié' WHERE id = ? AND status IN ('nouveau','contacté')", [(int)$s['quote_id']]); } catch (Throwable $e) {}
+            $iv = $sum['intervention'];
+            $housing = $c['housing_over_2y'] === 'oui' ? 1 : ($c['housing_over_2y'] === 'non' ? 0 : null);
+            $vat = iv_vat_rate(['housing_over_2y' => $housing], ['client_type' => $clientType]);
+            $est = qual_estimate($lines, $vat);
+            $notes = array_filter([
+                $c['availability'] !== '' ? 'Disponibilités : '.$c['availability'] : '',
+                $c['occupant'] !== 'inconnu' && $c['occupant'] !== '' ? 'Occupant : '.($c['occupant'] === 'proprietaire' ? 'propriétaire' : 'locataire') : '',
+                !empty($s['state']['danger']['detected']) ? 'DANGER signalé à l\'appel : '.$s['state']['danger']['kind'] : '',
+                $iv['skills'] ? 'Compétences : '.implode(', ', $iv['skills']) : '',
+                $est['lines'] ? 'Estimation indicative donnée au client : '.money_fr($est['range_min']).' à '.money_fr($est['range_max']).' TTC ('
+                    .implode(', ', array_map(static fn($l) => $l['code'].($l['qty'] != 1 ? ' ×'.rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',') : ''), $est['lines'])).')' : '',
+            ]);
+            $ivId = create_intervention([
+                'client_id'         => $clientId,
+                'dispatcher_id'     => (int)$disp['id'],
+                'technician_id'     => null,
+                'scheduled_date'    => '',
+                'scheduled_time'    => '',
+                'duration_estimate' => (int)$iv['duration_minutes'],
+                'urgency'           => $iv['urgency'] ? 1 : 0,
+                'priority'          => $iv['priority'],
+                'category'          => $iv['category'],
+                'type_label'        => $iv['fault_type'],
+                'installation_type' => '',
+                'fault_reported'    => $iv['fault_type'],
+                'description'       => $iv['description'],
+                'materials_needed'  => $iv['materials'] ? json_encode(array_map(static fn($m) => ['name' => $m], $iv['materials']), JSON_UNESCAPED_UNICODE) : '',
+                'notes_admin'       => implode("\n", $notes),
+                'quote_accepted'    => 0,
+                'amount_ht'         => null,
+                'payment_method'    => '',
+                'status'            => 'a_assigner',
+                'latitude'          => '',
+                'longitude'         => '',
+            ]);
+            update_intervention($ivId, ['housing_over_2y' => $housing]);
+            db_execute('UPDATE interventions SET quote_id = ?, qualification_id = ? WHERE id = ?', [$s['quote_id'] ?: null, $sid, $ivId]);
+            log_intervention_history($ivId, null, 'a_assigner', 'dispatcher', (int)$disp['id'], (string)$disp['name'],
+                'Création depuis la qualification d\'appel'.($s['mode'] === 'claude' ? ' (assistée par Claude)' : ''));
+            if (!empty($s['quote_id'])) {
+                try { db_execute("UPDATE quotes SET status = 'planifié' WHERE id = ? AND status IN ('nouveau','contacté')", [(int)$s['quote_id']]); } catch (Throwable $e) {}
+            }
+            $s['status'] = 'convertie';
+            $s['intervention_id'] = $ivId;
+            $s['client_id'] = $clientId;
+            qual_save($s);
+            try { geocode_missing_interventions(); } catch (Throwable $e) {}
+            integration_log('audit', 'fiche créée depuis la qualification #'.$sid, ['intervention' => $ivId, 'dispatcher' => (int)$disp['id']]);
+            flash('success', 'Fiche créée : elle est « À assigner ».');
+        } catch (Throwable $e) {
+            // La qualification reste enregistrée : rien n'est perdu, on peut corriger et recommencer.
+            integration_log('qualification', 'création de fiche #'.$sid.' : '.$e->getMessage());
+            flash('error', 'La fiche n\'a pas pu être créée (donnée invalide ou base indisponible). Vérifiez les champs puis réessayez : la qualification est conservée.');
+            redirect_to('dispatcher/qualify.php?s='.$sid);
         }
-        $s['status'] = 'convertie';
-        $s['intervention_id'] = $ivId;
-        $s['client_id'] = $clientId;
-        qual_save($s);
-        try { geocode_missing_interventions(); } catch (Throwable $e) {}
-        integration_log('audit', 'fiche créée depuis la qualification #'.$sid, ['intervention' => $ivId, 'dispatcher' => (int)$disp['id']]);
-        flash('success', 'Fiche créée : elle est « À assigner ».');
         redirect_to('dispatcher/intervention_view.php?id='.$ivId);
     }
     redirect_to('dispatcher/qualify.php'.($sid ? '?s='.$sid : ''));
