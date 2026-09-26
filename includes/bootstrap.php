@@ -24,6 +24,7 @@ require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/review.php';
+require_once __DIR__ . '/invoicing.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -642,6 +643,14 @@ if (!file_exists($_mf26)) {
     unset($_me, $__sql);
 }
 unset($_mf26);
+// Auto-migration v15.27 — relances de factures (phase 7)
+$_mf27 = __DIR__.'/../storage/.mig_v15_reminders';
+if (!file_exists($_mf27)) {
+    try { reminders_table(); } catch (Throwable $_me) {}
+    @file_put_contents($_mf27, date('c'));
+    unset($_me);
+}
+unset($_mf27);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

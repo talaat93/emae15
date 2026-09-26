@@ -365,14 +365,19 @@ function pennylane_store_invoice(int $invoiceId, array $pi): void
 }
 
 /** Paiement constaté dans Pennylane : l'intervention passe « Payée » puis « Clôturée ». */
-function pennylane_sync_intervention_status(int $invoiceId): void
+function pennylane_sync_intervention_status(int $invoiceId, ?array $actor = null): void
 {
     $inv = db_fetch('SELECT id, intervention_id, status, number FROM invoices WHERE id = ?', [$invoiceId]);
     if (!$inv || empty($inv['intervention_id']) || $inv['status'] !== 'payee') return;
     $iv = db_fetch('SELECT id, status FROM interventions WHERE id = ?', [(int)$inv['intervention_id']]);
     if (!$iv || !in_array($iv['status'], ['facture_validee', 'facture_envoyee', 'facture_brouillon'], true)) return;
-    wf_set_status((int)$iv['id'], 'payé', 'system', 0, 'Pennylane', 'Paiement constaté dans Pennylane ('.($inv['number'] ?: 'facture').')',
-        ['payment_status' => 'payé', 'paid_at' => date('Y-m-d H:i:s')]);
+    if ($actor) {
+        wf_set_status((int)$iv['id'], 'payé', 'dispatcher', (int)$actor['id'], (string)$actor['name'], 'Paiement enregistré par le dispatcher ('.($inv['number'] ?: 'facture').')',
+            ['payment_status' => 'payé', 'paid_at' => date('Y-m-d H:i:s')]);
+    } else {
+        wf_set_status((int)$iv['id'], 'payé', 'system', 0, 'Pennylane', 'Paiement constaté dans Pennylane ('.($inv['number'] ?: 'facture').')',
+            ['payment_status' => 'payé', 'paid_at' => date('Y-m-d H:i:s')]);
+    }
     wf_set_status((int)$iv['id'], 'cloturee', 'system', 0, 'Pennylane', 'Dossier clôturé automatiquement après paiement');
 }
 
@@ -412,7 +417,7 @@ function pennylane_send_email(int $invoiceId, array $recipients = []): array
     return ['ok' => false, 'error' => 'Le PDF de la facture est encore en préparation chez Pennylane : réessayez l\'envoi dans quelques minutes.'];
 }
 
-function pennylane_mark_paid(int $invoiceId): array
+function pennylane_mark_paid(int $invoiceId, ?array $actor = null): array
 {
     $inv = invoice_by_id($invoiceId);
     if (!$inv || empty($inv['pennylane_id'])) return ['ok' => false, 'error' => 'Facture absente de Pennylane.'];
@@ -421,7 +426,7 @@ function pennylane_mark_paid(int $invoiceId): array
         if (!$r['ok']) return ['ok' => false, 'error' => $r['error']];
     }
     db_execute("UPDATE invoices SET status = 'payee', pennylane_status = 'paid', remaining_ttc = 0, paid_at = COALESCE(paid_at, NOW()), updated_at = NOW() WHERE id = ?", [$invoiceId]);
-    pennylane_sync_intervention_status($invoiceId);
+    pennylane_sync_intervention_status($invoiceId, $actor);
     return ['ok' => true, 'error' => null];
 }
 

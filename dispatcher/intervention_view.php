@@ -560,6 +560,7 @@ function fmt_dur(int $mins): string {
               </tfoot>
             </table>
             <div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div>
+            <a class="d-btn d-btn--sm <?= $invoice['status'] === 'brouillon' ? 'd-btn--primary' : '' ?>" style="margin-top:.6rem;" href="<?= e(url_for('dispatcher/factures.php?id='.(int)$invoice['id'])) ?>"><?= $invoice['status'] === 'brouillon' ? 'Vérifier et valider la facture' : 'Ouvrir la facture' ?></a>
           </div>
         </div>
         <?php endif; ?>
