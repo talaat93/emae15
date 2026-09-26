@@ -340,15 +340,47 @@ function fmt_dur(int $mins): string {
                 'Réalisable'            => $yn($iv['tech_realizable'] ?? null),
                 'Mauvaise utilisation'  => $yn($iv['tech_bad_use'] ?? null),
                 'Ascenseur remis en service' => $yn($iv['tech_elevator_restored'] ?? null),
+                'Intervention terminée' => $yn($iv['tech_job_completed'] ?? null),
+                'Raison (non terminée)' => $iv['tech_incomplete_reason'] ?? null,
+                'Retour à prévoir'      => ($iv['tech_job_completed'] ?? null) !== null && (int)$iv['tech_job_completed'] === 0 ? $yn($iv['tech_return_visit'] ?? null) : null,
                 'Arrivée sur place'     => !empty($iv['tech_arrived_at']) ? date('d/m/Y H:i', strtotime($iv['tech_arrived_at'])) : null,
+                'Fin'                   => !empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : null,
             ], static fn($v) => $v !== null && $v !== '');
+            $repCalc = tech_report_pricing($iv, $ivClient);
             ?>
             <?php foreach ($facts as $label => $val): ?>
             <div class="d-info-row"><span class="d-info-label"><?= e($label) ?></span><span class="d-info-value"><?= e($val) ?></span></div>
             <?php endforeach; ?>
+            <?php if (!empty($iv['tech_diagnostic'])): ?>
+            <div style="margin:1rem 0;">
+              <div class="d-label">Diagnostic</div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_diagnostic'])) ?></div>
+            </div>
+            <?php endif; ?>
+            <?php if ($repCalc['lines']): ?>
+            <div style="margin:1rem 0;">
+              <div class="d-label">Prestations déclarées (prix de la grille)</div>
+              <table class="d-table" style="font-size:.84rem;">
+                <thead><tr><th>Désignation</th><th style="text-align:right;">Qté</th><th style="text-align:right;">P.U. HT</th><th style="text-align:right;">Total HT</th></tr></thead>
+                <tbody>
+                <?php foreach ($repCalc['lines'] as $l): ?>
+                  <tr><td><?= e($l['label']) ?><?php if ($l['free']): ?> <span style="font-size:.7rem;background:#fef3c7;color:#92400e;border-radius:4px;padding:.05rem .35rem;">hors grille — à vérifier</span><?php endif; ?></td>
+                    <td style="text-align:right;"><?= $l['unit'] === 'pourcent' ? '' : e(rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',')) ?></td>
+                    <td style="text-align:right;"><?= $l['unit'] === 'pourcent' ? '' : e(money_fr((float)$l['unit_price_ht'])) ?></td>
+                    <td style="text-align:right;"><?= e(money_fr((float)$l['total_ht'])) ?></td></tr>
+                <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                  <tr><td colspan="3" style="text-align:right;">Total HT</td><td style="text-align:right;"><?= e(money_fr($repCalc['total_ht'])) ?></td></tr>
+                  <tr><td colspan="3" style="text-align:right;">TVA <?= e(str_replace('.', ',', (string)$repCalc['vat_rate'])) ?> %</td><td style="text-align:right;"><?= e(money_fr($repCalc['total_tva'])) ?></td></tr>
+                  <tr><td colspan="3" style="text-align:right;font-weight:700;">Total TTC</td><td style="text-align:right;font-weight:700;"><?= e(money_fr($repCalc['total_ttc'])) ?></td></tr>
+                </tfoot>
+              </table>
+            </div>
+            <?php endif; ?>
             <?php if (!empty($iv['tech_report'])): ?>
             <div style="margin:1rem 0;">
-              <div class="d-label">Constat et travaux réalisés</div>
+              <div class="d-label"><?= !empty($iv['tech_diagnostic']) ? 'Travaux réalisés' : 'Constat et travaux réalisés' ?></div>
               <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_report'])) ?></div>
             </div>
             <?php endif; ?>
@@ -364,7 +396,7 @@ function fmt_dur(int $mins): string {
             <div style="margin-bottom:1rem;">
               <div class="d-label">Matériel utilisé</div>
               <?php foreach ($usedMats as $um): if (!is_array($um) || empty($um['name'])) continue; ?>
-                <div class="d-info-row"><span><?= e($um['name']) ?></span><span class="d-info-value"><?= e(trim(($um['qty'] ?? '').' '.($um['unit'] ?? ''))) ?></span></div>
+                <div class="d-info-row"><span><?= e($um['name']) ?></span><span class="d-info-value"><?= e(trim(($um['qty'] ?? '').' '.($um['unit'] ?? ''))) ?><?= !empty($um['price']) ? ' · '.e(money_fr((float)str_replace(',', '.', (string)$um['price']))).' HT/u' : '' ?></span></div>
               <?php endforeach; ?>
             </div>
             <?php elseif (!empty($iv['tech_materials_used']) && !is_array($usedMats)): ?>

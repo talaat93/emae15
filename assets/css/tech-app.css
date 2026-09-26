@@ -259,3 +259,13 @@ details.ta-card:not([open]) > summary { border-bottom: 0; }
 .ta-install span b { display: inline; font-size: inherit; color: #fff; }
 .ta-install-actions { display: flex; gap: .5rem; margin-top: .75rem; }
 .ta-install-actions .ta-btn:not(.primary) { background: transparent; color: #fff; border-color: rgba(255,255,255,.3); }
+
+/* Prestations de la grille et total en direct */
+.ta-line { display: grid; grid-template-columns: 90px 1fr 40px; gap: .4rem; margin-bottom: .7rem; align-items: center; padding-bottom: .6rem; border-bottom: 1px dashed var(--line); }
+.ta-line .ta-select { grid-column: 1 / -1; }
+.ta-line .ta-input, .ta-line .ta-select { min-height: 40px; padding: .4rem .55rem; font-size: .9rem; min-width: 0; }
+.ta-line-price { font-size: .85rem; font-weight: 600; text-align: right; white-space: nowrap; }
+.ta-total { margin-top: .6rem; border-top: 1px solid var(--line); padding-top: .6rem; display: flex; flex-direction: column; gap: .25rem; }
+.ta-total > div { display: flex; justify-content: space-between; font-size: .9rem; }
+.ta-total > div.big { font-size: 1.05rem; }
+.ta-total > div.big b { color: var(--p); }

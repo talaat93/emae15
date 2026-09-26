@@ -380,3 +380,27 @@ function notify_task_created(int $taskId): void
         }
     } catch (Throwable $e) { error_log('[EMAE notif] tâche #'.$taskId.' : '.$e->getMessage()); }
 }
+
+/** Rapport rendu par le technicien : le dispatcher (de la fiche, sinon l'entreprise) est prévenu. */
+function notify_report_submitted(int $ivId): void
+{
+    try {
+        $iv = get_intervention_by_id($ivId);
+        if (!$iv) return;
+        $to = '';
+        if (!empty($iv['dispatcher_id'])) {
+            $d = db_fetch('SELECT email FROM dispatchers WHERE id = ?', [(int)$iv['dispatcher_id']]);
+            $to = (string)($d['email'] ?? '');
+        }
+        if ($to === '') $to = company_email();
+        if ($to === '') return;
+        $s = notif_iv_summary($iv);
+        $h = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        $done = $iv['tech_job_completed'] ?? null;
+        notif_mail($to, 'Rapport rendu — '.$s['client'], 'Rapport rendu par '.($iv['tech_name'] ?? 'le technicien'), array_values(array_filter([
+            '<b>'.$h($s['client']).'</b>'.($s['city'] ? ' — '.$h($s['city']) : '').' · '.$h($s['what']),
+            $done === null ? '' : ((int)$done === 1 ? 'Intervention terminée.' : 'Intervention NON terminée'.(!empty($iv['tech_return_visit']) ? ' — retour à prévoir' : '').'.'),
+            !empty($iv['amount_ttc']) ? 'Montant calculé : '.$h(money_fr((float)$iv['amount_ttc'])).' TTC' : '',
+        ])), notif_abs_url('dispatcher/intervention_view.php?id='.$ivId), 'Voir le rapport');
+    } catch (Throwable $e) { error_log('[EMAE notif] rapport #'.$ivId.' : '.$e->getMessage()); }
+}

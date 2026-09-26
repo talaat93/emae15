@@ -46,6 +46,11 @@ try {
     );
 } catch (Throwable $e) {}
 
+// Un technicien ne voit que les rapports de ses propres interventions.
+if ($iv && empty($_SESSION['disp_id']) && (int)($iv['technician_id'] ?? 0) !== (int)$actor['id']) {
+    $iv = null;
+}
+
 if (!$iv) {
     if (!empty($_SESSION['disp_id'])) {
         flash('error', 'Intervention introuvable.');
