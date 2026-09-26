@@ -116,3 +116,29 @@ function price_grid_public(string $category = ''): array
         'price' => (float)$r['price_ht'], 'percent' => (int)$r['is_percent'] === 1, 'category' => (string)$r['category'],
     ], price_grid_rows(true, $category));
 }
+
+/**
+ * Lignes chiffrables d'un rapport technicien : prestations de la grille (code + quantité)
+ * et matériel hors grille avec un prix saisi (lignes libres, signalées pour contrôle).
+ */
+function tech_report_lines(array $iv): array
+{
+    $lines = [];
+    foreach ((array)json_decode((string)($iv['tech_lines'] ?? '[]'), true) as $l) {
+        if (is_array($l) && !empty($l['code'])) $lines[] = ['code' => (string)$l['code'], 'qty' => (float)($l['qty'] ?? 1)];
+    }
+    foreach ((array)json_decode((string)($iv['tech_materials_used'] ?? '[]'), true) as $m) {
+        $price = is_array($m) ? (float)str_replace(',', '.', (string)($m['price'] ?? '')) : 0.0;
+        if ($price > 0 && trim((string)($m['name'] ?? '')) !== '') {
+            $lines[] = ['label' => trim((string)$m['name']), 'qty' => (float)str_replace(',', '.', (string)($m['qty'] ?? 1)) ?: 1, 'unit_price_ht' => $price];
+        }
+    }
+    return $lines;
+}
+
+/** Chiffrage d'un rapport technicien, toujours recalculé à partir de la grille. */
+function tech_report_pricing(array $iv, ?array $client = null): array
+{
+    if ($client === null && !empty($iv['client_id'])) $client = get_client_by_id((int)$iv['client_id']);
+    return pricing_compute(tech_report_lines($iv), iv_vat_rate($iv, $client));
+}

@@ -595,6 +595,20 @@ if (!file_exists($_mf23)) {
     unset($_me, $__sql);
 }
 unset($_mf23);
+// Auto-migration v15.24 — rapport technicien structuré (phase 4)
+$_mf24 = __DIR__.'/../storage/.mig_v15_tech_report';
+if (!file_exists($_mf24)) {
+    foreach ([
+        "ALTER TABLE interventions ADD COLUMN tech_diagnostic TEXT NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_lines MEDIUMTEXT NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_job_completed TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_incomplete_reason TEXT NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_return_visit TINYINT(1) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf24, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf24);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

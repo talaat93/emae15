@@ -119,13 +119,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $mats = json_decode(trim((string)($_POST['tech_materials_used'] ?? '[]')), true);
         $mats = is_array($mats) ? array_values(array_filter($mats, static fn($m) => is_array($m) && trim((string)($m['name'] ?? '')) !== '')) : [];
+        // Prestations de la grille : seuls le code et la quantité sont retenus, le prix vient toujours de price_grid.
+        $gridMap = price_grid_map();
+        $lines = [];
+        foreach ((array)json_decode((string)($_POST['tech_lines'] ?? '[]'), true) as $l) {
+            $code = strtoupper(trim((string)($l['code'] ?? '')));
+            $qty  = round((float)str_replace(',', '.', (string)($l['qty'] ?? 1)), 2);
+            if (isset($gridMap[$code]) && $qty > 0) $lines[] = ['code' => $code, 'qty' => $qty];
+        }
+        // Heures d'arrivée et de fin saisies par le technicien (HH:MM, jour de l'intervention).
+        $day = !empty($iv['tech_arrived_at']) ? substr((string)$iv['tech_arrived_at'], 0, 10) : (!empty($iv['scheduled_date']) && $iv['scheduled_date'] <= date('Y-m-d') ? (string)$iv['scheduled_date'] : date('Y-m-d'));
+        $arr  = preg_match('/^\d{2}:\d{2}$/', (string)($_POST['arrival_time'] ?? '')) ? (string)$_POST['arrival_time'] : '';
+        $end  = preg_match('/^\d{2}:\d{2}$/', (string)($_POST['tech_close_time'] ?? '')) ? (string)$_POST['tech_close_time'] : '';
 
         $yn  = static fn(string $k) => ($_POST[$k] ?? '') === '' ? null : (int)$_POST[$k];
         $num = static fn(string $k) => ($v = trim(str_replace([',', ' '], ['.', ''], (string)($_POST[$k] ?? '')))) === '' ? null : (float)$v;
         $pay = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
         $upd = [
             'tech_fault_label'       => trim((string)($_POST['tech_fault_label'] ?? '')),
+            'tech_diagnostic'        => trim((string)($_POST['tech_diagnostic'] ?? '')),
             'tech_report'            => trim((string)($_POST['tech_report'] ?? '')),
+            'tech_lines'             => json_encode($lines),
+            'tech_job_completed'     => $yn('tech_job_completed'),
+            'tech_incomplete_reason' => trim((string)($_POST['tech_incomplete_reason'] ?? '')) ?: null,
+            'tech_return_visit'      => $yn('tech_return_visit'),
             'tech_notes_extra'       => trim((string)($_POST['tech_notes_extra'] ?? '')),
             'tech_device_number'     => trim((string)($_POST['tech_device_number'] ?? '')),
             'tech_ticket_time'       => trim((string)($_POST['tech_ticket_time'] ?? '')) ?: null,
@@ -137,9 +154,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_client_name'       => trim((string)($_POST['tech_client_name'] ?? '')) ?: null,
             'payment_status'         => $pay,
         ];
+        if ($arr !== '') $upd['tech_arrived_at'] = $day.' '.$arr.':00';
+        if ($end !== '') $upd['tech_close_time'] = $end.':00';
+        // Montants recalculés côté serveur à partir de la grille (jamais depuis le navigateur).
+        $calc = tech_report_pricing(array_merge($iv, $upd));
+        if ($calc['lines']) { $upd['amount_ht'] = $calc['total_ht']; $upd['amount_ttc'] = $calc['total_ttc']; }
         if ($pay === 'payé') {
             $upd['payment_method'] = trim((string)($_POST['payment_method'] ?? '')) ?: null;
-            $upd['amount_ttc']     = $num('amount_ttc') ?? ($iv['amount_ttc'] !== null ? (float)$iv['amount_ttc'] : null);
+            if (!$calc['lines']) $upd['amount_ttc'] = $num('amount_ttc') ?? ($iv['amount_ttc'] !== null ? (float)$iv['amount_ttc'] : null);
             if (empty($iv['paid_at'])) $upd['paid_at'] = date('Y-m-d H:i:s');
         } elseif ($pay === 'non_payé') {
             $upd['paid_at'] = null;
@@ -161,9 +183,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Tout ce qui est marqué d'une * doit être rempli pour clôturer.
             $after = array_merge($iv, $upd);
             $missing = [];
-            if (trim((string)$after['tech_report']) === '')      $missing[] = 'le constat et les travaux réalisés';
-            $haveTypes = array_column(iv_photos($after), 'type');
-            $lackPhotos = array_diff(intervention_photos_required($iv), $haveTypes);
+            if (empty($after['tech_arrived_at']))                $missing[] = 'l\'heure d\'arrivée';
+            if (empty($after['tech_close_time']))                $missing[] = 'l\'heure de fin';
+            elseif (!empty($after['tech_arrived_at']) && substr((string)$after['tech_close_time'], 0, 5) <= date('H:i', strtotime((string)$after['tech_arrived_at'])))
+                                                                  $missing[] = 'une heure de fin postérieure à l\'arrivée';
+            if (trim((string)$after['tech_diagnostic']) === '')  $missing[] = 'le diagnostic';
+            if (trim((string)$after['tech_report']) === '')      $missing[] = 'les travaux réalisés';
+            if (!$lines)                                          $missing[] = 'au moins une prestation de la grille';
+            if ($after['tech_job_completed'] === null)           $missing[] = 'si l\'intervention est terminée';
+            elseif ((int)$after['tech_job_completed'] === 0) {
+                if (trim((string)$after['tech_incomplete_reason']) === '') $missing[] = 'la raison (intervention non terminée)';
+                if ($after['tech_return_visit'] === null)                  $missing[] = 'si un retour est à prévoir';
+            }
+            $allPhotos = iv_photos($after);
+            if (count($allPhotos) < 2)                            $missing[] = 'au moins 2 photos';
+            $lackPhotos = array_diff(intervention_photos_required($iv), array_column($allPhotos, 'type'));
             if ($lackPhotos)                                      $missing[] = 'les photos demandées ('.implode(', ', $lackPhotos).')';
             if (empty($after['payment_status']))                  $missing[] = 'le paiement (payé ou non)';
             if (trim((string)$after['tech_client_name']) === '')  $missing[] = 'le nom du client signataire';
@@ -178,14 +212,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $now = date('Y-m-d H:i:s');
             $upd['status'] = 'rapport_rendu';
             if (empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = $now;
-            if (empty($iv['tech_arrived_at']))   $upd['tech_arrived_at']   = $now;
-            if (empty($iv['tech_close_time']))   $upd['tech_close_time']   = date('H:i');
             $done = true;
             $message = 'Intervention terminée. Le rapport est disponible.';
         }
         update_intervention($id, $upd);
         if ($done) {
             log_intervention_history($id, $iv['status'], 'rapport_rendu', 'technicien', $techId, (string)$tech['name'], 'Rapport rendu depuis l\'application technicien');
+            notify_report_submitted($id);
         }
         flash('success', $message);
         $to = $self.($done ? '' : '#rapport');
@@ -379,12 +412,26 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           'Mauvaise utilisation' => $yesNo($iv['tech_bad_use'] ?? null),
       ];
       if ($isLift) $rows['Ascenseur remis en service'] = $yesNo($iv['tech_elevator_restored'] ?? null);
+      $rows['Intervention terminée'] = $yesNo($iv['tech_job_completed'] ?? null);
+      if (($iv['tech_job_completed'] ?? null) !== null && (int)$iv['tech_job_completed'] === 0) {
+          $rows['Raison'] = (string)($iv['tech_incomplete_reason'] ?? '');
+          $rows['Retour à prévoir'] = $yesNo($iv['tech_return_visit'] ?? null);
+      }
       $rows['Arrivée'] = $hm($iv['tech_arrived_at'] ?? null);
       $rows['Fin'] = !empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : $hm($iv['tech_completed_at'] ?? null);
       foreach ($rows as $k => $v): if ((string)$v === '') continue; ?>
         <div class="ta-row"><span><?= e($k) ?></span><span><?= e($v) ?></span></div>
       <?php endforeach; ?>
+      <?php if (!empty($iv['tech_diagnostic'])): ?><div class="ta-label" style="margin-top:.7rem;">Diagnostic</div><div class="ta-text"><?= e($iv['tech_diagnostic']) ?></div><?php endif; ?>
       <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e($iv['tech_report']) ?></div><?php endif; ?>
+      <?php $calc = tech_report_pricing($iv); if ($calc['lines']): ?>
+        <div class="ta-label" style="margin-top:.7rem;">Prestations</div>
+        <?php foreach ($calc['lines'] as $l): ?>
+          <div class="ta-row"><span><?= e($l['label']) ?><?= $l['unit'] !== 'pourcent' ? ' × '.e(rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',')) : '' ?></span><span><?= e(money_fr((float)$l['total_ht'])) ?></span></div>
+        <?php endforeach; ?>
+        <div class="ta-row"><span>Total HT</span><span><?= e(money_fr($calc['total_ht'])) ?></span></div>
+        <div class="ta-row"><span><b>Total TTC</b> (TVA <?= e(str_replace('.', ',', (string)$calc['vat_rate'])) ?> %)</span><span><b><?= e(money_fr($calc['total_ttc'])) ?></b></span></div>
+      <?php endif; ?>
       <?php if (!empty($iv['tech_notes_extra'])): ?><div class="ta-label" style="margin-top:.7rem;">Remarques</div><div class="ta-text"><?= e($iv['tech_notes_extra']) ?></div><?php endif; ?>
       <?php if ($mats): ?>
         <div class="ta-label" style="margin-top:.7rem;">Matériel utilisé</div>
@@ -431,18 +478,34 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <input type="hidden" name="tech_materials_used" id="mats-json" value="<?= e(json_encode($mats, JSON_UNESCAPED_UNICODE)) ?>">
     <input type="hidden" name="client_signature" id="sig-client-data" value="">
     <input type="hidden" name="tech_signature" id="sig-tech-data" value="">
+    <input type="hidden" name="tech_lines" id="lines-json" value="<?= e((string)($iv['tech_lines'] ?? '[]') ?: '[]') ?>">
 
     <section class="ta-card" id="rapport">
       <div class="ta-card-h"><h3>Rapport d'intervention</h3></div>
       <div class="ta-card-b">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+          <div>
+            <label class="ta-label req" for="f-arr">Arrivée</label>
+            <input class="ta-input" id="f-arr" type="time" name="arrival_time" value="<?= e(!empty($iv['tech_arrived_at']) ? date('H:i', strtotime((string)$iv['tech_arrived_at'])) : '') ?>" data-req="l'heure d'arrivée">
+          </div>
+          <div>
+            <label class="ta-label req" for="f-end">Fin</label>
+            <input class="ta-input" id="f-end" type="time" name="tech_close_time" value="<?= e(!empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : '') ?>" data-req="l'heure de fin">
+          </div>
+        </div>
         <div class="ta-field">
           <label for="f-fault">Intitulé de la panne</label>
           <input class="ta-input" id="f-fault" type="text" name="tech_fault_label" value="<?= e($iv['tech_fault_label'] ?? '') ?>" placeholder="Ex. : disjoncteur différentiel défectueux">
         </div>
         <div class="ta-field">
-          <label for="f-report" class="req">Constat et travaux réalisés</label>
-          <textarea class="ta-textarea" id="f-report" name="tech_report" data-req="le constat et les travaux réalisés" placeholder="Ce que vous avez constaté, ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+          <label for="f-diag" class="req">Diagnostic</label>
+          <textarea class="ta-textarea" id="f-diag" name="tech_diagnostic" data-req="le diagnostic" placeholder="Ce que vous avez constaté, la cause de la panne…"><?= e($iv['tech_diagnostic'] ?? '') ?></textarea>
         </div>
+        <div class="ta-field">
+          <label for="f-report" class="req">Travaux réalisés</label>
+          <textarea class="ta-textarea" id="f-report" name="tech_report" data-req="les travaux réalisés" placeholder="Ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+        </div>
+        <?php if ($isLift): ?>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
           <div>
             <label class="ta-label" for="f-dev">N° d'appareil</label>
@@ -453,6 +516,21 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
             <input class="ta-input" id="f-ticket" type="time" name="tech_ticket_time" value="<?= e(!empty($iv['tech_ticket_time']) ? substr((string)$iv['tech_ticket_time'], 0, 5) : '') ?>">
           </div>
         </div>
+        <?php endif; ?>
+      </div>
+    </section>
+
+    <section class="ta-card" id="prestations">
+      <div class="ta-card-h"><h3 class="req">Prestations</h3><button type="button" onclick="addLine()">+ Ajouter</button></div>
+      <div class="ta-card-b">
+        <div id="lines"></div>
+        <div id="lines-empty" class="ta-muted" style="font-size:.9rem;">Ajoutez les prestations réalisées (tarifs de la grille, non modifiables).</div>
+        <div class="ta-total" id="total-box">
+          <div><span>Total HT</span><b id="t-ht">0,00 €</b></div>
+          <div><span>TVA <span id="t-rate"></span></span><b id="t-tva">0,00 €</b></div>
+          <div class="big"><span>Total TTC</span><b id="t-ttc">0,00 €</b></div>
+          <div class="ta-muted" id="t-free" style="font-size:.78rem;" hidden>Inclut du matériel hors grille : le bureau vérifiera ces prix.</div>
+        </div>
       </div>
     </section>
 
@@ -462,6 +540,30 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <?php
         $checks = ['tech_realizable' => 'Intervention réalisable', 'tech_bad_use' => 'Panne due à une mauvaise utilisation'];
         if ($isLift) $checks['tech_elevator_restored'] = 'Ascenseur remis en service';
+        $jc = $iv['tech_job_completed'] ?? null; $jc = ($jc === null || $jc === '') ? '' : (string)(int)$jc;
+        $rv = $iv['tech_return_visit'] ?? null; $rv = ($rv === null || $rv === '') ? '' : (string)(int)$rv;
+        ?>
+          <div class="ta-yn">
+            <span class="req">Intervention terminée</span>
+            <div class="ta-seg" id="done-seg">
+              <input type="hidden" name="tech_job_completed" value="<?= e($jc) ?>" data-req="si l'intervention est terminée">
+              <button type="button" data-v="1" class="<?= $jc === '1' ? 'on-yes' : '' ?>">Oui</button>
+              <button type="button" data-v="0" class="<?= $jc === '0' ? 'on-no' : '' ?>">Non</button>
+            </div>
+          </div>
+          <div id="incomplete" <?= $jc === '0' ? '' : 'hidden' ?> style="padding:.3rem 0 .6rem;">
+            <label class="ta-label req" for="f-inc">Pourquoi n'est-elle pas terminée ?</label>
+            <textarea class="ta-textarea" id="f-inc" name="tech_incomplete_reason" style="min-height:70px;" placeholder="Pièce à commander, accord du client, accès impossible…"><?= e($iv['tech_incomplete_reason'] ?? '') ?></textarea>
+            <div class="ta-yn">
+              <span class="req">Retour à prévoir</span>
+              <div class="ta-seg" id="return-seg">
+                <input type="hidden" name="tech_return_visit" value="<?= e($rv) ?>">
+                <button type="button" data-v="1" class="<?= $rv === '1' ? 'on-yes' : '' ?>">Oui</button>
+                <button type="button" data-v="0" class="<?= $rv === '0' ? 'on-no' : '' ?>">Non</button>
+              </div>
+            </div>
+          </div>
+        <?php
         foreach ($checks as $name => $label):
           $v = $iv[$name] ?? null; $v = ($v === null || $v === '') ? '' : (string)(int)$v; ?>
           <div class="ta-yn">
@@ -486,7 +588,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
 
     <?php $reqPhotos = intervention_photos_required($iv); $photoTypes = get_presets('photo_type'); ?>
     <section class="ta-card" id="photos">
-      <div class="ta-card-h"><h3 class="<?= $reqPhotos ? 'req' : '' ?>">Photos</h3><span class="ta-muted" style="font-size:.85rem;" id="photo-count"><?= count($photos) ?></span></div>
+      <div class="ta-card-h"><h3 class="req">Photos (2 minimum)</h3><span class="ta-muted" style="font-size:.85rem;" id="photo-count"><?= count($photos) ?></span></div>
       <div class="ta-card-b">
         <?php if ($reqPhotos): ?>
           <div class="ta-label">Demandées par le dispatcher</div>
@@ -658,6 +760,7 @@ document.querySelectorAll('.ta-seg').forEach(function (seg) {
       seg.querySelectorAll('button').forEach(function (x) { x.className = ''; });
       if (v !== '') b.className = (v === '1' || v === 'payé') ? 'on-yes' : 'on-no';
       if (seg.id === 'pay-seg') document.getElementById('pay-details').hidden = v !== 'payé';
+      if (seg.id === 'done-seg') document.getElementById('incomplete').hidden = v !== '0';
     });
   });
 });
@@ -733,6 +836,7 @@ function el(tag, attrs) { var n = document.createElement(tag); for (var k in att
 function syncMats() {
   document.getElementById('mats-json').value = JSON.stringify(mats.filter(function (m) { return m.name; }));
   document.getElementById('mats-empty').style.display = mats.length ? 'none' : '';
+  computeTotal();
 }
 function renderMats() {
   var box = document.getElementById('mats'); if (!box) return;
@@ -767,13 +871,77 @@ function renderMats() {
     qty.oninput = function () { m.qty = qty.value; syncMats(); };
     unit.onchange = function () { m.unit = unit.value; syncMats(); };
     del.onclick = function () { mats.splice(i, 1); renderMats(); };
-    row.append(sel, qty, unit, del, other);
+    // Matériel hors catalogue : prix HT unitaire facturé (contrôlé par le bureau).
+    var price = el('input', { className: 'ta-input other', type: 'text', inputMode: 'decimal', placeholder: 'Prix HT unitaire facturé (€) — vide si inclus', value: m.price || '' });
+    price.hidden = known;
+    price.oninput = function () { m.price = price.value; syncMats(); };
+    var prevSel = sel.onchange;
+    sel.onchange = function () { prevSel(); price.hidden = sel.value !== '__autre__'; if (price.hidden) { m.price = ''; price.value = ''; syncMats(); } };
+    row.append(sel, qty, unit, del, other, price);
     box.appendChild(row);
   });
   syncMats();
 }
 function addMat() { mats.push({ name: '', qty: '1', unit: 'pièce' }); renderMats(); }
 renderMats();
+
+// Prestations de la grille : le technicien choisit un code et une quantité, le prix n'est pas modifiable.
+// Ce total est indicatif : le serveur recalcule toujours à partir de la grille.
+var grid = <?= json_encode(price_grid_public((string)($iv['category'] ?? '')), JSON_UNESCAPED_UNICODE) ?>;
+var vatRate = <?= json_encode(iv_vat_rate($iv, !empty($iv['c_id']) ? get_client_by_id((int)$iv['c_id']) : null)) ?>;
+var gridBy = {}; grid.forEach(function (g) { gridBy[g.code] = g; });
+var lines = [];
+try { lines = JSON.parse(document.getElementById('lines-json').value) || []; } catch (e) { lines = []; }
+function eur(n) { return n.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '\u00a0') + '\u00a0€'; }
+function num(v) { v = parseFloat(String(v || '').replace(',', '.')); return isNaN(v) ? 0 : v; }
+function computeTotal() {
+  if (!lines || !gridBy) return;   // appelé avant l'initialisation (déclaration remontée)
+  var base = 0, pct = 0, free = false;
+  lines.forEach(function (l) { var g = gridBy[l.code]; if (!g) return; if (g.percent) pct += g.price; else base += Math.round(g.price * num(l.qty) * 100) / 100; });
+  mats.forEach(function (m) { var p = num(m.price); if (p > 0 && m.name) { base += Math.round(p * (num(m.qty) || 1) * 100) / 100; free = true; } });
+  var ht = base + Math.round(base * pct) / 100, tva = Math.round(ht * vatRate) / 100;
+  document.getElementById('t-ht').textContent = eur(ht);
+  document.getElementById('t-tva').textContent = eur(tva);
+  document.getElementById('t-ttc').textContent = eur(ht + tva);
+  document.getElementById('t-rate').textContent = String(vatRate).replace('.', ',') + ' %';
+  document.getElementById('t-free').hidden = !free;
+  var amt = document.querySelector('[name=amount_ttc]');
+  if (amt && lines.length) { amt.value = (ht + tva).toFixed(2).replace('.', ','); amt.readOnly = true; }
+}
+function syncLines() {
+  document.getElementById('lines-json').value = JSON.stringify(lines.filter(function (l) { return l.code; }));
+  document.getElementById('lines-empty').style.display = lines.length ? 'none' : '';
+  computeTotal();
+}
+function renderLines() {
+  var box = document.getElementById('lines'); if (!box) return;
+  box.innerHTML = '';
+  lines.forEach(function (l, i) {
+    var row = el('div', { className: 'ta-line' });
+    var sel = el('select', { className: 'ta-select' });
+    sel.appendChild(el('option', { value: '', textContent: 'Choisir une prestation…' }));
+    var groups = {};
+    grid.forEach(function (g) { (groups[g.category] = groups[g.category] || []).push(g); });
+    Object.keys(groups).sort(function (a, b) { return (a === 'commun') - (b === 'commun'); }).forEach(function (c) {
+      var og = el('optgroup', { label: c === 'commun' ? 'Commun' : (matGroups[c] || c) });
+      groups[c].forEach(function (g) { og.appendChild(el('option', { value: g.code, textContent: g.label + (g.percent ? ' (+' + g.price + ' %)' : ' — ' + eur(g.price) + ' HT'), selected: g.code === l.code })); });
+      sel.appendChild(og);
+    });
+    var g = gridBy[l.code];
+    var qty = el('input', { className: 'ta-input', type: 'number', min: '0', step: '0.5', inputMode: 'decimal', value: l.qty || 1, placeholder: 'Qté' });
+    qty.hidden = !!(g && g.percent);
+    var price = el('div', { className: 'ta-line-price', textContent: g ? (g.percent ? '+' + g.price + ' %' : eur(g.price * num(l.qty))) : '' });
+    var del = el('button', { type: 'button', className: 'ta-mat-del', textContent: '×', title: 'Retirer' });
+    sel.onchange = function () { l.code = sel.value; renderLines(); };
+    qty.oninput = function () { l.qty = qty.value; var gg = gridBy[l.code]; price.textContent = gg && !gg.percent ? eur(gg.price * num(qty.value)) : price.textContent; syncLines(); };
+    del.onclick = function () { lines.splice(i, 1); renderLines(); };
+    row.append(sel, qty, price, del);
+    box.appendChild(row);
+  });
+  syncLines();
+}
+function addLine() { lines.push({ code: '', qty: 1 }); renderLines(); }
+renderLines();
 
 // Signatures au doigt (client et technicien)
 var pads = {};
@@ -822,6 +990,13 @@ function missingFields() {
       if (!(n.dataset.saved || (pad && pad.dirty))) miss.push(n.dataset.req);
     } else if (!n.value.trim()) miss.push(n.dataset.req);
   });
+  if (!lines.filter(function (l) { return l.code; }).length) miss.push('au moins une prestation');
+  if (document.querySelector('[name=tech_job_completed]').value === '0') {
+    if (!document.getElementById('f-inc').value.trim()) miss.push('la raison (intervention non terminée)');
+    if (document.querySelector('[name=tech_return_visit]').value === '') miss.push('si un retour est à prévoir');
+  }
+  var nPhotos = document.querySelectorAll('#photo-grid .ta-photo').length;
+  if (nPhotos < 2) miss.push('au moins 2 photos (' + nPhotos + ' pour l\'instant)');
   var lack = [];
   document.querySelectorAll('.ta-req-photo:not(.ok)').forEach(function (r) { lack.push(r.dataset.type); });
   if (lack.length) miss.push('les photos demandées (' + lack.join(', ') + ')');

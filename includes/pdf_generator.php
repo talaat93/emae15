@@ -315,7 +315,13 @@ class InterventionPdfGenerator
   <div class="section-body">
     {$this->fieldRow('Intitulé panne', $iv['tech_fault_label'] ?? '')}
     <div class="field-row">
-      <div class="field-lbl">Descriptif (rapport technicien)</div>
+      <div class="field-lbl">Diagnostic</div>
+      <div class="field-val" style="margin-top:3px;">
+        <div class="text-block">{$this->e($iv['tech_diagnostic'] ?? '—')}</div>
+      </div>
+    </div>
+    <div class="field-row" style="margin-top:6px;">
+      <div class="field-lbl">Travaux réalisés</div>
       <div class="field-val" style="margin-top:3px;">
         <div class="text-block">{$this->e($iv['tech_report'] ?? '—')}</div>
       </div>
