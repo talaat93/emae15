@@ -117,7 +117,8 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
   </div>
   <div class="d-topbar-actions">
     <a href="<?= e(url_for('dispatcher/calendar.php')) ?>" class="d-btn d-btn--sm hide-sm">Planning</a>
-    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--primary d-btn--sm">+ Nouvelle intervention</a>
+    <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn--sm hide-sm">+ Saisie manuelle</a>
+    <a href="<?= e(url_for('dispatcher/qualify.php')) ?>" class="d-btn d-btn--primary d-btn--sm">Qualifier un appel</a>
   </div>
 </div>
 
@@ -222,6 +223,25 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
         </div>
       </div>
     </div>
+
+    <?php $siteQuotes = qual_pending_quotes(6); if ($siteQuotes): ?>
+    <!-- Demandes du site à qualifier -->
+    <div class="d-card" id="demandes-site">
+      <div class="d-card-head">
+        <div class="d-card-title">Demandes du site à rappeler</div>
+        <a href="<?= e(url_for('dispatcher/qualify.php')) ?>" class="d-btn d-btn--ghost d-btn--sm">Tout voir</a>
+      </div>
+      <table class="d-table"><tbody>
+      <?php foreach ($siteQuotes as $q): ?>
+        <tr>
+          <td><b><?= e($q['full_name']) ?></b> · <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', (string)$q['phone'])) ?>"><?= e($q['phone']) ?></a>
+            <div style="font-size:.8rem;color:var(--d-t2);"><?= e(trim((string)$q['service_type']) ?: 'Service non précisé') ?><?= $q['city'] ? ' · '.e((string)$q['city']) : '' ?> · reçue le <?= e(date('d/m à H:i', strtotime((string)$q['created_at']))) ?></div></td>
+          <td style="text-align:right;"><a class="d-btn d-btn--sm d-btn--primary" href="<?= e(url_for('dispatcher/qualify.php?quote='.(int)$q['id'])) ?>">Qualifier</a></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody></table>
+    </div>
+    <?php endif; ?>
 
     <!-- À planifier -->
     <div class="d-card" id="a-planifier">

@@ -89,7 +89,8 @@ function disp_photo_request_value(): ?string
     <div class="d-sidebar-version">Planification</div>
   </div>
   <div class="d-sidebar-cta">
-    <a class="d-btn d-btn--primary" href="<?= e(url_for('dispatcher/intervention_new.php')) ?>">+ Nouvelle intervention</a>
+    <a class="d-btn d-btn--primary" href="<?= e(url_for('dispatcher/qualify.php')) ?>">Qualifier un appel</a>
+    <a class="d-btn d-btn--secondary d-btn--sm" style="margin-top:.4rem;" href="<?= e(url_for('dispatcher/intervention_new.php')) ?>">+ Saisie manuelle</a>
   </div>
   <nav class="d-nav">
     <a class="d-nav-item <?= disp_is_active(['index.php'],'dashboard') ?>" href="<?= e(url_for('dispatcher/index.php')) ?>">

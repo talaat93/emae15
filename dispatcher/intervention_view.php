@@ -389,6 +389,22 @@ function fmt_dur(int $mins): string {
         </div>
         <?php endif; ?>
 
+        <?php $qualS = qual_for_intervention((int)$iv['id']); if ($qualS): $qd = $qualS['state']['danger'] ?? null; ?>
+        <!-- QUALIFICATION DE L'APPEL -->
+        <details class="d-card" style="margin-top:1.25rem;">
+          <summary class="d-card-head" style="cursor:pointer;">
+            <span class="d-card-title">Qualification de l'appel</span>
+            <span style="font-size:.8rem;color:var(--d-t2);"><?= $qualS['mode'] === 'claude' ? 'assistée par Claude' : 'questionnaire standard' ?> · <?= e(date('d/m/Y H:i', strtotime((string)$qualS['created_at']))) ?></span>
+          </summary>
+          <div class="d-card-body" style="display:flex;flex-direction:column;gap:.45rem;">
+            <?php if (!empty($qd['detected'])): ?><div style="background:#fee2e2;color:#991b1b;border-radius:8px;padding:.5rem .75rem;font-weight:600;">Danger signalé : <?= e((string)$qd['kind']) ?></div><?php endif; ?>
+            <?php foreach ($qualS['state']['transcript'] ?? [] as $t): ?>
+              <div style="font-size:.86rem;<?= $t['role'] === 'assistant' ? 'color:var(--d-t2);' : 'font-weight:600;padding-left:1rem;' ?>"><?= $t['role'] === 'assistant' ? 'Q : ' : 'R : ' ?><?= e((string)$t['text']) ?></div>
+            <?php endforeach; ?>
+          </div>
+        </details>
+        <?php endif; ?>
+
         <!-- HISTORIQUE -->
         <div class="d-card" style="margin-top:1.25rem;">
           <div class="d-card-head">

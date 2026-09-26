@@ -21,6 +21,7 @@ require_once __DIR__ . '/integrations.php';
 require_once __DIR__ . '/claude.php';
 require_once __DIR__ . '/pennylane.php';
 require_once __DIR__ . '/pricing.php';
+require_once __DIR__ . '/qualification.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -562,6 +563,18 @@ if (!file_exists($_mf21)) {
     unset($_me, $__sql, $__order, $__row, $__cat, $__code, $__label, $__unit, $__price);
 }
 unset($_mf21);
+// Auto-migration v15.22 — qualification des appels (phase 2)
+$_mf22 = __DIR__.'/../storage/.mig_v15_qualification';
+if (!file_exists($_mf22)) {
+    try { qual_table(); } catch (Throwable $_me) {}
+    foreach ([
+        "ALTER TABLE interventions ADD COLUMN quote_id INT NULL",
+        "ALTER TABLE interventions ADD COLUMN qualification_id INT NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf22, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf22);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
