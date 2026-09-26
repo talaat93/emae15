@@ -1859,7 +1859,7 @@ function update_intervention(int $id, array $data): void
                 'tech_fault_label','tech_realizable','tech_bad_use','tech_device_number','tech_elevator_restored',
                 'tech_ticket_time','tech_close_time','tech_notes_extra',
                 'client_signature','photos_required','payment_status','paid_at',
-                'housing_over_2y','vat_rate',
+                'housing_over_2y','vat_rate','tech_response','tech_response_at','tech_refusal_reason',
                 'latitude','longitude'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {
@@ -2005,6 +2005,17 @@ function geocode_address(string $address, string $city = '', string $postal = ''
     // Base Adresse Nationale (service public, France) : rapide et précis.
     try {
         $url  = 'https://api-adresse.data.gouv.fr/search/?limit=1&q=' . rawurlencode($q) . ($postal !== '' ? '&postcode=' . rawurlencode($postal) : '');
+        $json = @file_get_contents($url, false, $ctx);
+        $data = $json !== false ? json_decode($json, true) : null;
+        if (is_array($data)) $reached = true;
+        $c = $data['features'][0]['geometry']['coordinates'] ?? null;
+        if (is_array($c) && count($c) === 2 && ($data['features'][0]['properties']['score'] ?? 0) > 0.3) {
+            return ['lat' => (float)$c[1], 'lng' => (float)$c[0], 'reached' => true];
+        }
+    } catch (Throwable $e) {}
+    // Même base d'adresses via la Géoplateforme de l'IGN (nouvelle adresse du service).
+    try {
+        $url  = 'https://data.geopf.fr/geocodage/search?limit=1&q=' . rawurlencode($q) . ($postal !== '' ? '&postcode=' . rawurlencode($postal) : '');
         $json = @file_get_contents($url, false, $ctx);
         $data = $json !== false ? json_decode($json, true) : null;
         if (is_array($data)) $reached = true;

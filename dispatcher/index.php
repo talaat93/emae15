@@ -143,6 +143,20 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
     </div>
   </div>
 
+  <?php
+  try {
+      $refusedIvs = db_fetch_all("SELECT i.id, i.tech_refusal_reason, c.lastname, c.firstname FROM interventions i LEFT JOIN clients c ON c.id = i.client_id
+          WHERE i.tech_response = 'refusee' AND i.technician_id IS NULL AND i.status = 'a_assigner' ORDER BY i.tech_response_at DESC LIMIT 5");
+  } catch (Throwable $e) { $refusedIvs = []; }
+  ?>
+  <?php if ($refusedIvs): ?>
+  <div class="dash-alert">
+    <?php foreach ($refusedIvs as $r): ?>
+      <a class="is-red" href="<?= e(url_for('dispatcher/intervention_view.php?id='.(int)$r['id'].'#assigner')) ?>">Refusée par le technicien — <?= e(trim($r['firstname'].' '.$r['lastname'])) ?> : <?= e((string)$r['tech_refusal_reason']) ?> · réassigner</a>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+
   <?php if ($kpis['urgent'] > 0 || $kpis['late'] > 0): ?>
   <div class="dash-alert">
     <?php if ($kpis['urgent'] > 0): ?>

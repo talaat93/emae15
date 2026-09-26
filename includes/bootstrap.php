@@ -22,6 +22,7 @@ require_once __DIR__ . '/claude.php';
 require_once __DIR__ . '/pennylane.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
+require_once __DIR__ . '/assignment.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -575,6 +576,25 @@ if (!file_exists($_mf22)) {
     unset($_me, $__sql);
 }
 unset($_mf22);
+// Auto-migration v15.23 — assignation (phase 3) : profil technicien et réponse à l'attribution
+$_mf23 = __DIR__.'/../storage/.mig_v15_assignment';
+if (!file_exists($_mf23)) {
+    foreach ([
+        "ALTER TABLE technicians ADD COLUMN skills VARCHAR(255) NULL",
+        "ALTER TABLE technicians ADD COLUMN base_address VARCHAR(255) NULL",
+        "ALTER TABLE technicians ADD COLUMN base_lat DECIMAL(10,7) NULL",
+        "ALTER TABLE technicians ADD COLUMN base_lng DECIMAL(10,7) NULL",
+        "ALTER TABLE technicians ADD COLUMN max_per_day INT NULL",
+        "ALTER TABLE technicians ADD COLUMN work_start TIME NULL",
+        "ALTER TABLE technicians ADD COLUMN work_end TIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_response VARCHAR(20) NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_response_at DATETIME NULL",
+        "ALTER TABLE interventions ADD COLUMN tech_refusal_reason VARCHAR(255) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf23, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf23);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

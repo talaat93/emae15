@@ -61,6 +61,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    if ($action === 'assign') {
+        // Assignation en un clic depuis les suggestions (le dispatcher choisit).
+        $techId = (int)($_POST['technician_id'] ?? 0);
+        $tech = $techId > 0 ? get_tech_by_id($techId) : null;
+        $date = (string)($_POST['scheduled_date'] ?? '');
+        $time = (string)($_POST['scheduled_time'] ?? '');
+        if (!$tech || ($tech['status'] ?? '') !== 'actif') {
+            flash('error', 'Technicien introuvable ou inactif.');
+        } else {
+            $upd = ['technician_id' => $techId];
+            if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) $upd['scheduled_date'] = $date;
+            if (preg_match('/^\d{2}:\d{2}$/', $time)) $upd['scheduled_time'] = $time.':00';
+            $oldStatus = (string)$iv['status'];
+            if (in_array($oldStatus, ['nouveau', 'a_assigner', 'confirmé'], true)) $upd['status'] = 'assigné';
+            update_intervention($id, $upd);
+            log_intervention_history($id, $oldStatus, (string)($upd['status'] ?? $oldStatus), 'dispatcher', (int)$disp['id'], (string)$disp['name'],
+                'Assignée à '.$tech['name'].(isset($upd['scheduled_time']) ? ' ('.date('d/m', strtotime($upd['scheduled_date'] ?? (string)$iv['scheduled_date'])).' à '.$time.')' : ''));
+            notify_intervention_assigned($id);
+            flash('success', 'Intervention assignée à '.$tech['name'].' : il doit l\'accepter.');
+        }
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+
     if ($action === 'set_payment') {
         $ps = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
         update_intervention($id, ['payment_status' => $ps, 'paid_at' => $ps === 'payé' ? ($iv['paid_at'] ?: date('Y-m-d H:i:s')) : null]);
@@ -662,6 +685,39 @@ function fmt_dur(int $mins): string {
         </div>
       </div>
 
+      <?php $needsTech = empty($iv['technician_id']) && !$isTerminal && in_array($currentStatus, ['nouveau', 'a_assigner', 'confirmé'], true); ?>
+      <?php if ($needsTech): $sugg = assign_suggestions($iv, 3); ?>
+      <!-- SUGGESTIONS D'ASSIGNATION -->
+      <div class="d-card" id="assigner">
+        <div class="d-card-head"><div class="d-card-title">Technicien suggéré</div></div>
+        <div class="d-card-body" style="display:flex;flex-direction:column;gap:.7rem;">
+          <?php if (($iv['tech_response'] ?? '') === 'refusee' && !empty($iv['tech_refusal_reason'])): ?>
+            <div style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:.5rem .7rem;font-size:.82rem;">Refusée précédemment : <?= e((string)$iv['tech_refusal_reason']) ?></div>
+          <?php endif; ?>
+          <?php if (!$sugg): ?><div style="color:var(--d-t3);font-size:.85rem;">Aucun technicien actif.</div><?php endif; ?>
+          <?php foreach ($sugg as $i => $sg): ?>
+          <form method="post" class="assign-sugg <?= $i === 0 ? 'is-best' : '' ?>">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="assign">
+            <input type="hidden" name="technician_id" value="<?= (int)$sg['tech']['id'] ?>">
+            <input type="hidden" name="scheduled_date" value="<?= e($sg['date']) ?>">
+            <input type="hidden" name="scheduled_time" value="<?= e((string)$sg['slot']) ?>">
+            <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:baseline;">
+              <b><?= e($sg['tech']['name']) ?></b>
+              <span style="font-size:.72rem;color:var(--d-t3);"><?= $i === 0 ? 'Meilleur choix' : 'Option '.($i + 1) ?></span>
+            </div>
+            <div style="font-size:.78rem;color:var(--d-t2);margin:.2rem 0 .45rem;"><?= e($sg['reason']) ?></div>
+            <button type="submit" class="d-btn d-btn--sm <?= $i === 0 ? 'd-btn--primary' : '' ?>" style="width:100%;justify-content:center;">
+              Assigner<?= $sg['slot'] ? ' — '.e(date('d/m', strtotime($sg['date']))).' à '.e($sg['slot']) : '' ?>
+            </button>
+          </form>
+          <?php endforeach; ?>
+          <div style="font-size:.74rem;color:var(--d-t3);">Classement : métier, distance, charge du jour et créneau libre. Le technicien devra accepter.</div>
+        </div>
+      </div>
+      <style>.assign-sugg { border: 1px solid var(--d-border); border-radius: 10px; padding: .6rem .7rem; } .assign-sugg.is-best { border-color: var(--d-orange); background: var(--d-orange-lt, #fff7ed); }</style>
+      <?php endif; ?>
+
       <!-- PLANNING CARD -->
       <div class="d-card">
         <div class="d-card-head"><div class="d-card-title">Planification</div></div>
@@ -691,6 +747,11 @@ function fmt_dur(int $mins): string {
             <span class="d-info-value">
               <?php if ($assignedTech): ?>
                 <div><?= e($assignedTech['name']) ?></div>
+                <?php $tr = (string)($iv['tech_response'] ?? ''); if ($tr === 'en_attente'): ?>
+                  <div style="font-size:.74rem;color:#b45309;font-weight:600;">En attente d'acceptation</div>
+                <?php elseif ($tr === 'acceptee'): ?>
+                  <div style="font-size:.74rem;color:var(--d-success);font-weight:600;">Acceptée<?= !empty($iv['tech_response_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['tech_response_at']))) : '' ?></div>
+                <?php endif; ?>
                 <?php if (!empty($assignedTech['phone'])): ?>
                   <a href="tel:<?= e(preg_replace('/\s+/','',$assignedTech['phone'])) ?>"
                      style="font-size:.77rem;color:var(--d-t2);text-decoration:none;"><?= e($assignedTech['phone']) ?></a>

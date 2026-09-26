@@ -52,6 +52,9 @@ if ($view === 'today') {
 /** Prochaine étape proposée sur la carte. */
 function ta_next_step(array $iv): ?array
 {
+    if (($iv['tech_response'] ?? '') === 'en_attente' && in_array($iv['status'] ?? '', ['assigné', 'a_assigner', 'nouveau', 'confirmé'], true)) {
+        return ['respond', 'Accepter ou refuser', 'check'];
+    }
     return match ($iv['status'] ?? '') {
         'nouveau', 'a_assigner', 'confirmé', 'assigné' => ['en_route', 'Je pars', 'car'],
         'a_revoir'  => ['report', 'Compléter', 'doc'],
@@ -106,7 +109,9 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
           <?php if ($addr !== ''): ?>
             <a class="ta-btn sq waze" href="<?= e(ta_waze_url($addr)) ?>" target="_blank" rel="noopener" aria-label="Ouvrir dans Waze"><?= ta_icon('waze') ?></a>
           <?php endif; ?>
-          <?php if ($step[0] === 'report'): ?>
+          <?php if ($step[0] === 'respond'): ?>
+            <a class="ta-btn ok grow" href="<?= e($url.'#reponse') ?>"><?= ta_icon($step[2]) ?><?= e($step[1]) ?></a>
+          <?php elseif ($step[0] === 'report'): ?>
             <a class="ta-btn primary grow" href="<?= e($url.'#rapport') ?>"><?= ta_icon($step[2]) ?><?= e($step[1]) ?></a>
           <?php else: ?>
             <form method="post" action="<?= e($url) ?>" style="flex:1;display:flex;">

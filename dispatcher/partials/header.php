@@ -112,6 +112,9 @@ function disp_photo_request_value(): ?string
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="m8 12 3 3 5-6"/></svg></span> Tâches<?php if ($tasksBadge > 0): ?><span class="d-nav-badge"><?= $tasksBadge ?></span><?php endif; ?>
     </a>
     <div class="d-nav-group">Réglages</div>
+    <a class="d-nav-item <?= disp_is_active(['techniciens.php'],'techniciens') ?>" href="<?= e(url_for('dispatcher/techniciens.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span> Techniciens
+    </a>
     <a class="d-nav-item <?= disp_is_active(['tarifs.php'],'tarifs') ?>" href="<?= e(url_for('dispatcher/tarifs.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span> Tarifs
     </a>

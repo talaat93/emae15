@@ -284,18 +284,30 @@ function notify_intervention_assigned(int $ivId): void
         if (!$iv || empty($iv['technician_id'])) return;
         $tech = get_tech_by_id((int)$iv['technician_id']);
         if (!$tech) return;
+        // Chaque nouvelle attribution attend la réponse du technicien (accepter / refuser).
+        try { db_execute("UPDATE interventions SET tech_response = 'en_attente', tech_response_at = NULL, tech_refusal_reason = NULL WHERE id = ?", [$ivId]); } catch (Throwable $e) {}
         $s = notif_iv_summary($iv);
         $url = notif_abs_url('tech/disp_intervention.php?id='.$ivId);
-        $title = (!empty($iv['urgency']) ? 'URGENT — ' : '').'Nouvelle intervention';
+        $title = (!empty($iv['urgency']) ? 'URGENT — ' : '').'Nouvelle intervention à accepter';
         $body = $s['client'].($s['city'] ? ' ('.$s['city'].')' : '').' · '.$s['what'].' · '.$s['when'];
 
         if (notif_enabled('notif_tech_push')) push_send_to('tech', (int)$tech['id'], $title, $body, $url, 'iv-'.$ivId);
         if (notif_enabled('notif_tech_email') && !empty($tech['email'])) {
-            notif_mail((string)$tech['email'], $title.' — '.$s['client'], $title, [
-                '<b>'.htmlspecialchars($s['client'], ENT_QUOTES, 'UTF-8').'</b>'.($s['city'] ? ' — '.htmlspecialchars($s['city'], ENT_QUOTES, 'UTF-8') : ''),
-                htmlspecialchars($s['what'], ENT_QUOTES, 'UTF-8'),
-                'Prévue le '.htmlspecialchars($s['when'], ENT_QUOTES, 'UTF-8'),
-            ], $url, 'Voir l\'intervention');
+            $h = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+            $addr = trim(($iv['address'] ?? '').', '.($iv['postal_code'] ?? '').' '.($iv['client_city'] ?? ''), ' ,');
+            $access = implode(' · ', array_filter([
+                !empty($iv['floor']) ? 'Étage : '.$iv['floor'] : '', !empty($iv['digicode']) ? 'Digicode : '.$iv['digicode'] : '',
+                (string)($iv['access_info'] ?? ''),
+            ]));
+            notif_mail((string)$tech['email'], $title.' — '.$s['client'], $title, array_values(array_filter([
+                '<b>'.$h($s['client']).'</b>'.(!empty($iv['client_phone']) ? ' — '.$h($iv['client_phone']) : ''),
+                $addr !== '' ? $h($addr) : '',
+                $access !== '' ? $h($access) : '',
+                $h($s['what']).(!empty($iv['priority']) && $iv['priority'] !== 'normale' ? ' — priorité '.$h($iv['priority']) : ''),
+                'Prévue le '.$h($s['when']).(!empty($iv['duration_estimate']) ? ' (durée estimée '.(int)$iv['duration_estimate'].' min)' : ''),
+                !empty($iv['description']) ? nl2br($h(mb_substr((string)$iv['description'], 0, 800))) : '',
+                'Ouvrez la fiche pour <b>accepter</b> ou <b>refuser</b> l\'intervention.',
+            ])), $url, 'Accepter ou refuser');
         }
         if (notif_enabled('notif_tech_sms') && !empty($tech['phone'])) {
             notif_sms((string)$tech['phone'], company_name().' : '.$title.' — '.$body);

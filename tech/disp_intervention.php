@@ -44,7 +44,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = trim((string)($_POST['action'] ?? ''));
 
+    // Réponse à l'attribution : accepter, ou refuser avec un motif (la fiche repart au dispatcher).
+    if ($action === 'accept' && ($iv['tech_response'] ?? '') === 'en_attente') {
+        assign_accept($iv, $tech);
+        flash('success', 'Intervention acceptée. Le dispatcher est informé.');
+        header('Location: '.$self); exit;
+    }
+    if ($action === 'refuse' && ($iv['tech_response'] ?? '') === 'en_attente') {
+        $reason = trim((string)($_POST['reason'] ?? ''));
+        $detail = trim((string)($_POST['reason_detail'] ?? ''));
+        if (!in_array($reason, assign_refusal_reasons(), true)) $reason = 'Autre';
+        if ($reason === 'Autre' && $detail === '') {
+            flash('error', 'Précisez le motif du refus.');
+            header('Location: '.$self); exit;
+        }
+        assign_refuse($iv, $tech, $reason.($detail !== '' ? ' — '.$detail : ''));
+        flash('success', 'Refus transmis au dispatcher.');
+        redirect_to('tech/dashboard.php');
+    }
+
     if ($action === 'status') {
+        if (($iv['tech_response'] ?? '') === 'en_attente') {
+            flash('error', 'Acceptez d\'abord l\'intervention.');
+            header('Location: '.$self); exit;
+        }
         $ns = trim((string)($_POST['status'] ?? ''));
         if (in_array($ns, ['en_route', 'sur_place'], true) && $ns !== ($iv['status'] ?? '')) {
             $upd = ['status' => $ns];
@@ -264,6 +287,32 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
   <?php if ($isCancel): ?><div class="ta-flash err">Cette intervention a été annulée par le dispatcher.</div><?php endif; ?>
+  <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked; ?>
+  <?php if ($pending): ?>
+  <section class="ta-card" id="reponse" style="border-color:#f59e0b;">
+    <div class="ta-card-h" style="background:#fffbeb;"><h3>Nouvelle intervention : l'acceptez-vous ?</h3></div>
+    <div class="ta-card-b">
+      <div class="ta-text" style="margin-bottom:.8rem;">
+        <?= !empty($iv['scheduled_date']) ? 'Prévue le '.e(date('d/m/Y', strtotime((string)$iv['scheduled_date']))).(!empty($iv['scheduled_time']) ? ' à '.e(substr((string)$iv['scheduled_time'], 0, 5)) : '') : 'Date à confirmer' ?>
+        <?= !empty($iv['duration_estimate']) ? ' · environ '.(int)$iv['duration_estimate'].' min' : '' ?>
+        <?= !empty($iv['urgency']) ? ' · <b style="color:#dc2626;">URGENT</b>' : '' ?>
+      </div>
+      <details id="refus">
+        <summary class="ta-btn" style="list-style:none;justify-content:center;">Refuser…</summary>
+        <form method="post" style="margin-top:.7rem;display:flex;flex-direction:column;gap:.5rem;">
+          <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+          <input type="hidden" name="action" value="refuse">
+          <label class="req" for="reason" style="font-weight:600;font-size:.9rem;">Motif du refus</label>
+          <select id="reason" name="reason" required style="padding:.65rem;border:1px solid var(--line);border-radius:10px;font:inherit;">
+            <?php foreach (assign_refusal_reasons() as $r): ?><option><?= e($r) ?></option><?php endforeach; ?>
+          </select>
+          <textarea name="reason_detail" rows="2" placeholder="Précision (obligatoire pour « Autre »)" style="padding:.65rem;border:1px solid var(--line);border-radius:10px;font:inherit;"></textarea>
+          <button type="submit" class="ta-btn" style="color:#991b1b;border-color:#fecaca;background:#fef2f2;">Confirmer le refus</button>
+        </form>
+      </details>
+    </div>
+  </section>
+  <?php endif; ?>
 
   <!-- Client & accès -->
   <section class="ta-card">
@@ -552,7 +601,13 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
 
 <?php if (!$locked): ?>
 <div class="ta-bar"><div class="ta-bar-in">
-  <?php if (in_array($status, ['nouveau', 'a_assigner', 'confirmé', 'assigné'], true) || $status === 'en_route'):
+  <?php if ($pending): ?>
+    <form method="post" style="flex:1;display:flex;">
+      <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+      <input type="hidden" name="action" value="accept">
+      <button type="submit" class="ta-btn ok grow"><?= ta_icon('check') ?>Accepter l'intervention</button>
+    </form>
+  <?php elseif (in_array($status, ['nouveau', 'a_assigner', 'confirmé', 'assigné'], true) || $status === 'en_route'):
     [$next, $label, $ico] = $status === 'en_route' ? ['sur_place', 'Je suis arrivé', 'arrive'] : ['en_route', 'Je pars', 'car']; ?>
     <form method="post" style="flex:1;display:flex;">
       <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
