@@ -378,7 +378,7 @@ function pennylane_sync_intervention_status(int $invoiceId, ?array $actor = null
         wf_set_status((int)$iv['id'], 'payé', 'system', 0, 'Pennylane', 'Paiement constaté dans Pennylane ('.($inv['number'] ?: 'facture').')',
             ['payment_status' => 'payé', 'paid_at' => date('Y-m-d H:i:s')]);
     }
-    wf_set_status((int)$iv['id'], 'cloturee', 'system', 0, 'Pennylane', 'Dossier clôturé automatiquement après paiement');
+    wf_set_status((int)$iv['id'], 'cloturee', 'system', 0, $actor ? 'Système' : 'Pennylane', 'Dossier clôturé automatiquement après paiement');
 }
 
 /** Finalise la facture (numéro définitif). Retour : ['ok', 'error', 'number']. */
