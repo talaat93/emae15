@@ -10,7 +10,7 @@ $firstName = explode(' ', trim($techName))[0] ?: $techName;
 $today    = date('Y-m-d');
 $view     = in_array($_GET['v'] ?? '', ['next', 'done'], true) ? (string)$_GET['v'] : 'today';
 
-$closed = ['terminé', 'annulé', 'facturé', 'payé', 'devis_envoyé'];
+$closed = wf_closed();
 
 $mine = [];
 try {
@@ -53,7 +53,8 @@ if ($view === 'today') {
 function ta_next_step(array $iv): ?array
 {
     return match ($iv['status'] ?? '') {
-        'nouveau', 'confirmé', 'assigné' => ['en_route', 'Je pars', 'car'],
+        'nouveau', 'a_assigner', 'confirmé', 'assigné' => ['en_route', 'Je pars', 'car'],
+        'a_revoir'  => ['report', 'Compléter', 'doc'],
         'en_route'  => ['sur_place', 'Je suis arrivé', 'arrive'],
         'sur_place' => ['report', 'Rapport', 'doc'],
         default     => null,

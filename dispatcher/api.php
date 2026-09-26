@@ -131,7 +131,7 @@ try {
             if (!$iv) { echo json_encode(['error' => 'Intervention introuvable']); break; }
             $oldStatus = $iv['status'] ?? '';
             $upd = ['status' => $newStatus];
-            if ($newStatus === 'terminé' && empty($iv['tech_completed_at'])) {
+            if (in_array($newStatus, ['terminé', 'rapport_rendu'], true) && empty($iv['tech_completed_at'])) {
                 $upd['tech_completed_at'] = date('Y-m-d H:i:s');
             }
             update_intervention($id, $upd);
@@ -150,7 +150,7 @@ try {
             $upd = ['technician_id' => $techId ?: null];
             if ($techId > 0) {
                 $iv = get_intervention_by_id($id);
-                if ($iv && in_array($iv['status'], ['nouveau','confirmé'], true)) {
+                if ($iv && in_array($iv['status'], ['nouveau','a_assigner','confirmé'], true)) {
                     $upd['status'] = 'assigné';
                 }
             }

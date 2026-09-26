@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pid    = (int)($_POST['id'] ?? 0);
 
     if ($action === 'update_status' && $pid > 0) {
-        $validStatuses = ['nouveau','confirmé','assigné','en_route','sur_place','terminé','devis_envoyé','facturé','payé','annulé'];
+        $validStatuses = array_keys(intervention_status_config());
         $newStatus = trim((string)($_POST['new_status'] ?? ''));
         if (in_array($newStatus, $validStatuses, true)) {
             $current = get_intervention_by_id($pid);
@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $current = get_intervention_by_id($pid);
         if ($current) {
             $data = ['technician_id' => $techId ?: null];
-            if ($techId > 0 && in_array($current['status'], ['nouveau','confirmé'], true)) {
+            if ($techId > 0 && in_array($current['status'], ['nouveau','a_assigner','confirmé'], true)) {
                 $data['status'] = 'assigné';
                 log_intervention_history($pid, $current['status'], 'assigné', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Technicien assigné');
             }
@@ -84,7 +84,7 @@ if ($fDateTo !== '') {
 }
 if ($fPay !== '') {
     $interventions = array_filter($interventions, static fn($iv) =>
-        $fPay === 'a_renseigner' ? empty($iv['payment_status']) && in_array($iv['status'] ?? '', ['terminé', 'facturé'], true)
+        $fPay === 'a_renseigner' ? empty($iv['payment_status']) && in_array($iv['status'] ?? '', wf_field_done(), true)
                                  : ($iv['payment_status'] ?? '') === $fPay);
 }
 $interventions = array_values($interventions);
@@ -212,7 +212,7 @@ $validStatuses = array_keys($statusCfg);
             </td>
             <td>
               <?= intervention_status_badge((string)($iv['status'] ?? 'nouveau')) ?>
-              <?php if (!empty($iv['payment_status']) || in_array($iv['status'] ?? '', ['terminé', 'facturé'], true)): ?>
+              <?php if (!empty($iv['payment_status']) || in_array($iv['status'] ?? '', wf_field_done(), true)): ?>
                 <div style="margin-top:.25rem;"><?= payment_badge($iv['payment_status'] ?? null) ?></div>
               <?php endif; ?>
             </td>

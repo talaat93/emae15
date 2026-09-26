@@ -31,8 +31,9 @@ function ta_status(string $status): array
 {
     $cfg = intervention_status_config();
     $label = $cfg[$status]['label'] ?? ucfirst($status);
-    if ($status === 'terminé') $label = 'Terminée';
-    if (in_array($status, ['nouveau', 'confirmé', 'assigné'], true)) $label = 'Planifiée';
+    if (in_array($status, wf_field_done(), true)) $label = 'Terminée';
+    if ($status === 'a_revoir') $label = 'À compléter';
+    if (in_array($status, ['nouveau', 'a_assigner', 'confirmé', 'assigné'], true)) $label = 'Planifiée';
     return ['label' => $label, 'color' => $cfg[$status]['color'] ?? '#8c99ad'];
 }
 

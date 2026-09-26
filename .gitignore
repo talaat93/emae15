@@ -6,3 +6,8 @@ config/config.local.php
 # Archives de livraison generees localement : ne jamais les versionner,
 # elles seraient publiees telles quelles dans public_html par le deploiement.
 *.zip
+
+# Journaux techniques des intégrations (jamais versionnés ni déployés)
+storage/logs/
+# Marqueurs des migrations automatiques : propres à chaque base
+storage/.mig_*

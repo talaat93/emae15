@@ -10,12 +10,12 @@ $kpis     = dispatcher_kpis();
 $todayIvs = all_interventions(['date' => $today]);
 $statusCfg = intervention_status_config();
 
-$closed = ['terminé', 'annulé', 'payé', 'facturé', 'devis_envoyé'];
+$closed = wf_closed();
 
 // À planifier : tout ce qui n'a pas encore de technicien ou de date.
 $toPlan = array_values(array_filter(all_interventions(), static function (array $iv) use ($closed): bool {
     if (in_array($iv['status'] ?? '', $closed, true)) return false;
-    return empty($iv['technician_id']) || empty($iv['scheduled_date']) || in_array($iv['status'] ?? '', ['nouveau', 'confirmé'], true);
+    return empty($iv['technician_id']) || empty($iv['scheduled_date']) || in_array($iv['status'] ?? '', ['nouveau', 'a_assigner', 'confirmé'], true);
 }));
 
 try {
@@ -160,7 +160,7 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
       <div class="d-card-head">
         <div class="d-card-title">Planning du jour</div>
         <div class="plan-legend">
-          <?php foreach (['nouveau', 'assigné', 'en_route', 'sur_place', 'terminé'] as $st): ?>
+          <?php foreach (['a_assigner', 'assigné', 'en_route', 'sur_place', 'rapport_rendu'] as $st): ?>
             <span><i style="background:<?= e($statusCfg[$st]['color']) ?>"></i><?= e($statusCfg[$st]['label']) ?></span>
           <?php endforeach; ?>
         </div>

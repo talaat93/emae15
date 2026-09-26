@@ -1707,17 +1707,26 @@ function client_intervention_count(int $client_id): int
 ═══════════════════════════════════════════════════ */
 function intervention_status_config(): array
 {
+    // Ordre = ordre du circuit (voir includes/workflow.php). Les anciens codes restent reconnus.
     return [
-        'nouveau'      => ['label' => 'Nouveau',      'color' => '#3b82f6', 'bg' => 'rgba(59,130,246,.15)'],
-        'confirmé'     => ['label' => 'Confirmé',     'color' => '#8b5cf6', 'bg' => 'rgba(139,92,246,.15)'],
-        'assigné'      => ['label' => 'Assigné',      'color' => '#f59e0b', 'bg' => 'rgba(245,158,11,.15)'],
-        'en_route'     => ['label' => 'En route',     'color' => '#06b6d4', 'bg' => 'rgba(6,182,212,.15)'],
-        'sur_place'    => ['label' => 'Sur place',    'color' => '#10b981', 'bg' => 'rgba(16,185,129,.15)'],
-        'terminé'      => ['label' => 'Terminé',      'color' => '#22c55e', 'bg' => 'rgba(34,197,94,.15)'],
-        'devis_envoyé' => ['label' => 'Devis envoyé', 'color' => '#f97316', 'bg' => 'rgba(249,115,22,.15)'],
-        'facturé'      => ['label' => 'Facturé',      'color' => '#ec4899', 'bg' => 'rgba(236,72,153,.15)'],
-        'payé'         => ['label' => 'Payé',         'color' => '#14b8a6', 'bg' => 'rgba(20,184,166,.15)'],
-        'annulé'       => ['label' => 'Annulé',       'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.15)'],
+        'nouveau'           => ['label' => 'Nouveau',              'color' => '#3b82f6', 'bg' => 'rgba(59,130,246,.15)'],
+        'a_assigner'        => ['label' => 'À assigner',           'color' => '#6366f1', 'bg' => 'rgba(99,102,241,.15)'],
+        'confirmé'          => ['label' => 'Confirmé',             'color' => '#8b5cf6', 'bg' => 'rgba(139,92,246,.15)'],
+        'assigné'           => ['label' => 'Assignée',             'color' => '#f59e0b', 'bg' => 'rgba(245,158,11,.15)'],
+        'en_route'          => ['label' => 'En route',             'color' => '#06b6d4', 'bg' => 'rgba(6,182,212,.15)'],
+        'sur_place'         => ['label' => 'Sur place',            'color' => '#10b981', 'bg' => 'rgba(16,185,129,.15)'],
+        'a_revoir'          => ['label' => 'Rapport à revoir',     'color' => '#dc2626', 'bg' => 'rgba(220,38,38,.12)'],
+        'rapport_rendu'     => ['label' => 'Rapport rendu',        'color' => '#22c55e', 'bg' => 'rgba(34,197,94,.15)'],
+        'rapport_verifie'   => ['label' => 'Rapport vérifié',      'color' => '#16a34a', 'bg' => 'rgba(22,163,74,.15)'],
+        'facture_brouillon' => ['label' => 'Facture à valider',    'color' => '#f97316', 'bg' => 'rgba(249,115,22,.15)'],
+        'facture_validee'   => ['label' => 'Facture validée',      'color' => '#ea580c', 'bg' => 'rgba(234,88,12,.15)'],
+        'facture_envoyee'   => ['label' => 'Facture envoyée',      'color' => '#ec4899', 'bg' => 'rgba(236,72,153,.15)'],
+        'payé'              => ['label' => 'Payée',                'color' => '#14b8a6', 'bg' => 'rgba(20,184,166,.15)'],
+        'cloturee'          => ['label' => 'Clôturée',             'color' => '#64748b', 'bg' => 'rgba(100,116,139,.15)'],
+        'terminé'           => ['label' => 'Terminée',             'color' => '#22c55e', 'bg' => 'rgba(34,197,94,.15)'],
+        'devis_envoyé'      => ['label' => 'Devis envoyé',         'color' => '#f97316', 'bg' => 'rgba(249,115,22,.15)'],
+        'facturé'           => ['label' => 'Facturée',             'color' => '#ec4899', 'bg' => 'rgba(236,72,153,.15)'],
+        'annulé'            => ['label' => 'Annulée',              'color' => '#ef4444', 'bg' => 'rgba(239,68,68,.15)'],
     ];
 }
 
@@ -1725,6 +1734,7 @@ function intervention_category_config(): array
 {
     return [
         'electricite'    => ['label' => 'Électricité',   'icon' => '', 'color' => '#fbbf24'],
+        'debouchage'     => ['label' => 'Débouchage',    'icon' => '', 'color' => '#0ea5e9'],
         'plomberie'      => ['label' => 'Plomberie',     'icon' => '', 'color' => '#60a5fa'],
         'chauffage'      => ['label' => 'Chauffage',     'icon' => '', 'color' => '#f87171'],
         'climatisation'  => ['label' => 'Climatisation', 'icon' => '', 'color' => '#34d399'],
@@ -1945,13 +1955,13 @@ function dispatcher_kpis(): array
             'waiting'      => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0),
             'assigned'     => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='assigné'")['c']??0),
             'in_progress'  => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('en_route','sur_place')")['c']??0),
-            'done_today'   => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status='terminé' AND DATE(tech_completed_at)=?",[$today])['c']??0),
-            'urgent'       => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN ('terminé','annulé','payé')")['c']??0),
-            'late'         => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date<? AND scheduled_date IS NOT NULL AND status NOT IN ('terminé','annulé','payé','facturé')",[$today])['c']??0),
+            'done_today'   => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN (".wf_sql_list(wf_field_done()).") AND DATE(tech_completed_at)=?",[$today])['c']??0),
+            'urgent'       => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN (".wf_sql_list(wf_closed()).")")['c']??0),
+            'late'         => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE scheduled_date<? AND scheduled_date IS NOT NULL AND status NOT IN (".wf_sql_list(wf_closed()).")",[$today])['c']??0),
             'techs_active' => (int)(db_fetch("SELECT COUNT(*) AS c FROM technicians WHERE status='actif'")['c']??0),
-            'ca_today'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND DATE(tech_completed_at)=?",[$today])['s']??0),
-            'ca_week'      => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ws])['s']??0),
-            'ca_month'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN ('terminé','facturé','payé') AND tech_completed_at>=?",[$ms])['s']??0),
+            'ca_today'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN (".wf_sql_list(wf_revenue()).") AND DATE(tech_completed_at)=?",[$today])['s']??0),
+            'ca_week'      => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN (".wf_sql_list(wf_revenue()).") AND tech_completed_at>=?",[$ws])['s']??0),
+            'ca_month'     => (float)(db_fetch("SELECT COALESCE(SUM(amount_ht),0) AS s FROM interventions WHERE status IN (".wf_sql_list(wf_revenue()).") AND tech_completed_at>=?",[$ms])['s']??0),
             'total'        => (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions")['c']??0),
         ];
     } catch (Throwable $e) { return $zero; }
