@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'status'            => $newStatus,
         ];
         $techChanged = $techId > 0 && $techId !== (int)($iv['technician_id'] ?? 0);
-        if ($techChanged && in_array($newStatus, ['nouveau', 'confirmé'], true)) {
+        if ($techChanged && in_array($newStatus, ['nouveau', 'a_assigner', 'confirmé'], true)) {
             $data['status'] = $newStatus = 'assigné';
         }
         update_intervention($id, $data);
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'quick_status') {
-        $validStatuses = ['nouveau','confirmé','assigné','en_route','sur_place','terminé','devis_envoyé','facturé','payé','annulé'];
+        $validStatuses = array_keys(intervention_status_config());
         $newStatus = trim((string)($_POST['new_status'] ?? ''));
         if ($newStatus === 'assigné' && empty($iv['technician_id'])) {
             flash('error', 'Choisissez d\'abord un technicien (bouton Modifier).');
@@ -78,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (in_array($newStatus, $validStatuses, true)) {
             $oldStatus = $iv['status'];
             $upd = ['status' => $newStatus];
-            if ($newStatus === 'terminé' && empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = date('Y-m-d H:i:s');
+            if (in_array($newStatus, ['terminé', 'rapport_rendu'], true) && empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = date('Y-m-d H:i:s');
             if ($newStatus === 'payé') { $upd['payment_status'] = 'payé'; if (empty($iv['paid_at'])) $upd['paid_at'] = date('Y-m-d H:i:s'); }
             update_intervention($id, $upd);
             log_intervention_history($id, $oldStatus, $newStatus, 'dispatcher', (int)$disp['id'], (string)$disp['name'],
@@ -122,23 +122,12 @@ $techs     = all_technicians();
 $pageTitle = 'INT #'.$id;
 
 /* Status transitions */
-$nextStatuses = [
-    'nouveau'      => ['confirmé','assigné','annulé'],
-    'confirmé'     => ['assigné','annulé'],
-    'assigné'      => ['en_route','terminé','annulé'],
-    'en_route'     => ['sur_place','terminé','annulé'],
-    'sur_place'    => ['terminé','annulé'],
-    'terminé'      => ['facturé'],
-    'facturé'      => ['payé'],
-    'devis_envoyé' => ['confirmé','annulé'],
-    'payé'         => [],
-    'annulé'       => [],
-];
+$nextStatuses = wf_dispatcher_transitions();
 $currentStatus = (string)($iv['status'] ?? 'nouveau');
 $nexts = $nextStatuses[$currentStatus] ?? [];
 
 /* Terminal statuses */
-$terminalStatuses = ['terminé','facturé','payé','annulé'];
+$terminalStatuses = wf_closed();
 $isTerminal = in_array($currentStatus, $terminalStatuses, true);
 
 /* Technician */

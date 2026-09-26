@@ -51,7 +51,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($ns === 'en_route'  && empty($iv['tech_started_at'])) $upd['tech_started_at'] = date('Y-m-d H:i:s');
             if ($ns === 'sur_place' && empty($iv['tech_arrived_at'])) $upd['tech_arrived_at'] = date('Y-m-d H:i:s');
             update_intervention($id, $upd);
-            log_intervention_history($id, $iv['status'], $ns, 'tech', $techId, (string)$tech['name']);
+            log_intervention_history($id, $iv['status'], $ns, 'technicien', $techId, (string)$tech['name']);
             if ($ns === 'en_route') notify_client_en_route($id);
             flash('success', $ns === 'en_route' ? 'Trajet démarré. Le dispatcher est informé.' : 'Arrivée enregistrée.');
         }
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     $ajax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
-    $isOpen = !in_array($iv['status'] ?? '', ['terminé', 'facturé', 'payé', 'annulé', 'devis_envoyé'], true);
+    $isOpen = wf_tech_editable((string)($iv['status'] ?? ''));
 
     // Retirer une photo déjà envoyée (tant que l'intervention n'est pas terminée).
     if ($action === 'delete_photo' && $isOpen) {
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 header('Location: '.$self.'#rapport'); exit;
             }
             $now = date('Y-m-d H:i:s');
-            $upd['status'] = 'terminé';
+            $upd['status'] = 'rapport_rendu';
             if (empty($iv['tech_completed_at'])) $upd['tech_completed_at'] = $now;
             if (empty($iv['tech_arrived_at']))   $upd['tech_arrived_at']   = $now;
             if (empty($iv['tech_close_time']))   $upd['tech_close_time']   = date('H:i');
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         update_intervention($id, $upd);
         if ($done) {
-            log_intervention_history($id, $iv['status'], 'terminé', 'tech', $techId, (string)$tech['name'], 'Clôturée depuis l\'application technicien');
+            log_intervention_history($id, $iv['status'], 'rapport_rendu', 'technicien', $techId, (string)$tech['name'], 'Rapport rendu depuis l\'application technicien');
         }
         flash('success', $message);
         $to = $self.($done ? '' : '#rapport');
@@ -209,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ─── Affichage ───────────────────────────────────────────────
 $status   = (string)($iv['status'] ?? 'nouveau');
-$isDone   = in_array($status, ['terminé', 'facturé', 'payé', 'devis_envoyé'], true);
+$isDone   = in_array($status, wf_field_done(), true);
 $isCancel = $status === 'annulé';
 $locked   = $isDone || $isCancel;
 $photos   = iv_photos($iv);
@@ -364,7 +364,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       </div>
     </div>
   </section>
-  <?php else: $early = $status !== 'sur_place'; ?>
+  <?php else: $early = !in_array($status, ['sur_place', 'a_revoir'], true); ?>
   <?php if ($early): ?>
   <section class="ta-card" id="report-teaser">
     <div class="ta-card-b" style="display:flex;align-items:center;gap:.75rem;">
@@ -552,7 +552,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
 
 <?php if (!$locked): ?>
 <div class="ta-bar"><div class="ta-bar-in">
-  <?php if (in_array($status, ['nouveau', 'confirmé', 'assigné'], true) || $status === 'en_route'):
+  <?php if (in_array($status, ['nouveau', 'a_assigner', 'confirmé', 'assigné'], true) || $status === 'en_route'):
     [$next, $label, $ico] = $status === 'en_route' ? ['sur_place', 'Je suis arrivé', 'arrive'] : ['en_route', 'Je pars', 'car']; ?>
     <form method="post" style="flex:1;display:flex;">
       <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">

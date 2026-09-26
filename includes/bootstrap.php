@@ -16,6 +16,10 @@ require_once __DIR__ . '/admin_team.php';
 require_once __DIR__ . '/zone_vars.php';
 require_once __DIR__ . '/zones_core.php';
 require_once __DIR__ . '/notifications.php';
+require_once __DIR__ . '/workflow.php';
+require_once __DIR__ . '/integrations.php';
+require_once __DIR__ . '/claude.php';
+require_once __DIR__ . '/pennylane.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';

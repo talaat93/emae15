@@ -75,19 +75,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'quote_accepted'     => $quoteAccepted,
             'amount_ht'          => $amountHt !== '' ? $amountHt : null,
             'payment_method'     => trim((string)($_POST['payment_method']     ?? '')),
-            'status'             => 'nouveau',
+            'status'             => 'a_assigner',
             'latitude'           => trim((string)($_POST['latitude']           ?? '')),
             'longitude'          => trim((string)($_POST['longitude']          ?? '')),
         ];
 
         $ivId = create_intervention($data);
         if (($pr = disp_photo_request_value()) !== null) update_intervention($ivId, ['photos_required' => $pr]);
-        log_intervention_history($ivId, null, 'nouveau', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Création de l\'intervention');
+        log_intervention_history($ivId, null, 'a_assigner', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Création de l\'intervention');
 
         /* Si technicien assigné → statut assigné */
         if ($techId > 0) {
             update_intervention($ivId, ['status' => 'assigné']);
-            log_intervention_history($ivId, 'nouveau', 'assigné', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Technicien assigné à la création');
+            log_intervention_history($ivId, 'a_assigner', 'assigné', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Technicien assigné à la création');
 
             notify_intervention_assigned($ivId);
         }
