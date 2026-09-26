@@ -25,6 +25,7 @@ require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
+require_once __DIR__ . '/yousign.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -651,6 +652,14 @@ if (!file_exists($_mf27)) {
     unset($_me);
 }
 unset($_mf27);
+// Auto-migration v15.28 — devis et signature Yousign (phase 8)
+$_mf28 = __DIR__.'/../storage/.mig_v15_devis';
+if (!file_exists($_mf28)) {
+    try { devis_table(); } catch (Throwable $_me) {}
+    @file_put_contents($_mf28, date('c'));
+    unset($_me);
+}
+unset($_mf28);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

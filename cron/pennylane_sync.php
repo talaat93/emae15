@@ -14,4 +14,6 @@ require_once __DIR__.'/../includes/bootstrap.php';
 
 $r = pennylane_sync_run('cron');
 echo date('Y-m-d H:i:s').' '.($r['ok'] ? 'OK' : 'ERREUR').' — '.$r['message'].PHP_EOL;
+// Même tâche : devis en attente de signature relus chez Yousign (au cas où un webhook serait perdu).
+try { $n = devis_refresh_pending(); if ($n) echo 'Yousign : '.$n.' devis relu(s).'.PHP_EOL; } catch (Throwable $e) { echo 'Yousign : '.$e->getMessage().PHP_EOL; }
 exit($r['ok'] ? 0 : 1);
