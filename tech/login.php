@@ -1,7 +1,11 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/../includes/bootstrap.php';
-if (!empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/dashboard.php')); exit; }
+boot_session();
+// Après connexion, retour à la page demandée (ex. l'intervention d'une notification).
+$next = tech_safe_next((string)($_GET['next'] ?? $_POST['next'] ?? ''));
+$after = $next !== '' ? $next : url_for('tech/dashboard.php');
+if (!empty($_SESSION['tech_id']) || tech_remember_login()) { header('Location: '.$after); exit; }
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -9,11 +13,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = (string)($_POST['password'] ?? '');
     $tech = tech_login_check($email, $password);
     if ($tech) {
-        boot_session();
         session_regenerate_id(true);
         $_SESSION['tech_id']   = (int)$tech['id'];
         $_SESSION['tech_name'] = $tech['name'];
-        header('Location: '.url_for('tech/dashboard.php')); exit;
+        tech_remember_issue($tech);   // reste connecté 30 jours sur ce téléphone
+        header('Location: '.$after); exit;
     }
     $error = 'Email ou mot de passe incorrect.';
 }
@@ -62,6 +66,7 @@ $co = htmlspecialchars(company_name(), ENT_QUOTES);
         Se connecter →
       </button>
     </form>
+    <p style="text-align:center;font-size:.8rem;color:#64748b;margin-top:.9rem;">Vous restez connecté 30 jours sur ce téléphone.</p>
   </div>
 </div>
 

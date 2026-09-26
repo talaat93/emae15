@@ -10,7 +10,10 @@ function boot_session(): void
         session_set_cookie_params([
             'secure'   => true,
             'httponly' => true,
-            'samesite' => 'Strict',
+            // Lax (et non Strict) : un lien ouvert depuis un e-mail, un SMS ou une
+            // notification doit trouver l'utilisateur toujours connecté.
+            // Les formulaires restent protégés par leur jeton CSRF.
+            'samesite' => 'Lax',
         ]);
         session_start();
     }
@@ -767,14 +770,117 @@ function tech_login_check(string $email, string $password): ?array
     return $ok ? $r : null;
 }
 
+/* ── Connexion durable des techniciens (30 jours sur leur téléphone) ── */
+const TECH_REMEMBER_COOKIE = 'emae_tech';
+const TECH_REMEMBER_DAYS   = 30;
+
+function tech_remember_table(): void
+{
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS tech_remember_tokens (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tech_id INT NOT NULL,
+            selector CHAR(24) NOT NULL UNIQUE,
+            token_hash CHAR(64) NOT NULL,
+            pw_fingerprint CHAR(64) NOT NULL,
+            user_agent VARCHAR(255) NULL,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_tech (tech_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    } catch (Throwable $e) { error_log('[EMAE] tech_remember_tokens : '.$e->getMessage()); }
+}
+
+function tech_remember_set_cookie(string $value, int $expires): void
+{
+    setcookie(TECH_REMEMBER_COOKIE, $value, [
+        'expires'  => $expires,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+}
+
+/** Émet un jeton de connexion durable pour ce technicien et ce téléphone. */
+function tech_remember_issue(array $tech): void
+{
+    tech_remember_table();
+    $selector  = bin2hex(random_bytes(12));
+    $validator = bin2hex(random_bytes(32));
+    $expires   = time() + TECH_REMEMBER_DAYS * 86400;
+    try {
+        db_execute("DELETE FROM tech_remember_tokens WHERE expires_at < NOW()");
+        db_execute(
+            "INSERT INTO tech_remember_tokens (tech_id, selector, token_hash, pw_fingerprint, user_agent, expires_at) VALUES (?,?,?,?,?,?)",
+            [(int)$tech['id'], $selector, hash('sha256', $validator), hash('sha256', (string)$tech['password_hash']),
+             mb_substr((string)($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255), date('Y-m-d H:i:s', $expires)]
+        );
+        tech_remember_set_cookie($selector.':'.$validator, $expires);
+    } catch (Throwable $e) { error_log('[EMAE] jeton de connexion : '.$e->getMessage()); }
+}
+
+/** Reconnecte le technicien à partir de son jeton. Le jeton est prolongé à chaque usage. */
+function tech_remember_login(): ?array
+{
+    $raw = (string)($_COOKIE[TECH_REMEMBER_COOKIE] ?? '');
+    if (!preg_match('/^([a-f0-9]{24}):([a-f0-9]{64})$/', $raw, $m)) return null;
+    tech_remember_table();
+    try {
+        $row = db_fetch("SELECT * FROM tech_remember_tokens WHERE selector = ? AND expires_at > NOW()", [$m[1]]);
+        if (!$row || !hash_equals((string)$row['token_hash'], hash('sha256', $m[2]))) { tech_remember_forget(); return null; }
+        $t = db_fetch("SELECT * FROM technicians WHERE id = ? AND status = 'actif'", [(int)$row['tech_id']]);
+        // Un changement de mot de passe ou un compte désactivé coupe toutes les connexions durables.
+        if (!$t || !hash_equals((string)$row['pw_fingerprint'], hash('sha256', (string)$t['password_hash']))) { tech_remember_forget(); return null; }
+        $expires = time() + TECH_REMEMBER_DAYS * 86400;
+        db_execute("UPDATE tech_remember_tokens SET expires_at = ? WHERE id = ?", [date('Y-m-d H:i:s', $expires), (int)$row['id']]);
+        tech_remember_set_cookie($raw, $expires);
+        session_regenerate_id(true);
+        $_SESSION['tech_id']   = (int)$t['id'];
+        $_SESSION['tech_name'] = $t['name'];
+        return $t;
+    } catch (Throwable $e) { return null; }
+}
+
+/** Supprime le jeton de ce téléphone (déconnexion volontaire). */
+function tech_remember_forget(): void
+{
+    $raw = (string)($_COOKIE[TECH_REMEMBER_COOKIE] ?? '');
+    if (preg_match('/^([a-f0-9]{24}):/', $raw, $m)) {
+        tech_remember_table();
+        try { db_execute("DELETE FROM tech_remember_tokens WHERE selector = ?", [$m[1]]); } catch (Throwable $e) {}
+    }
+    if (isset($_COOKIE[TECH_REMEMBER_COOKIE])) tech_remember_set_cookie('', time() - 3600);
+}
+
+/** Adresse de retour après connexion : uniquement une page de l'espace technicien. */
+function tech_safe_next(string $next): string
+{
+    $base = url_for('tech/');
+    if ($next === '' || !str_starts_with($next, $base) || str_contains($next, '//') || preg_match('/[\r\n]/', $next)) return '';
+    $path = (string)parse_url($next, PHP_URL_PATH);
+    if (preg_match('#/(login|logout)\.php$#', $path)) return '';
+    return $next;
+}
+
 function require_tech_auth(): array
 {
     boot_session();
-    if (empty($_SESSION['tech_id'])) { header('Location: '.url_for('tech/login.php')); exit; }
+    if (empty($_SESSION['tech_id']) && ($t = tech_remember_login())) return $t;
+    $toLogin = static function (): never {
+        $next = tech_safe_next((string)($_SERVER['REQUEST_URI'] ?? ''));
+        $isPage = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET';
+        header('Location: '.url_for('tech/login.php').($next !== '' && $isPage ? '?next='.rawurlencode($next) : ''));
+        exit;
+    };
+    if (empty($_SESSION['tech_id'])) $toLogin();
     try {
         $t = db_fetch("SELECT * FROM technicians WHERE id = ? AND status = 'actif'", [(int)$_SESSION['tech_id']]);
     } catch (Throwable $e) { $t = null; }
-    if (!$t) { unset($_SESSION['tech_id']); header('Location: '.url_for('tech/login.php')); exit; }
+    if (!$t) { unset($_SESSION['tech_id']); tech_remember_forget(); $toLogin(); }
     return $t;
 }
 
