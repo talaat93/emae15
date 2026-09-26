@@ -1859,6 +1859,7 @@ function update_intervention(int $id, array $data): void
                 'tech_fault_label','tech_realizable','tech_bad_use','tech_device_number','tech_elevator_restored',
                 'tech_ticket_time','tech_close_time','tech_notes_extra',
                 'client_signature','photos_required','payment_status','paid_at',
+                'housing_over_2y','vat_rate',
                 'latitude','longitude'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {

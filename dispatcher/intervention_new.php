@@ -81,6 +81,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
 
         $ivId = create_intervention($data);
+        [$vatFields, $clientType] = disp_vat_values();
+        update_intervention($ivId, $vatFields);
+        if ($clientType !== null) db_execute('UPDATE clients SET client_type = ? WHERE id = ?', [$clientType, $clientId]);
         if (($pr = disp_photo_request_value()) !== null) update_intervention($ivId, ['photos_required' => $pr]);
         log_intervention_history($ivId, null, 'a_assigner', 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Création de l\'intervention');
 
@@ -366,6 +369,7 @@ $post = $_POST;
       <div class="d-card-title">Financier</div>
     </div>
     <div class="d-card-body">
+      <?= disp_vat_fields(['housing_over_2y' => !empty($post['housing_over_2y']), 'vat_rate' => $post['vat_rate'] ?? null], ['client_type' => $post['client_type'] ?? '']) ?>
       <div class="d-grid-3">
         <div class="d-field">
           <label>Montant HT (€)</label>

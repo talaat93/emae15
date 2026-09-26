@@ -20,6 +20,7 @@ require_once __DIR__ . '/workflow.php';
 require_once __DIR__ . '/integrations.php';
 require_once __DIR__ . '/claude.php';
 require_once __DIR__ . '/pennylane.php';
+require_once __DIR__ . '/pricing.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -526,6 +527,41 @@ if (!file_exists($_mf20)) {
     unset($_me, $__sql);
 }
 unset($_mf20);
+// Auto-migration v15.21 — grille tarifaire, type de client et TVA de la fiche.
+$_mf21 = __DIR__.'/../storage/.mig_v15_price_grid';
+if (!file_exists($_mf21)) {
+    try {
+        db_execute("CREATE TABLE IF NOT EXISTS price_grid (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            category VARCHAR(40) NOT NULL DEFAULT 'commun',
+            code VARCHAR(40) NOT NULL UNIQUE,
+            label VARCHAR(255) NOT NULL,
+            unit VARCHAR(20) NOT NULL DEFAULT 'forfait',
+            price_ht DECIMAL(10,2) NOT NULL DEFAULT 0,
+            is_percent TINYINT(1) NOT NULL DEFAULT 0,
+            vat_rate DECIMAL(5,2) NOT NULL DEFAULT 20.00,
+            pennylane_product_id VARCHAR(40) NULL,
+            active TINYINT(1) NOT NULL DEFAULT 1,
+            sort_order INT NOT NULL DEFAULT 0,
+            updated_at DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $__order = 0;
+        foreach ((array)require __DIR__.'/price_grid_seed.php' as $__row) {
+            $__order += 10;
+            [$__cat, $__code, $__label, $__unit, $__price] = $__row;
+            db_execute("INSERT IGNORE INTO price_grid (category, code, label, unit, price_ht, is_percent, sort_order) VALUES (?,?,?,?,?,?,?)",
+                [$__cat, $__code, $__label, $__unit, $__price, $__unit === 'pourcent' ? 1 : 0, $__order]);
+        }
+    } catch (Throwable $_me) {}
+    foreach ([
+        "ALTER TABLE clients ADD COLUMN client_type VARCHAR(20) NULL",
+        "ALTER TABLE interventions ADD COLUMN housing_over_2y TINYINT(1) NULL",
+        "ALTER TABLE interventions ADD COLUMN vat_rate DECIMAL(5,2) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf21, date('c'));
+    unset($_me, $__sql, $__order, $__row, $__cat, $__code, $__label, $__unit, $__price);
+}
+unset($_mf21);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
