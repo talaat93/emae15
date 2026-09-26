@@ -111,6 +111,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
     }
 
+    /* ── Devis et signature Yousign ── */
+    if ($action === 'devis_save') {
+        $lines = [];
+        foreach ((array)($_POST['dl_kind'] ?? []) as $i => $kind) {
+            $qty = (float)str_replace(',', '.', (string)($_POST['dl_qty'][$i] ?? '0'));
+            if ($qty <= 0) continue;
+            if ($kind === 'grid') { $code = strtoupper(trim((string)($_POST['dl_code'][$i] ?? ''))); if ($code !== '') $lines[] = ['code' => $code, 'qty' => $qty]; }
+            else {
+                $label = trim((string)($_POST['dl_label'][$i] ?? ''));
+                $price = (float)str_replace([',', ' '], ['.', ''], (string)($_POST['dl_price'][$i] ?? '0'));
+                if ($label !== '' && $price > 0) $lines[] = ['label' => $label, 'qty' => $qty, 'unit_price_ht' => $price];
+            }
+        }
+        $r = devis_save((int)($_POST['devis_id'] ?? 0) ?: null, $id, $lines, (float)str_replace(',', '.', (string)($_POST['dl_vat'] ?? '20')),
+            (string)($_POST['dl_title'] ?? 'Devis'), (string)($_POST['dl_description'] ?? ''), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Devis enregistré.' : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#devis');
+    }
+    if ($action === 'devis_send') {
+        @set_time_limit(120);
+        $r = devis_send_for_signature((int)($_POST['devis_id'] ?? 0), (string)($_POST['email'] ?? ''), (string)($_POST['phone'] ?? ''), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Devis envoyé au client pour signature'.($r['simulated'] ? ' (SIMULATION : aucun e-mail envoyé)' : '').'.' : 'Envoi impossible : '.$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#devis');
+    }
+    if ($action === 'devis_refresh' || $action === 'devis_simulate') {
+        $sim = $action === 'devis_simulate' ? (in_array($_POST['sim'] ?? '', ['done', 'declined'], true) ? (string)$_POST['sim'] : null) : null;
+        $r = devis_refresh((int)($_POST['devis_id'] ?? 0), $sim);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Devis mis à jour.' : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#devis');
+    }
+
     if ($action === 'set_payment') {
         $ps = in_array($_POST['payment_status'] ?? '', ['payé', 'non_payé'], true) ? (string)$_POST['payment_status'] : null;
         update_intervention($id, ['payment_status' => $ps, 'paid_at' => $ps === 'payé' ? ($iv['paid_at'] ?: date('Y-m-d H:i:s')) : null]);
@@ -561,6 +592,88 @@ function fmt_dur(int $mins): string {
             </table>
             <div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div>
             <a class="d-btn d-btn--sm <?= $invoice['status'] === 'brouillon' ? 'd-btn--primary' : '' ?>" style="margin-top:.6rem;" href="<?= e(url_for('dispatcher/factures.php?id='.(int)$invoice['id'])) ?>"><?= $invoice['status'] === 'brouillon' ? 'Vérifier et valider la facture' : 'Ouvrir la facture' ?></a>
+          </div>
+        </div>
+        <?php endif; ?>
+
+        <?php
+        $devisList = devis_for_intervention((int)$iv['id']);
+        $threshold = yousign_threshold();
+        $estTtc = (float)($iv['amount_ttc'] ?? 0);
+        $hasSigned = (bool)array_filter($devisList, static fn($d) => $d['status'] === 'signe');
+        $showDevis = $devisList || !$isTerminal || in_array($currentStatus, ['a_revoir', 'rapport_rendu'], true) || (($iv['tech_return_visit'] ?? null) !== null && (int)$iv['tech_return_visit'] === 1);
+        if ($showDevis):
+          $dGrid = price_grid_rows(true, (string)($iv['category'] ?? ''));
+          $dVat = iv_vat_rate($iv, $ivClient); ?>
+        <!-- DEVIS -->
+        <div class="d-card" id="devis" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Devis</div><span style="font-size:.76rem;color:var(--d-t2);">Signature électronique Yousign<?= yousign_simulated() ? ' (SIMULATION)' : '' ?></span></div>
+          <div class="d-card-body">
+            <?php if (!$hasSigned && $estTtc > $threshold): ?>
+              <div class="d-flash" style="background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;margin-bottom:.8rem;">Montant estimé <?= e(money_fr($estTtc)) ?> TTC : au-delà de <?= e(money_fr($threshold)) ?>, faites signer un devis au client avant les travaux.</div>
+            <?php endif; ?>
+            <?php foreach ($devisList as $dv): ?>
+              <div style="border:1px solid var(--d-border);border-radius:8px;padding:.7rem .8rem;margin-bottom:.7rem;">
+                <div style="display:flex;justify-content:space-between;gap:.5rem;align-items:center;flex-wrap:wrap;">
+                  <div><b><?= e((string)$dv['number']) ?></b> — <?= e((string)$dv['title']) ?> <?= devis_badge((string)$dv['status']) ?></div>
+                  <b><?= e(money_fr((float)$dv['total_ttc'])) ?> TTC</b>
+                </div>
+                <div style="font-size:.8rem;color:var(--d-t2);margin-top:.25rem;">
+                  <?= e(implode(' · ', array_map(static fn($l) => $l['label'].(($l['unit'] ?? '') !== 'pourcent' ? ' ×'.rtrim(rtrim(number_format((float)$l['qty'], 2, ',', ''), '0'), ',') : ''), $dv['lines']))) ?>
+                </div>
+                <?php if (!empty($dv['sent_at'])): ?><div style="font-size:.78rem;color:var(--d-t3);margin-top:.2rem;">Envoyé le <?= e(date('d/m/Y H:i', strtotime((string)$dv['sent_at']))) ?> à <?= e((string)$dv['signer_email']) ?><?= !empty($dv['signed_at']) ? ' · signé le '.e(date('d/m/Y H:i', strtotime((string)$dv['signed_at']))) : '' ?></div><?php endif; ?>
+                <?php if (!empty($dv['error'])): ?><div style="font-size:.8rem;color:var(--d-danger);margin-top:.25rem;"><?= e((string)$dv['error']) ?></div><?php endif; ?>
+                <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.55rem;">
+                  <a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF</a>
+                  <?php if (!empty($dv['signed_pdf_path'])): ?><a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?signed=1&id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF signé</a><?php endif; ?>
+                  <?php if ($dv['status'] === 'envoye'): ?>
+                    <form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="devis_id" value="<?= (int)$dv['id'] ?>">
+                      <?php if (yousign_simulated()): ?>
+                        <button name="action" value="devis_simulate" class="d-btn d-btn--sm" onclick="this.form.sim.value='done'">Simuler la signature</button>
+                        <button name="action" value="devis_simulate" class="d-btn d-btn--sm d-btn--ghost" onclick="this.form.sim.value='declined'">Simuler un refus</button>
+                        <input type="hidden" name="sim" value="">
+                      <?php else: ?>
+                        <button name="action" value="devis_refresh" class="d-btn d-btn--sm">Actualiser le statut</button>
+                      <?php endif; ?>
+                    </form>
+                  <?php endif; ?>
+                </div>
+                <?php if ($dv['status'] === 'brouillon'): ?>
+                  <form method="post" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:flex-end;margin-top:.6rem;" onsubmit="return confirm('Envoyer ce devis de <?= e(money_fr((float)$dv['total_ttc'])) ?> TTC au client pour signature ?');">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_send"><input type="hidden" name="devis_id" value="<?= (int)$dv['id'] ?>">
+                    <div class="d-field" style="margin:0;flex:1;min-width:180px;"><label class="req">E-mail du client</label><input type="email" name="email" required value="<?= e((string)($ivClient['email'] ?? '')) ?>"></div>
+                    <div class="d-field" style="margin:0;min-width:140px;"><label>Mobile (code par SMS)</label><input name="phone" value="<?= e((string)($ivClient['phone'] ?? '')) ?>"></div>
+                    <button type="submit" class="d-btn d-btn--primary d-btn--sm">Envoyer pour signature</button>
+                  </form>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+            <details <?= $devisList ? '' : 'open' ?>>
+              <summary style="cursor:pointer;font-size:.88rem;font-weight:600;">+ Nouveau devis</summary>
+              <form method="post" style="margin-top:.6rem;">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_save">
+                <div class="d-field"><label class="req">Titre</label><input name="dl_title" required value="<?= e((intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux').' — '.(trim((string)($iv['tech_fault_label'] ?? '')) ?: trim((string)($iv['type_label'] ?? '')) ?: 'devis')) ?>"></div>
+                <div class="d-field"><label>Description des travaux</label><textarea name="dl_description" rows="3"><?= e(trim((string)($iv['tech_incomplete_reason'] ?? '')) ?: trim((string)($iv['tech_diagnostic'] ?? ''))) ?></textarea></div>
+                <table class="d-table" style="font-size:.84rem;">
+                  <thead><tr><th>Désignation</th><th style="width:70px;">Qté</th><th style="width:110px;">P.U. HT</th></tr></thead>
+                  <tbody>
+                  <?php for ($i = 0; $i < 4; $i++): ?>
+                    <tr><td><input type="hidden" name="dl_kind[]" value="grid"><select name="dl_code[]" style="width:100%;"><option value="">— Prestation de la grille —</option><?php foreach ($dGrid as $g): ?><option value="<?= e($g['code']) ?>"><?= e($g['label']) ?> (<?= (int)$g['is_percent'] ? '+'.e(rtrim(rtrim(number_format((float)$g['price_ht'], 2, ',', ''), '0'), ',')).' %' : e(money_fr((float)$g['price_ht'])) ?>)</option><?php endforeach; ?></select><input type="hidden" name="dl_label[]" value=""></td>
+                      <td><input name="dl_qty[]" value="1" inputmode="decimal" style="width:100%;"></td><td><input type="hidden" name="dl_price[]" value="">grille</td></tr>
+                  <?php endfor; ?>
+                  <?php for ($i = 0; $i < 2; $i++): ?>
+                    <tr><td><input type="hidden" name="dl_kind[]" value="free"><input type="hidden" name="dl_code[]" value=""><input name="dl_label[]" placeholder="Fourniture ou travaux hors grille" style="width:100%;"></td>
+                      <td><input name="dl_qty[]" value="1" inputmode="decimal" style="width:100%;"></td><td><input name="dl_price[]" inputmode="decimal" placeholder="0,00" style="width:100%;"></td></tr>
+                  <?php endfor; ?>
+                  </tbody>
+                </table>
+                <div style="display:flex;gap:.6rem;align-items:center;margin-top:.6rem;flex-wrap:wrap;">
+                  <label style="font-size:.85rem;">TVA <select name="dl_vat"><?php foreach ([10.0, 20.0, 5.5] as $vr): ?><option value="<?= $vr ?>" <?= abs($dVat - $vr) < .01 ? 'selected' : '' ?>><?= str_replace('.', ',', (string)$vr) ?> %</option><?php endforeach; ?></select></label>
+                  <button type="submit" class="d-btn d-btn--sm d-btn--primary">Enregistrer le devis</button>
+                  <span style="font-size:.78rem;color:var(--d-t3);">Totaux calculés à partir de la grille tarifaire.</span>
+                </div>
+              </form>
+            </details>
           </div>
         </div>
         <?php endif; ?>

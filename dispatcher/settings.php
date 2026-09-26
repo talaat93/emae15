@@ -307,6 +307,12 @@ function settings_secret_field(string $name, string $label, string $placeholder,
           <button type="submit" name="action" value="test" class="d-btn">Tester la connexion</button>
         <?php endif; ?>
       </div>
+      <div style="margin-top:1rem;padding:.75rem .9rem;background:var(--d-card-2);border-radius:8px;font-size:.84rem;line-height:1.55;">
+        <b>Webhook à déclarer dans Yousign</b> (Paramètres → Webhooks) :<br>
+        URL : <code><?= e(notif_abs_url('api/yousign_webhook.php')) ?></code><br>
+        Événements : toutes les notifications de <i>signature_request</i> (au minimum done, declined, expired, canceled).<br>
+        Copiez ensuite le secret affiché par Yousign dans le champ « Secret du webhook » ci-dessus. Sans webhook, la tâche cron relit aussi les devis en attente toutes les 15 minutes.
+      </div>
     </div>
   </form>
 <?php endif; ?>
