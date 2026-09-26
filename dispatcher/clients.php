@@ -31,7 +31,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'creat
 
 // Search / list
 $q = trim((string)($_GET['q'] ?? ''));
-$clients = $q !== '' ? search_clients($q) : all_clients_list(300);
+$unpaid = !empty($_GET['impayes']);
+$dueById = [];
+if ($unpaid) {
+    $clients = clients_with_unpaid();
+    foreach ($clients as $c) $dueById[(int)$c['id']] = (float)$c['due'];
+} else {
+    // Recherche rapide : identité, téléphone, ville… et numéro de facture, de devis ou d'intervention.
+    $clients = $q !== '' ? clients_quick_search($q) : all_clients_list(300);
+    try {
+        foreach (db_fetch_all("SELECT client_id, SUM(COALESCE(remaining_ttc, total_ttc)) AS due FROM invoices
+            WHERE status IN ('envoyee','validee') AND client_id IS NOT NULL GROUP BY client_id") as $r) $dueById[(int)$r['client_id']] = (float)$r['due'];
+    } catch (Throwable $e) {}
+}
 $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
 ?>
 
@@ -124,9 +136,10 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
     <div class="d-card-body" style="padding:.85rem 1.25rem;">
       <form method="get" style="display:flex;gap:.75rem;align-items:center;">
         <input type="text" name="q" value="<?= e($q) ?>" class="d-input" style="flex:1;max-width:420px;"
-               placeholder="Rechercher par nom, prénom, téléphone, ville…">
+               placeholder="Nom, téléphone, ville, n° de facture, de devis ou d'intervention…">
         <button type="submit" class="d-btn d-btn-primary d-btn-sm">Rechercher</button>
-        <?php if ($q !== ''): ?>
+        <a href="<?= e(url_for('dispatcher/clients.php'.($unpaid ? '' : '?impayes=1'))) ?>" class="d-btn d-btn-sm <?= $unpaid ? 'd-btn--primary' : 'd-btn-outline' ?>">Impayés</a>
+        <?php if ($q !== '' || $unpaid): ?>
         <a href="<?= e(url_for('dispatcher/clients.php')) ?>" class="d-btn d-btn-outline d-btn-sm">Effacer</a>
         <?php endif; ?>
       </form>
@@ -149,6 +162,7 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
             <th>Téléphone</th>
             <th>Ville</th>
             <th style="text-align:center;">Interventions</th>
+            <th style="text-align:right;">Reste dû</th>
             <th>Créé le</th>
             <th style="text-align:right;">Actions</th>
           </tr>
@@ -156,7 +170,7 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
         <tbody>
           <?php if (empty($clients)): ?>
           <tr>
-            <td colspan="6" style="text-align:center;padding:3rem 0;color:var(--d-t2);">
+            <td colspan="7" style="text-align:center;padding:3rem 0;color:var(--d-t2);">
               <div style="font-size:2rem;margin-bottom:.5rem;"></div>
               <?= $q !== '' ? 'Aucun client trouvé pour cette recherche.' : 'Aucun client enregistré.' ?>
               <?php if ($q === ''): ?><br><button onclick="toggleForm()" class="d-btn d-btn-primary d-btn-sm" style="margin-top:.75rem;">+ Créer le premier client</button><?php endif; ?>
@@ -196,6 +210,10 @@ $showForm = !empty($_GET['new']) || !empty($_POST['show_form']);
               <?php else: ?>
                 <span style="color:var(--d-t2);font-size:.8rem;">—</span>
               <?php endif; ?>
+            </td>
+            <td style="text-align:right;white-space:nowrap;">
+              <?php $due = $dueById[(int)$client['id']] ?? 0.0; ?>
+              <?= $due > 0 ? '<b style="color:#b91c1c;">'.e(money_fr((float)$due)).'</b><div>'.client_bad_payer_badge((int)$client['id'], false).'</div>' : '<span style="color:var(--d-t2);">—</span>' ?>
             </td>
             <td style="color:var(--d-t2);font-size:.82rem;"><?= e($createdAt) ?></td>
             <td style="text-align:right;">

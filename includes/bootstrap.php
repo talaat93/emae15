@@ -26,6 +26,7 @@ require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
+require_once __DIR__ . '/client360.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -660,6 +661,14 @@ if (!file_exists($_mf28)) {
     unset($_me);
 }
 unset($_mf28);
+// Auto-migration v15.29 — notes datées des clients (phase 9)
+$_mf29 = __DIR__.'/../storage/.mig_v15_client_notes';
+if (!file_exists($_mf29)) {
+    try { client_notes_table(); } catch (Throwable $_me) {}
+    @file_put_contents($_mf29, date('c'));
+    unset($_me);
+}
+unset($_mf29);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
