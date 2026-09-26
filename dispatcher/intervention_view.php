@@ -48,7 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($techChanged && in_array($newStatus, ['nouveau', 'a_assigner', 'confirmé'], true)) {
             $data['status'] = $newStatus = 'assigné';
         }
-        update_intervention($id, $data);
+        [$vatFields, $clientType] = disp_vat_values();
+        update_intervention($id, $data + $vatFields);
+        if ($clientType !== null && !empty($iv['client_id'])) db_execute('UPDATE clients SET client_type = ? WHERE id = ?', [$clientType, (int)$iv['client_id']]);
         if ($techChanged) notify_intervention_assigned($id);
 
         if ($oldStatus !== $newStatus) {
@@ -116,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
    DATA
 ───────────────────────────────────────────────────── */
 $history   = get_intervention_history($id);
+$ivClient  = !empty($iv['client_id']) ? get_client_by_id((int)$iv['client_id']) : null;
 $statusCfg = intervention_status_config();
 $catCfg    = intervention_category_config();
 $techs     = all_technicians();
@@ -552,6 +555,7 @@ function fmt_dur(int $mins): string {
           <div class="d-card" style="margin-bottom:1.25rem;">
             <div class="d-card-head"><div class="d-card-title">Financier</div></div>
             <div class="d-card-body">
+              <?= disp_vat_fields($iv, $ivClient) ?>
               <div class="d-grid-3">
                 <div class="d-field">
                   <label>Montant HT (€)</label>
@@ -732,6 +736,10 @@ function fmt_dur(int $mins): string {
             <span class="d-info-value" style="text-transform:capitalize;"><?= e($iv['payment_method']) ?></span>
           </div>
           <?php endif; ?>
+          <div class="d-info-row">
+            <span class="d-info-label">TVA</span>
+            <span class="d-info-value"><?= e(rtrim(rtrim(number_format(iv_vat_rate($iv, $ivClient), 2, ',', ''), '0'), ',')) ?> %<?= ($iv['vat_rate'] ?? null) === null ? ' (automatique)' : '' ?><?= !empty($ivClient['client_type']) ? ' · '.e($ivClient['client_type'] === 'particulier' ? 'particulier' : 'professionnel') : '' ?></span>
+          </div>
           <?php $ps = (string)($iv['payment_status'] ?? ''); ?>
           <div class="d-info-row" style="align-items:center;">
             <span class="d-info-label">Paiement</span>

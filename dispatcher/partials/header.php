@@ -18,6 +18,33 @@ try { $urgentCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHE
 try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0); } catch(Throwable $e) { $waitingCount=0; }
 $tasksBadge = dispatcher_pending_tasks_count();
 
+/** Type de client, logement de plus de 2 ans et taux de TVA de la fiche. */
+function disp_vat_fields(array $iv, ?array $client): string
+{
+    $type = (string)($client['client_type'] ?? '');
+    $rate = ($iv['vat_rate'] ?? null) !== null && ($iv['vat_rate'] ?? '') !== '' ? (string)(float)$iv['vat_rate'] : '';
+    $opt = static fn(string $v, string $l, string $cur) => '<option value="'.e($v).'"'.($v === $cur ? ' selected' : '').'>'.e($l).'</option>';
+    return '<div class="d-grid-3">'
+        . '<div class="d-field"><label>Type de client</label><select name="client_type">'
+        . $opt('', '—', $type).$opt('particulier', 'Particulier', $type).$opt('professionnel', 'Professionnel', $type).'</select></div>'
+        . '<div class="d-field"><label>TVA</label><select name="vat_rate">'
+        . $opt('', 'Automatique (10 % ou 20 %)', $rate).$opt('10', '10 % — rénovation, logement de plus de 2 ans', $rate).$opt('20', '20 %', $rate).$opt('5.5', '5,5 % — rénovation énergétique', $rate).'</select></div>'
+        . '<div class="d-field" style="display:flex;align-items:flex-end;"><label style="display:flex;gap:.5rem;align-items:center;font-weight:500;cursor:pointer;margin:0 0 .6rem;">'
+        . '<input type="checkbox" name="housing_over_2y" value="1" style="width:auto;"'.(!empty($iv['housing_over_2y']) ? ' checked' : '').'> Logement de plus de 2 ans (attestation simplifiée)</label></div>'
+        . '</div><div style="font-size:.78rem;color:var(--d-t2);margin:-.4rem 0 .8rem;">Automatique : 10 % pour un particulier dont le logement a plus de 2 ans, sinon 20 %.</div>';
+}
+
+/** Lecture des champs ci-dessus : [champs intervention, type de client]. */
+function disp_vat_values(): array
+{
+    $rate = (string)($_POST['vat_rate'] ?? '');
+    $type = in_array($_POST['client_type'] ?? '', ['particulier', 'professionnel'], true) ? (string)$_POST['client_type'] : null;
+    return [[
+        'housing_over_2y' => !empty($_POST['housing_over_2y']) ? 1 : 0,
+        'vat_rate'        => in_array($rate, ['5.5', '10', '20'], true) ? (float)$rate : null,
+    ], $type];
+}
+
 /** Choix des photos à demander au technicien (cases à cocher + saisie libre). */
 function disp_photo_request_field(array $selected): string
 {
@@ -84,6 +111,9 @@ function disp_photo_request_value(): ?string
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="m8 12 3 3 5-6"/></svg></span> Tâches<?php if ($tasksBadge > 0): ?><span class="d-nav-badge"><?= $tasksBadge ?></span><?php endif; ?>
     </a>
     <div class="d-nav-group">Réglages</div>
+    <a class="d-nav-item <?= disp_is_active(['tarifs.php'],'tarifs') ?>" href="<?= e(url_for('dispatcher/tarifs.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12V4a1 1 0 0 1 1-1h8l9 9-9 9z"/><circle cx="7.5" cy="7.5" r="1.5"/></svg></span> Tarifs
+    </a>
     <a class="d-nav-item <?= disp_is_active(['presets.php'],'presets') ?>" href="<?= e(url_for('dispatcher/presets.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span> Listes prédéfinies
     </a>
