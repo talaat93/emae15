@@ -25,6 +25,8 @@ jobs:
             **/.git*
             **/.git*/**
             **/node_modules/**
+            tests/**
+            passation.md
             config/config.local.php
             storage/uploads/**
             storage/.mig_*
