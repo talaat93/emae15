@@ -13,23 +13,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $phone  = trim((string)($_POST['phone']  ?? ''));
         $status = in_array($_POST['status'] ?? '', ['actif','inactif'], true) ? $_POST['status'] : 'actif';
         $pw     = trim((string)($_POST['password'] ?? ''));
+        $fin    = !empty($_POST['can_finance']) ? 1 : 0;   // accès au tableau de bord financier
 
         if ($name === '' || $email === '') { flash('error','Nom et email requis.'); redirect_to('admin/dispatchers.php'); }
 
         if ($id > 0) {
             if ($pw !== '') {
-                db_execute('UPDATE dispatchers SET name=?,email=?,phone=?,status=?,password_hash=? WHERE id=?',
-                    [$name, $email, $phone, $status, password_hash($pw, PASSWORD_DEFAULT), $id]);
+                db_execute('UPDATE dispatchers SET name=?,email=?,phone=?,status=?,can_finance=?,password_hash=? WHERE id=?',
+                    [$name, $email, $phone, $status, $fin, password_hash($pw, PASSWORD_DEFAULT), $id]);
             } else {
-                db_execute('UPDATE dispatchers SET name=?,email=?,phone=?,status=? WHERE id=?',
-                    [$name, $email, $phone, $status, $id]);
+                db_execute('UPDATE dispatchers SET name=?,email=?,phone=?,status=?,can_finance=? WHERE id=?',
+                    [$name, $email, $phone, $status, $fin, $id]);
             }
             flash('success', 'Dispatcher mis à jour.');
         } else {
             if ($pw === '') { flash('error','Mot de passe requis pour créer un compte.'); redirect_to('admin/dispatchers.php'); }
             try {
-                db_execute('INSERT INTO dispatchers (name,email,phone,status,password_hash) VALUES (?,?,?,?,?)',
-                    [$name, $email, $phone, $status, password_hash($pw, PASSWORD_DEFAULT)]);
+                db_execute('INSERT INTO dispatchers (name,email,phone,status,can_finance,password_hash) VALUES (?,?,?,?,?,?)',
+                    [$name, $email, $phone, $status, $fin, password_hash($pw, PASSWORD_DEFAULT)]);
                 flash('success', 'Compte dispatcher créé — URL : '.url_for('dispatcher/login.php'));
             } catch (Throwable $e) {
                 flash('error', 'Cet email existe déjà.');
@@ -84,6 +85,7 @@ if (isset($_GET['edit'])) {
             <span style="padding:.2rem .65rem;border-radius:8px;font-size:.76rem;font-weight:700;background:<?= $d['status']==='actif'?'#e6fff2':'#fff0f0' ?>;color:<?= $d['status']==='actif'?'#14653a':'#8c2424' ?>;">
               <?= e($d['status']) ?>
             </span>
+            <?php if (!empty($d['can_finance'])): ?><span style="display:inline-block;margin-top:.25rem;padding:.15rem .55rem;border-radius:8px;font-size:.72rem;font-weight:700;background:#edf0ff;color:#1a3baa;">💶 Finances</span><?php endif; ?>
           </td>
           <td style="white-space:nowrap;">
             <a href="?edit=<?= (int)$d['id'] ?>" style="padding:.3rem .7rem;border-radius:8px;background:#edf0ff;color:#1a3baa;font-weight:700;font-size:.8rem;text-decoration:none;display:inline-block;margin-right:.3rem;">✏️</a>
@@ -127,6 +129,10 @@ if (isset($_GET['edit'])) {
           <option value="actif"   <?= ($edit['status'] ?? 'actif') === 'actif'   ? 'selected' : '' ?>>✅ Actif</option>
           <option value="inactif" <?= ($edit['status'] ?? '') === 'inactif' ? 'selected' : '' ?>>❌ Inactif</option>
         </select>
+      </label>
+      <label class="admin-field" style="display:flex;gap:.6rem;align-items:flex-start;cursor:pointer;">
+        <input type="checkbox" name="can_finance" value="1" <?= !empty($edit['can_finance']) ? 'checked' : '' ?> style="width:auto;margin-top:.25rem;">
+        <span><strong>Accès aux finances</strong><br><small style="font-weight:400;color:#6b7a99;">Chiffre d'affaires, impayés, débiteurs, relances à faire. Désactivé par défaut.</small></span>
       </label>
     </div>
   </section>

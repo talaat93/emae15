@@ -115,6 +115,11 @@ function disp_photo_request_value(): ?string
     <a class="d-nav-item <?= disp_is_active(['factures.php'],'factures') ?>" href="<?= e(url_for('dispatcher/factures.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14l-2.5-1.5L14 21l-2.5-1.5L9 21l-2.5-1.5L4 21V5a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span> Factures<?php if ($invBadge > 0): ?><span class="d-nav-badge" title="À valider"><?= $invBadge ?></span><?php endif; ?>
     </a>
+    <?php if (dispatcher_can_finance($disp)): ?>
+    <a class="d-nav-item <?= disp_is_active(['finances.php'],'finances') ?>" href="<?= e(url_for('dispatcher/finances.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span> Finances
+    </a>
+    <?php endif; ?>
     <div class="d-nav-group">Réglages</div>
     <a class="d-nav-item <?= disp_is_active(['techniciens.php'],'techniciens') ?>" href="<?= e(url_for('dispatcher/techniciens.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></span> Techniciens

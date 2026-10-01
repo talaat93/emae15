@@ -285,6 +285,23 @@ Table `invoice_reminders` : `invoice_id`, `level`, `recipient`, `subject`,
 disponibilité si Pennylane est en panne, limite de requêtes, badge
 « mauvais payeur » pendant un appel. Justification complète en commentaire.
 
+### Tableau de bord financier — `includes/finance.php`, `dispatcher/finances.php`
+
+Réservé aux comptes dispatcher ayant la case **« Accès aux finances »**
+(Administration → Dispatchers ; colonne `dispatchers.can_finance`, migration
+v15.31, désactivée par défaut). Contrôle : `dispatcher_can_finance($disp)`,
+`require_finance_access($disp)` (403).
+
+`finance_load()` lit le cache une fois ; les calculs sont **purs** (liste de
+factures + date du jour, sans base ni réseau) et testés par
+`tests/test_finances.php` : `finance_kpis()`, `finance_aging()` (non échu,
+1-30, 31-60, 60+ jours), `finance_reminders_due()` (sans relance depuis 7 j,
+niveau suggéré 1 à 3), `finance_top_debtors()`, `finance_monthly()`,
+`finance_payment_delay()`, `finance_breakdown($factures, 'iv_category' | 'tech_name')`.
+Conventions : TTC ; brouillons et annulées exclus ; « encaissé » = factures
+payées à leur date de paiement (un paiement partiel n'apparaît que dans le
+reste dû).
+
 ### Écrans
 
 - `dispatcher/settings.php?tab=pennylane` : jeton configuré oui/non, mode
@@ -322,10 +339,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-577 assertions, aucune base de données nécessaire : chaque test remplace
+608 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 165 fichiers PHP.
+sur les 167 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -342,6 +359,7 @@ sur les 165 fichiers PHP.
 | `test_zones_unique.php` | **la synchronisation des quatre emplacements** |
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
+| `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation, relecture, Yousign) n'est pas encore couvert.
@@ -421,10 +439,8 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 - [ ] Confirmer, sur la documentation Pennylane, la signification exacte du
       code 409 de `send_by_email` et le délai à respecter après un 429.
 
-### Prochain chantier prévu
-
-Tableau de bord financier (cockpit) : s'appuyer sur §4ter, sans recoder
-l'accès à Pennylane.
+- [ ] Cocher « Accès aux finances » sur les comptes dispatcher autorisés
+      (Administration → Dispatchers) : personne n'y a accès par défaut.
 
 ### Décisions en attente
 
@@ -452,6 +468,9 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| `f0177a3` | Finances 3 — page « Finances » du dispatcher |
+| `c6c5356` | Finances 2 — calculs du tableau de bord financier, avec tests |
+| `222d66d` | Finances 1 — droit « Accès aux finances » par compte dispatcher |
 | `ae54ce1` | Fondations F — tests : simulation Pennylane étanche, texte des relances |
 | `cd4d916` | Fondations E — Réglages : état de la connexion ; Factures : Pennylane en direct |
 | `f969b81` | Fondations D — fiche client : choix du cache local expliqué |
