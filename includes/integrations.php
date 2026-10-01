@@ -178,6 +178,13 @@ function integration_log_recent(string $channel = '', int $limit = 20): array
     } catch (Throwable $e) { return []; }
 }
 
+/** Nombre de requêtes HTTP sortantes tentées pendant cette exécution (vérifié par les tests). */
+function integration_http_calls(int $add = 0): int
+{
+    static $n = 0;
+    return $n += $add;
+}
+
 /* ─── HTTP ────────────────────────────────────────────────── */
 /**
  * Requête HTTP en cURL. Retourne ['status' => int, 'body' => string, 'json' => ?array,
@@ -186,7 +193,10 @@ function integration_log_recent(string $channel = '', int $limit = 20): array
  */
 function integration_http(string $method, string $url, array $headers = [], array|string|null $body = null, int $timeout = 20): array
 {
+    integration_http_calls(1);
     $out = ['status' => 0, 'body' => '', 'json' => null, 'headers' => [], 'error' => null, 'ms' => 0];
+    // Tests automatiques : le réseau est coupé, aucune requête ne part (voir tests/).
+    if (defined('EMAE_TESTS_SANS_RESEAU')) { $out['error'] = 'réseau coupé (tests)'; return $out; }
     if (!function_exists('curl_init')) { $out['error'] = 'Extension cURL absente sur le serveur.'; return $out; }
     $ch = curl_init($url);
     $respHeaders = [];
