@@ -14,10 +14,17 @@ const PENNYLANE_BASE = 'https://app.pennylane.com/api/external/v2';
 
 function pennylane_token(): string { return integration_secret('pennylane_api_key'); }
 
-/** Simulation : pas de jeton, ou mode simulation forcé dans les réglages. */
+/**
+ * Simulation : aucune requête ne part vers Pennylane, des données fictives marquées
+ * « SIMULATION » sont renvoyées. Active s'il n'y a pas de jeton, ou si le réglage
+ * « mode_simulation » vaut 1 (l'ancien nom « pennylane_simulation » est encore lu).
+ */
 function pennylane_simulated(): bool
 {
-    return pennylane_token() === '' || integration_setting('pennylane_simulation', '0') === '1';
+    if (pennylane_token() === '') return true;
+    $mode = integration_setting('mode_simulation', '');
+    if ($mode !== '') return $mode === '1';
+    return integration_setting('pennylane_simulation', '0') === '1';
 }
 
 /**
@@ -26,6 +33,8 @@ function pennylane_simulated(): bool
  */
 function pennylane_request(string $method, string $path, array $query = [], ?array $body = null, int $timeout = 25): array
 {
+    // Garde-fou central : en simulation, rien ne sort vers le réseau.
+    if (pennylane_simulated()) return pennylane_fake_response($method, $path, $query, $body);
     // Adresse remplaçable dans config.local.php (tests locaux uniquement).
     $url = (string)(app_config()['pennylane_base'] ?? PENNYLANE_BASE).$path.($query ? '?'.http_build_query($query) : '');
     // Nouvelle version de l'API (changements 2026, seule version disponible depuis juillet 2026).
@@ -64,14 +73,107 @@ function pennylane_request(string $method, string $path, array $query = [], ?arr
     return ['ok' => true, 'status' => $res['status'], 'data' => $res['json'] ?? [], 'error' => null];
 }
 
+/**
+ * Routes de lecture testées par « Tester la connexion » (toutes en GET, sans effet sur la
+ * comptabilité). Chaque route correspond à un droit du jeton Pennylane.
+ */
+function pennylane_test_routes(): array
+{
+    return [
+        ['/me',                           'Compte et société'],
+        ['/customers',                    'Clients'],
+        ['/customer_invoices',            'Factures clients'],
+        ['/products',                     'Produits'],
+        ['/changelogs/customer_invoices', 'Journal des factures'],
+        ['/changelogs/customers',         'Journal des clients'],
+    ];
+}
+
+/**
+ * Teste le jeton route par route. Retour : ['ok' => bool, 'message' => string,
+ * 'simulated' => bool, 'routes' => [['path', 'label', 'etat' => accessible|refusée|erreur|simulation, 'http']]].
+ */
 function pennylane_test_connection(): array
 {
-    if (pennylane_token() === '') return ['ok' => false, 'message' => 'Aucun jeton : Pennylane fonctionne en mode SIMULATION.'];
-    $r = pennylane_request('GET', '/me');
-    if (!$r['ok']) return ['ok' => false, 'message' => $r['error']];
-    $co = (string)($r['data']['company']['name'] ?? '');
-    $mode = integration_setting('pennylane_simulation', '0') === '1' ? ' (le mode simulation reste activé : décochez-le pour travailler en réel)' : '';
-    return ['ok' => true, 'message' => 'Connexion réussie'.($co !== '' ? ' — société « '.$co.' »' : '').$mode.'.'];
+    $sim = pennylane_simulated();
+    $routes = [];
+    $company = '';
+    $okCount = 0;
+    foreach (pennylane_test_routes() as [$path, $label]) {
+        $q = $path === '/me' ? [] : ['limit' => 1] + (str_starts_with($path, '/changelogs/') ? ['start_date' => date('c', strtotime('-1 day'))] : []);
+        $r = pennylane_request('GET', $path, $q);
+        $etat = $sim ? 'simulation' : ($r['ok'] ? 'accessible' : (in_array($r['status'], [401, 403], true) ? 'refusée' : 'erreur'));
+        if ($r['ok']) $okCount++;
+        if ($path === '/me' && $r['ok']) $company = (string)($r['data']['company']['name'] ?? '');
+        $routes[] = ['path' => $path, 'label' => $label, 'etat' => $etat, 'http' => $r['status'], 'error' => $r['ok'] ? null : $r['error']];
+        if (!$sim && $path === '/me' && $r['status'] === 401) break;   // jeton refusé : inutile d'aller plus loin
+    }
+    if ($sim) {
+        $why = pennylane_token() === '' ? 'aucun jeton n\'est configuré' : 'le mode simulation est activé';
+        return ['ok' => false, 'simulated' => true, 'routes' => $routes, 'message' => 'SIMULATION : '.$why.', aucune requête n\'a été envoyée à Pennylane.'];
+    }
+    $all = $okCount === count(pennylane_test_routes());
+    return ['ok' => $okCount > 0, 'simulated' => false, 'routes' => $routes,
+            'message' => ($okCount === 0 ? 'Connexion impossible' : 'Connexion réussie'.($company !== '' ? ' — société « '.$company.' »' : ''))
+                .' : '.$okCount.'/'.count(pennylane_test_routes()).' routes accessibles'.($all ? '.' : ' (voir le détail ci-dessous).')];
+}
+
+/* ─── Données fictives du mode simulation ─────────────────── */
+/**
+ * Réponse fictive mais crédible, au même format que l'API, pour le mode simulation.
+ * Les libellés portent « SIMULATION » pour qu'aucune donnée ne soit prise pour vraie.
+ */
+function pennylane_fake_response(string $method, string $path, array $query = [], ?array $body = null): array
+{
+    $method = strtoupper($method);
+    $today = date('Y-m-d');
+    $customers = [
+        ['id' => 900001, 'customer_type' => 'individual', 'name' => 'SIMULATION — Martin Dupont', 'first_name' => 'Martin', 'last_name' => 'Dupont (SIMULATION)',
+         'emails' => ['client.simulation@example.invalid'], 'phone' => '0600000000', 'external_reference' => 'SIM-C1',
+         'billing_address' => ['address' => '1 rue de la Simulation', 'postal_code' => '75001', 'city' => 'Paris', 'country_alpha2' => 'FR']],
+        ['id' => 900002, 'customer_type' => 'company', 'name' => 'SIMULATION — Syndic Exemple', 'emails' => ['syndic.simulation@example.invalid'],
+         'phone' => '0100000000', 'external_reference' => 'SIM-C2',
+         'billing_address' => ['address' => '2 avenue Fictive', 'postal_code' => '93100', 'city' => 'Montreuil', 'country_alpha2' => 'FR']],
+    ];
+    $inv = static fn(int $id, string $num, string $status, bool $paid, string $amount, string $ht, string $rest, string $date, string $deadline, int $cust) => [
+        'id' => $id, 'invoice_number' => $num, 'label' => 'SIMULATION — facture '.$num, 'status' => $status, 'paid' => $paid, 'draft' => false,
+        'amount' => $amount, 'currency_amount' => $amount, 'currency_amount_before_tax' => $ht, 'remaining_amount_with_tax' => $rest,
+        'date' => $date, 'deadline' => $deadline, 'customer' => ['id' => $cust], 'external_reference' => 'SIM-'.$id,
+        'public_file_url' => null, 'created_at' => $date.'T09:00:00Z', 'updated_at' => $date.'T09:00:00Z',
+    ];
+    $invoices = [
+        $inv(910001, 'SIM-F-0001', 'paid', true, '264.00', '240.00', '0.0', date('Y-m-d', strtotime('-40 days')), date('Y-m-d', strtotime('-40 days')), 900001),
+        $inv(910002, 'SIM-F-0002', 'late', false, '540.00', '450.00', '540.0', date('Y-m-d', strtotime('-50 days')), date('Y-m-d', strtotime('-20 days')), 900002),
+        $inv(910003, 'SIM-F-0003', 'upcoming', false, '151.80', '138.00', '151.8', $today, date('Y-m-d', strtotime('+30 days')), 900001),
+    ];
+    $products = [
+        ['id' => 920001, 'label' => 'SIMULATION — Déplacement', 'price_before_tax' => '49.00', 'vat_rate' => 'FR_200', 'unit' => 'forfait', 'reference' => 'DEPL', 'external_reference' => 'EMAE-P-DEPL'],
+    ];
+    $list = static fn(array $items) => ['ok' => true, 'status' => 200, 'simulated' => true, 'error' => null,
+        'data' => ['items' => array_slice($items, 0, max(1, (int)($query['limit'] ?? 100))), 'has_more' => false, 'next_cursor' => null]];
+
+    if ($method === 'GET') {
+        if ($path === '/me') return ['ok' => true, 'status' => 200, 'simulated' => true, 'error' => null, 'data' => ['company' => ['name' => 'SIMULATION — EMAE']]];
+        if ($path === '/customers') return $list($customers);
+        if ($path === '/customer_invoices') return $list($invoices);
+        if ($path === '/products') return $list($products);
+        if (str_starts_with($path, '/changelogs/')) return $list([]);
+        if (preg_match('#^/customers/(\d+)$#', $path, $m)) {
+            foreach ($customers as $c) if ($c['id'] === (int)$m[1]) return ['ok' => true, 'status' => 200, 'simulated' => true, 'error' => null, 'data' => $c];
+        }
+        if (preg_match('#^/customer_invoices/(\d+)$#', $path, $m)) {
+            foreach ($invoices as $i) if ($i['id'] === (int)$m[1]) return ['ok' => true, 'status' => 200, 'simulated' => true, 'error' => null, 'data' => $i];
+        }
+        if (preg_match('#/payments$#', $path)) return $list([]);
+        return ['ok' => false, 'status' => 404, 'simulated' => true, 'data' => null, 'error' => 'SIMULATION : élément introuvable.'];
+    }
+    // Écritures (création, envoi, paiement…) : acceptées sans effet.
+    $status = match (true) {
+        $method === 'DELETE', str_ends_with($path, '/send_by_email'), str_ends_with($path, '/mark_as_paid') => 204,
+        $method === 'POST' => 201,
+        default => 200,
+    };
+    return ['ok' => true, 'status' => $status, 'simulated' => true, 'error' => null, 'data' => $status === 204 ? [] : ['id' => 'SIM-'.substr(md5($path.json_encode($body)), 0, 8)]];
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -84,20 +186,37 @@ function pennylane_filter(array $conds): string
     return json_encode(array_map(static fn($c) => ['field' => $c[0], 'operator' => $c[1], 'value' => $c[2]], $conds), JSON_UNESCAPED_UNICODE);
 }
 
-/** Parcourt toutes les pages d'une liste (curseur). $onItem reçoit chaque élément. */
-function pennylane_each(string $path, array $query, callable $onItem, int $maxPages = 500): array
+/**
+ * Générateur : parcourt toutes les pages d'une liste Pennylane (pagination par curseur :
+ * paramètres « cursor » et « limit », réponse « has_more » et « next_cursor »).
+ *
+ *   $it = pennylane_each('/customer_invoices', ['limit' => 100]);
+ *   foreach ($it as $facture) { … }
+ *   $bilan = $it->getReturn();   // ['ok' => bool, 'count' => int, 'error' => ?string]
+ *
+ * En cas d'erreur, le parcours s'arrête et le bilan indique l'erreur.
+ */
+function pennylane_each(string $path, array $params = [], int $maxPages = 500): Generator
 {
-    $query['limit'] = $query['limit'] ?? 100;
+    $params['limit'] = $params['limit'] ?? 100;
     $n = 0;
     for ($page = 0; $page < $maxPages; $page++) {
-        $r = pennylane_request('GET', $path, $query);
+        $r = pennylane_request('GET', $path, $params);
         if (!$r['ok']) return ['ok' => false, 'count' => $n, 'error' => $r['error']];
-        foreach ((array)($r['data']['items'] ?? []) as $it) { $onItem($it); $n++; }
+        foreach ((array)($r['data']['items'] ?? []) as $it) { yield $it; $n++; }
         if (empty($r['data']['has_more']) || empty($r['data']['next_cursor'])) break;
-        $query['cursor'] = $r['data']['next_cursor'];
-        usleep(250000);   // reste sous la limite de requêtes de Pennylane
+        $params['cursor'] = $r['data']['next_cursor'];
+        if (empty($r['simulated'])) usleep(250000);   // reste sous la limite de requêtes de Pennylane
     }
     return ['ok' => true, 'count' => $n, 'error' => null];
+}
+
+/** Parcourt une liste en appelant $onItem pour chaque élément ; renvoie le bilan du générateur. */
+function pennylane_walk(string $path, array $params, callable $onItem): array
+{
+    $it = pennylane_each($path, $params);
+    foreach ($it as $item) $onItem($item);
+    return $it->getReturn();
 }
 
 /** Code TVA Pennylane (FR_200 = 20 %, FR_100 = 10 %, FR_55 = 5,5 %). */
@@ -398,8 +517,11 @@ function pennylane_finalize(int $invoiceId): array
 }
 
 /**
- * Envoi par e-mail par Pennylane. Juste après la finalisation, Pennylane peut répondre 409
- * (PDF en cours de génération) : on réessaie quelques fois avant d'abandonner.
+ * Envoi d'une facture par e-mail par Pennylane : POST /customer_invoices/{id}/send_by_email
+ * (204 = envoi lancé). La spécification décrit le 409 seulement comme un « conflit avec l'état
+ * actuel de la ressource » : en pratique, PDF encore en génération juste après la finalisation,
+ * ou envoi déjà fait. On réessaie quelques fois, puis on rend un message qui couvre les deux cas
+ * et l'indicateur « conflict » pour que l'écran puisse le dire clairement.
  */
 function pennylane_send_email(int $invoiceId, array $recipients = []): array
 {
@@ -414,7 +536,8 @@ function pennylane_send_email(int $invoiceId, array $recipients = []): array
         if ($r['status'] !== 409) return ['ok' => false, 'error' => $r['error']];
         sleep(3 + 2 * $i);
     }
-    return ['ok' => false, 'error' => 'Le PDF de la facture est encore en préparation chez Pennylane : réessayez l\'envoi dans quelques minutes.'];
+    integration_log('pennylane', 'envoi par e-mail refusé (409) après plusieurs essais', ['facture' => $invoiceId]);
+    return ['ok' => false, 'conflict' => true, 'error' => 'Pennylane refuse l\'envoi pour le moment (conflit d\'état) : soit le PDF est encore en préparation — réessayez dans quelques minutes —, soit la facture a déjà été envoyée — vérifiez dans Pennylane avant de renvoyer.'];
 }
 
 function pennylane_mark_paid(int $invoiceId, ?array $actor = null): array
@@ -488,15 +611,15 @@ function pennylane_sync_run(string $origin = 'cron'): array
     $full = $since === '' || strtotime($since) < strtotime('-25 days');
 
     if ($full) {
-        $r = pennylane_each('/customers', [], static function ($pc) use (&$cs) { pennylane_import_customer($pc, $cs); });
+        $r = pennylane_walk('/customers', [], static function ($pc) use (&$cs) { pennylane_import_customer($pc, $cs); });
         if (!$r['ok']) $errors[] = 'clients : '.$r['error'];
-        $r = pennylane_each('/customer_invoices', [], static function ($pi) use (&$is) { pennylane_upsert_invoice($pi, $is); });
+        $r = pennylane_walk('/customer_invoices', [], static function ($pi) use (&$is) { pennylane_upsert_invoice($pi, $is); });
         if (!$r['ok']) $errors[] = 'factures : '.$r['error'];
     } else {
         $custIds = []; $invIds = []; $deleted = [];
-        $r = pennylane_each('/changelogs/customers', ['start_date' => $since, 'limit' => 1000], static function ($ch) use (&$custIds) { if (($ch['operation'] ?? '') !== 'delete') $custIds[(string)$ch['id']] = true; });
+        $r = pennylane_walk('/changelogs/customers', ['start_date' => $since, 'limit' => 1000], static function ($ch) use (&$custIds) { if (($ch['operation'] ?? '') !== 'delete') $custIds[(string)$ch['id']] = true; });
         if (!$r['ok']) $errors[] = 'journal clients : '.$r['error'];
-        $r = pennylane_each('/changelogs/customer_invoices', ['start_date' => $since, 'limit' => 1000], static function ($ch) use (&$invIds, &$deleted) {
+        $r = pennylane_walk('/changelogs/customer_invoices', ['start_date' => $since, 'limit' => 1000], static function ($ch) use (&$invIds, &$deleted) {
             if (($ch['operation'] ?? '') === 'delete') $deleted[(string)$ch['id']] = true; else $invIds[(string)$ch['id']] = true;
         });
         if (!$r['ok']) $errors[] = 'journal factures : '.$r['error'];

@@ -46,6 +46,19 @@ function client_invoices(int $clientId): array
 }
 
 /**
+ * Pourquoi un cache local (table invoices) plutôt qu'un appel direct à Pennylane ?
+ * L'API permet de filtrer les factures par client (filtre customer_id sur GET /customer_invoices),
+ * un appel direct serait donc possible. Le cache est préféré parce que :
+ *  - la fiche s'affiche instantanément (un appel Pennylane prend de 0,3 à 2 s, davantage s'il y a
+ *    plusieurs pages) ;
+ *  - elle reste consultable si Pennylane est indisponible ou si le jeton est refusé ;
+ *  - on reste loin de la limite de requêtes de Pennylane (la liste des clients et son filtre
+ *    « Impayés » ont besoin des factures de tous les clients d'un coup) ;
+ *  - le badge « mauvais payeur » apparaît aussi pendant un appel téléphonique, où il faut une
+ *    réponse immédiate.
+ * Contrepartie : un décalage de 15 minutes au plus (fréquence de cron/pennylane_sync.php) ;
+ * le bouton « Actualiser depuis Pennylane » de l'écran Factures relit une facture à la demande.
+ *
  * Situation financière : facturé, encaissé, reste dû, retards.
  * Le badge « mauvais payeur » s'allume si une facture a plus de 30 jours de retard,
  * si deux factures sont en retard, ou si une facture reste impayée après 2 relances.

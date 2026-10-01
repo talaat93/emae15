@@ -56,18 +56,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to($self);
     }
     if ($action === 'paid') {
+        // Confirmation obligatoire : le premier clic affiche un récapitulatif, le second exécute.
+        if (($_POST['confirm'] ?? '') !== '1') redirect_to($self.'&confirmer_paiement=1#paiement');
         $r = invoice_mark_paid($invId, $disp);
         flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Facture marquée payée : le dossier est clôturé.' : (string)$r['error']);
         redirect_to($self);
     }
     if ($action === 'reminder_draft') {
-        $d = reminder_draft($invId);
+        $d = reminder_draft_ia($invId);
         $_SESSION['reminder_draft_'.$invId] = $d;
         if (!empty($d['notice'])) flash('error', (string)$d['notice']);
         redirect_to($self.'#relance');
     }
     if ($action === 'reminder_send') {
-        $r = reminder_send($invId, (string)($_POST['to'] ?? ''), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['source'] ?? ''), $disp);
+        $r = reminder_send_texte($invId, (string)($_POST['to'] ?? ''), (string)($_POST['subject'] ?? ''), (string)($_POST['body'] ?? ''), (string)($_POST['source'] ?? ''), $disp);
         if ($r['ok']) unset($_SESSION['reminder_draft_'.$invId]);
         flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Relance envoyée.' : (string)$r['error']);
         redirect_to($self.'#relance');
@@ -83,6 +85,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $stCfg = invoice_status_config();
 $csrf  = csrf_token();
+
+/* ═════════════ Pennylane en direct (lecture seule) ═════════════ */
+// Lit les factures directement dans Pennylane, page par page, sans rien enregistrer ni modifier.
+// Utile pour vérifier que le cache local (onglet « Suivi ») est bien à jour.
+if (!$invId && ($_GET['vue'] ?? '') === 'pennylane') {
+    $max = 100;
+    $direct = []; $bilan = ['ok' => true, 'error' => null];
+    $it = pennylane_each('/customer_invoices', ['limit' => 50, 'sort' => '-id']);
+    foreach ($it as $pi) {
+        $direct[] = $pi;
+        if (count($direct) >= $max) break;
+    }
+    if (count($direct) < $max) $bilan = $it->getReturn();
+    $known = [];
+    try { foreach (db_fetch_all('SELECT id, pennylane_id FROM invoices WHERE pennylane_id IS NOT NULL') as $r) $known[(string)$r['pennylane_id']] = (int)$r['id']; } catch (Throwable $e) {}
+    $custNames = [];
+    try { foreach (db_fetch_all("SELECT pennylane_customer_id, lastname, firstname FROM clients WHERE pennylane_customer_id IS NOT NULL AND pennylane_customer_id <> ''") as $r) $custNames[(string)$r['pennylane_customer_id']] = trim($r['lastname'].' '.$r['firstname']); } catch (Throwable $e) {}
+    ?>
+<div class="d-topbar">
+  <div>
+    <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
+    <div><div class="d-topbar-title">Factures — Pennylane en direct</div><div class="d-topbar-sub">Lecture seule, directement depuis Pennylane (<?= $max ?> plus récentes au maximum)</div></div>
+  </div>
+  <div class="d-topbar-actions"><a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/factures.php')) ?>">← Suivi des factures</a></div>
+</div>
+<div class="d-content">
+  <?php if (pennylane_simulated()): ?><div class="d-flash" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1e3a8a;">SIMULATION : aucune requête n'est envoyée à Pennylane, les factures ci-dessous sont fictives.</div><?php endif; ?>
+  <?php if (!$bilan['ok']): ?><div class="d-flash d-flash--error">Lecture interrompue : <?= e((string)$bilan['error']) ?></div><?php endif; ?>
+  <div class="d-card" style="overflow-x:auto;">
+    <table class="d-table">
+      <thead><tr><th>Date</th><th>N°</th><th>Client</th><th>Libellé</th><th style="text-align:right;">TTC</th><th style="text-align:right;">Reste dû</th><th>Statut Pennylane</th><th>Dans EMAE</th></tr></thead>
+      <tbody>
+      <?php if (!$direct): ?><tr><td colspan="8" style="text-align:center;color:var(--d-t3);padding:1.5rem;">Aucune facture lue.</td></tr><?php endif; ?>
+      <?php foreach ($direct as $pi): $lid = $known[(string)$pi['id']] ?? null; ?>
+        <tr>
+          <td style="white-space:nowrap;"><?= !empty($pi['date']) ? e(date('d/m/Y', strtotime((string)$pi['date']))) : '—' ?></td>
+          <td style="font-weight:600;white-space:nowrap;"><?= e((string)($pi['invoice_number'] ?? '') ?: 'brouillon') ?></td>
+          <td><?= e($custNames[(string)($pi['customer']['id'] ?? '')] ?? ('#'.($pi['customer']['id'] ?? '—'))) ?></td>
+          <td style="font-size:.84rem;color:var(--d-t2);"><?= e(mb_strimwidth((string)($pi['label'] ?? ''), 0, 60, '…')) ?></td>
+          <td style="text-align:right;white-space:nowrap;"><?= e(money_fr((float)($pi['currency_amount'] ?? $pi['amount'] ?? 0))) ?></td>
+          <td style="text-align:right;white-space:nowrap;"><?= isset($pi['remaining_amount_with_tax']) ? e(money_fr((float)$pi['remaining_amount_with_tax'])) : '' ?></td>
+          <td><?= e((string)($pi['status'] ?? '')) ?></td>
+          <td><?= $lid ? '<a href="'.e(url_for('dispatcher/factures.php?id='.$lid)).'">voir</a>' : '<span style="color:var(--d-t3);">pas encore synchronisée</span>' ?></td>
+        </tr>
+      <?php endforeach; ?>
+      </tbody>
+    </table>
+  </div>
+</div>
+<?php
+    require __DIR__.'/partials/footer.php';
+    return;
+}
 
 /* ═════════════ Liste ═════════════ */
 if (!$invId) {
@@ -114,6 +169,7 @@ if (!$invId) {
     <button class="d-menu-toggle" id="d-menu-toggle" aria-label="Menu">☰</button>
     <div><div class="d-topbar-title">Factures</div><div class="d-topbar-sub">Aucune facture ne part sans votre validation</div></div>
   </div>
+  <div class="d-topbar-actions"><a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/factures.php?vue=pennylane')) ?>">Pennylane en direct</a></div>
 </div>
 <div class="d-content">
   <div class="dash-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.8rem;margin-bottom:1rem;">
@@ -312,11 +368,29 @@ $photos = $iv ? intervention_photo_paths($iv) : [];
               <form method="post"><input type="hidden" name="csrf_token" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= $invId ?>"><button type="submit" name="action" value="pl_refresh" class="d-btn d-btn--sm">Actualiser depuis Pennylane</button></form>
             <?php endif; ?>
             <?php if (in_array($inv['status'], ['validee', 'envoyee'], true)): ?>
-              <form method="post" onsubmit="return confirm('Confirmer le paiement complet de cette facture ?');"><input type="hidden" name="csrf_token" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= $invId ?>"><button type="submit" name="action" value="paid" class="d-btn d-btn--sm d-btn--success">Marquer payée</button></form>
+              <form method="post"><input type="hidden" name="csrf_token" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= $invId ?>"><button type="submit" name="action" value="paid" class="d-btn d-btn--sm d-btn--success">Marquer payée…</button></form>
             <?php endif; ?>
           </div>
         </div>
       </div>
+      <?php endif; ?>
+
+      <?php if (!empty($_GET['confirmer_paiement']) && in_array($inv['status'], ['validee', 'envoyee'], true)): ?>
+      <form method="post" class="d-card" id="paiement" style="margin-top:1rem;border:2px solid #16a34a;">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>"><input type="hidden" name="id" value="<?= $invId ?>">
+        <input type="hidden" name="action" value="paid"><input type="hidden" name="confirm" value="1">
+        <div class="d-card-head"><div class="d-card-title">Confirmer le paiement</div></div>
+        <div class="d-card-body">
+          <p style="margin:0 0 .6rem;">Vous allez marquer comme <b>entièrement payée</b> la facture <b><?= e((string)$inv['number']) ?></b>
+            de <b><?= e(trim(($client['lastname'] ?? '').' '.($client['firstname'] ?? ''))) ?: 'ce client' ?></b>,
+            reste dû <b><?= e(money_fr((float)($inv['remaining_ttc'] ?? $inv['total_ttc']))) ?></b>.</p>
+          <p style="margin:0 0 .8rem;font-size:.86rem;color:var(--d-t2);">L'information est transmise à Pennylane<?= pennylane_simulated() ? ' (ici en SIMULATION : rien n\'est transmis)' : '' ?> et le dossier d'intervention est clôturé. À utiliser seulement si l'argent est réellement encaissé (espèces, chèque, virement reçu).</p>
+          <div style="display:flex;gap:.5rem;">
+            <button type="submit" class="d-btn d-btn--success">Oui, le paiement est encaissé</button>
+            <a class="d-btn d-btn--ghost" href="<?= e(url_for('dispatcher/factures.php?id='.$invId)) ?>">Annuler</a>
+          </div>
+        </div>
+      </form>
       <?php endif; ?>
 
       <?php if (in_array($inv['status'], ['envoyee', 'validee'], true)): ?>

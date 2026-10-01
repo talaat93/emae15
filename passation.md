@@ -3,7 +3,7 @@
 Document de reprise. À lire en entier avant de toucher au code : il contient
 plusieurs pièges qui ont déjà coûté du temps.
 
-Dernière mise à jour : 27 septembre 2026.
+Dernière mise à jour : 1er octobre 2026.
 
 ---
 
@@ -212,7 +212,85 @@ Ne pas dupliquer ces instructions ici — les tenir à jour là-bas.
 
 Points d'attention : ce circuit appelle des services externes payants
 (Claude, Pennylane, Yousign) et manipule des données clients et des
-montants. La suite de tests de ce dépôt ne le couvre pas.
+montants. La suite de tests ne couvre encore que ses fondations Pennylane
+et les relances (voir §4ter et §6).
+
+---
+
+## 4ter. Fondations des intégrations (Pennylane, relances) — référence
+
+But : qu'un prochain chantier (par exemple le tableau de bord financier)
+puisse écrire « réutilise `pennylane_request()`, `reminder_draft()`… » et que
+ce soit vrai. Signatures exactes au 1er octobre 2026 :
+
+### Réglages, secrets, journal — `includes/integrations.php`
+
+| Fonction | Rôle |
+|---|---|
+| `integration_secret(string $cle): string` | secret ('' si absent). Ordre : `config.local.php` (`'secrets'`), table `integration_settings`, ancienne table `settings` |
+| `set_integration_secret(string $cle, string $valeur)` | enregistre ou efface (valeur vide) un secret |
+| `integration_secret_configured(string $cle): bool` | **seule** information affichable sur un secret |
+| `integration_setting(string $cle, string $defaut)` / `set_integration_setting()` | réglages non secrets (`mode_simulation`, `adresse_test`…) |
+| `integration_log(string $canal, string $message, array $contexte)` | trace dans `storage/logs/{canal}-AAAA-MM.log` **et** table `integration_log` ; masque automatiquement tout secret |
+| `integration_log_recent(string $canal, int $n)` | dernières lignes (écran Réglages) |
+| `integration_http(…)` | **seule porte vers le réseau** ; compte les appels (`integration_http_calls()`) ; coupée si `EMAE_TESTS_SANS_RESEAU` est défini |
+
+Tables (migration v15.30) : `integration_settings (cle, valeur, secret, updated_at)`,
+`integration_log (id, created_at, canal, action, detail)`.
+
+**Règle absolue** : le jeton Pennylane n'apparaît jamais dans le HTML, le JS,
+une réponse JSON, un journal ou le dépôt. Les écrans affichent « configuré »
+ou « non configuré », rien d'autre.
+
+### Pennylane — `includes/pennylane.php`
+
+| Fonction | Rôle |
+|---|---|
+| `pennylane_simulated(): bool` | vrai sans jeton, ou si `mode_simulation` = 1 (ancien nom `pennylane_simulation` encore lu) |
+| `pennylane_request(string $methode, string $chemin, array $query = [], ?array $corps = null): array` | `['ok','status','data','error']` ; en simulation renvoie des données fictives (`'simulated' => true`), **aucun appel réseau** ; réessaie sur 429/502/503/504 (attente `Retry-After` ou `ratelimit-reset`, sinon 1, 2, 4 s) |
+| `pennylane_each(string $chemin, array $params = []): Generator` | parcourt toutes les pages (curseur) ; bilan par `->getReturn()` |
+| `pennylane_walk($chemin, $params, callable $f)` | même chose avec une fonction de rappel |
+| `pennylane_test_connection(): array` | teste 6 routes de lecture, état de chacune (`accessible` / `refusée` / `erreur` / `simulation`) |
+| `pennylane_send_email(int $factureId, array $destinataires)` | envoi par Pennylane ; 409 : réessais puis message clair (`'conflict' => true`) |
+| `pennylane_mark_paid(int $factureId, ?array $acteur)` | l'écran appelant **doit** demander une confirmation (voir `dispatcher/factures.php`) |
+| `pennylane_sync_run(string $origine)` | synchronisation complète ou incrémentale (cron toutes les 15 min) |
+
+Routes utilisées (API v2 « external », vérifiées sur la spécification
+OpenAPI officielle « Accounting 2.0 » ; `pennylane.readme.io` est bloqué
+depuis l'environnement des sessions) : `GET /me`, `GET /customers`,
+`GET /customers/{id}`, `POST /individual_customers`, `POST /company_customers`,
+`GET|POST|PUT /products`, `GET|POST /customer_invoices`,
+`GET|DELETE /customer_invoices/{id}`, `PUT /customer_invoices/{id}/finalize`,
+`POST /customer_invoices/{id}/send_by_email`,
+`PUT /customer_invoices/{id}/mark_as_paid`, `GET /changelogs/customer_invoices`,
+`GET /changelogs/customers`. En-tête envoyé : `X-Use-2026-API-Changes: true`.
+
+### Factures et relances — `includes/invoicing.php`
+
+| Fonction | Rôle |
+|---|---|
+| `reminder_draft(array $facture, int $niveau): array` | texte de relance (`subject`, `body`, `niveau`) **sans base, sans réseau, sans Claude** ; 1 = rappel, 2 = relance, 3+ = dernière avant recouvrement ; `{{client}}` remplacé à l'envoi |
+| `reminder_draft_ia(int $factureId): array` | version rédigée par Claude, repli sur `reminder_draft()` |
+| `reminder_send(array $facture, int $niveau, string $destinataire): bool` | envoi par `mail()` (via `notif_mail`) + traces `invoice_reminders` et `integration_log` |
+| `reminder_send_texte(…)` | envoi d'un texte relu par le dispatcher (écran Factures) |
+| `reminder_recipient(string $dest): ?string` | en simulation : `adresse_test` ou `null` (rien ne part chez le client) |
+
+Table `invoice_reminders` : `invoice_id`, `level`, `recipient`, `subject`,
+`body`, `source`, `sent_by`, `sent_at`.
+
+### Fiche client — `includes/client360.php`
+
+`client_finance(int $clientId): array` lit le **cache local** `invoices`
+(synchronisé toutes les 15 min), pas Pennylane en direct : rapidité,
+disponibilité si Pennylane est en panne, limite de requêtes, badge
+« mauvais payeur » pendant un appel. Justification complète en commentaire.
+
+### Écrans
+
+- `dispatcher/settings.php?tab=pennylane` : jeton configuré oui/non, mode
+  simulation, adresse de test, test route par route, journal récent.
+- `dispatcher/factures.php` : suivi (cache local) ; `?vue=pennylane` :
+  lecture directe, seule, via `pennylane_each()`.
 
 ---
 
@@ -244,10 +322,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-522 assertions, aucune base de données nécessaire : chaque test remplace
+577 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 162 fichiers PHP.
+sur les 165 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -262,9 +340,11 @@ sur les 162 fichiers PHP.
 | `test_zoneflow.php` | héritage, renommage, suppression d'une zone |
 | `test_zones.php` | filtrage des contenus par zone |
 | `test_zones_unique.php` | **la synchronisation des quatre emplacements** |
+| `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
+| `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 
-Le circuit d'intervention automatisé (§4bis) n'est pas couvert par cette
-suite : la compléter de ce côté serait le premier chantier utile.
+Le reste du circuit d'intervention automatisé (§4bis : qualification,
+assignation, relecture, Yousign) n'est pas encore couvert.
 
 **Rendu visuel.** Chromium et Playwright sont installés
 (`/opt/node22/lib/node_modules/playwright`, ne pas lancer
@@ -330,6 +410,22 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 - [ ] Vérifier les villes reprises automatiquement sur la page Contact
       (4 par zone, 18 au maximum).
 
+### Pennylane — à faire par le propriétaire
+
+- [ ] Générer le jeton Pennylane avec les droits : clients, produits,
+      factures clients (lecture **et** écriture), journaux de modifications.
+      Le saisir dans Dispatcher → Réglages → Pennylane, puis « Tester la
+      connexion » : les 6 routes doivent être « Accessible ».
+- [ ] Laisser le mode simulation activé et renseigner une adresse de test
+      tant que les premiers essais ne sont pas concluants.
+- [ ] Confirmer, sur la documentation Pennylane, la signification exacte du
+      code 409 de `send_by_email` et le délai à respecter après un 429.
+
+### Prochain chantier prévu
+
+Tableau de bord financier (cockpit) : s'appuyer sur §4ter, sans recoder
+l'accès à Pennylane.
+
 ### Décisions en attente
 
 - **`api/`** — 36 fichiers PHP, copie périmée de `admin/`. Rien n'y mène, aucun
@@ -356,6 +452,12 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| `ae54ce1` | Fondations F — tests : simulation Pennylane étanche, texte des relances |
+| `cd4d916` | Fondations E — Réglages : état de la connexion ; Factures : Pennylane en direct |
+| `f969b81` | Fondations D — fiche client : choix du cache local expliqué |
+| `c4d72f3` | Fondations C — relances testables, envoi sûr en simulation, confirmation du paiement |
+| `8a861ea` | Fondations B — simulation étanche, générateur de pages, test route par route |
+| `a4b8462` | Fondations A — réglages et journal des intégrations en base |
 | `4fc450a` | Circuit automatisé, phases 0 à 9 — autre session, voir §4bis |
 | `74d4f80` | Espace technicien : 4 redirections d'erreur menaient à une page qui plante |
 | `9595701` | Zones : une seule liste pour tout le site ; menu d'admin de 38 à 20 liens |

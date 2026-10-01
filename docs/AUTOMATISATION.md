@@ -78,3 +78,58 @@ Les journaux se trouvent dans `storage/logs/` (accès web refusé, jamais déplo
 - `audit-AAAA-MM.log` : validations, envois, suppressions, relances.
 
 Ils ne contiennent aucune donnée client.
+
+## 6. Liste des automatisations
+
+Tout ce qui se déclenche sans clic explicite d'un dispatcher, ou qui envoie
+quelque chose hors du site.
+
+### E-mails, SMS et notifications
+
+Les e-mails partent par la fonction `mail()` du serveur o2switch (pas de
+SMTP ni de bibliothèque), via `send_quote_notification()` ou `notif_mail()`.
+
+| Déclencheur | Destinataire | Fonction |
+|---|---|---|
+| Demande de devis sur le site | entreprise (+ accusé au client) | `send_quote_notification()`, `send_quote_confirmation_to_client()` |
+| Intervention attribuée | technicien : notification, e-mail, SMS selon les réglages | `notify_intervention_assigned()` |
+| Date et technicien fixés | client : e-mail ou SMS | `notify_client_scheduled()` |
+| Technicien « Je pars » | client | `notify_client_en_route()` |
+| Refus d'une intervention par le technicien | dispatcher | `notify_dispatcher_refusal()` |
+| Rapport rendu | dispatcher | `notify_report_submitted()` |
+| Rapport incomplet | technicien | `notify_tech_report_incomplete()` |
+| Facture envoyée | copie au technicien | `invoice_copy_to_tech()` |
+| Relance de facture (déclenchée par le dispatcher) | client — ou l'adresse de test en simulation | `reminder_send()`, `reminder_send_texte()` |
+| Devis signé, refusé ou expiré | dispatcher | `devis_notify_dispatcher()` |
+| Nouvelle tâche | dispatcher | `notify_task_created()` |
+
+En **mode simulation**, les relances ne partent jamais chez le client :
+elles vont à l'« adresse de test » des réglages, ou nulle part.
+
+### Tâches planifiées et webhooks
+
+| Quoi | Quand | Fichier |
+|---|---|---|
+| Synchronisation Pennylane (clients, factures, paiements, produits) et relecture des devis en attente | toutes les 15 min (cron o2switch) | `cron/pennylane_sync.php` |
+| Paiement constaté dans Pennylane → intervention « Payée » puis « Clôturée » | à chaque synchronisation | `pennylane_sync_intervention_status()` |
+| Brouillons de facture jamais arrivés dans Pennylane → nouvel essai | à chaque synchronisation | `pennylane_sync_run()` |
+| Devis signé, refusé ou expiré | à la réception du webhook Yousign | `api/yousign_webhook.php` |
+| Relecture du rapport (Claude ou contrôles standard) → brouillon de facture | juste après la remise du rapport, en arrière-plan | `review_run_after_response()` |
+
+### Migrations de la base
+
+Au premier chargement d'une page après une mise en ligne,
+`includes/bootstrap.php` crée les tables et colonnes manquantes. Chaque
+migration ne s'exécute qu'une fois, grâce à un fichier témoin
+`storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
+les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
+v15.30 (tables `integration_settings` et `integration_log`).
+
+### Vérifications manuelles disponibles
+
+| Commande ou écran | Effet |
+|---|---|
+| Réglages → Pennylane → « Tester la connexion » | teste 6 routes de lecture, route par route |
+| `PENNYLANE_TOKEN=… php cron/pennylane_check.php` | contrôle complet en lecture seule, sur le serveur ou en local |
+| Factures → « Pennylane en direct » | liste des factures lue directement dans Pennylane, sans rien modifier |
+| `bash tests/run.sh` | suite de tests, dont la simulation Pennylane et les relances |
