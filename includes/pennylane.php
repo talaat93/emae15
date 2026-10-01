@@ -517,8 +517,11 @@ function pennylane_finalize(int $invoiceId): array
 }
 
 /**
- * Envoi par e-mail par Pennylane. Juste après la finalisation, Pennylane peut répondre 409
- * (PDF en cours de génération) : on réessaie quelques fois avant d'abandonner.
+ * Envoi d'une facture par e-mail par Pennylane : POST /customer_invoices/{id}/send_by_email
+ * (204 = envoi lancé). La spécification décrit le 409 seulement comme un « conflit avec l'état
+ * actuel de la ressource » : en pratique, PDF encore en génération juste après la finalisation,
+ * ou envoi déjà fait. On réessaie quelques fois, puis on rend un message qui couvre les deux cas
+ * et l'indicateur « conflict » pour que l'écran puisse le dire clairement.
  */
 function pennylane_send_email(int $invoiceId, array $recipients = []): array
 {
@@ -533,7 +536,8 @@ function pennylane_send_email(int $invoiceId, array $recipients = []): array
         if ($r['status'] !== 409) return ['ok' => false, 'error' => $r['error']];
         sleep(3 + 2 * $i);
     }
-    return ['ok' => false, 'error' => 'Le PDF de la facture est encore en préparation chez Pennylane : réessayez l\'envoi dans quelques minutes.'];
+    integration_log('pennylane', 'envoi par e-mail refusé (409) après plusieurs essais', ['facture' => $invoiceId]);
+    return ['ok' => false, 'conflict' => true, 'error' => 'Pennylane refuse l\'envoi pour le moment (conflit d\'état) : soit le PDF est encore en préparation — réessayez dans quelques minutes —, soit la facture a déjà été envoyée — vérifiez dans Pennylane avant de renvoyer.'];
 }
 
 function pennylane_mark_paid(int $invoiceId, ?array $actor = null): array
