@@ -58,6 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'test') {
             $t = pennylane_test_connection();
             flash($t['ok'] ? 'success' : 'error', $t['message']);
+            // Détail route par route, affiché une fois après la redirection (aucun secret dedans).
+            $_SESSION['pennylane_test_routes'] = ['at' => date('c'), 'simulated' => $t['simulated'] ?? false, 'routes' => $t['routes'] ?? []];
         } elseif ($action === 'sync' && function_exists('pennylane_sync_run')) {
             $r = pennylane_sync_run('manuel');
             flash($r['ok'] ? 'success' : 'error', $r['message']);
@@ -75,7 +77,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         } else {
             settings_save_secret('pennylane_api_key');
-            notif_store_setting('pennylane_simulation', !empty($_POST['pennylane_simulation']) ? '1' : '0');
+            set_integration_setting('mode_simulation', !empty($_POST['mode_simulation']) ? '1' : '0');
+            $test = trim((string)($_POST['adresse_test'] ?? ''));
+            if ($test !== '' && !filter_var($test, FILTER_VALIDATE_EMAIL)) {
+                flash('error', 'Adresse de test invalide : elle n\'a pas été enregistrée.');
+                redirect_to($back);
+            }
+            set_integration_setting('adresse_test', $test);
             admin_log_safe('réglages', 'Pennylane mis à jour', (int)$disp['id'], (string)$disp['name']);
             flash('success', 'Réglages Pennylane enregistrés.');
         }
@@ -115,7 +123,8 @@ function settings_secret_field(string $name, string $label, string $placeholder,
     $inConfig = is_string(app_config()['secrets'][$name] ?? null) && trim((string)app_config()['secrets'][$name]) !== '';
     $h = '<div class="d-field"><label for="f-'.e($name).'">'.e($label).'</label>';
     if ($cur !== '') {
-        $h .= '<div style="font-size:.84rem;margin-bottom:.35rem;color:var(--d-success);">Configurée ('.e(integration_mask($cur)).')'
+        // Le secret n'est jamais réaffiché, même partiellement : seulement « configurée ».
+        $h .= '<div style="font-size:.84rem;margin-bottom:.35rem;color:var(--d-success);">Configurée'
             . ($inConfig ? ' — définie dans config.local.php' : '').'</div>';
     } else {
         $h .= '<div style="font-size:.84rem;margin-bottom:.35rem;color:var(--d-warning);">Non configurée : mode SIMULATION</div>';
@@ -226,10 +235,16 @@ function settings_secret_field(string $name, string $label, string $placeholder,
       <div class="d-card-head"><div class="d-card-title">Pennylane</div></div>
       <div class="d-card-body">
         <?= settings_secret_field('pennylane_api_key', 'Jeton d\'API Pennylane', 'Jeton de l\'entreprise', 'Pennylane → Paramètres → Connectivité → Développeurs → Générer un jeton. Droits nécessaires : clients, produits, factures clients (lecture et écriture), pièces jointes.') ?>
+        <?php $simOn = integration_setting('mode_simulation', integration_setting('pennylane_simulation', '0')) === '1'; ?>
         <label style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:1rem;cursor:pointer;">
-          <input type="checkbox" name="pennylane_simulation" value="1" <?= integration_setting('pennylane_simulation', '0') === '1' ? 'checked' : '' ?> style="width:auto;margin-top:.2rem;">
-          <span><b>Mode simulation</b><br><span style="font-size:.82rem;color:var(--d-t2);">Aucune donnée n'est envoyée à Pennylane ; les factures sont fictives et marquées « SIMULATION ». Automatique tant qu'aucun jeton n'est saisi.</span></span>
+          <input type="checkbox" name="mode_simulation" value="1" <?= $simOn ? 'checked' : '' ?> style="width:auto;margin-top:.2rem;">
+          <span><b>Mode simulation</b><br><span style="font-size:.82rem;color:var(--d-t2);">Aucune requête n'est envoyée à Pennylane ; les données affichées sont fictives et marquées « SIMULATION ». Les relances ne partent pas chez le client. Automatique tant qu'aucun jeton n'est saisi.</span></span>
         </label>
+        <div class="d-field">
+          <label for="f-adresse-test">Adresse de test (mode simulation)</label>
+          <input id="f-adresse-test" type="email" name="adresse_test" value="<?= e(integration_setting('adresse_test', '')) ?>" placeholder="vous@exemple.fr">
+          <div style="font-size:.8rem;color:var(--d-t2);margin-top:.25rem;">En simulation, les relances sont envoyées à cette adresse au lieu du client. Vide : elles ne partent pas.</div>
+        </div>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
           <button type="submit" class="d-btn d-btn--primary">Enregistrer</button>
           <button type="submit" name="action" value="test" class="d-btn">Tester la connexion</button>
@@ -239,6 +254,46 @@ function settings_secret_field(string $name, string $label, string $placeholder,
         </div>
       </div>
     </form>
+    <div>
+    <?php
+    $plTok = integration_secret_configured('pennylane_api_key');
+    $plSim = pennylane_simulated();
+    $plTest = $_SESSION['pennylane_test_routes'] ?? null;
+    unset($_SESSION['pennylane_test_routes']);
+    ?>
+    <div class="d-card" style="margin-bottom:1rem;">
+      <div class="d-card-head"><div class="d-card-title">État de la connexion</div></div>
+      <div class="d-card-body" style="font-size:.88rem;">
+        <div class="d-info-row"><span class="d-info-label">Jeton Pennylane</span><span class="d-info-value" style="color:<?= $plTok ? 'var(--d-success)' : 'var(--d-warning)' ?>;font-weight:600;"><?= $plTok ? 'Configuré' : 'Non configuré' ?></span></div>
+        <div class="d-info-row"><span class="d-info-label">Mode simulation</span><span class="d-info-value" style="font-weight:600;color:<?= $plSim ? '#b45309' : 'var(--d-success)' ?>;"><?= $plSim ? 'Activé — aucune requête réelle' : 'Désactivé — données réelles' ?></span></div>
+        <?php if ($plTest): ?>
+          <div class="d-label" style="margin-top:.8rem;">Test du <?= e(date('d/m/Y H:i', strtotime((string)$plTest['at']))) ?></div>
+          <table class="d-table" style="font-size:.84rem;">
+            <tbody>
+            <?php foreach ($plTest['routes'] as $rt): $col = ['accessible' => '#15803d', 'refusée' => '#b91c1c', 'erreur' => '#b45309', 'simulation' => '#475569'][$rt['etat']] ?? '#475569'; ?>
+              <tr><td><?= e((string)$rt['label']) ?><div style="font-size:.74rem;color:var(--d-t3);">GET <?= e((string)$rt['path']) ?></div></td>
+                <td style="text-align:right;font-weight:600;color:<?= $col ?>;"><?= e(ucfirst((string)$rt['etat'])) ?><?= $rt['etat'] !== 'simulation' && $rt['http'] ? ' <span style="font-weight:400;color:var(--d-t3);">('.(int)$rt['http'].')</span>' : '' ?></td></tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          <?php if (array_filter($plTest['routes'], static fn($r) => $r['etat'] === 'refusée')): ?>
+            <div style="font-size:.8rem;color:#991b1b;margin-top:.4rem;">Une route « refusée » signifie qu'il manque le droit correspondant sur le jeton : régénérez-le dans Pennylane en cochant ce droit.</div>
+          <?php endif; ?>
+        <?php else: ?>
+          <div style="font-size:.8rem;color:var(--d-t2);margin-top:.6rem;">« Tester la connexion » vérifie chaque droit du jeton (lecture seule, sans effet sur la comptabilité).</div>
+        <?php endif; ?>
+      </div>
+    </div>
+    <?php $plLogs = integration_log_recent('pennylane', 8); if ($plLogs): ?>
+    <div class="d-card" style="margin-bottom:1rem;">
+      <div class="d-card-head"><div class="d-card-title">Journal récent</div></div>
+      <div class="d-card-body" style="font-size:.8rem;">
+        <?php foreach ($plLogs as $lg): ?>
+          <div style="padding:.25rem 0;border-bottom:1px solid var(--d-border);"><span style="color:var(--d-t3);"><?= e(date('d/m H:i', strtotime((string)$lg['created_at']))) ?></span> <?= e((string)$lg['action']) ?></div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
     <div class="d-card">
       <div class="d-card-head"><div class="d-card-title">Dernière synchronisation</div></div>
       <div class="d-card-body" style="font-size:.88rem;">
@@ -260,6 +315,7 @@ function settings_secret_field(string $name, string $label, string $placeholder,
         <?php endif; ?>
         <p style="color:var(--d-t2);margin-top:.8rem;">La synchronisation automatique tourne toutes les 15 minutes via une tâche cron (voir la documentation d'installation).</p>
       </div>
+    </div>
     </div>
   </div>
   <?php try { $dups = db_fetch_all("SELECT d.*, c.lastname, c.firstname, c.phone, c.email, c.city FROM pennylane_duplicates d JOIN clients c ON c.id = d.client_id WHERE d.status = 'a_verifier' ORDER BY d.id LIMIT 50"); } catch (Throwable $e) { $dups = []; } ?>
