@@ -1624,9 +1624,33 @@ function dispatcher_login_check(string $email, string $password): ?array
     return $ok ? $r : null;
 }
 
+/**
+ * Le compte dispatcher a-t-il accès au tableau de bord financier ?
+ * Droit accordé compte par compte dans Administration → Dispatchers (désactivé par défaut).
+ */
+function dispatcher_can_finance(array $disp): bool
+{
+    return (int)($disp['can_finance'] ?? 0) === 1;
+}
+
+/** Bloque la page (403) si le compte n'a pas l'accès aux finances. */
+function require_finance_access(array $disp): void
+{
+    if (dispatcher_can_finance($disp)) return;
+    http_response_code(403);
+    while (ob_get_level() > 0) ob_end_clean();
+    echo '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Accès refusé</title></head>'
+        .'<body style="font-family:Arial,sans-serif;background:#f4f6fb;color:#16243f;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">'
+        .'<div style="background:#fff;border-radius:12px;padding:2rem;max-width:440px;box-shadow:0 4px 24px rgba(0,0,0,.08);">'
+        .'<h1 style="font-size:1.2rem;margin:0 0 .6rem;">Accès réservé</h1>'
+        .'<p style="margin:0 0 1rem;line-height:1.5;">Le tableau de bord financier n\'est pas ouvert à votre compte. Demandez à l\'administrateur de cocher « Accès aux finances » sur votre compte dispatcher.</p>'
+        .'<a href="'.htmlspecialchars(url_for('dispatcher/index.php'), ENT_QUOTES, 'UTF-8').'" style="color:#F07B1D;font-weight:700;">← Retour au dispatcher</a></div></body></html>';
+    exit;
+}
+
 function all_dispatchers(): array
 {
-    try { return db_fetch_all("SELECT id, name, email, phone, status FROM dispatchers ORDER BY name"); }
+    try { return db_fetch_all("SELECT id, name, email, phone, status, can_finance FROM dispatchers ORDER BY name"); }
     catch (Throwable $e) { return []; }
 }
 

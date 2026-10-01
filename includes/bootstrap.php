@@ -692,6 +692,14 @@ if (!file_exists($_mf30)) {
     unset($_me, $__sql);
 }
 unset($_mf30);
+// Auto-migration v15.31 — droit « Accès aux finances » par compte dispatcher (désactivé par défaut)
+$_mf31 = __DIR__.'/../storage/.mig_v15_can_finance';
+if (!file_exists($_mf31)) {
+    try { db_execute("ALTER TABLE dispatchers ADD COLUMN can_finance TINYINT(1) NOT NULL DEFAULT 0"); } catch (Throwable $_me) {}
+    @file_put_contents($_mf31, date('c'));
+    unset($_me);
+}
+unset($_mf31);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
