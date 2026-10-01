@@ -9,34 +9,102 @@ declare(strict_types=1);
  * Les secrets ne sont jamais renvoyés au navigateur.
  */
 
-/** Secret d'intégration : config.local.php ('secrets' => [...]) puis réglage en base. */
+/* ─── Réglages et secrets ────────────────────────────────────
+ * Table integration_settings (clé, valeur, secret 0/1), créée par la migration v15.30.
+ * Ordre de lecture d'un secret :
+ *   1. config/config.local.php ('secrets' => [...]) — fichier non versionné ;
+ *   2. table integration_settings ;
+ *   3. ancien emplacement (table settings) — pour que les clés déjà saisies restent valables.
+ * Un secret n'est jamais renvoyé au navigateur ni écrit dans un journal : les écrans
+ * affichent seulement « configuré » ou « non configuré ».
+ */
+
+/** Lignes de integration_settings, lues une fois par requête. */
+function integration_settings_rows(bool $flush = false): array
+{
+    static $rows = null;
+    if ($flush) $rows = null;
+    if ($rows === null) {
+        $rows = [];
+        try {
+            foreach (db_fetch_all('SELECT cle, valeur, secret FROM integration_settings') as $r) $rows[(string)$r['cle']] = $r;
+        } catch (Throwable $e) { /* table pas encore créée : on retombe sur l'ancien emplacement */ }
+    }
+    return $rows;
+}
+
+function integration_settings_put(string $key, string $value, bool $secret): void
+{
+    db_execute('INSERT INTO integration_settings (cle, valeur, secret, updated_at) VALUES (?, ?, ?, NOW())
+                ON DUPLICATE KEY UPDATE valeur = VALUES(valeur), secret = VALUES(secret), updated_at = NOW()', [$key, $value, $secret ? 1 : 0]);
+    integration_settings_rows(true);
+}
+
+/** Secret d'intégration ; chaîne vide s'il n'est configuré nulle part. */
 function integration_secret(string $name): string
 {
     $cfg = app_config()['secrets'][$name] ?? null;
     if (is_string($cfg) && trim($cfg) !== '') return trim($cfg);
+    $row = integration_settings_rows()[$name] ?? null;
+    if ($row !== null) return trim((string)$row['valeur']);
     return trim(global_setting($name, ''));
 }
 
-/** Enregistre un secret en base (jamais affiché ensuite, seulement « configuré »). */
-function integration_store_secret(string $name, string $value): void
+/** Le secret est-il configuré ? (seule information affichable à l'écran) */
+function integration_secret_configured(string $name): bool
 {
-    try {
-        db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?)
-                    ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [$name, trim($value)]);
-        settings_cache(true);
-    } catch (Throwable $e) { integration_log('settings', 'échec enregistrement '.$name.' : '.$e->getMessage()); }
+    return integration_secret($name) !== '';
 }
 
+/** Le secret vient-il de config.local.php ? (il ne se modifie alors pas depuis l'écran) */
+function integration_secret_from_file(string $name): bool
+{
+    $cfg = app_config()['secrets'][$name] ?? null;
+    return is_string($cfg) && trim($cfg) !== '';
+}
+
+/** Enregistre (ou efface avec une valeur vide) un secret. */
+function set_integration_secret(string $name, string $value): void
+{
+    try {
+        integration_settings_put($name, trim($value), true);
+        // L'ancien emplacement est vidé pour qu'une ancienne valeur ne survive pas à un effacement.
+        db_execute("UPDATE settings SET setting_value = '' WHERE setting_key = ?", [$name]);
+        settings_cache(true);
+        integration_log('reglages', trim($value) === '' ? 'secret effacé' : 'secret enregistré', ['cle' => $name]);
+    } catch (Throwable $e) {
+        integration_log('reglages', 'échec enregistrement du secret', ['cle' => $name, 'erreur' => $e->getMessage()]);
+    }
+}
+
+/** Ancien nom, conservé pour les écrans existants. */
+function integration_store_secret(string $name, string $value): void
+{
+    set_integration_secret($name, $value);
+}
+
+/** Réglage non secret (mode simulation, adresse de test…). */
 function integration_setting(string $name, string $default = ''): string
 {
+    $row = integration_settings_rows()[$name] ?? null;
+    if ($row !== null && (int)$row['secret'] === 0) return (string)$row['valeur'];
     return global_setting($name, $default);
 }
 
-/** Masque un secret pour l'affichage : « sk-a…9f3c ». */
+function set_integration_setting(string $name, string $value): void
+{
+    try {
+        integration_settings_put($name, $value, false);
+        integration_log('reglages', 'réglage modifié', ['cle' => $name]);
+    } catch (Throwable $e) {
+        integration_log('reglages', 'échec enregistrement du réglage', ['cle' => $name, 'erreur' => $e->getMessage()]);
+    }
+}
+
+/** Masque un secret : n'en montre plus aucun caractère (seulement qu'il existe). */
 function integration_mask(string $secret): string
 {
-    if ($secret === '') return '';
-    return mb_strlen($secret) <= 10 ? '••••' : mb_substr($secret, 0, 5).'…'.mb_substr($secret, -4);
+    return $secret === '' ? '' : '••••••••';
 }
 
 /* ─── Journal ─────────────────────────────────────────────── */
@@ -52,14 +120,62 @@ function integration_log_dir(): string
     return $dir;
 }
 
-/** Une ligne par événement ; jamais de clé, de contenu client ni de corps de réponse. */
+/**
+ * Retire d'un texte ou d'un contexte tout ce qui ressemble à un secret :
+ * clés nommées token / key / secret / password / authorization, en-têtes « Bearer … »,
+ * et toute valeur égale à un secret d'intégration configuré.
+ */
+function integration_redact(mixed $value, string $key = ''): mixed
+{
+    if (is_array($value)) {
+        $out = [];
+        foreach ($value as $k => $v) $out[$k] = integration_redact($v, (string)$k);
+        return $out;
+    }
+    if (!is_string($value)) return $value;
+    if ($key !== '' && preg_match('/token|secret|password|passwd|authorization|api_?key|jeton/i', $key)) return '[masqué]';
+    $value = preg_replace('/(Bearer|Basic)\s+[A-Za-z0-9._~+\/=-]+/i', '$1 [masqué]', $value) ?? $value;
+    static $known = null;
+    if ($known === null) {
+        $known = [];
+        foreach (['pennylane_api_key', 'claude_api_key', 'yousign_api_key', 'yousign_webhook_secret'] as $n) {
+            $cfg = app_config()['secrets'][$n] ?? null;
+            if (is_string($cfg) && strlen(trim($cfg)) >= 8) $known[] = trim($cfg);
+            $row = integration_settings_rows()[$n] ?? null;
+            if ($row && strlen(trim((string)$row['valeur'])) >= 8) $known[] = trim((string)$row['valeur']);
+        }
+    }
+    foreach ($known as $secretValue) $value = str_replace($secretValue, '[masqué]', $value);
+    return $value;
+}
+
+/**
+ * Journalise un événement : une ligne dans storage/logs/{canal}-AAAA-MM.log et une ligne dans
+ * la table integration_log. Jamais de secret (masquage automatique), jamais de corps de réponse.
+ */
 function integration_log(string $channel, string $message, array $context = []): void
 {
     $channel = preg_replace('/[^a-z0-9_-]/', '', strtolower($channel)) ?: 'app';
-    $line = date('c').' '.$message;
-    if ($context) $line .= ' '.json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $message = (string)integration_redact($message);
+    $context = integration_redact($context);
+    $detail = $context ? json_encode($context, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : '';
     $file = integration_log_dir().'/'.$channel.'-'.date('Y-m').'.log';
-    @file_put_contents($file, $line."\n", FILE_APPEND | LOCK_EX);
+    @file_put_contents($file, date('c').' '.$message.($detail !== '' ? ' '.$detail : '')."\n", FILE_APPEND | LOCK_EX);
+    try {
+        db_execute('INSERT INTO integration_log (canal, action, detail) VALUES (?, ?, ?)',
+            [$channel, mb_substr($message, 0, 255), $detail !== '' ? mb_substr($detail, 0, 2000) : null]);
+    } catch (Throwable $e) { /* table absente ou base indisponible : le fichier suffit */ }
+}
+
+/** Dernières lignes du journal en base (écran des réglages). */
+function integration_log_recent(string $channel = '', int $limit = 20): array
+{
+    $limit = max(1, min(200, $limit));
+    try {
+        return $channel === ''
+            ? db_fetch_all('SELECT * FROM integration_log ORDER BY id DESC LIMIT '.$limit)
+            : db_fetch_all('SELECT * FROM integration_log WHERE canal = ? ORDER BY id DESC LIMIT '.$limit, [$channel]);
+    } catch (Throwable $e) { return []; }
 }
 
 /* ─── HTTP ────────────────────────────────────────────────── */

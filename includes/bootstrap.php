@@ -669,6 +669,29 @@ if (!file_exists($_mf29)) {
     unset($_me);
 }
 unset($_mf29);
+// Auto-migration v15.30 — réglages et journal des intégrations (Pennylane…) en base
+$_mf30 = __DIR__.'/../storage/.mig_v15_integration_tables';
+if (!file_exists($_mf30)) {
+    foreach ([
+        "CREATE TABLE IF NOT EXISTS integration_settings (
+            cle VARCHAR(100) NOT NULL PRIMARY KEY,
+            valeur TEXT NULL,
+            secret TINYINT(1) NOT NULL DEFAULT 0,
+            updated_at DATETIME NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS integration_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            canal VARCHAR(40) NOT NULL,
+            action VARCHAR(255) NOT NULL,
+            detail TEXT NULL,
+            INDEX idx_canal (canal, id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf30, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf30);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
