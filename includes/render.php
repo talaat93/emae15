@@ -25,6 +25,8 @@ function render_head(array $meta): void
     $gaId   = setting('google_analytics_id','');
     $gAdsId = setting('google_ads_id','');
     $gAdsCv = setting('google_ads_conversion_label','');
+    $gAdsQuote = setting('google_ads_quote_label','dpCcCNG397IcENeNhLFD');
+    boot_session(); // avant toute sortie HTML
 
     echo '<!DOCTYPE html><html lang="fr"><head>';
     echo '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">';
@@ -63,6 +65,12 @@ function render_head(array $meta): void
         if ($gaId !== '')   echo 'gtag("config","'.e($gaId).'");';
         if ($gAdsId !== '') echo 'gtag("config","'.e($gAdsId).'");';
         echo '</script>';
+        // Conversion « Demande de devis » : envoyée sur la page affichée après un
+        // envoi réussi (au clic, la navigation coupait la requête vers Google).
+        if (!empty($_SESSION['quote_conversion']) && $gAdsId !== '' && $gAdsQuote !== '') {
+            unset($_SESSION['quote_conversion']);
+            echo '<script>gtag("event","conversion",{"send_to":"'.e($gAdsId.'/'.$gAdsQuote).'"});</script>';
+        }
     }
     // Pass IDs to JS — _gAdsCv is an array to support multiple conversion labels (comma-separated)
     if ($gAdsId !== '' || $gAdsCv !== '') {

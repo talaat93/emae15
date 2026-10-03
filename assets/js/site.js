@@ -83,11 +83,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  /* Formulaires */
+  /* Formulaires — la conversion Google Ads « Demande de devis » est envoyée
+     par render_head() une fois l'envoi enregistré, pas ici. */
   document.querySelectorAll('form').forEach(function(f){
     f.addEventListener('submit',function(){
       if(typeof gtag!=='undefined') gtag('event','generate_lead',{'event_category':'lead','event_label':'form_submit'});
-      gads_fire(window._gAdsCv||[]);
     });
   });
 

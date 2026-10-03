@@ -26,6 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
     $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so];
     send_quote_notification($qData);
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
+    $_SESSION['quote_conversion'] = 1;
     flash('success', quote_form_options()['success_message']);
     redirect_to('index.php?route='.($route ?: 'home'));
 }
