@@ -41,10 +41,13 @@ function render_head(array $meta): void
     $ogImg = $meta['og_image'] ?? setting('og_default_image','');
     if ($ogImg !== '') echo '<meta property="og:image" content="'.e(asset_url($ogImg)).'">';
     // Favicons
-    if (file_exists(__DIR__.'/../favicon.png'))
-        echo '<link rel="icon" type="image/png" href="'.e(asset_url('favicon.png')).'">';
-    if (file_exists(__DIR__.'/../apple-touch-icon.png'))
-        echo '<link rel="apple-touch-icon" href="'.e(asset_url('apple-touch-icon.png')).'">';
+    // Google affiche dans ses résultats une icône carrée multiple de 48 px : la 192 px.
+    if (file_exists(__DIR__.'/../assets/favicon-192.png'))
+        echo '<link rel="icon" type="image/png" sizes="192x192" href="'.e(asset_url('assets/favicon-192.png')).'">';
+    if (file_exists(__DIR__.'/../assets/favicon.png'))
+        echo '<link rel="icon" type="image/png" sizes="32x32" href="'.e(asset_url('assets/favicon.png')).'">';
+    if (file_exists(__DIR__.'/../assets/apple-touch-icon.png'))
+        echo '<link rel="apple-touch-icon" href="'.e(asset_url('assets/apple-touch-icon.png')).'">';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com">';
     echo '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     // Google Fonts en non-bloquant : preload + bascule en stylesheet une fois chargée.
