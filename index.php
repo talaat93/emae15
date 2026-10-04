@@ -675,10 +675,11 @@ if ($route === 'landing') {
     $p_metier = strtolower(trim((string)($_GET['metier'] ?? '')));
     $p_ville  = trim((string)($_GET['ville'] ?? ''));
 
-    /* Valider dept contre la whitelist */
-    if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';
+    /* Valider dept contre la whitelist (zone principale par défaut) */
+    if (!isset($landing_depts[$p_dept])) $p_dept = 'seine-et-marne';
 
-    /* Valider métier contre la whitelist */
+    /* Valider métier contre la whitelist (anciens liens : « plombier »…) */
+    $p_metier = ['plombier'=>'plomberie','electricien'=>'electricite','depannage-chauffage'=>'chauffage'][$p_metier] ?? $p_metier;
     if (!isset($landing_metiers[$p_metier])) $p_metier = 'electricite';
 
     /* Valider la ville — doit appartenir au département ou être vide */
@@ -690,17 +691,19 @@ if ($route === 'landing') {
     $p_ville = mb_convert_case(trim($p_ville), MB_CASE_TITLE, 'UTF-8');
 
     /* Fallback sur le chef-lieu si ville vide ou inconnue */
+    /* Comparaison sans casse : « Savigny-le-Temple » devient « Savigny-Le-Temple » au-dessus */
     $villes_dept = $dept_data['villes'];
-    $ville_in_list = $p_ville !== '' && in_array($p_ville, $villes_dept, true);
-    if ($p_ville === '' || !$ville_in_list) {
-        $p_ville = $dept_data['chef_lieu'];
+    $match = null;
+    foreach ($villes_dept as $v) {
+        if (mb_strtolower($v, 'UTF-8') === mb_strtolower($p_ville, 'UTF-8')) { $match = $v; break; }
     }
+    $p_ville = $match ?? $dept_data['chef_lieu'];
 
     /* ── Construction des textes dynamiques ── */
     $h1      = $metier_data['label_pro'].' urgence à '.$p_ville.' ('.$dept_data['nom'].' '.$dept_data['code'].')';
     $meta_t  = $metier_data['label_pro'].' à '.$p_ville.' — Urgence 24h/7j | '.company_name();
     $meta_d  = company_name().' — '.$metier_data['label_pro'].' d\'urgence à '.$p_ville.' dans le '.$dept_data['nom'].' ('.$dept_data['code'].'). Intervention rapide, devis gratuit, disponible 24h/7j.';
-    $canonical = route_url('landing').'&dept='.urlencode($p_dept).'&metier='.urlencode($p_metier).'&ville='.urlencode($p_ville);
+    $canonical = route_url('landing').'&dept='.urlencode($p_dept).'&metier='.urlencode($p_metier).'&ville='.rawurlencode($p_ville);
 
     $cards = service_cards_v14();
     $meta  = ['title'=>$meta_t, 'description'=>$meta_d, 'canonical'=>$canonical];
@@ -980,6 +983,9 @@ if ($tpl !== null || $page) {
         $page = $page ?: ['title' => $tpl['label'], 'slug' => $route, 'excerpt' => '',
                           'content_html' => '', 'page_type' => 'Service'];
         $meta  = seo_defaults($route, $page);
+        // Une seule page de référence par métier (la page en base peut porter
+        // un autre slug, ex. « Électricité », qui créait un doublon).
+        $meta['canonical'] = route_url($sk);
         $cards = service_cards_v14();
         render_head($meta); render_header(route_url($route));
         $heroImg = setting('svc_'.$sk.'_hero_image', '');

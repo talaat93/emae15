@@ -27,6 +27,8 @@ function render_head(array $meta): void
     $gAdsCv = setting('google_ads_conversion_label','');
     $gAdsQuote = setting('google_ads_quote_label','dpCcCNG397IcENeNhLFD');
     boot_session(); // avant toute sortie HTML
+    // Google exige une adresse complète pour la page de référence.
+    $meta['canonical'] = absolute_url((string)$meta['canonical']);
 
     echo '<!DOCTYPE html><html lang="fr"><head>';
     echo '<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">';
@@ -299,7 +301,17 @@ function render_quote_form(array $cards, string $source = 'form'): void
     <span class="f-label">Service souhaité</span>
     <select class="f-input" name="service_type">
       <option value="">Choisir un service</option>
-      <?php foreach ($cards as $c): ?><option value="<?= e($c['title']) ?>"><?= e($c['title']) ?></option><?php endforeach; ?>
+      <?php
+      // Les cartes de l'accueil ne couvrent pas tous les métiers : on complète,
+      // et on présélectionne le métier de la page (source « service_vmc »…).
+      $titles = array_column($cards, 'title');
+      foreach (['VMC & Ventilation', 'Portail & Visiophone'] as $extra) {
+          if (!in_array($extra, $titles, true)) $titles[] = $extra;
+      }
+      $pageTrade = str_starts_with($source, 'service_') ? substr($source, 8) : '';
+      foreach ($titles as $t):
+          $sel = $pageTrade !== '' && service_detect_trade(strtr($t, ['É'=>'e','é'=>'e','è'=>'e'])) === $pageTrade; ?>
+      <option value="<?= e($t) ?>"<?= $sel ? ' selected' : '' ?>><?= e($t) ?></option><?php endforeach; ?>
     </select>
   </div>
   <div class="f-field">

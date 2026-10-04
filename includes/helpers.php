@@ -58,6 +58,17 @@ function url_for(string $path = ''): string
 
 function asset_url(string $path): string { return url_for($path); }
 
+/** Adresse complète (https://hôte/…) à partir d'une adresse relative au site. */
+function absolute_url(string $url): string
+{
+    if ($url === '' || preg_match('#^https?://#i', $url)) return $url;
+    $b = site_base_url();
+    $origin = $b !== ''
+        ? (parse_url($b, PHP_URL_SCHEME) ?: 'https').'://'.parse_url($b, PHP_URL_HOST)
+        : 'https://'.($_SERVER['HTTP_HOST'] ?? 'localhost');
+    return $origin.'/'.ltrim($url, '/');
+}
+
 function route_url(string $slug = ''): string
 {
     // En contexte zone, toute la navigation reste dans la zone : /paris-ile-de-france/zones
