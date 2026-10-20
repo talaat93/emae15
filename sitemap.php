@@ -38,6 +38,10 @@ foreach (all_pages() as $p) {
 // Les clés doivent correspondre à celles de la route « landing » d'index.php,
 // sinon la page retombe sur un autre département.
 $landing = [
+    // Secteur principal du site global
+    'doubs'          => ['Besançon','Montbéliard','Pontarlier','Audincourt','Morteau','Baume-les-Dames'],
+    'jura'           => ['Dole','Lons-le-Saunier','Saint-Claude','Champagnole','Morez','Poligny'],
+    'cote-dor'       => ['Dijon','Beaune','Chenôve','Longvic','Quetigny','Talant'],
     'seine-et-marne' => ['Melun','Meaux','Chelles','Pontault-Combault','Savigny-le-Temple','Fontainebleau'],
     'essonne'        => ['Évry','Corbeil-Essonnes','Massy','Palaiseau','Viry-Châtillon','Longjumeau'],
 ];

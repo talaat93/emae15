@@ -526,7 +526,8 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
-| *(ce commit)* | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
+| `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
+| *(suivant)* | Landing Google Ads sur le Doubs par défaut ; plan du site : pages par ville 25, 39, 21 |
 | `f0177a3` | Finances 3 — page « Finances » du dispatcher |
 | `c6c5356` | Finances 2 — calculs du tableau de bord financier, avec tests |
 | `222d66d` | Finances 1 — droit « Accès aux finances » par compte dispatcher |

@@ -678,7 +678,7 @@ if ($route === 'landing') {
     $p_ville  = trim((string)($_GET['ville'] ?? ''));
 
     /* Valider dept contre la whitelist (zone principale par défaut) */
-    if (!isset($landing_depts[$p_dept])) $p_dept = 'seine-et-marne';
+    if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';
 
     /* Valider métier contre la whitelist (anciens liens : « plombier »…) */
     $p_metier = ['plombier'=>'plomberie','electricien'=>'electricite','depannage-chauffage'=>'chauffage'][$p_metier] ?? $p_metier;
