@@ -1014,9 +1014,15 @@ if ($tpl !== null || $page) {
 
 <!-- Ce que nous proposons -->
 <section class="sec sec-card"><div class="wrap">
+  <?php if (trim($tpl['intro']) !== ''): ?>
+  <div class="svc-intro">
+    <?php foreach (preg_split('/\R\s*\R/', trim($tpl['intro'])) ?: [] as $para): ?><p><?= e(trim($para)) ?></p><?php endforeach; ?>
+  </div>
+  <?php endif; ?>
   <div class="svc-label"><?= e(setting('svc_offer_label','Notre offre')) ?></div>
   <h2 class="section-title"><?= e($tpl['offer_title']) ?></h2>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:1.5rem;">
+  <p class="section-lead svc-lead"><?= e(setting('svc_offer_lead','Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.')) ?></p>
+  <div class="svc-offer-grid">
     <?php foreach ($tpl['offer_items'] as $oi): ?>
     <div class="qs-perk"><?= e($oi) ?></div>
     <?php endforeach; ?>
@@ -1027,6 +1033,7 @@ if ($tpl !== null || $page) {
 <section class="sec sec-navy"><div class="wrap">
   <div class="svc-label"><?= e(setting('svc_interv_label','Nos interventions')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_interv_title','Ce que nous')) ?> <em><?= e(setting('svc_interv_title_hl','faisons')) ?></em></h2>
+  <p class="section-lead svc-lead"><?= e(setting('svc_interv_lead','Chaque situation demande une réponse adaptée. Voici les interventions que nos techniciens réalisent au quotidien {en_region}.')) ?></p>
   <div class="interv-grid" style="margin-top:1.75rem;">
     <?php foreach ($tpl['interv'] as [$ico,$t,$d]): ?>
     <div class="interv-card"><div class="interv-ico"><?= $ico ?></div><div class="interv-h"><?= e($t) ?></div><p class="interv-p"><?= e($d) ?></p></div>
@@ -1038,6 +1045,7 @@ if ($tpl !== null || $page) {
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label"><?= e(setting('svc_process_label','Notre méthode')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_process_title','Intervention en')) ?> <em><?= e(setting('svc_process_title_hl','3 étapes')) ?></em></h2>
+  <p class="section-lead svc-lead"><?= e(setting('svc_process_lead','Un fonctionnement simple et transparent, du premier appel au compte rendu final.')) ?></p>
   <div class="steps-grid" style="margin-top:1.75rem;">
     <div class="step-card"><div class="step-num">1</div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
     <div class="step-card"><div class="step-num">2</div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
@@ -1049,6 +1057,7 @@ if ($tpl !== null || $page) {
 <section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
   <div class="svc-label"><?= e(setting('svc_faq_label','FAQ')) ?> <?= e(mb_strtolower($tpl['label'],'UTF-8')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_faq_title','Questions')) ?> <em><?= e(setting('svc_faq_title_hl','fréquentes')) ?></em></h2>
+  <p class="section-lead svc-lead"><?= e(setting('svc_faq_lead','Les réponses aux questions que nos clients nous posent le plus souvent. Une autre question ? Appelez-nous, nous vous répondons directement.')) ?></p>
   <div class="sfaq-list" style="margin-top:1.75rem;">
     <?php foreach ($tpl['faq'] as [$q,$a]): ?>
     <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details>
@@ -1060,6 +1069,7 @@ if ($tpl !== null || $page) {
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label"><?= e(setting('svc_zones_label','Zone d\'intervention')) ?></div>
   <h2 class="section-title"><?= e(setting('svc_zones_title','Zones couvertes')) ?></h2>
+  <p class="section-lead svc-lead"><?= e(setting('svc_zones_lead','Nos techniciens se déplacent dans les secteurs suivants. Votre ville n\'apparaît pas ? Appelez-nous pour vérifier votre adresse.')) ?></p>
   <div class="zones-grid" style="margin-top:1.75rem;">
     <?php /* Même source que l'accueil et la page Nos zones : la table des zones. */
           // Sur un sous-site, seule sa zone : la page Jura ne liste pas Paris.

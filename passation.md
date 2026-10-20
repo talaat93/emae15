@@ -222,7 +222,10 @@ nomment aucun lieu quand le champ est modifiable directement sur la page
 `service_trade_seo_defaults()` (clés `svc_{métier}_h1`, `_meta_title`,
 `_meta_desc`, modifiables par zone dans Contenu du site → page du métier). Le
 titre, l'extrait et les balises de la fiche `pages` ne sont plus lus pour ces
-pages : ils ignoraient la zone. Seul `content_html` (texte en bas de page)
+pages : ils ignoraient la zone. Chaque page a aussi une présentation en deux paragraphes
+(`service_trade_intros()`, clé `svc_{métier}_intro`) et un texte sous chaque
+titre de section (`svc_offer_lead`, `svc_interv_lead`, `svc_process_lead`,
+`svc_faq_lead`, `svc_zones_lead`, communs aux métiers). Seul `content_html` (texte en bas de page)
 l'est encore, et le diagnostic le contrôle. Sur un sous-site, la section
 « Zones couvertes » ne montre que la zone.
 
@@ -535,7 +538,8 @@ Du plus récent au plus ancien.
 | Commit | Objet |
 |---|---|
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
-| *(suivant)* | Pages métier : grand titre, titre et description Google adaptés à chaque zone |
+| *(suivant)* | Pages métier : présentation du métier et textes sous chaque titre de section |
+| `f30e523` | Pages métier : grand titre, titre et description Google adaptés à chaque zone |
 | `96cea4a` | Landing Google Ads sur le Doubs par défaut ; plan du site : pages par ville 25, 39, 21 |
 | `f0177a3` | Finances 3 — page « Finances » du dispatcher |
 | `c6c5356` | Finances 2 — calculs du tableau de bord financier, avec tests |

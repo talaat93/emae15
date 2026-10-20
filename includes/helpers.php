@@ -2500,6 +2500,31 @@ function service_trade_defaults(): array
 }
 
 /**
+ * Présentation de chaque métier, affichée sous le grand titre : deux
+ * paragraphes (séparés par une ligne vide) qui situent le besoin du client,
+ * puis ce que nous faisons et où. Aucune promesse absente du reste du site.
+ */
+function service_trade_intros(): array
+{
+    return [
+        'electricite' => "Une panne de courant, un disjoncteur qui saute, un tableau vieillissant ou une rénovation à prévoir : nos électriciens interviennent {en_region} pour les particuliers comme pour les professionnels. Chaque intervention commence par un diagnostic clair, et le prix vous est annoncé avant le début des travaux.\n\n"
+                        ."Dépannage en urgence 24h/24, remplacement de tableau, ajout de prises et de circuits, éclairage intérieur et extérieur, mise aux normes NF C 15-100 : nous intervenons autour de {ville} et vous remettons un compte rendu détaillé après chaque intervention.",
+        'plomberie'   => "Fuite sous l'évier, WC bouché, chauffe-eau en panne ou dégât des eaux : nos plombiers interviennent {en_region} pour mettre votre installation en sécurité, puis la réparer durablement. Le diagnostic et le prix vous sont annoncés avant toute intervention.\n\n"
+                        ."Recherche de fuite, débouchage de canalisations, remplacement de robinetterie et de sanitaires, entretien des réseaux : nous intervenons autour de {ville}, chez les particuliers, en copropriété et dans les locaux professionnels.",
+        'chauffage'   => "Chaudière en panne en plein hiver, radiateurs froids, pompe à chaleur en défaut ou entretien annuel à planifier : nos chauffagistes interviennent {en_region} sur les chaudières gaz, fioul et électriques comme sur les pompes à chaleur. En période de froid, les pannes de chauffage passent en priorité.\n\n"
+                        ."Dépannage, entretien annuel obligatoire, réglage de la régulation, remplacement ou installation d'un équipement neuf : nous intervenons autour de {ville} et vous remettons un rapport après chaque passage.",
+        'climatisation' => "Climatiseur qui ne refroidit plus, bruit anormal, fuite d'eau ou projet d'installation : nos techniciens interviennent {en_region} sur tous les systèmes de climatisation, du split mural au gainable, et vous conseillent sur l'équipement adapté à votre logement ou à vos locaux.\n\n"
+                        ."Installation, dépannage, entretien saisonnier et contrôle des performances : nous intervenons autour de {ville} pour les particuliers, les commerces, les bureaux et les restaurants.",
+        'vmc'         => "Humidité, condensation sur les vitres, moisissures ou VMC bruyante : une ventilation qui fonctionne mal se ressent vite dans tout le logement. Nos techniciens interviennent {en_region} pour diagnostiquer, réparer ou remplacer votre VMC simple ou double flux.\n\n"
+                        ."Nettoyage des bouches et des gaines, remplacement de moteur, contrôle des débits, installation neuve : nous intervenons autour de {ville}, en maison individuelle, en copropriété et dans les locaux professionnels.",
+        'portail'     => "Portail bloqué, télécommande qui ne répond plus, visiophone muet ou interphone collectif en panne : nos techniciens interviennent {en_region} pour remettre vos accès en service, en toute sécurité.\n\n"
+                        ."Motorisation de portail battant ou coulissant, installation de visiophone, programmation de badges et de télécommandes, dépannage de digicode et de gâche électrique : nous intervenons autour de {ville}, chez les particuliers comme en copropriété, en lien avec votre syndic.",
+        'automatisme' => "Volet roulant bloqué, store qui ne se déroule plus, lave-linge en panne ou domotique à programmer : nos techniciens interviennent {en_region} sur les automatismes et le gros électroménager de votre logement.\n\n"
+                        ."Réparation et motorisation de volets et de stores, programmation de scénarios domotiques, diagnostic de lave-linge, lave-vaisselle et sèche-linge : nous intervenons autour de {ville} et vous annonçons le coût de la réparation avant d'intervenir.",
+    ];
+}
+
+/**
  * Grand titre et référencement Google de chaque page métier. Écrits avec les
  * variables de lieu : la page Électricité du site global annonce le Doubs, le
  * Jura et la Côte-d'Or, la même page de la zone Jura annonce le Jura.
@@ -2596,6 +2621,7 @@ function service_template(string $trade): ?array
         'meta_title'  => setting($p . 'meta_title',  $seo[1]),
         'meta_desc'   => setting($p . 'meta_desc',   $seo[2]),
         'desc'        => setting($p . 'desc',        $d['desc']),
+        'intro'       => setting($p . 'intro',       service_trade_intros()[$trade] ?? ''),
         'offer_title' => setting($p . 'offer_title', $d['offer_title']),
         'badges'      => $list($p . 'badges',      $d['badges']),
         'offer_items' => $list($p . 'offer_items', $d['offer_items']),
