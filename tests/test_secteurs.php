@@ -119,6 +119,7 @@ check('textes de zone retirés',  $b['retires'] >= 5, true);
 set_zone_context(null);
 check('global : titre en couleur',  setting('home_title_hl'), "dans le Doubs, le Jura et la Côte-d'Or");
 check('global : titre Google',      setting('home_meta_title'), 'Électricien, plombier, chauffagiste à Besançon, Dijon et Dole | EMAE');
+check('global : grand titre Chauffage', service_template('chauffage')['h1'], "Chauffagiste dans le Doubs, le Jura et la Côte-d'Or");
 check('global : zones couvertes',   company_regions(), "Doubs, Jura, Côte-d'Or");
 check('global : Occitanie retirée', setting('reals_page_title', 'Interventions & chantiers'), 'Interventions & chantiers');
 check('mentions légales intactes',  $DB['settings']['ml_hebergeur'], 'o2switch — 63000 Clermont-Ferrand');
@@ -135,6 +136,11 @@ check('Jura : page Nos zones',      zones_page_settings()['title_hl'], 'dans le 
 set_zone_context($zone('doubs'));
 check('Doubs : texte voisin gardé', setting('home_lead'), 'Plombier à Besançon et Belfort.');
 check('Doubs : FAQ du Jura retirée', setting('faq_meta_title'), 'Questions fréquentes — Dépannage dans le Doubs');
+set_zone_context($zone('jura'));
+check('Jura : grand titre Électricité', service_template('electricite')['h1'], 'Électricien dans le Jura');
+check('Jura : titre Google Plomberie', service_template('plomberie')['meta_title'], 'Plombier à Dole — Fuite, débouchage, chauffe-eau | EMAE');
+check('Jura : accroche Portail', service_template('portail')['desc'], 'Motorisation de portail, visiophone, interphone et contrôle d\'accès dans le Jura.');
+set_zone_context($zone('doubs'));
 check('Doubs : métier',             service_template('electricite')['desc'], 'Dépannage, installation, mise aux normes et rénovation électrique dans le Doubs.');
 
 set_zone_context($zone('paris-ile-de-france'));

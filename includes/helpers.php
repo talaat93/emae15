@@ -2469,7 +2469,7 @@ function service_trade_defaults(): array
       ],
       'vmc' => [
         'label'=>'VMC & Ventilation','icon_svc'=>'🌬️',
-        'desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
+        'desc'=>'Installation, dépannage et entretien de VMC simple et double flux {en_region}.',
         'badges'=>['VMC simple flux','VMC double flux','Entretien annuel','Qualité de l\'air'],
         'offer_title'=>'Ce que nous proposons en ventilation',
         'offer_items'=>['Installation de VMC simple flux et double flux','Remplacement de moteur ou de caisson défaillant','Nettoyage et désinfection des bouches et gaines','Entretien annuel et contrôle des débits','Diagnostic humidité, condensation et moisissures','Mise en conformité de la ventilation d\'un logement','Ventilation de locaux professionnels et commerces','Conseil sur le choix du système adapté au bâti'],
@@ -2478,7 +2478,7 @@ function service_trade_defaults(): array
       ],
       'portail' => [
         'label'=>'Portail & Visiophone','icon_svc'=>'🚪',
-        'desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
+        'desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès {en_region}.',
         'badges'=>['Portail bloqué','Motorisation','Visiophone','Interphone'],
         'offer_title'=>'Ce que nous proposons en contrôle d\'accès',
         'offer_items'=>['Dépannage de portail et portail de garage bloqué','Motorisation de portail battant ou coulissant','Installation et remplacement de visiophone','Interphone individuel et collectif','Programmation de télécommandes et badges','Remplacement de platine de rue et de combiné','Dépannage de digicode et de gâche électrique','Entretien et réglage des automatismes']
@@ -2488,7 +2488,7 @@ function service_trade_defaults(): array
       ],
       'automatisme' => [
         'label'=>'Automatismes & Électroménager','icon_svc'=>'🤖',
-        'desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
+        'desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager {en_region}.',
         'badges'=>['Volet roulant','Store motorisé','Domotique','Électroménager'],
         'offer_title'=>'Ce que nous proposons en automatismes',
         'offer_items'=>['Dépannage et remplacement de volets roulants','Motorisation de volets et de stores existants','Installation de stores et brise-soleil motorisés','Programmation de commandes et de scénarios domotiques','Dépannage de lave-linge, lave-vaisselle et sèche-linge','Raccordement et mise en service d\'électroménager','Remplacement de moteurs, cartes et télécommandes','Conseil sur les équipements connectés']
@@ -2496,6 +2496,33 @@ function service_trade_defaults(): array
         'interv'=>[['🪟','Volet bloqué','Déblocage et réparation.'],['⚙️','Motorisation','Volets, stores, pergolas.'],['📱','Domotique','Commandes et scénarios.'],['🔌','Raccordement','Mise en service d\'appareils.'],['🧺','Lave-linge','Diagnostic et réparation.'],['🍽️','Lave-vaisselle','Fuites, vidange, résistance.'],['🎛️','Télécommandes','Programmation et remplacement.'],['📋','Rapport','Compte rendu d\'intervention.']],
         'faq'=>[['Réparez-vous les volets roulants électriques ?',setting('faq_auto_1_a','Oui : moteur, lame, tablier, coffre et commande. Le diagnostic précise ce qui doit être remplacé.')],['Peut-on motoriser des volets manuels ?',setting('faq_auto_2_a','Oui dans la plupart des cas, sans changer le tablier ni le coffre.')],['Intervenez-vous sur l\'électroménager ?',setting('faq_auto_3_a','Oui, sur le gros électroménager : lave-linge, lave-vaisselle, sèche-linge, four et plaques.')],['Faut-il remplacer ou réparer ?',setting('faq_auto_4_a','Nous annonçons le coût de la réparation avant d\'intervenir : vous décidez en connaissance de cause.')]],
       ],
+    ];
+}
+
+/**
+ * Grand titre et référencement Google de chaque page métier. Écrits avec les
+ * variables de lieu : la page Électricité du site global annonce le Doubs, le
+ * Jura et la Côte-d'Or, la même page de la zone Jura annonce le Jura.
+ */
+function service_trade_seo_defaults(): array
+{
+    $n   = company_name();
+    $fin = ' Intervention rapide autour de {ville}, devis gratuit.';
+    return [
+        'electricite'   => ['Électricien {en_region}', 'Électricien {en_ville} — Dépannage 24h/7j | '.$n,
+                            'Électricien {en_region} : dépannage en urgence, tableau électrique, mise aux normes NF C 15-100, rénovation.'.$fin],
+        'plomberie'     => ['Plombier {en_region}', 'Plombier {en_ville} — Fuite, débouchage, chauffe-eau | '.$n,
+                            'Plombier {en_region} : recherche de fuite, débouchage, sanitaires et chauffe-eau.'.$fin],
+        'chauffage'     => ['Chauffagiste {en_region}', 'Chauffagiste {en_ville} — Chaudière, pompe à chaleur | '.$n,
+                            'Chauffagiste {en_region} : dépannage et entretien de chaudière gaz ou fioul, pompe à chaleur.'.$fin],
+        'climatisation' => ['Climatisation {en_region}', 'Climatisation {en_ville} — Installation, dépannage | '.$n,
+                            'Installation, dépannage et entretien de climatisation {en_region} : split, multi-split, gainable.'.$fin],
+        'vmc'           => ['VMC et ventilation {en_region}', 'VMC {en_ville} — Installation, entretien, dépannage | '.$n,
+                            'Installation, dépannage et entretien de VMC simple et double flux {en_region}.'.$fin],
+        'portail'       => ['Portail et visiophone {en_region}', 'Portail, visiophone, interphone {en_ville} | '.$n,
+                            'Motorisation et dépannage de portail, visiophone, interphone et contrôle d\'accès {en_region}.'.$fin],
+        'automatisme'   => ['Volets roulants et automatismes {en_region}', 'Volets roulants, domotique, électroménager {en_ville} | '.$n,
+                            'Dépannage de volets roulants, stores, domotique et gros électroménager {en_region}.'.$fin],
     ];
 }
 
@@ -2554,6 +2581,7 @@ function service_template(string $trade): ?array
     $d = service_trade_defaults()[$trade] ?? null;
     if ($d === null) return null;
 
+    $seo = service_trade_seo_defaults()[$trade] ?? [$d['label'], $d['label'].' | '.company_name(), $d['desc']];
     $p = 'svc_' . $trade . '_';
     $list = static function (string $key, array $fallback): array {
         $raw = setting_plain($key);
@@ -2564,6 +2592,9 @@ function service_template(string $trade): ?array
 
     return [
         'label'       => setting($p . 'label',       $d['label']),
+        'h1'          => setting($p . 'h1',          $seo[0]),
+        'meta_title'  => setting($p . 'meta_title',  $seo[1]),
+        'meta_desc'   => setting($p . 'meta_desc',   $seo[2]),
         'desc'        => setting($p . 'desc',        $d['desc']),
         'offer_title' => setting($p . 'offer_title', $d['offer_title']),
         'badges'      => $list($p . 'badges',      $d['badges']),

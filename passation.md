@@ -218,6 +218,14 @@ nomment aucun lieu quand le champ est modifiable directement sur la page
 | `geo_annuler($lot)` | remet chaque valeur sauvegardée (table `geo_sauvegarde`) |
 | `geo_controle()` | ce que le visiteur lit réellement, par portée, quand un lieu sort du secteur |
 
+**Pages métier.** Grand titre, titre et description Google viennent de
+`service_trade_seo_defaults()` (clés `svc_{métier}_h1`, `_meta_title`,
+`_meta_desc`, modifiables par zone dans Contenu du site → page du métier). Le
+titre, l'extrait et les balises de la fiche `pages` ne sont plus lus pour ces
+pages : ils ignoraient la zone. Seul `content_html` (texte en bas de page)
+l'est encore, et le diagnostic le contrôle. Sur un sous-site, la section
+« Zones couvertes » ne montre que la zone.
+
 Écran : `admin/zones_diag.php`, section 4 — bilan, bouton d'annulation, liste
 des textes à relire avec un lien « Corriger » vers le bon champ et la bonne
 zone. Les mentions légales et coordonnées sont exclues (`geo_cle_exclue()`).
@@ -381,7 +389,7 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-660 assertions, aucune base de données nécessaire : chaque test remplace
+664 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
 sur les 169 fichiers PHP.
@@ -527,7 +535,8 @@ Du plus récent au plus ancien.
 | Commit | Objet |
 |---|---|
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
-| *(suivant)* | Landing Google Ads sur le Doubs par défaut ; plan du site : pages par ville 25, 39, 21 |
+| *(suivant)* | Pages métier : grand titre, titre et description Google adaptés à chaque zone |
+| `96cea4a` | Landing Google Ads sur le Doubs par défaut ; plan du site : pages par ville 25, 39, 21 |
 | `f0177a3` | Finances 3 — page « Finances » du dispatcher |
 | `c6c5356` | Finances 2 — calculs du tableau de bord financier, avec tests |
 | `222d66d` | Finances 1 — droit « Accès aux finances » par compte dispatcher |

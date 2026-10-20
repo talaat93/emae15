@@ -488,6 +488,7 @@ function admin_service_pages(): array
 
     foreach (service_trade_defaults() as $trade => $d) {
         $p = 'svc_'.$trade.'_';
+        $seo = service_trade_seo_defaults()[$trade];
         $pages['metier_'.$trade] = [
             'label' => $d['label'],
             'icon'  => $icones[$trade] ?? '🔧',
@@ -500,10 +501,21 @@ function admin_service_pages(): array
                     'seen'  => 'Le titre et la phrase d\'accroche de la page',
                     'fields' => [
                         ['key'=>$p.'label','label'=>'Nom du métier','type'=>'text','default'=>$d['label']],
+                        ['key'=>$p.'h1','label'=>'Grand titre de la page','type'=>'text','default'=>$seo[0],
+                         'help'=>'Avec {en_region} ou {ville}, chaque zone affiche son propre secteur.'],
                         ['key'=>$p.'desc','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>$d['desc']],
                         ['key'=>$p.'badges','label'=>'Pastilles sous le titre','type'=>'list','default'=>$d['badges'],
                          'columns'=>[['k'=>'v','label'=>'Pastille']],
                          'help'=>'Les mots-clés affichés en pastilles. Ajoutez-en ou retirez-en librement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement Google',
+                    'seen'  => 'Le titre et la description affichés dans les résultats Google',
+                    'fields' => [
+                        ['key'=>$p.'meta_title','label'=>'Titre Google','type'=>'text','default'=>$seo[1]],
+                        ['key'=>$p.'meta_desc','label'=>'Description Google','type'=>'textarea','default'=>$seo[2]],
                     ],
                 ],
                 [

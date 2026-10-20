@@ -984,7 +984,9 @@ if ($tpl !== null || $page) {
         // Sans page en base, l'adresse du métier suffit à composer la page.
         $page = $page ?: ['title' => $tpl['label'], 'slug' => $route, 'excerpt' => '',
                           'content_html' => '', 'page_type' => 'Service'];
-        $meta  = seo_defaults($route, $page);
+        // Titre et description propres au métier, adaptés au secteur de la page
+        // (la fiche de page en base ne connaît pas la zone).
+        $meta  = ['title' => $tpl['meta_title'], 'description' => $tpl['meta_desc']];
         // Une seule page de référence par métier (la page en base peut porter
         // un autre slug, ex. « Électricité », qui créait un doublon).
         $meta['canonical'] = route_url($sk);
@@ -997,8 +999,8 @@ if ($tpl !== null || $page) {
   <?php if ($hasHeroImg): ?><div class="svc-hero-overlay"></div><?php endif; ?>
   <div class="wrap" style="position:relative;z-index:1;">
   <div class="ph-eyebrow">// <?= e($tpl['label']) ?></div>
-  <h1 class="ph-h1"><?= e($page['title']) ?></h1>
-  <p class="ph-lead"><?= e(geo_replace($page['excerpt'] ?: $tpl['desc'])) ?></p>
+  <h1 class="ph-h1"><?= e($tpl['h1']) ?></h1>
+  <p class="ph-lead"><?= e($tpl['desc']) ?></p>
   <div class="ph-badges">
     <?php foreach ($tpl['badges'] as $b): ?><span class="ph-badge hl"><?= e($b) ?></span><?php endforeach; ?>
     <span class="ph-badge"><?= e(company_hours()) ?></span>
@@ -1060,7 +1062,8 @@ if ($tpl !== null || $page) {
   <h2 class="section-title"><?= e(setting('svc_zones_title','Zones couvertes')) ?></h2>
   <div class="zones-grid" style="margin-top:1.75rem;">
     <?php /* Même source que l'accueil et la page Nos zones : la table des zones. */
-          foreach (intervention_zones() as $z): ?>
+          // Sur un sous-site, seule sa zone : la page Jura ne liste pas Paris.
+          foreach (array_filter(intervention_zones(), fn($z) => !$currentZone || $z['slug'] === $currentZone['slug']) as $z): ?>
     <div class="zone-card">
       <div class="zone-name"><?= e($z['name']) ?></div>
       <?php if ($z['intro'] !== ''): ?><p class="zone-text"><?= e($z['intro']) ?></p><?php endif; ?>

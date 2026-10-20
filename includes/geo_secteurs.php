@@ -555,6 +555,14 @@ function geo_controle(): array
             $lien = url_for($ecran.($z ? '?admin_zone='.(int)$z['id'] : ''));
             $signaler($portee, $label, setting_plain($cle), $lien);
         }
+        // Le texte libre en bas des pages métier, rédigé page par page.
+        foreach (array_keys(service_trade_defaults()) as $trade) {
+            $page = page_by_slug(service_page_slug($trade));
+            if (!$page || trim((string)($page['content_html'] ?? '')) === '') continue;
+            $signaler($portee, 'Page '.service_trade_defaults()[$trade]['label'].' — Texte en bas de page',
+                      html_entity_decode(strip_tags((string)$page['content_html']), ENT_QUOTES, 'UTF-8'),
+                      url_for('admin/page_edit.php?id='.(int)$page['id']));
+        }
         if ($z) {
             foreach (['meta_title' => 'Titre Google', 'meta_description' => 'Description Google',
                       'hero_h1' => 'Grand titre', 'hero_subtitle' => 'Sous-titre', 'intro' => 'Présentation'] as $col => $label) {
