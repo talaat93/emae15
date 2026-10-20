@@ -439,9 +439,9 @@ function company_name(): string { return setting('company_name', 'EMAE'); }
 function company_phone(): string { return setting('company_phone', '06 67 83 03 76'); }
 function company_phone_link(): string { return setting('company_phone_link', 'tel:+33667830376'); }
 function company_email(): string { return setting('company_email', 'contact@emae.fr'); }
-function company_regions(): string { return setting('company_regions', 'Île-de-France et Occitanie'); }
+function company_regions(): string { return setting('company_regions', '{region}'); }
 function company_hours(): string { return setting('company_hours', '24h/24 — 7j/7'); }
-function company_address(): string { return setting('company_address', 'Île-de-France et Occitanie'); }
+function company_address(): string { return setting('company_address', '{region}'); }
 function company_siret(): string { return setting('company_siret', ''); }
 function company_slogan(): string { return setting('company_slogan', 'Dépannage & installation multitechnique'); }
 function company_whatsapp(): string { return setting('company_whatsapp', ''); }
@@ -519,7 +519,7 @@ function seo_defaults(string $route = 'home', ?array $page = null): array
     ];
     if ($route === 'home' || $route === '') return [
         'title'       => setting('home_meta_title',       company_name().' | Dépannage multitechnique 24h/24'),
-        'description' => setting('home_meta_description', 'Dépannage urgence, électricité, plomberie, chauffage, climatisation en '.company_regions().'. Devis gratuit, intervention rapide.'),
+        'description' => setting('home_meta_description', 'Dépannage urgence, électricité, plomberie, chauffage, climatisation {en_region}. Devis gratuit, intervention rapide.'),
         'canonical'   => route_url(''),
     ];
     return ['title'=>company_name(),'description'=>company_name(),'canonical'=>route_url($route)];
@@ -1053,7 +1053,7 @@ function hero_settings(): array
 {
     return [
         'eyebrow'       => setting('home_eyebrow',       'Entreprise multitechnique avancée'),
-        'title'         => setting('home_title',         'Le partenaire technique de vos bâtiments en Île-de-France et en Occitanie'),
+        'title'         => setting('home_title',         'Le partenaire technique de vos bâtiments {en_region}'),
         'lead'          => setting('home_lead',          'Dépannage urgence, installation et entretien en électricité, plomberie, chauffage et climatisation. Réponse rapide, devis gratuit.'),
         'chips'         => array_values(array_filter([
             setting('home_chip_1','Électricité'), setting('home_chip_2','Plomberie'),
@@ -1068,7 +1068,7 @@ function hero_settings(): array
         'quote_title'   => setting('home_quote_title',   'Obtenir un rappel rapide'),
         'quote_service_label'      => setting('home_quote_service_label',      'Service'),
         'quote_city_label'         => setting('home_quote_city_label',         'Ville'),
-        'quote_city_placeholder'   => setting('home_quote_city_placeholder',   'Ex : Meaux, Paris, Toulouse'),
+        'quote_city_placeholder'   => setting('home_quote_city_placeholder',   'Ex : {ville}…'),
         'quote_button_label'       => setting('home_quote_button_label',       'Être rappelé gratuitement'),
         'quote_meta'               => setting('home_quote_meta',               '✓ Gratuit  ✓ Rapide  ✓ Sans engagement'),
         'trust_1_icon'  => setting('home_trust_1_icon',  '⚡'),
@@ -1137,7 +1137,7 @@ function home_reviews_block_settings(): array
     return [
         'eyebrow' => setting('home_reviews_eyebrow', 'Avis vérifiés'),
         'title'   => setting('home_reviews_title',   'Ils nous font confiance'),
-        'lead'    => setting('home_reviews_lead',    'Plus de 120 clients satisfaits en Île-de-France et en Occitanie.'),
+        'lead'    => setting('home_reviews_lead',    'Plus de 120 clients satisfaits {en_region}.'),
         'rating'  => setting('schema_rating_value',  '4.9'),
         'count'   => setting('schema_review_count',  '120'),
     ];
@@ -1166,10 +1166,10 @@ function home_zone_settings(): array
     return [
         'eyebrow'      => setting('home_zone_eyebrow',      'Zone d\'intervention'),
         'title'        => setting('home_zone_title',        'Nous intervenons près de chez vous'),
-        'lead'         => setting('home_zone_lead',         'Île-de-France et Occitanie — délai moyen d\'intervention inférieur à 2h pour les urgences.'),
+        'lead'         => setting('home_zone_lead',         '{region} — délai moyen d\'intervention inférieur à 2h pour les urgences.'),
         'badges'       => array_values(array_filter([
-            setting('home_zone_badge_1','Île-de-France'),
-            setting('home_zone_badge_2','Occitanie'),
+            setting('home_zone_badge_1','{region}'),
+            setting('home_zone_badge_2',''),
             setting('home_zone_badge_3',''),
         ], fn($v) => trim($v) !== '')),
         'button_label' => setting('home_zone_button_label', 'Nous contacter'),
@@ -1197,8 +1197,8 @@ function faq_page_settings(): array
         'cta_url'      => 'contact',
         'groups'       => [
             ['category'=>'Général','items'=>[
-                ['q'=>'Qui est EMAE ?','a'=>'EMAE est une entreprise multitechnique avancée spécialisée dans le dépannage, l\'installation, l\'entretien et la modernisation en électricité, plomberie, chauffage et climatisation en Île-de-France et en Occitanie.'],
-                ['q'=>'Quelles sont vos zones d\'intervention ?','a'=>'Nous intervenons en Île-de-France (Paris, 77, 78, 91, 92, 93, 94, 95) et en Occitanie (Toulouse, Montpellier, Nîmes et leurs environs). Appelez-nous pour vérifier votre secteur.'],
+                ['q'=>'Qui est EMAE ?','a'=>'EMAE est une entreprise multitechnique avancée spécialisée dans le dépannage, l\'installation, l\'entretien et la modernisation en électricité, plomberie, chauffage et climatisation.'],
+                ['q'=>'Quelles sont vos zones d\'intervention ?','a'=>'La liste complète de nos secteurs figure sur la page Zones d\'intervention. En cas de doute, appelez-nous pour vérifier votre adresse.'],
                 ['q'=>'Quels sont vos horaires ?','a'=>'EMAE est disponible 24h/24, 7j/7 pour les urgences. Pour les interventions planifiées, nous proposons des créneaux du lundi au samedi de 8h à 19h.'],
                 ['q'=>'Intervenez-vous pour les particuliers et les professionnels ?','a'=>'Oui, nous intervenons pour les particuliers, syndics de copropriété, bailleurs, commerces, restaurants et gestionnaires de patrimoine.'],
             ]],
@@ -1210,7 +1210,7 @@ function faq_page_settings(): array
             ]],
             ['category'=>'Urgences','items'=>[
                 ['q'=>'Intervenez-vous en urgence ?','a'=>'Oui, nous assurons une astreinte 24h/24 et 7j/7 pour les urgences bloquantes : panne électrique totale, fuite d\'eau importante, panne de chauffage en hiver, climatisation en panne en été.'],
-                ['q'=>'Quel est le délai d\'intervention en urgence ?','a'=>'En Île-de-France, notre délai moyen d\'intervention urgence est de 1h à 2h selon votre zone. Nous vous confirmons le délai exact au téléphone lors de votre appel.'],
+                ['q'=>'Quel est le délai d\'intervention en urgence ?','a'=>'Notre délai moyen d\'intervention en urgence est de 1h à 2h selon votre secteur. Nous vous confirmons le délai exact au téléphone lors de votre appel.'],
                 ['q'=>'Que faire en cas de panne électrique totale ?','a'=>'Coupez les appareils sensibles (ordinateurs, réfrigérateur), vérifiez le disjoncteur principal, puis appelez-nous au '.company_phone().'. Ne touchez pas aux installations si vous suspectez un danger.'],
                 ['q'=>'Que faire en cas de fuite d\'eau importante ?','a'=>'Coupez l\'arrivée d\'eau principale (vanne sous l\'évier ou compteur), coupez l\'alimentation électrique dans la zone inondée, puis appelez-nous immédiatement.'],
             ]],
@@ -1241,12 +1241,17 @@ function contact_page_settings(): array
     ];
 }
 
-function zones_page_settings(): array
+/**
+ * @param bool $brut true pour un formulaire d'administration : les variables de
+ *                   lieu restent écrites {en_region}, sinon les réenregistrer
+ *                   figerait la valeur d'une seule zone pour toutes.
+ */
+function zones_page_settings(bool $brut = false): array
 {
     $default = [
         'eyebrow'  => 'Zones d\'intervention',
-        'title'    => 'Nous intervenons partout en',
-        'title_hl' => 'Île-de-France & Occitanie',
+        'title'    => 'Nous intervenons',
+        'title_hl' => '{en_region}',
         'lead'     => 'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.',
         'regions'  => [
             [
@@ -1267,10 +1272,17 @@ function zones_page_settings(): array
             ],
         ],
     ];
-    $saved = get_json_setting('zones_page_settings', []);
+    if ($brut) {
+        $saved = json_decode(setting_plain('zones_page_settings'), true);
+        $saved = is_array($saved) ? $saved : [];
+    } else {
+        // Le titre par défaut contient une variable : chaque zone y lit son secteur.
+        if (function_exists('zone_vars_apply_deep')) $default = zone_vars_apply_deep($default);
+        $saved = get_json_setting('zones_page_settings', []);
+    }
     unset($saved['regions']);                    // plus stockées ici : voir ci-dessous
     $out   = array_merge($default, array_filter($saved, fn($v) => $v !== '' && $v !== null && $v !== []));
-    $out   = json_block_inline($out, 'zones_page_settings');
+    if (!$brut) $out = json_block_inline($out, 'zones_page_settings');
     // Les régions viennent désormais de la table des zones, source unique du
     // site : un même changement se voit sur l'accueil, la page Nos zones, le
     // bas des pages Service et la page Contact.
@@ -1400,10 +1412,10 @@ function _hex_to_rgb(string $hex): array
 function why_section_settings(): array
 {
     $defaultItems = [
-        ['icon_type'=>'emoji','icon_emoji'=>'⚡','icon_image'=>'','title'=>'Réponse immédiate 24h/24','text'=>'Nous décrochez toujours. Délai moyen inférieur à 2h pour les urgences en Île-de-France.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'⚡','icon_image'=>'','title'=>'Réponse immédiate 24h/24','text'=>'Nous décrochons toujours. Délai moyen inférieur à 2h pour les urgences.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📋','icon_image'=>'','title'=>'Devis clair avant intervention','text'=>'Le prix est annoncé avant toute action. Zéro surprise sur la facture finale.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🔒','icon_image'=>'','title'=>'Techniciens qualifiés','text'=>'Nos artisans sont formés, certifiés et expérimentés sur l\'ensemble de nos métiers.'],
-        ['icon_type'=>'emoji','icon_emoji'=>'📍','icon_image'=>'','title'=>'Présence locale','text'=>'Île-de-France et Occitanie. Nous connaissons votre secteur et ses spécificités.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'📍','icon_image'=>'','title'=>'Présence locale','text'=>'Des techniciens installés dans votre secteur, qui en connaissent le bâti et ses spécificités.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🛠️','icon_image'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur.'],
         ['icon_type'=>'emoji','icon_emoji'=>'⭐','icon_image'=>'','title'=>'Clients satisfaits','text'=>'Plus de 120 avis vérifiés, une note de 4.9/5. La confiance se construit chantier après chantier.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🏗️','icon_image'=>'','title'=>'Particuliers & professionnels','text'=>'Logements, commerces, bureaux, copropriétés — nous adaptons notre organisation à votre contexte.'],
@@ -1503,10 +1515,10 @@ function why_us_settings(): array
         'title'   => 'EMAE, votre expert multitechnique de confiance',
         'lead'    => 'Des artisans qualifiés, des délais respectés, des devis clairs. Chaque intervention est réalisée avec rigueur et professionnalisme.',
         'items'   => [
-            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Intervention rapide',    'text'=>'Moins de 2h en urgence en Île-de-France. Astreinte 24h/24, 7j/7 pour toutes les pannes bloquantes.'],
+            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Intervention rapide',    'text'=>'Moins de 2h en urgence. Astreinte 24h/24, 7j/7 pour toutes les pannes bloquantes.'],
             ['icon_type'=>'emoji','icon'=>'📋','icon_img'=>'','title'=>'Devis gratuit et clair', 'text'=>'Le prix est annoncé avant toute intervention. Aucune surprise sur la facture finale. Devis sans engagement.'],
             ['icon_type'=>'emoji','icon'=>'🔒','icon_img'=>'','title'=>'Artisans certifiés',     'text'=>'Nos techniciens sont formés, qualifiés et assurés pour l\'ensemble de nos métiers techniques.'],
-            ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Présence locale',        'text'=>'Île-de-France et Occitanie. Nous connaissons votre secteur et intervenons rapidement sur site.'],
+            ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Présence locale',        'text'=>'Des techniciens installés dans votre secteur, qui interviennent rapidement sur site.'],
             ['icon_type'=>'emoji','icon'=>'🛠️','icon_img'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur pour tous vos besoins.'],
             ['icon_type'=>'emoji','icon'=>'⭐','icon_img'=>'','title'=>'Clients satisfaits',     'text'=>'Plus de 120 avis vérifiés, note de 4.9/5. La confiance se construit chantier après chantier.'],
             ['icon_type'=>'emoji','icon'=>'🏗️','icon_img'=>'','title'=>'Particuliers & pros',   'text'=>'Logements, commerces, bureaux, copropriétés — organisation adaptée à chaque contexte.'],
@@ -2421,16 +2433,16 @@ function service_trade_defaults(): array
     return [
       'electricite' => [
         'label'=>'Électricité','icon_svc'=>'⚡',
-        'desc'=>'Dépannage, installation, mise aux normes et rénovation électrique en '.company_regions().'.',
+        'desc'=>'Dépannage, installation, mise aux normes et rénovation électrique {en_region}.',
         'badges'=>['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation'],
         'offer_title'=>'Ce que nous proposons en électricité',
         'offer_items'=>['Dépannage et remise en service (urgence 24h/7j)','Remplacement et mise en conformité de tableaux électriques','Ajout ou réparation de circuits, prises, lignes dédiées','Installation et dépannage d\'éclairage intérieur et extérieur','Rénovation électrique complète (logement, commerce)','Mise aux normes NF C 15-100 obligatoire','Câblage neuf pour constructions et extensions','Contrôle et diagnostic de l\'installation existante'],
         'interv'=>[['⚡','Panne électrique','Diagnostic et remise en service rapide.'],['🧰','Tableau électrique','Remplacement et sécurisation.'],['🔌','Prises & circuits','Ajout, réparation, remplacement.'],['💡','Éclairage','LED, intérieur, extérieur, technique.'],['🏗️','Installation neuve','Câblage neuf ou réfection.'],['✅','Mise aux normes','NF C 15-100.'],['🔄','Rénovation','Modernisation de l\'installation.'],['🚨','Urgence 24h/7j','Astreinte permanente.']],
-        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
+        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
       ],
       'plomberie' => [
         'label'=>'Plomberie','icon_svc'=>'💧',
-        'desc'=>'Dépannage fuite, réparation sanitaire et entretien réseau en '.company_regions().'.',
+        'desc'=>'Dépannage fuite, réparation sanitaire et entretien réseau {en_region}.',
         'badges'=>['Fuite urgente','Débouchage','Sanitaires','Entretien réseau'],
         'offer_title'=>'Ce que nous proposons en plomberie',
         'offer_items'=>['Recherche et réparation de fuites visibles ou cachées','Dépannage et remplacement de robinetterie','Débouchage de canalisations et WC','Remplacement de WC, lavabo, baignoire, douche','Réparation et remplacement de chauffe-eau','Entretien préventif annuel','Intervention sur réseaux d\'alimentation et d\'évacuation','Mise en conformité des installations sanitaires'],
@@ -2439,7 +2451,7 @@ function service_trade_defaults(): array
       ],
       'chauffage' => [
         'label'=>'Chauffage & PAC','icon_svc'=>'🔥',
-        'desc'=>'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien en '.company_regions().'.',
+        'desc'=>'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien {en_region}.',
         'badges'=>['Panne chaudière','Pompe à chaleur','Chaudière gaz/fioul','Entretien annuel'],
         'offer_title'=>'Ce que nous proposons en chauffage',
         'offer_items'=>['Dépannage et remise en service de chaudières gaz, fioul, électrique','Entretien annuel réglementaire de chaudière (obligatoire)','Dépannage et entretien de pompes à chaleur air/air et air/eau','Installation de PAC et chaudières neuves','Diagnostic et optimisation de la consommation énergétique','Remplacement de corps de chauffe, brûleurs, circulateurs','Réglage thermostat, programmation, vannes thermostatiques','Urgences hiver — astreinte renforcée en période froide'],
@@ -2448,7 +2460,7 @@ function service_trade_defaults(): array
       ],
       'climatisation' => [
         'label'=>'Climatisation & CVC','icon_svc'=>'❄️',
-        'desc'=>'Installation, dépannage et entretien de climatisation et CVC en '.company_regions().'.',
+        'desc'=>'Installation, dépannage et entretien de climatisation et CVC {en_region}.',
         'badges'=>['Clim en panne','CVC','Installation split','Entretien saisonnier'],
         'offer_title'=>'Ce que nous proposons en climatisation',
         'offer_items'=>['Dépannage de tout type de climatiseur (split, multi-split, gainable)','Installation de climatisation pour particuliers et professionnels','Entretien saisonnier (nettoyage, vérification, réglages)','Recharge en fluide frigorigène','Contrôle des performances et optimisation','Systèmes gainables et centralisés','VMC et ventilation mécanique','Étude et conseil avant installation'],

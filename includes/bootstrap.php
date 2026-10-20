@@ -15,6 +15,7 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/admin_team.php';
 require_once __DIR__ . '/zone_vars.php';
 require_once __DIR__ . '/zones_core.php';
+require_once __DIR__ . '/geo_secteurs.php';
 require_once __DIR__ . '/notifications.php';
 require_once __DIR__ . '/workflow.php';
 require_once __DIR__ . '/integrations.php';
@@ -701,6 +702,20 @@ if (!file_exists($_mf31)) {
     unset($_me);
 }
 unset($_mf31);
+// Auto-migration v15.32 — le site global couvre le Doubs, le Jura et la Côte-d'Or ;
+// chaque zone reçoit ses variables de lieu et perd les textes qui citent un autre
+// secteur. Tout est sauvegardé et s'annule depuis « Diagnostic des zones ».
+$_mf32 = __DIR__.'/../storage/.mig_v15_secteurs_bfc';
+if (!file_exists($_mf32)) {
+    // Témoin posé avant le travail : une erreur ne doit pas relancer la mise à jour à chaque visite.
+    @file_put_contents($_mf32, date('c'));
+    try {
+        require_once __DIR__ . '/admin_fields.php';
+        geo_appliquer();
+    } catch (Throwable $_me) { error_log('Migration v15.32 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf32);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

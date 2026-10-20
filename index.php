@@ -76,10 +76,12 @@ if ($route === '' || $route === 'home') {
     // ── Zone overrides ──
     if ($currentZone) {
         $_SESSION['geo_redirected'] = true; // pas de redirect geo sur pages zone
-        $zMT = zone_field($currentZone, 'meta_title');
-        $zMD = zone_field($currentZone, 'meta_description');
-        $meta['title']       = $zMT !== '' ? $zMT : company_name().' — '.$currentZone['name'].' | Électricien, Plombier, Chauffagiste';
-        $meta['description'] = $zMD !== '' ? $zMD : 'Électricien, plombier, chauffagiste à '.$currentZone['name'].'. Devis gratuit, intervention rapide. '.company_phone().'.';
+        // Sans titre propre à la fiche de zone, on garde celui de seo_defaults() :
+        // le texte global, dont les variables de lieu prennent les valeurs de la zone.
+        $zMT = geo_replace(zone_field($currentZone, 'meta_title'));
+        $zMD = geo_replace(zone_field($currentZone, 'meta_description'));
+        if ($zMT !== '') $meta['title']       = $zMT;
+        if ($zMD !== '') $meta['description'] = $zMD;
         $meta['canonical']   = url_for($currentZone['slug'].'/');
         unset($zMT, $zMD);
     }
@@ -97,7 +99,7 @@ if ($route === '' || $route === 'home') {
       <div class="hero-badge"><span class="hero-badge-dot"></span><?= e(geo_replace(setting('home_eyebrow','Disponible '.company_hours()))) ?></div>
       <h1><?php
         if ($currentZone && zone_field($currentZone,'hero_h1') !== '') {
-            $zH1 = zone_field($currentZone,'hero_h1');
+            $zH1 = geo_replace(zone_field($currentZone,'hero_h1'));
             // split on last word for highlight
             $zParts = explode(' ', $zH1, -1);
             $zLast  = array_pop(explode(' ', $zH1)) ?: '';
@@ -112,9 +114,9 @@ if ($route === '' || $route === 'home') {
       ?></h1>
       <p class="hero-lead"><?php
         if ($currentZone && zone_field($currentZone,'hero_subtitle') !== '') {
-            echo e(zone_field($currentZone,'hero_subtitle'));
+            echo e(geo_replace(zone_field($currentZone,'hero_subtitle')));
         } else {
-            echo e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.company_regions().'. Intervention rapide, devis gratuit, artisans qualifiés.')));
+            echo e(geo_replace(setting('home_lead','Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur {en_region}. Intervention rapide, devis gratuit, artisans qualifiés.')));
         }
       ?></p>
 
@@ -165,7 +167,7 @@ if ($route === '' || $route === 'home') {
     <div class="svc-header">
       <div class="svc-label"><?= e(setting('services_section_label','Nos pôles d\'intervention')) ?></div>
       <h2 class="svc-title"><?= e(setting('services_title','Tout ce dont vous avez')) ?> <em><?= e(setting('services_title_hl','besoin')) ?></em></h2>
-      <p class="svc-lead"><?= e(geo_replace(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes en '.company_regions().' — un seul interlocuteur pour tous vos besoins techniques.'))) ?></p>
+      <p class="svc-lead"><?= e(geo_replace(setting('services_lead','Dépannage urgence, installation, entretien et mise aux normes {en_region} — un seul interlocuteur pour tous vos besoins techniques.'))) ?></p>
     </div>
     <div class="svc-grid">
       <?php foreach ($cards as $card):
@@ -376,7 +378,7 @@ if ($route === '' || $route === 'home') {
     </div>
     <?php else: ?>
     <h2 class="section-title"><?= e(setting('zones_title','Nos zones d\'intervention')) ?> <em><?= e(setting('zones_title_hl','partout en France')) ?></em></h2>
-    <p class="section-lead"><?= e(geo_replace(setting('zones_lead',company_regions().' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
+    <p class="section-lead"><?= e(geo_replace(setting('zones_lead','{region} — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
     <div class="zones-grid">
       <?php /* Source unique : la table des zones. Voir includes/zones_core.php. */
             foreach (intervention_zones() as $_az): ?>
@@ -421,7 +423,7 @@ if ($route === 'zones') {
     $cards = service_cards_v14();
     $meta  = [
         'title'       => setting('zones_meta_title', 'Zones d\'intervention | '.company_name()),
-        'description' => setting('zones_meta_desc',  'EMAE intervient en Île-de-France et Occitanie — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'),
+        'description' => setting('zones_meta_desc',  'EMAE intervient {en_region} — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'),
         'canonical'   => route_url('zones'),
     ];
     render_head($meta); render_header(route_url('zones'));
@@ -882,7 +884,7 @@ if ($route === 'contact') {
       </div>
       <div class="cf-row">
         <label class="cf-label">Email<input class="cf-input" type="email" name="email" placeholder="votre@email.fr"></label>
-        <label class="cf-label">Ville<input class="cf-input" type="text" name="city" placeholder="<?= e(setting('home_quote_city_placeholder','Meaux, Paris…')) ?>"></label>
+        <label class="cf-label">Ville<input class="cf-input" type="text" name="city" placeholder="<?= e(setting('home_quote_city_placeholder','Ex : {ville}…')) ?>"></label>
       </div>
       <label class="cf-label">Service<select class="cf-input" name="service_type"><option value="">Choisir</option><?php foreach($cards as $c):?><option value="<?=e($c['title'])?>"><?=e($c['title'])?></option><?php endforeach;?></select></label>
       <label class="cf-label">Urgence<select class="cf-input" name="urgency"><option value="Normale">Normale</option><option value="Urgente">Urgente — sous 24h</option><option value="Très urgente">Très urgente — immédiat</option></select></label>
@@ -944,7 +946,7 @@ if ($route === 'realisations') {
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Nos réalisations</div>
   <h1 class="ph-h1"><?= e(setting('reals_page_title','Interventions & chantiers')) ?></h1>
-  <p class="ph-lead"><?= e(setting('reals_page_lead','Des interventions propres et documentées en '.company_regions().'.')) ?></p>
+  <p class="ph-lead"><?= e(setting('reals_page_lead','Des interventions propres et documentées {en_region}.')) ?></p>
 </div></section>
 <section class="sec sec-navy"><div class="wrap">
   <?php if (empty($reals)): ?>

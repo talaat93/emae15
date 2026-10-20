@@ -45,7 +45,7 @@ function fake_page(): string {
     echo '<script type="application/ld+json">', json_encode(['d'=>setting('company_description','Entreprise multitechnique.')]), '</script>';
     echo '</head><body>';
     echo '<h1>', e(setting('home_title','Votre expert multitechnique')), '</h1>';
-    echo '<p class="lead">', e(setting('services_lead','Un seul interlocuteur.')), '</p>';
+    echo '<p class="lead">', e(setting('qs_lead','Un seul interlocuteur.')), '</p>';
     echo '<p class="step">', e(setting('process_1_text','Appelez ou remplissez le formulaire.')), '</p>';
     echo '<a href="#" title="', e(setting('home_button1_label','Devis gratuit')), '">', e(setting('home_button1_label','Devis gratuit')), '</a>';
     echo '<input placeholder="', e(setting('home_quote_city_placeholder','Meaux, Paris…')), '">';
@@ -68,7 +68,7 @@ inline_edit_active(true);
 $html = inline_edit_postprocess(fake_page());
 contains('le titre H1 est éditable', $html, 'data-k="home_title"');
 contains('un paragraphe est éditable', $html, 'data-k="process_1_text"');
-contains('l\'accroche redevient éditable', $html, 'data-k="services_lead"');
+contains('l\'accroche redevient éditable', $html, 'data-k="qs_lead"');
 contains('le libellé du bouton est éditable', $html, 'data-k="home_button1_label"');
 contains('l\'étiquette au survol est fournie', $html, 'data-l="Bandeau principal — Titre principal"');
 contains('repère « texte par défaut »', $html, 'ie ie--def');
@@ -142,11 +142,12 @@ check('ancien nom encore accepté',
 
 echo "\n6quater. Un texte contenant une variable n'est pas éditable sur la page\n";
 admin_inline_keys(true);
-check('sans variable : éditable',  isset(admin_inline_keys()['services_lead']), true);
-set_setting('services_lead', 'Dépannage à {ville} et alentours.'); admin_inline_keys(true);
-check('avec variable : écarté',    isset(admin_inline_keys()['services_lead']), false);
-set_setting('services_lead', ''); admin_inline_keys(true);
-check('variable retirée : éditable de nouveau', isset(admin_inline_keys()['services_lead']), true);
+check('sans variable : éditable',  isset(admin_inline_keys()['qs_lead']), true);
+set_setting('qs_lead', 'Dépannage à {ville} et alentours.'); admin_inline_keys(true);
+check('avec variable : écarté',    isset(admin_inline_keys()['qs_lead']), false);
+set_setting('qs_lead', ''); admin_inline_keys(true);
+check('variable retirée : éditable de nouveau', isset(admin_inline_keys()['qs_lead']), true);
+check('texte d\'origine à variable : écarté', isset(admin_inline_keys()['services_lead']), false);
 
 echo "\n7. Un texte personnalisé change de repère\n";
 set_setting('home_title', 'Notre entreprise');

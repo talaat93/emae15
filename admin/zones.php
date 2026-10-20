@@ -37,7 +37,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $arg = (int)$argRaw;
 
     // 1. Les textes de la section, communs à toutes les zones.
-    $saved = get_json_setting('zones_page_settings', []);
+    // Lecture brute : une variable comme {en_region} doit rester une variable.
+    $saved = json_decode(setting_plain('zones_page_settings'), true);
+    $saved = is_array($saved) ? $saved : [];
     foreach (['eyebrow','title','title_hl','lead'] as $k) {
         if (isset($_POST['zp'][$k])) $saved[$k] = trim((string)$_POST['zp'][$k]);
     }
@@ -114,7 +116,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $zones = intervention_zones(false, true);
-$cfg   = zones_page_settings();
+$cfg   = zones_page_settings(true);
 $total = count($zones);
 $adminSection = 'zones';
 require __DIR__ . '/partials/header.php';

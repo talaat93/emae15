@@ -3,7 +3,7 @@
 Document de reprise. À lire en entier avant de toucher au code : il contient
 plusieurs pièges qui ont déjà coûté du temps.
 
-Dernière mise à jour : 1er octobre 2026.
+Dernière mise à jour : 20 octobre 2026.
 
 ---
 
@@ -43,6 +43,7 @@ includes/              Le moteur — deux familles, voir ci-dessous
   bootstrap.php          Amorçage + migrations automatiques
   helpers.php            ~2000 lignes : réglages, zones, société, routage
   zones_core.php         Source unique des zones d'intervention
+  geo_secteurs.php       Secteur de chaque page : lieux cités, mise en conformité
   zone_vars.php          Variables {ville} {region} {departement}…
   admin_fields.php       Catalogue des textes modifiables
   admin_replace.php      Chercher / remplacer
@@ -182,6 +183,47 @@ Colonnes de présentation ajoutées à la table : `depts`, `delay`, `color`,
 
 `test_zones_unique.php` verrouille ce comportement : il change une ville et
 vérifie qu'elle change bien aux quatre endroits.
+
+---
+
+## 4.1 Les secteurs géographiques — qui couvre quoi
+
+**Décision du propriétaire (20 octobre 2026).** Le site global couvre le
+**Doubs, le Jura et la Côte-d'Or** (Bourgogne-Franche-Comté). Les sous-sites
+gardent chacun leur zone. Les villes mises en avant sont les plus peuplées :
+Besançon, Dijon, Dole pour le global ; une par zone (`geo_departements()`).
+
+**Le bug d'origine.** Une zone hérite des textes globaux tant qu'elle n'a pas
+les siens. Les titres globaux étaient écrits en dur (« en Île-de-France et en
+Occitanie ») : la zone Jura les affichait tels quels. Des textes recopiés d'une
+zone à l'autre gardaient aussi le nom de la première. Et les zones créées en
+v15.16 n'avaient reçu que `{region}` et `{ville}` : `{en_region}` retombait sur
+la valeur globale.
+
+**La règle maintenant.** Un titre ou une description qui nomme un lieu s'écrit
+avec les variables de lieu (`{en_region}`, `{ville}`, `{region}`…). Le global et
+chaque zone renseignent les sept variables standard ; le même texte est donc
+juste partout. Les textes par défaut du code suivent la même règle, ou ne
+nomment aucun lieu quand le champ est modifiable directement sur la page
+(l'édition sur la page figerait la valeur résolue).
+
+**`includes/geo_secteurs.php`.**
+
+| Fonction | Rôle |
+|---|---|
+| `geo_profil_global()` / `geo_profil_zone($zone)` | départements, région et variables d'une portée ; une zone est reconnue par ses codes postaux, sinon par son nom |
+| `geo_lieux_cites($texte)` | lieux nommés dans un texte (sans accents ni tirets ; « Saône-et-Loire » ne compte pas pour « Loire ») |
+| `geo_hors_secteur()` / `geo_erreur_certaine()` | lieu étranger au secteur ; erreur *certaine* = autre région, ou voisin cité sans jamais nommer le sien |
+| `geo_appliquer()` | migration v15.32 : variables, titres globaux, retrait des textes de zone en erreur certaine. Idempotente |
+| `geo_annuler($lot)` | remet chaque valeur sauvegardée (table `geo_sauvegarde`) |
+| `geo_controle()` | ce que le visiteur lit réellement, par portée, quand un lieu sort du secteur |
+
+Écran : `admin/zones_diag.php`, section 4 — bilan, bouton d'annulation, liste
+des textes à relire avec un lien « Corriger » vers le bon champ et la bonne
+zone. Les mentions légales et coordonnées sont exclues (`geo_cle_exclue()`).
+
+`test_secteurs.php` rejoue la mise en conformité sur une base reproduisant les
+erreurs constatées, vérifie le texte affiché zone par zone, puis l'annulation.
 
 ---
 
@@ -339,10 +381,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-608 assertions, aucune base de données nécessaire : chaque test remplace
+660 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 167 fichiers PHP.
+sur les 169 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -357,6 +399,7 @@ sur les 167 fichiers PHP.
 | `test_zoneflow.php` | héritage, renommage, suppression d'une zone |
 | `test_zones.php` | filtrage des contenus par zone |
 | `test_zones_unique.php` | **la synchronisation des quatre emplacements** |
+| `test_secteurs.php` | lieux cités, variables par zone, mise en conformité des secteurs et son annulation |
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
@@ -406,6 +449,16 @@ valeur dans la zone, qui n'hérite alors plus de rien. 164 textes avaient été
 copiés ainsi. Le bouton « 🧹 Nettoyer » de `admin/zones_diag.php` supprime
 les valeurs identiques au global et rétablit l'héritage.
 
+**Un formulaire d'admin doit lire la valeur brute.** `setting()` et
+`get_json_setting()` remplacent les variables de lieu. Un écran qui affiche leur
+résultat dans un champ, puis l'enregistre, écrit « dans le Doubs… » en dur à la
+place de `{en_region}` : toutes les zones affichent alors le Doubs. Lire avec
+`setting_plain()`, `admin_field_raw()` ou `admin_json_block_plain()`. Corrigé
+dans `seo.php`, `site_identity.php`, `home_hero.php`, `zones.php` et les blocs
+JSON du catalogue. `faq_contact.php` relit encore la FAQ avec
+`get_json_setting()` : sans conséquence tant que la FAQ ne contient pas de
+variable.
+
 **`setting()` pose des marqueurs invisibles.** Pour comparer ou traiter une
 valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 
@@ -415,6 +468,11 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 
 ### Côté propriétaire du site
 
+- [ ] Après la mise en ligne des secteurs : ouvrir **Diagnostic des zones**
+      (`admin/zones_diag.php`), relire la section 4 et corriger ce qui reste
+      signalé. Tout ce qui a été changé automatiquement s'annule d'un clic.
+- [ ] Vérifier dans **Variables de lieu** la ville mise en avant de chaque
+      zone (choisie d'après la population, faute de chiffre d'affaires par ville).
 - [ ] **Changer le mot de passe MySQL.** Il a été exposé dans l'historique
       Git. À faire dans cPanel, puis reporter dans `config/config.local.php`
       sur le serveur. **Point de sécurité le plus urgent.**
@@ -468,6 +526,7 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(ce commit)* | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | `f0177a3` | Finances 3 — page « Finances » du dispatcher |
 | `c6c5356` | Finances 2 — calculs du tableau de bord financier, avec tests |
 | `222d66d` | Finances 1 — droit « Accès aux finances » par compte dispatcher |

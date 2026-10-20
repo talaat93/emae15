@@ -58,9 +58,9 @@ check('avis client',                    in_array('row:reviews:5:content',$r,true
 
 echo "\n2. Un texte jamais enregistré est trouvé quand même\n";
 // zones_page_settings n'est pas en base : la valeur vient du code.
-$zp = findHit($hits,'cat:page_zones:zp_title_hl');
+$zp = findHit(bulk_scan('Zones d\'intervention'),'cat:page_zones:zp_eyebrow');
 check('texte d\'origine du code détecté', $zp !== null, true);
-check('  → valeur affichée lue',          $zp['value'] ?? '', 'Île-de-France & Occitanie');
+check('  → valeur affichée lue',          $zp['value'] ?? '', 'Zones d\'intervention');
 
 echo "\n3. Les réglages sensibles sont écartés\n";
 check('le secret OVH n\'apparaît pas', in_array('set:ovh_app_secret',$r,true), false);
@@ -85,10 +85,10 @@ check('avis non coché : intact', $DB['reviews'][5]['content'], $before);
 echo "\n7. Un texte du code jamais enregistré devient une valeur enregistrée\n";
 settings_cache(true);
 check('avant : rien en base', isset($DB['settings']['zones_page_settings']), false);
-bulk_apply(['cat:page_zones:zp_title_hl'], 'Occitanie', 'Bourgogne');
+bulk_apply(['cat:page_zones:zp_eyebrow'], 'intervention', 'action');
 settings_cache(true);
 $saved = json_decode($DB['settings']['zones_page_settings'] ?? '{}', true);
-check('après : enregistré',   $saved['title_hl'] ?? '', 'Île-de-France & Bourgogne');
+check('après : enregistré',   $saved['eyebrow'] ?? '', 'Zones d\'action');
 
 echo "\n8. Le remplacement ignore la casse\n";
 $DB['settings']['reals_page_lead'] = 'Partout en occitanie et en OCCITANIE';

@@ -160,7 +160,7 @@ function qual_system_prompt(): string
     $cats = implode(', ', array_map(static fn($k, $c) => $k.' ('.$c['label'].')', array_keys(intervention_category_config()), intervention_category_config()));
     $fields = implode("\n", array_map(static fn($k, $f) => '- '.$k.' : '.$f[0].($f[1] ? ' (obligatoire)' : ''), array_keys(qual_fields()), qual_fields()));
     return <<<TXT
-Tu assistes le dispatcher d'une entreprise de dépannage en Île-de-France (électricité, plomberie, débouchage, chauffage, climatisation). Le dispatcher a le client au téléphone et te transmet ses réponses.
+Tu assistes le dispatcher d'une entreprise de dépannage multitechnique (électricité, plomberie, débouchage, chauffage, climatisation). Le dispatcher a le client au téléphone et te transmet ses réponses.
 
 À chaque tour :
 - Pose UNE seule question courte, formulée pour que le dispatcher la lise au client (vouvoiement). Propose 2 à 5 réponses rapides quand c'est possible, sinon une liste vide.

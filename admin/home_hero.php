@@ -4,7 +4,8 @@ require __DIR__ . '/partials/header.php';
 
 function hero_admin_setting(string $key, string $fallback = ''): string
 {
-    return setting($key, $fallback);
+    // Texte tel qu'enregistré : une variable de lieu doit rester une variable.
+    return setting_plain($key, $fallback);
 }
 
 $cards = service_cards_settings();
@@ -140,9 +141,9 @@ $quotePanelBlock = function_exists('home_quote_panel_settings') ? home_quote_pan
       </div>
       <div class="admin-panel__body">
         <label class="admin-field"><span>Petit texte du haut</span><input type="text" name="home_eyebrow" value="<?= e(hero_admin_setting('home_eyebrow', 'Entreprise multitechnique avancée')) ?>"></label>
-        <label class="admin-field"><span>Grand titre</span><textarea name="home_title" rows="4"><?= e(hero_admin_setting('home_title', 'Le partenaire technique de vos bâtiments en Île-de-France et en Occitanie')) ?></textarea></label>
+        <label class="admin-field"><span>Grand titre</span><textarea name="home_title" rows="4"><?= e(hero_admin_setting('home_title', 'Le partenaire technique de vos bâtiments {en_region}')) ?></textarea></label>
         <label class="admin-field"><span>Texte descriptif</span><textarea name="home_lead" rows="4"><?= e(hero_admin_setting('home_lead', 'EMAE aide à capter des clients pour le dépannage, l’entretien et les besoins techniques en électricité, plomberie, chauffage, climatisation, CVC et pompes à chaleur.')) ?></textarea></label>
-        <label class="admin-field"><span>Puces (une ligne = une puce)</span><textarea name="home_bullets" rows="5"><?= e(hero_admin_setting('home_bullets', "Intervention moyenne sous 2h\nDevis gratuit et sans engagement\nZone couverte : Île-de-France et Occitanie")) ?></textarea></label>
+        <label class="admin-field"><span>Puces (une ligne = une puce)</span><textarea name="home_bullets" rows="5"><?= e(hero_admin_setting('home_bullets', "Intervention moyenne sous 2h\nDevis gratuit et sans engagement\nZone couverte : {region}")) ?></textarea></label>
 
         <div class="admin-form-grid admin-form-grid--3">
           <label class="admin-field"><span>Couleur petit texte</span><input type="color" name="home_eyebrow_color" value="<?= e(hero_admin_setting('home_eyebrow_color', '#83a6ff')) ?>"></label>
@@ -220,7 +221,7 @@ $quotePanelBlock = function_exists('home_quote_panel_settings') ? home_quote_pan
           <label class="admin-field"><span>Libellé service</span><input type="text" name="home_quote_service_label" value="<?= e(hero_admin_setting('home_quote_service_label', 'Service')) ?>"></label>
           <label class="admin-field"><span>Libellé ville</span><input type="text" name="home_quote_city_label" value="<?= e(hero_admin_setting('home_quote_city_label', 'Ville')) ?>"></label>
         </div>
-        <label class="admin-field"><span>Placeholder ville</span><input type="text" name="home_quote_city_placeholder" value="<?= e(hero_admin_setting('home_quote_city_placeholder', 'Ex : Meaux, Paris, Toulouse')) ?>"></label>
+        <label class="admin-field"><span>Placeholder ville</span><input type="text" name="home_quote_city_placeholder" value="<?= e(hero_admin_setting('home_quote_city_placeholder', 'Ex : {ville}…')) ?>"></label>
         <div class="admin-form-grid admin-form-grid--2">
           <label class="admin-field"><span>Texte bouton</span><input type="text" name="home_quote_button_label" value="<?= e(hero_admin_setting('home_quote_button_label', 'Envoyer ma demande')) ?>"></label>
           <label class="admin-field"><span>Texte bas</span><input type="text" name="home_quote_meta" value="<?= e(hero_admin_setting('home_quote_meta', 'Artisans disponibles • devis gratuit • réponse rapide')) ?>"></label>

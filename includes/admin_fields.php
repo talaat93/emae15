@@ -14,7 +14,6 @@ declare(strict_types=1);
  */
 function admin_page_catalog(): array
 {
-    $reg  = company_regions();
     $name = company_name();
 
     $pages = [
@@ -32,7 +31,7 @@ function admin_page_catalog(): array
                         ['key'=>'home_eyebrow','label'=>'Pastille au-dessus du titre','type'=>'text','default'=>'Disponible '.company_hours(),'help'=>'La petite mention avec le point clignotant, tout en haut du bandeau.'],
                         ['key'=>'home_title','label'=>'Titre principal','type'=>'text','default'=>'Votre expert multitechnique','help'=>'Le grand titre. Le mot mis en couleur se règle juste en dessous.'],
                         ['key'=>'home_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'en urgence','help'=>'Affiché à la suite du titre, surligné dans la couleur d\'accent.'],
-                        ['key'=>'home_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur en '.$reg.'. Intervention rapide, devis gratuit, artisans qualifiés.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
+                        ['key'=>'home_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage électrique, plomberie, chauffage, climatisation et pompes à chaleur {en_region}. Intervention rapide, devis gratuit, artisans qualifiés.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
                         ['key'=>'home_button1_label','label'=>'Bouton principal — texte','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'home_button1_url','label'=>'Bouton principal — destination','type'=>'text','default'=>'quote','help'=>'Nom d\'une page du site (ex : quote, contact) ou adresse complète.'],
                         ['key'=>'home_button2_label','label'=>'Bouton secondaire — texte','type'=>'text','default'=>'Appeler maintenant'],
@@ -71,7 +70,7 @@ function admin_page_catalog(): array
                         ['key'=>'services_section_label','label'=>'Surtitre','type'=>'text','default'=>'Nos pôles d\'intervention'],
                         ['key'=>'services_title','label'=>'Titre','type'=>'text','default'=>'Tout ce dont vous avez'],
                         ['key'=>'services_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'besoin'],
-                        ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes en '.$reg.' — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
+                        ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes {en_region} — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
                     ],
                 ],
                 [
@@ -152,7 +151,7 @@ function admin_page_catalog(): array
                         ['key'=>'zones_label','label'=>'Surtitre','type'=>'text','default'=>'Zone d\'intervention'],
                         ['key'=>'zones_title','label'=>'Titre','type'=>'text','default'=>'Nos zones d\'intervention'],
                         ['key'=>'zones_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'partout en France'],
-                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>$reg.' — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
+                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'{region} — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
                         ['key'=>'zones_btn','label'=>'Bouton','type'=>'text','default'=>'Demander une intervention'],
                     ],
                 ],
@@ -220,8 +219,8 @@ function admin_page_catalog(): array
                     'link'  => ['admin/zones.php', 'Modifier les zones, leurs villes et leurs départements'],
                     'fields' => [
                         ['key'=>'zp_eyebrow','json'=>['zones_page_settings','eyebrow'],'label'=>'Surtitre','type'=>'text','default'=>'Zones d\'intervention'],
-                        ['key'=>'zp_title','json'=>['zones_page_settings','title'],'label'=>'Titre','type'=>'text','default'=>'Nous intervenons partout en'],
-                        ['key'=>'zp_title_hl','json'=>['zones_page_settings','title_hl'],'label'=>'Fin du titre, en couleur','type'=>'text','default'=>'Île-de-France & Occitanie'],
+                        ['key'=>'zp_title','json'=>['zones_page_settings','title'],'label'=>'Titre','type'=>'text','default'=>'Nous intervenons'],
+                        ['key'=>'zp_title_hl','json'=>['zones_page_settings','title_hl'],'label'=>'Fin du titre, en couleur','type'=>'text','default'=>'{en_region}'],
                         ['key'=>'zp_lead','json'=>['zones_page_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.'],
                     ],
                 ],
@@ -242,7 +241,7 @@ function admin_page_catalog(): array
                     'seen'  => 'Le titre affiché dans Google',
                     'fields' => [
                         ['key'=>'zones_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Zones d\'intervention | '.$name],
-                        ['key'=>'zones_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'EMAE intervient en Île-de-France et Occitanie — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'],
+                        ['key'=>'zones_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'EMAE intervient {en_region} — électricité, plomberie, chauffage, climatisation. Urgence 24h/7j.'],
                     ],
                 ],
             ],
@@ -325,7 +324,7 @@ function admin_page_catalog(): array
                     'label' => 'Formulaire',
                     'seen'  => 'Le formulaire de la page Contact',
                     'fields' => [
-                        ['key'=>'home_quote_city_placeholder','label'=>'Exemple dans le champ Ville','type'=>'text','default'=>'Meaux, Paris…'],
+                        ['key'=>'home_quote_city_placeholder','label'=>'Exemple dans le champ Ville','type'=>'text','default'=>'Ex : {ville}…'],
                     ],
                 ],
                 [
@@ -379,7 +378,7 @@ function admin_page_catalog(): array
                     'link'  => ['admin/realisations.php', 'Gérer les photos de chantiers'],
                     'fields' => [
                         ['key'=>'reals_page_title','label'=>'Titre','type'=>'text','default'=>'Interventions & chantiers'],
-                        ['key'=>'reals_page_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des interventions propres et documentées en '.$reg.'.'],
+                        ['key'=>'reals_page_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des interventions propres et documentées {en_region}.'],
                         ['key'=>'reals_empty','label'=>'Message si aucune réalisation','type'=>'text','default'=>'Les réalisations seront publiées prochainement.'],
                         ['key'=>'reals_empty_btn','label'=>'Bouton si aucune réalisation','type'=>'text','default'=>'Nous contacter'],
                     ],
@@ -697,6 +696,17 @@ function admin_inline_keys(bool $flush = false): array
 }
 
 /**
+ * Bloc JSON tel qu'enregistré, variables de lieu comprises. get_json_setting()
+ * les remplace par leur valeur : relire puis réenregistrer par ce biais
+ * figerait « dans le Jura » à la place de {en_region} pour toutes les zones.
+ */
+function admin_json_block_plain(string $blob): array
+{
+    $d = json_decode(setting_plain($blob), true);
+    return is_array($d) ? $d : [];
+}
+
+/**
  * Valeur réellement saisie pour ce champ, sans repli.
  * Vide signifie que le site affiche la valeur héritée.
  */
@@ -705,7 +715,7 @@ function admin_field_raw(array $f): string
     if (admin_field_is_list($f)) return raw_setting($f['key']);
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
-        return trim((string)(get_json_setting($blob, [])[$sub] ?? ''));
+        return trim((string)(admin_json_block_plain($blob)[$sub] ?? ''));
     }
     return raw_setting($f['key']);
 }
@@ -731,7 +741,7 @@ function admin_field_save(array $f, string $value): bool
     if ($value === admin_field_raw($f)) return false;
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
-        $data = get_json_setting($blob, []);
+        $data = admin_json_block_plain($blob);
         $data[$sub] = $value;
         set_json_setting($blob, $data);
     } else {

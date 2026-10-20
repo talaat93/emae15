@@ -49,11 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       </div>
     </div>
     <div class="admin-form-grid admin-form-grid--2">
-      <label class="admin-field"><span>Zones d'intervention</span><input type="text" name="company_regions" value="<?= e(company_regions()) ?>"></label>
+      <label class="admin-field"><span>Zones d'intervention</span><input type="text" name="company_regions" value="<?= e(setting_plain('company_regions')) ?>" placeholder="{region}"></label>
       <label class="admin-field"><span>Horaires</span><input type="text" name="company_hours" value="<?= e(company_hours()) ?>"></label>
     </div>
     <div class="admin-form-grid admin-form-grid--2">
-      <label class="admin-field"><span>Adresse / zone</span><input type="text" name="company_address" value="<?= e(company_address()) ?>"></label>
+      <label class="admin-field"><span>Adresse / zone</span><input type="text" name="company_address" value="<?= e(setting_plain('company_address')) ?>"></label>
       <label class="admin-field"><span>SIRET</span><input type="text" name="company_siret" value="<?= e(company_siret()) ?>"></label>
     </div>
     <div class="admin-form-grid admin-form-grid--2">

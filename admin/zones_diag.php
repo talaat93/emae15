@@ -2,6 +2,8 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../includes/bootstrap.php';
 require_once __DIR__ . '/../includes/render.php';
+require_once __DIR__ . '/../includes/admin_fields.php';
+require_once __DIR__ . '/../includes/admin_replace.php';
 require_admin();
 
 /**
@@ -20,8 +22,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ? 'Rien à nettoyer : tous les textes de cette zone diffèrent déjà du site global.'
             : $n.' texte'.($n > 1 ? 's' : '').' remis en héritage. Cette zone suivra de nouveau le site global, sauf là où elle diffère vraiment.');
     }
+    if (($_POST['action'] ?? '') === 'secteurs_annuler') {
+        $lot = preg_replace('/[^a-z0-9-]/', '', (string)($_POST['lot'] ?? '')) ?? '';
+        $n = $lot !== '' ? geo_annuler($lot) : 0;
+        admin_log('modification', 'Secteurs — annulation', $n.' valeur(s) restaurée(s)');
+        flash('success', $n.' valeur'.($n > 1 ? 's' : '').' remise'.($n > 1 ? 's' : '').' comme avant la mise à jour des secteurs.');
+    }
+    if (($_POST['action'] ?? '') === 'secteurs_appliquer') {
+        $b = geo_appliquer();
+        admin_log('modification', 'Secteurs — mise en conformité', ($b['ecrits'] + $b['retires'] + $b['variables']).' changement(s)');
+        flash('success', 'Mise en conformité relancée : '.$b['ecrits'].' texte(s) écrit(s), '.$b['retires'].' retiré(s), '
+            .$b['variables'].' variable(s) de lieu réglée(s).');
+    }
     redirect_to('admin/zones_diag.php');
 }
+
+$bilan     = geo_dernier_bilan();
+$controle  = geo_controle();
+$parPorteeControle = [];
+foreach ($controle as $r) $parPorteeControle[$r['portee']][] = $r;
 
 $tableOk = true;
 $zones   = [];
@@ -168,7 +187,70 @@ require_once __DIR__ . '/partials/header.php';
 </section>
 
 <section class="admin-panel">
-  <div class="admin-panel__head"><h2>4. Comment vérifier vous-même</h2></div>
+  <div class="admin-panel__head"><h2>4. Textes qui citent un autre secteur</h2></div>
+  <div class="admin-panel__body">
+    <p style="font-size:.9rem;color:#5b6b92;margin-top:0;">Le site global couvre le Doubs, le Jura et la Côte-d'Or ;
+       chaque zone couvre son propre secteur. Cette liste compare ce que le visiteur lit réellement sur chaque page
+       aux lieux de son secteur.</p>
+    <?php if ($bilan): ?>
+      <div class="dg-bilan">
+        <p style="margin:0;">✅ Mise en conformité du <?= e(date('d/m/Y à H:i', strtotime((string)$bilan['date']))) ?> :
+           <strong><?= (int)$bilan['ecrits'] ?></strong> titre(s) et description(s) réécrits avec les variables de lieu,
+           <strong><?= (int)$bilan['retires'] ?></strong> texte(s) de zone qui citaient un autre secteur retirés
+           (la zone reprend alors le texte global adapté à elle),
+           <strong><?= (int)$bilan['variables'] ?></strong> variable(s) de lieu réglée(s).</p>
+        <?php if (!empty($bilan['non_reconnues'])): ?>
+          <p class="dg-warn" style="margin:.5rem 0 0;">Zones dont le secteur n'a pas été reconnu, laissées telles quelles :
+             <?= e(implode(', ', $bilan['non_reconnues'])) ?>. Renseignez leurs codes postaux dans « Gérer les zones ».</p>
+        <?php endif; ?>
+        <form method="post" style="margin:.7rem 0 0;"
+              onsubmit="return confirm('Remettre tous les textes exactement comme avant cette mise à jour ?');">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="secteurs_annuler">
+          <input type="hidden" name="lot" value="<?= e((string)$bilan['lot']) ?>">
+          <button class="admin-btn admin-btn--secondary" style="min-height:34px;padding:0 .7rem;font-size:.8rem;" type="submit">↩ Annuler cette mise à jour</button>
+        </form>
+      </div>
+    <?php endif; ?>
+
+    <?php if (!$controle): ?>
+      <p class="dg-ok">✅ Aucun texte ne cite un lieu hors de son secteur.</p>
+    <?php else: ?>
+      <p class="dg-warn"><?= count($controle) ?> texte(s) à relire. Certains sont peut-être voulus
+         (une ville voisine citée exprès) : seul vous pouvez en juger.</p>
+      <?php foreach ($parPorteeControle as $portee => $lignes): ?>
+        <h3 class="dg-portee"><?= e($portee) ?> <small>(<?= count($lignes) ?>)</small></h3>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Texte</th><th>Ce que lit le visiteur</th><th>Lieu hors secteur</th><th></th></tr></thead>
+            <tbody>
+            <?php foreach ($lignes as $r): ?>
+              <tr>
+                <td style="font-weight:600;"><?= e($r['champ']) ?></td>
+                <td style="font-size:.85rem;color:#4b5b7d;"><?= e($r['extrait']) ?></td>
+                <td><strong style="color:#b45309;"><?= e(implode(', ', $r['etrangers'])) ?></strong></td>
+                <td style="text-align:right;white-space:nowrap;">
+                  <?php if ($r['lien']): ?><a class="admin-btn admin-btn--secondary" style="min-height:30px;padding:0 .6rem;font-size:.78rem;" href="<?= e($r['lien']) ?>">Corriger →</a><?php endif; ?>
+                </td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+        </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+
+    <form method="post" style="margin-top:1rem;"
+          onsubmit="return confirm('Relancer la mise en conformité ? Les textes de zone qui citent clairement un autre secteur seront retirés (avec sauvegarde).');">
+      <?= csrf_field() ?>
+      <input type="hidden" name="action" value="secteurs_appliquer">
+      <button class="admin-btn admin-btn--secondary" type="submit">🔄 Relancer la mise en conformité</button>
+    </form>
+  </div>
+</section>
+
+<section class="admin-panel">
+  <div class="admin-panel__head"><h2>5. Comment vérifier vous-même</h2></div>
   <div class="admin-panel__body">
     <ol style="margin:0 0 0 1.2rem;font-size:.9rem;color:#4b5b7d;line-height:1.9;">
       <li>Cliquez sur la pastille <strong>Jura</strong> dans le bandeau du haut. Le bandeau doit devenir orange et afficher « 📍 Jura ».</li>
@@ -187,5 +269,7 @@ require_once __DIR__ . '/partials/header.php';
 .dg-nom{flex:1;font-size:.9rem;color:#3b4a6b;}
 .dg-val{font-weight:800;color:#1b2d6b;font-variant-numeric:tabular-nums;}
 .dg-val--zero{color:#b45309;}
+.dg-bilan{background:#f3fbf5;border:1px solid #cdebd6;border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem;font-size:.9rem;color:#24553a;}
+.dg-portee{font-size:1rem;margin:1.2rem 0 .5rem;color:#1b2d6b;} .dg-portee small{color:#8494b4;font-weight:600;}
 </style>
 <?php require __DIR__ . '/partials/footer.php'; ?>

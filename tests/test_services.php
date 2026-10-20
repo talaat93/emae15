@@ -31,6 +31,11 @@ function baseline(): array {
     global $S;
     $code = file_get_contents($S.'/tpls_baseline.txt');
     $code = preg_replace('/^\s*\$tpls = \[/', 'return [', $code, 1);
+    // Évolution voulue depuis : les lieux passent par une variable de lieu, ou disparaissent.
+    $code = str_replace(
+        ["en '.company_regions().'", 'en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.'],
+        ['{en_region}', 'en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.'],
+        $code);
     return eval($code);
 }
 
