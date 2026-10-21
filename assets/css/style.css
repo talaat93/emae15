@@ -754,6 +754,12 @@ body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:
 .section-lead.svc-lead{margin:.7rem 0 0;max-width:68ch;}
 .svc-offer-grid{display:grid;grid-template-columns:1fr 1fr;gap:.55rem;margin-top:1.5rem;}
 @media(max-width:640px){.svc-offer-grid{grid-template-columns:1fr;}}
+/* Pages métier : titre à gauche, encart « Être rappelé » à droite (sous le titre sur téléphone) */
+.svc-hero-grid{display:flex;flex-direction:column;gap:2.25rem;}
+.svc-hero-grid .hero-form{scroll-margin-top:90px;}
+@media(min-width:960px){
+  .svc-hero-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:3rem;align-items:start;}
+}
 .btn-row{display:flex;flex-direction:column;gap:.6rem;}
 .btn-row .btn{width:100%;}
 .divider{height:1px;background:var(--line);}

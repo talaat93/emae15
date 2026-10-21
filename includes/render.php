@@ -281,6 +281,9 @@ function render_quote_form(array $cards, string $source = 'form'): void
 {
     $placeholder = geo_replace(setting('home_quote_city_placeholder','Ex : {ville}…'));
     $submitLabel = quote_form_options()['submit_label'] ?? 'Envoyer ma demande';
+    // Exemple de code postal pris dans le secteur de la page (25000, 39100…), pas à Paris.
+    $cp = preg_match('/\d{2}/', function_exists('zone_var_value') ? zone_var_value('code_postal') : '', $m) ? $m[0] : '';
+    $cpExemple = $cp !== '' ? 'Ex : '.$cp.'000' : 'Ex : 25000';
     ?>
 <form action="<?= e(route_url('quote')) ?>" method="post">
   <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -293,7 +296,7 @@ function render_quote_form(array $cards, string $source = 'form'): void
   </div>
   <div class="f-row">
     <div class="f-field"><span class="f-label">Email</span><input class="f-input" type="email" name="email" placeholder="votre@email.fr"></div>
-    <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" placeholder="Ex : 75001" pattern="[0-9]{5}" maxlength="5" required></div>
+    <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" placeholder="<?= e($cpExemple) ?>" pattern="[0-9]{5}" maxlength="5" required></div>
   </div>
   <div class="f-field"><span class="f-label">Adresse *</span><input class="f-input" type="text" name="address" placeholder="Ex : 12 rue de la République" required></div>
   <div class="f-field"><span class="f-label">Ville</span><input class="f-input" type="text" name="city" placeholder="<?= e($placeholder) ?>"></div>
@@ -305,7 +308,7 @@ function render_quote_form(array $cards, string $source = 'form'): void
       // Les cartes de l'accueil ne couvrent pas tous les métiers : on complète,
       // et on présélectionne le métier de la page (source « service_vmc »…).
       $titles = array_column($cards, 'title');
-      foreach (['VMC & Ventilation', 'Portail & Visiophone'] as $extra) {
+      foreach (['VMC & Ventilation', 'Portail & Visiophone', 'Automatismes & Électroménager'] as $extra) {
           if (!in_array($extra, $titles, true)) $titles[] = $extra;
       }
       $pageTrade = str_starts_with($source, 'service_') ? substr($source, 8) : '';

@@ -408,6 +408,8 @@ function admin_page_catalog(): array
                     'seen'  => 'Les intertitres qui rythment chaque page métier',
                     'note'  => 'Les 3 étapes de ces pages utilisent les mêmes textes que « Comment ça marche » sur la page d\'accueil : les modifier change les deux.',
                     'fields' => [
+                        ['key'=>'svc_quote_eyebrow','label'=>'Encart « Être rappelé » — surtitre','type'=>'text','default'=>'Rappel gratuit sous 30 min'],
+                        ['key'=>'svc_quote_title','label'=>'Encart « Être rappelé » — titre','type'=>'text','default'=>'Être rappelé gratuitement'],
                         ['key'=>'svc_offer_label','label'=>'Surtitre de l\'offre','type'=>'text','default'=>'Notre offre'],
                         ['key'=>'svc_offer_lead','label'=>'Offre — texte sous le titre','type'=>'textarea','default'=>'Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.'],
                         ['key'=>'svc_interv_label','label'=>'Interventions — surtitre','type'=>'text','default'=>'Nos interventions'],

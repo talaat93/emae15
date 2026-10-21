@@ -997,7 +997,8 @@ if ($tpl !== null || $page) {
 ?>
 <section class="page-hero<?= $hasHeroImg ? ' svc-hero-img' : '' ?>"<?= $hasHeroImg ? ' style="background-image:url('.e(asset_url($heroImg)).');background-size:cover;background-position:center;"' : '' ?>>
   <?php if ($hasHeroImg): ?><div class="svc-hero-overlay"></div><?php endif; ?>
-  <div class="wrap" style="position:relative;z-index:1;">
+  <div class="wrap svc-hero-grid" style="position:relative;z-index:1;">
+  <div class="svc-hero-content">
   <div class="ph-eyebrow">// <?= e($tpl['label']) ?></div>
   <h1 class="ph-h1"><?= e($tpl['h1']) ?></h1>
   <p class="ph-lead"><?= e($tpl['desc']) ?></p>
@@ -1006,8 +1007,18 @@ if ($tpl !== null || $page) {
     <span class="ph-badge"><?= e(company_hours()) ?></span>
   </div>
   <div class="btn-row" style="margin-top:1.75rem;">
-    <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
+    <a class="btn btn-p btn-lg" href="#etre-rappele"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
     <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+  </div>
+  </div>
+
+  <!-- Être rappelé : le même encart que sur l'accueil, métier présélectionné -->
+  <div class="hero-form" id="etre-rappele">
+    <div class="hero-card">
+      <div class="hero-card-tag"><?= e(setting('svc_quote_eyebrow','Rappel gratuit sous 30 min')) ?></div>
+      <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
+      <?php render_quote_form($cards, 'service_'.$sk); ?>
+    </div>
   </div>
   </div>
 </section>
