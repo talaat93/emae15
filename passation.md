@@ -320,6 +320,24 @@ depuis l'environnement des sessions) : `GET /me`, `GET /customers`,
 `PUT /customer_invoices/{id}/mark_as_paid`, `GET /changelogs/customer_invoices`,
 `GET /changelogs/customers`. En-tête envoyé : `X-Use-2026-API-Changes: true`.
 
+### Connecteur Claude Pennylane (MCP) — `includes/mcp_pennylane.php`, `api/mcp_pennylane.php`
+
+Serveur MCP (transport HTTP, réponses JSON, sans session) à déclarer dans
+claude.ai comme **connecteur personnalisé**. Activation et adresse :
+Réglages → Pennylane → « Connecteur Claude » (clé `mcp_pennylane_key`,
+passée dans l'adresse `?cle=…` ou en `Authorization: Bearer` ; sans clé : 404).
+Toutes les requêtes passent par `pennylane_request()` : même jeton, même
+journal, même mode simulation.
+
+- lecture : société, factures clients, clients, produits, devis (`GET /quotes`, `GET /quotes/{id}`) ;
+- création : facture en **brouillon** (`draft: true` forcé) et devis (`POST /quotes`),
+  TVA 20 / 10 / 5,5 % seulement, référence externe `EMAE-MCP-F-…` / `EMAE-MCP-D-…` ;
+- rien d'autre : ni suppression, ni finalisation, ni envoi, ni paiement.
+
+Les routes `/quotes` et leurs champs (repris de ceux des factures) restent à
+confirmer sur le vrai compte au premier devis créé. Tests :
+`tests/test_mcp_pennylane.php`.
+
 ### Factures et relances — `includes/invoicing.php`
 
 | Fonction | Rôle |

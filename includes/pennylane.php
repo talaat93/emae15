@@ -157,6 +157,7 @@ function pennylane_fake_response(string $method, string $path, array $query = []
         if ($path === '/customers') return $list($customers);
         if ($path === '/customer_invoices') return $list($invoices);
         if ($path === '/products') return $list($products);
+        if ($path === '/quotes') return $list([]);
         if (str_starts_with($path, '/changelogs/')) return $list([]);
         if (preg_match('#^/customers/(\d+)$#', $path, $m)) {
             foreach ($customers as $c) if ($c['id'] === (int)$m[1]) return ['ok' => true, 'status' => 200, 'simulated' => true, 'error' => null, 'data' => $c];

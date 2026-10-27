@@ -75,6 +75,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 db_execute("UPDATE pennylane_duplicates SET status = 'distinct' WHERE id = ?", [(int)$dup['id']]);
                 flash('success', 'Marqués comme clients différents : le client Pennylane sera importé à la prochaine synchronisation complète.');
             }
+        } elseif ($action === 'mcp_new') {
+            // Connecteur Claude : nouvelle clé (l'ancienne adresse cesse de fonctionner). L'adresse complète n'est montrée qu'une fois.
+            $key = bin2hex(random_bytes(24));
+            integration_store_secret('mcp_pennylane_key', $key);
+            $_SESSION['mcp_pennylane_url'] = notif_abs_url('api/mcp_pennylane.php').'?cle='.$key;
+            admin_log_safe('réglages', 'clé du connecteur Claude Pennylane générée', (int)$disp['id'], (string)$disp['name']);
+            flash('success', 'Adresse du connecteur générée : copiez-la maintenant, elle ne sera plus réaffichée.');
+        } elseif ($action === 'mcp_clear') {
+            integration_store_secret('mcp_pennylane_key', '');
+            admin_log_safe('réglages', 'connecteur Claude Pennylane désactivé', (int)$disp['id'], (string)$disp['name']);
+            flash('success', 'Connecteur Claude désactivé : l\'ancienne adresse ne fonctionne plus.');
         } else {
             settings_save_secret('pennylane_api_key');
             set_integration_setting('mode_simulation', !empty($_POST['mode_simulation']) ? '1' : '0');
@@ -230,6 +241,7 @@ function settings_secret_field(string $name, string $label, string $placeholder,
 <?php elseif ($tab === 'pennylane'): ?>
   <?php $lastSync = json_decode(integration_setting('pennylane_last_sync', ''), true); ?>
   <div class="d-grid-2" style="align-items:start;">
+    <div>
     <form method="post" class="d-card">
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
       <div class="d-card-head"><div class="d-card-title">Pennylane</div></div>
@@ -254,6 +266,32 @@ function settings_secret_field(string $name, string $label, string $placeholder,
         </div>
       </div>
     </form>
+    <?php
+    $mcpOn = integration_secret_configured('mcp_pennylane_key');
+    $mcpUrl = $_SESSION['mcp_pennylane_url'] ?? null;
+    unset($_SESSION['mcp_pennylane_url']);
+    ?>
+    <form method="post" class="d-card" style="margin-top:1rem;">
+      <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+      <div class="d-card-head"><div class="d-card-title">Connecteur Claude</div></div>
+      <div class="d-card-body" style="font-size:.88rem;">
+        <p style="margin-top:0;color:var(--d-t2);">Permet à Claude (claude.ai) de lire les factures, clients, produits et devis Pennylane, et de créer des <b>factures en brouillon</b> et des <b>devis</b>. Rien n'est finalisé, envoyé ni supprimé par Claude.</p>
+        <div class="d-info-row"><span class="d-info-label">État</span><span class="d-info-value" style="font-weight:600;color:<?= $mcpOn ? 'var(--d-success)' : 'var(--d-t2)' ?>;"><?= $mcpOn ? 'Activé' : 'Désactivé' ?></span></div>
+        <?php if ($mcpUrl): ?>
+          <div class="d-field" style="margin-top:.6rem;">
+            <label for="f-mcp-url">Adresse à copier (affichée une seule fois)</label>
+            <input id="f-mcp-url" type="text" readonly value="<?= e((string)$mcpUrl) ?>" onclick="this.select()">
+            <div style="font-size:.8rem;color:#991b1b;margin-top:.25rem;">Cette adresse contient la clé d'accès : ne la partagez pas. En cas de doute, générez-en une nouvelle.</div>
+          </div>
+        <?php endif; ?>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin:.8rem 0;">
+          <button type="submit" name="action" value="mcp_new" class="d-btn d-btn--primary"<?= $mcpOn ? ' onclick="return confirm(\'L’adresse actuelle cessera de fonctionner. Continuer ?\')"' : '' ?>><?= $mcpOn ? 'Générer une nouvelle adresse' : 'Activer et générer l\'adresse' ?></button>
+          <?php if ($mcpOn): ?><button type="submit" name="action" value="mcp_clear" class="d-btn" onclick="return confirm('Désactiver le connecteur Claude ?')">Désactiver</button><?php endif; ?>
+        </div>
+        <div style="font-size:.8rem;color:var(--d-t2);line-height:1.5;">Dans claude.ai : Paramètres → Connecteurs → <i>Ajouter un connecteur personnalisé</i>, collez l'adresse, puis ouvrez une nouvelle conversation. Le connecteur utilise le jeton Pennylane ci-dessus et suit le mode simulation.</div>
+      </div>
+    </form>
+    </div>
     <div>
     <?php
     $plTok = integration_secret_configured('pennylane_api_key');
