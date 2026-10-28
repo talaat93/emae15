@@ -9,6 +9,7 @@ $tabs = [
     'claude'        => 'Claude',
     'pennylane'     => 'Pennylane',
     'yousign'       => 'Yousign',
+    'pilotage'      => 'Pilotage',
 ];
 $tab = array_key_exists($_GET['tab'] ?? '', $tabs) ? (string)$_GET['tab'] : 'notifications';
 
@@ -100,6 +101,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             admin_log_safe('réglages', 'Yousign mis à jour', (int)$disp['id'], (string)$disp['name']);
             flash('success', 'Réglages Yousign enregistrés.');
         }
+    } elseif ($tab === 'pilotage') {
+        if (!empty($_POST['pilotage_token_clear'])) {
+            integration_store_secret('pilotage_token', '');
+            flash('success', 'Jeton supprimé : l\'outil du PC ne peut plus envoyer ni lire de chiffres.');
+        } else {
+            $v = trim((string)($_POST['pilotage_token'] ?? ''));
+            if ($v !== '' && !preg_match('/^[A-Za-z0-9_-]{24,128}$/', $v)) {
+                flash('error', 'Jeton refusé : 24 caractères minimum, lettres, chiffres, tirets uniquement. Copiez celui affiché par l\'outil du PC.');
+            } elseif ($v !== '') {
+                integration_store_secret('pilotage_token', $v);
+                flash('success', 'Jeton enregistré.');
+            }
+        }
+        admin_log_safe('réglages', 'Pilotage mis à jour', (int)$disp['id'], (string)$disp['name']);
     }
     redirect_to($back);
 }
@@ -342,7 +357,7 @@ function settings_secret_field(string $name, string $label, string $placeholder,
   </div>
   <?php endif; ?>
 
-<?php else: ?>
+<?php elseif ($tab === 'yousign'): ?>
   <form method="post" class="d-card" style="max-width:720px;">
     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
     <div class="d-card-head"><div class="d-card-title">Yousign — signature électronique</div></div>
@@ -369,6 +384,23 @@ function settings_secret_field(string $name, string $label, string $placeholder,
         Événements : toutes les notifications de <i>signature_request</i> (au minimum done, declined, expired, canceled).<br>
         Copiez ensuite le secret affiché par Yousign dans le champ « Secret du webhook » ci-dessus. Sans webhook, la tâche cron relit aussi les devis en attente toutes les 15 minutes.
       </div>
+    </div>
+  </form>
+<?php elseif ($tab === 'pilotage'): ?>
+  <?php $pTok = integration_secret_configured('pilotage_token'); $pImp = json_decode(integration_setting('pilotage_last_import', ''), true); ?>
+  <form method="post" class="d-card" style="max-width:720px;">
+    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+    <div class="d-card-head"><div class="d-card-title">Liaison avec « Claude EMAE Pilotage » (PC)</div></div>
+    <div class="d-card-body">
+      <p style="font-size:.88rem;color:var(--d-t2);margin-top:0;">L'outil du PC envoie chaque jour les chiffres Google Ads au site et lit le résumé de la page Pilotage. Il s'identifie avec un jeton : l'outil l'affiche au premier lancement, collez-le ici.</p>
+      <div class="d-field">
+        <label for="f-pilotage-token">Jeton de l'outil du PC</label>
+        <div style="font-size:.84rem;margin-bottom:.35rem;color:<?= $pTok ? 'var(--d-success)' : 'var(--d-warning)' ?>;"><?= $pTok ? 'Configuré' : 'Non configuré : la liaison est fermée' ?></div>
+        <input type="password" id="f-pilotage-token" name="pilotage_token" autocomplete="off" placeholder="<?= $pTok ? 'Laisser vide pour ne pas changer' : 'Coller le jeton affiché sur le PC' ?>">
+        <?php if ($pTok): ?><label style="display:flex;gap:.4rem;align-items:center;margin-top:.4rem;font-weight:400;"><input type="checkbox" name="pilotage_token_clear" value="1" style="width:auto;"> Supprimer ce jeton (coupe la liaison)</label><?php endif; ?>
+      </div>
+      <div class="d-info-row"><span class="d-info-label">Dernier envoi de chiffres Google Ads</span><span class="d-info-value"><?= $pImp ? e(date('d/m/Y à H:i', strtotime((string)$pImp['at']))).' — '.(int)$pImp['rows'].' ligne(s)' : 'jamais' ?></span></div>
+      <button type="submit" class="d-btn d-btn--primary" style="margin-top:.8rem;">Enregistrer</button>
     </div>
   </form>
 <?php endif; ?>

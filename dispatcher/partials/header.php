@@ -119,6 +119,9 @@ function disp_photo_request_value(): ?string
     <a class="d-nav-item <?= disp_is_active(['finances.php'],'finances') ?>" href="<?= e(url_for('dispatcher/finances.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span> Finances
     </a>
+    <a class="d-nav-item <?= disp_is_active(['pilotage.php'],'pilotage') ?>" href="<?= e(url_for('dispatcher/pilotage.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></span> Pilotage
+    </a>
     <?php endif; ?>
     <div class="d-nav-group">Réglages</div>
     <a class="d-nav-item <?= disp_is_active(['techniciens.php'],'techniciens') ?>" href="<?= e(url_for('dispatcher/techniciens.php')) ?>">

@@ -3,7 +3,7 @@
 Document de reprise. À lire en entier avant de toucher au code : il contient
 plusieurs pièges qui ont déjà coûté du temps.
 
-Dernière mise à jour : 20 octobre 2026.
+Dernière mise à jour : 28 octobre 2026.
 
 ---
 
@@ -366,6 +366,44 @@ reste dû).
 
 ---
 
+## 4quater. Pilotage : site, Google Ads et Pennylane réunis
+
+**Demande du propriétaire (28 octobre 2026).** Trois outils vivaient séparément sur son PC
+(Claude « EMAEE FR » pour le site, « EMAE Ads » pour Google Ads, « Pennylane » pour les
+factures). Il voulait une synthèse qui les relie pour optimiser la publicité.
+
+**Deux pièces, un seul calcul.**
+
+| Pièce | Où | Rôle |
+|---|---|---|
+| Page Pilotage | `dispatcher/pilotage.php` (même droit que Finances) | entonnoir dépense → demandes → interventions → facturé HT, par campagne et par métier × département ; liste « À faire maintenant » ; import du rapport Google Ads (CSV) |
+| Calculs | `includes/pilotage.php` | fonctions pures testées par `tests/test_pilotage.php` |
+| Porte du PC | `api/pilotage.php` | `POST` chiffres Google Ads (JSON ou CSV brut), `GET` résumé JSON ; jeton `pilotage_token` (Réglages → Pilotage), comparé par `hash_equals`, jamais affiché |
+| Outils du PC | `docs/outils-pc/` | `emae-pilotage.ps1` (menu + « Claude EMAE Pilotage » qui voit les 3 dossiers, Remote Control possible) ; `pennylane.ps1` (console Pennylane + Claude Pennylane) |
+
+**Le lien entre les mondes.** Une demande venue d'une page d'atterrissage porte la source
+`landing_{métier}_{département}` (slug du département, voir `pilotage_depts()`, même
+liste que `index.php`). Demande → intervention par `interventions.quote_id` → facture par
+`invoices.intervention_id`. Les dépenses vont dans `ads_daily` (jour × campagne, créée par
+`pilotage_tables()`). Une campagne est rattachée à un métier et un département d'après son
+nom (« Électricité Doubs ») ou les champs `metier`/`dept` envoyés.
+
+**Attribution (estimation, dite comme telle à l'écran).** Une demande Google Ads va aux
+campagnes compatibles les plus précises ; à précision égale, au prorata des clics.
+Facturé = factures émises (validées, envoyées, payées) des demandes de la période, même
+émises après. Montants HT (la dépense Google Ads est HT).
+
+**Recommandations** (`pilotage_recommendations()`), seuils en tête du fichier : demandes
+sans réponse depuis 24 h, chiffres Ads absents ou de plus de 3 jours, campagne à mettre en
+pause (≥ 40 € sans demande), à revoir, à renforcer (≥ 3 € facturés par euro), segment qui
+marche sans publicité, segment qui convertit mal, brouillons et retards de facturation.
+
+**Mise en service par le propriétaire.** Lancer `emae-pilotage.ps1` sur le PC : il crée le
+jeton et le copie ; le coller dans Dispatcher → Réglages → Pilotage. Envoyer ensuite un
+rapport Google Ads (menu 3) ou demander à Claude EMAE Pilotage de « faire le point ».
+
+---
+
 ## 5. Conventions de travail
 
 Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
@@ -394,10 +432,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-664 assertions, aucune base de données nécessaire : chaque test remplace
+731 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 169 fichiers PHP.
+sur les 173 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -416,6 +454,7 @@ sur les 169 fichiers PHP.
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
+| `test_pilotage.php` | page Pilotage : métier et département d'une campagne, lecture des exports Google Ads, entonnoir et attribution, verdicts, recommandations |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation, relecture, Yousign) n'est pas encore couvert.
@@ -515,7 +554,7 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 
 ### Décisions en attente
 
-- **`api/`** — 36 fichiers PHP, copie périmée de `admin/`. Rien n'y mène, aucun
+- **`api/admin/`** — 34 fichiers PHP, copie périmée de `admin/`. Les autres fichiers de `api/` sont actifs : `chat.php`, `track.php`, `yousign_webhook.php`, `pilotage.php`. Rien ne mène à `api/admin/`, aucun
   risque de sécurité identifié, mais c'est du poids mort qui trompe les
   recherches dans le code. En attente d'un feu vert pour suppression.
 - **`tech/index.php`** — copie de la page publique faite sans corriger les
@@ -539,6 +578,7 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(ce commit)* | Pilotage : site, Google Ads et factures sur une page ; porte pour l'outil du PC ; outils PowerShell versionnés |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |
 | `d660dd8` | Pages métier : présentation du métier et textes sous chaque titre de section |
