@@ -716,6 +716,19 @@ if (!file_exists($_mf32)) {
     unset($_me);
 }
 unset($_mf32);
+// Auto-migration v15.33 — fin estimée par le technicien sur place : heure de fin prévue,
+// moment où il l'a indiquée, avancement (début, milieu, fin). Colonnes vides par défaut.
+$_mf33 = __DIR__.'/../storage/.mig_v15_tech_eta';
+if (!file_exists($_mf33)) {
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_eta_end DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_eta_at DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_progress VARCHAR(10) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    @file_put_contents($_mf33, date('c'));
+    unset($_me, $_sql);
+}
+unset($_mf33);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

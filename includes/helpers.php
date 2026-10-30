@@ -1908,7 +1908,7 @@ function update_intervention(int $id, array $data): void
                 'client_signature','photos_required','payment_status','paid_at',
                 'housing_over_2y','vat_rate','tech_response','tech_response_at','tech_refusal_reason',
                 'tech_diagnostic','tech_lines','tech_job_completed','tech_incomplete_reason','tech_return_visit','review_message',
-                'latitude','longitude'];
+                'latitude','longitude','tech_eta_end','tech_eta_at','tech_progress'];
     $sets = []; $params = [];
     foreach ($allowed as $f) {
         if (array_key_exists($f, $data)) { $sets[] = "$f = ?"; $params[] = $data[$f]; }

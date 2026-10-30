@@ -98,7 +98,7 @@ function assign_suggestions(array $iv, int $limit = 3): array
 
     try {
         $in = implode(',', array_fill(0, count($dates), '?'));
-        $jobsAll = db_fetch_all("SELECT id, technician_id, scheduled_date, scheduled_time, duration_estimate, latitude, longitude, status
+        $jobsAll = db_fetch_all("SELECT id, technician_id, scheduled_date, scheduled_time, duration_estimate, latitude, longitude, status, tech_eta_end, tech_progress
             FROM interventions WHERE scheduled_date IN ($in) AND technician_id IS NOT NULL AND id <> ? AND status <> 'annulé'",
             array_merge($dates, [(int)($iv['id'] ?? 0)]));
     } catch (Throwable $e) { $jobsAll = []; }
@@ -130,7 +130,8 @@ function assign_suggestions(array $iv, int $limit = 3): array
             foreach ($dj as $j) {
                 if (empty($j['scheduled_time'])) continue;
                 $st = hm_to_min((string)$j['scheduled_time']);
-                $busy[] = [$st, $st + max(15, (int)$j['duration_estimate'])];
+                // Technicien sur place : sa fin estimée remplace la durée prévue.
+                $busy[] = [$st, eta_busy_end($j, time()) ?? $st + max(15, (int)$j['duration_estimate'])];
             }
             $notBefore = $d === $today ? (int)date('G') * 60 + (int)date('i') + 30 : 0;   // délai de route minimal
             $sl = assign_free_slot($busy, hm_to_min((string)$t['work_start']), hm_to_min((string)$t['work_end']), $duration, $notBefore, $wanted);
@@ -166,6 +167,9 @@ function assign_suggestions(array $iv, int $limit = 3): array
         $parts[] = ($load === 0 ? 'aucune intervention' : $load.' intervention'.($load > 1 ? 's' : '')).' '.$dayWord($date);
         $parts[] = $slot !== null ? ($wanted !== null ? 'disponible à '.min_to_hm($slot) : 'libre '.$dayWord($date).' dès '.min_to_hm($slot))
                                   : ($wanted !== null ? 'pas libre à '.min_to_hm($wanted) : 'pas de créneau libre');
+        foreach ($byTech[$tid][$today] ?? [] as $j) {
+            if ($e = eta_status($j, time())) $parts[] = 'sur place : '.$e['text'];
+        }
         if (isset($refused[$tid])) $parts[] = 'a déjà refusé';
 
         $out[] = ['tech' => $t, 'score' => $score, 'reason' => implode(' · ', $parts), 'date' => $date,
@@ -219,4 +223,74 @@ function notify_dispatcher_refusal(int $ivId, array $tech, string $reason): void
             'La fiche est de nouveau « À assigner ».',
         ], notif_abs_url('dispatcher/intervention_view.php?id='.$ivId), 'Réassigner');
     } catch (Throwable $e) { error_log('[EMAE notif] refus #'.$ivId.' : '.$e->getMessage()); }
+}
+
+/* ─── Fin estimée par le technicien sur place ─────────────────
+ * Une fois arrivé, le technicien indique où il en est (début, milieu, fin) et le temps
+ * qu'il lui reste. Le dispatcher voit « libre vers 15 h 40 » et les suggestions
+ * d'assignation tiennent compte de cette heure. Fonctions pures : testées par
+ * tests/test_fin_estimee.php. */
+
+/** Avancement possible : clé enregistrée => libellé affiché. */
+function eta_progress_options(): array
+{
+    return ['debut' => 'Début', 'milieu' => 'Milieu', 'fin' => 'Fin'];
+}
+
+/** Temps restant proposé au technicien, en minutes (180 = « 3 h et + »). */
+function eta_remaining_options(): array
+{
+    return [15, 30, 45, 60, 90, 120, 180];
+}
+
+function eta_remaining_label(int $min): string
+{
+    if ($min >= 180) return '3 h et +';
+    if ($min < 60) return $min.' min';
+    return intdiv($min, 60).' h'.($min % 60 ? ' '.($min % 60) : '');
+}
+
+/** Durée lisible : « 20 min », « 1 h 05 ». */
+function eta_duration_label(int $min): string
+{
+    return $min < 60 ? $min."\u{a0}min" : intdiv($min, 60)."\u{a0}h\u{a0}".sprintf('%02d', $min % 60);
+}
+
+/** Heure au format « 15 h 40 », avec espaces insécables pour ne jamais couper l'heure. */
+function eta_hm(int $ts): string
+{
+    return date('G', $ts)."\u{a0}h\u{a0}".date('i', $ts);
+}
+
+/**
+ * État de la fin estimée d'une intervention, ou null si rien à afficher
+ * (technicien pas sur place, ou aucune estimation donnée).
+ * Renvoie : end_ts, progress (libellé ou ''), late (heure dépassée), late_min, text.
+ */
+function eta_status(array $iv, int $now): ?array
+{
+    if (($iv['status'] ?? '') !== 'sur_place' || empty($iv['tech_eta_end'])) return null;
+    $end = strtotime((string)$iv['tech_eta_end']);
+    if ($end === false) return null;
+    $progress = eta_progress_options()[(string)($iv['tech_progress'] ?? '')] ?? '';
+    $lateMin = $now > $end ? intdiv($now - $end, 60) : 0;
+    $late = $lateMin >= 1;
+    $text = $late
+        ? 'fin prévue '.eta_hm($end).', dépassée de '.eta_duration_label($lateMin)
+        : 'libre vers '.eta_hm($end);
+    if ($progress !== '') $text = mb_strtolower($progress, 'UTF-8').' — '.$text;
+    return ['end_ts' => $end, 'progress' => $progress, 'late' => $late, 'late_min' => $lateMin, 'text' => $text];
+}
+
+/**
+ * Fin d'occupation (minute du jour) d'une intervention en cours aujourd'hui, d'après
+ * l'estimation du technicien ; null si elle ne s'applique pas (on garde alors la durée
+ * prévue). Une estimation dépassée compte comme « encore 15 minutes » à partir de maintenant.
+ */
+function eta_busy_end(array $job, int $now): ?int
+{
+    $s = eta_status($job, $now);
+    if ($s === null || date('Y-m-d', $s['end_ts']) !== date('Y-m-d', $now)) return null;
+    $end = $s['late'] ? $now + 15 * 60 : $s['end_ts'];
+    return (int)date('G', $end) * 60 + (int)date('i', $end);
 }
