@@ -114,6 +114,7 @@ elles vont à l'« adresse de test » des réglages, ou nulle part.
 | Paiement constaté dans Pennylane → intervention « Payée » puis « Clôturée » | à chaque synchronisation | `pennylane_sync_intervention_status()` |
 | Brouillons de facture jamais arrivés dans Pennylane → nouvel essai | à chaque synchronisation | `pennylane_sync_run()` |
 | Devis signé, refusé ou expiré | à la réception du webhook Yousign | `api/yousign_webhook.php` |
+| Fin estimée du technicien sur place → « libre vers… » au planning et dans les suggestions de technicien | à chaque mise à jour par le technicien | `eta_status()`, `eta_busy_end()` |
 | Relecture du rapport (Claude ou contrôles standard) → brouillon de facture | juste après la remise du rapport, en arrière-plan | `review_run_after_response()` |
 
 ### Migrations de la base
@@ -123,7 +124,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.30 (tables `integration_settings` et `integration_log`).
+v15.33 (fin estimée par le technicien sur place).
 
 ### Vérifications manuelles disponibles
 

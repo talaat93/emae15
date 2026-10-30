@@ -1018,6 +1018,11 @@ function fmt_dur(int $mins): string {
                 <?php elseif ($tr === 'acceptee'): ?>
                   <div style="font-size:.74rem;color:var(--d-success);font-weight:600;">Acceptée<?= !empty($iv['tech_response_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['tech_response_at']))) : '' ?></div>
                 <?php endif; ?>
+                <?php if ($eta = eta_status($iv, time())): ?>
+                  <div style="font-size:.78rem;font-weight:600;color:<?= $eta['late'] ? '#b45309' : '#0e7490' ?>;" title="Estimation donnée par le technicien à <?= e(eta_hm(strtotime((string)$iv['tech_eta_at']))) ?>">Sur place : <?= e($eta['text']) ?></div>
+                <?php elseif (($iv['status'] ?? '') === 'sur_place'): ?>
+                  <div style="font-size:.74rem;color:var(--d-t3);">Sur place, pas encore d'heure de fin</div>
+                <?php endif; ?>
                 <?php if (!empty($assignedTech['phone'])): ?>
                   <a href="tel:<?= e(preg_replace('/\s+/','',$assignedTech['phone'])) ?>"
                      style="font-size:.77rem;color:var(--d-t2);text-decoration:none;"><?= e($assignedTech['phone']) ?></a>

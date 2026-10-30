@@ -253,6 +253,7 @@ Il couvre la vie d'une intervention, de l'appel à la facture encaissée :
 | Grille tarifaire et TVA | `includes/pricing.php`, `price_grid_seed.php` |
 | Qualification de l'appel assistée par Claude | `includes/qualification.php`, `claude.php` |
 | Assignation, technicien suggéré | `includes/assignment.php` |
+| Fin estimée par le technicien sur place | `includes/assignment.php` (`eta_*`), `tech/disp_intervention.php` |
 | Rapport du technicien, chiffré par la grille | `tech/`, `includes/review.php` |
 | Relecture et brouillon de facture | `includes/review.php`, `invoicing.php` |
 | Comptabilité Pennylane | `includes/pennylane.php`, `cron/pennylane_sync.php` |
@@ -357,6 +358,23 @@ Conventions : TTC ; brouillons et annulées exclus ; « encaissé » = factures
 payées à leur date de paiement (un paiement partiel n'apparaît que dans le
 reste dû).
 
+### Fin estimée par le technicien sur place — `includes/assignment.php`
+
+Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
+finir ? » son avancement (début, milieu, fin) et le temps restant (15 min à
+3 h et +). Colonnes `interventions.tech_eta_end`, `tech_eta_at`,
+`tech_progress` (migration v15.33). Chaque estimation est aussi notée dans
+l'historique de l'intervention.
+
+| Fonction | Rôle |
+|---|---|
+| `eta_status($iv, $now)` | texte « milieu — libre vers 15 h 40 » ou « fin prévue 15 h 40, dépassée de 25 min » ; null hors « Sur place » |
+| `eta_busy_end($job, $now)` | fin d'occupation utilisée par `assign_suggestions()` ; estimation dépassée = maintenant + 15 min |
+
+Affichée au dispatcher dans le planning du jour (sous le nom du technicien,
+orange si dépassée), sur la fiche de l'intervention et dans les suggestions
+de technicien. Aucune notification : l'information se lit à l'écran.
+
 ### Écrans
 
 - `dispatcher/settings.php?tab=pennylane` : jeton configuré oui/non, mode
@@ -394,10 +412,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-664 assertions, aucune base de données nécessaire : chaque test remplace
+685 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 169 fichiers PHP.
+sur les 170 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -416,9 +434,10 @@ sur les 169 fichiers PHP.
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
+| `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
-assignation, relecture, Yousign) n'est pas encore couvert.
+assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
 
 **Rendu visuel.** Chromium et Playwright sont installés
 (`/opt/node22/lib/node_modules/playwright`, ne pas lancer
@@ -539,6 +558,9 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(suivant)* | Fin estimée 3 — affichage dispatcher : planning, fiche, suggestions |
+| `6f1c48d` | Fin estimée 2 — barre « Quand pensez-vous finir ? » côté technicien |
+| `22edcaf` | Fin estimée 1 — colonnes, calculs, prise en compte dans l'assignation |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |
 | `d660dd8` | Pages métier : présentation du métier et textes sous chaque titre de section |
