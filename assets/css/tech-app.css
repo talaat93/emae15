@@ -269,3 +269,18 @@ details.ta-card:not([open]) > summary { border-bottom: 0; }
 .ta-total > div { display: flex; justify-content: space-between; font-size: .9rem; }
 .ta-total > div.big { font-size: 1.05rem; }
 .ta-total > div.big b { color: var(--p); }
+
+/* Fin estimée (technicien sur place) : avancement puis temps restant, gros boutons. */
+.ta-eta-now { font-size: .88rem; color: var(--t2); margin-bottom: .7rem; }
+.ta-eta-now b { color: var(--t1); }
+.ta-eta-k { font-size: .82rem; font-weight: 600; color: var(--t2); margin: .2rem 0 .4rem; }
+.ta-eta-prog { display: grid; grid-template-columns: repeat(3, 1fr); gap: .4rem; margin-bottom: .8rem; }
+.ta-eta-prog input { position: absolute; opacity: 0; pointer-events: none; }
+.ta-eta-prog label { min-height: 44px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 10px; font-weight: 600; color: var(--t2); background: #fff; cursor: pointer; }
+.ta-eta-prog input:checked + label { background: var(--navy); border-color: var(--navy); color: #fff; }
+.ta-eta-prog input:focus-visible + label { outline: 2px solid var(--blue); outline-offset: 2px; }
+.ta-eta-time { display: grid; grid-template-columns: repeat(4, 1fr); gap: .4rem; }
+.ta-eta-time button { min-height: 48px; border: 1px solid #fbd5b5; border-radius: 10px; background: #fff7f0; color: var(--p-dk); font-weight: 700; font-size: .92rem; }
+.ta-eta-time button:active { background: var(--p); color: #fff; }
+.ta-eta-time button.on { background: var(--p); border-color: var(--p); color: #fff; }
+.ta-eta.is-late { border-color: #f59e0b; }
