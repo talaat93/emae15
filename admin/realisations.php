@@ -16,7 +16,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $image = upload_image_field('image', 'realisations');
             db_execute('INSERT INTO realisations (title, description, service_type, city, image_path, is_visible, sort_order, zone_id) VALUES (?,?,?,?,?,1,?,?)',
                 [$title, $desc, $service, $city, $image ?? '', (int)time(), $zid]);
-            flash('success', 'Réalisation ajoutée.');
+            $newId  = db_last_id();
+            $before = upload_image_field('before_image', 'realisations');
+            if ($before !== null) db_execute('UPDATE realisations SET before_image_path = ? WHERE id = ?', [$before, $newId]);
+            if (($image === null && !empty($_FILES['image']['name'])) || ($before === null && !empty($_FILES['before_image']['name']))) {
+                flash('error', 'Réalisation ajoutée, mais une photo a été refusée (format ou taille). Utilisez « Modifier » pour la renvoyer.');
+            } else {
+                flash('success', 'Réalisation ajoutée.');
+            }
         } else {
             flash('error', 'Le titre est obligatoire.');
         }
@@ -43,8 +50,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($image !== null) {
             db_execute('UPDATE realisations SET image_path = ? WHERE id = ?', [$image, $id]);
         }
-        if ($image === null && !empty($_FILES['image']['name'])) {
-            flash('error', 'Textes enregistrés, mais la photo a été refusée (format ou taille). L\'ancienne est conservée.');
+        $before = upload_image_field('before_image', 'realisations');
+        if ($before !== null) {
+            db_execute('UPDATE realisations SET before_image_path = ? WHERE id = ?', [$before, $id]);
+        } elseif (!empty($_POST['remove_before_image'])) {
+            db_execute('UPDATE realisations SET before_image_path = NULL WHERE id = ?', [$id]);
+        }
+        if (($image === null && !empty($_FILES['image']['name'])) || ($before === null && !empty($_FILES['before_image']['name']))) {
+            flash('error', 'Textes enregistrés, mais une photo a été refusée (format ou taille). L\'ancienne est conservée.');
         } else {
             flash('success', 'Réalisation modifiée.');
         }
@@ -119,7 +132,7 @@ $editService = (string)($edit['service_type'] ?? '');
 <div class="admin-stack">
   <!-- Add form -->
   <section class="admin-panel">
-    <div class="admin-panel__head"><h2><?= $edit ? 'Modifier : '.e($edit['title']) : 'Ajouter une réalisation' ?></h2><p>Photo + titre + service + ville = maximum de confiance client.</p></div>
+    <div class="admin-panel__head"><h2><?= $edit ? 'Modifier : '.e($edit['title']) : 'Ajouter une réalisation' ?></h2><p>Photo + titre + service + ville = maximum de confiance client. Avec une photo avant et une photo après, le site les affiche côte à côte.</p></div>
     <div class="admin-panel__body">
       <form method="post" enctype="multipart/form-data" action="<?= e(url_for('admin/realisations.php')) ?>">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -137,9 +150,15 @@ $editService = (string)($edit['service_type'] ?? '');
             </select>
             <small style="color:#7b8aa8;">Affiche aussi le chantier sur la page du métier. « Maintenance » et « Dépannage » ne sont rattachés à aucun métier.</small>
           </label>
-          <label class="admin-field"><span><?= $edit ? 'Remplacer la photo (facultatif)' : 'Photo (jpg, png, webp)' ?></span><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
-            <?php if ($edit && trim((string)($edit['image_path'] ?? '')) !== ''): ?><img src="<?= e(asset_url($edit['image_path'])) ?>" alt="Photo actuelle" style="width:120px;height:84px;object-fit:cover;border-radius:8px;margin-top:.4rem;"><?php endif; ?>
-          </label>
+        </div>
+        <div class="admin-form-grid admin-form-grid--2">
+          <div class="admin-field"><label for="before_image"><span><?= $edit ? 'Photo AVANT : ajouter ou remplacer (facultatif)' : 'Photo AVANT (facultatif)' ?></span></label><input id="before_image" type="file" name="before_image" accept=".jpg,.jpeg,.png,.webp">
+            <?php if ($edit && trim((string)($edit['before_image_path'] ?? '')) !== ''): ?><img src="<?= e(asset_url($edit['before_image_path'])) ?>" alt="Photo avant actuelle" style="width:120px;height:84px;object-fit:cover;border-radius:8px;margin-top:.4rem;">
+            <label style="display:flex;gap:.4rem;align-items:center;font-size:.85rem;margin-top:.3rem;"><input type="checkbox" name="remove_before_image" value="1" style="width:auto;min-height:0;"> Retirer la photo avant</label><?php endif; ?>
+          </div>
+          <div class="admin-field"><label for="image"><span><?= $edit ? 'Photo APRÈS : remplacer (facultatif)' : 'Photo APRÈS, ou photo unique (jpg, png, webp)' ?></span></label><input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
+            <?php if ($edit && trim((string)($edit['image_path'] ?? '')) !== ''): ?><img src="<?= e(asset_url($edit['image_path'])) ?>" alt="Photo après actuelle" style="width:120px;height:84px;object-fit:cover;border-radius:8px;margin-top:.4rem;"><?php endif; ?>
+          </div>
         </div>
         <label class="admin-field"><span>Zone d'affichage</span>
           <?= zone_select_field('zone_id', $edit ? (int)($edit['zone_id'] ?? 0) : zone_ctx_id()) ?>
@@ -167,6 +186,9 @@ $editService = (string)($edit['service_type'] ?? '');
             <?php foreach ($reals as $r): ?>
               <tr>
                 <td>
+                  <?php if (trim((string)($r['before_image_path']??'')) !== ''): ?>
+                    <img src="<?= e(asset_url($r['before_image_path'])) ?>" alt="Avant" title="Avant" width="80" height="56" style="width:80px;height:56px;object-fit:cover;border-radius:8px;display:block;margin-bottom:.25rem;" loading="lazy">
+                  <?php endif; ?>
                   <?php if (trim((string)($r['image_path']??'')) !== ''): ?>
                     <img src="<?= e(asset_url($r['image_path'])) ?>" alt="" width="80" height="56" style="width:80px;height:56px;object-fit:cover;border-radius:8px;" loading="lazy">
                   <?php else: ?>

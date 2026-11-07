@@ -156,6 +156,10 @@ $e = fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
     <div class="t-card-body">
       <div class="t-section-title">📝 Demande du client</div>
       <div class="t-report-box"><?= $e($q['message']) ?></div>
+      <?php if (quote_client_photos($q)): ?>
+      <div class="t-section-title" style="margin-top:1rem;">📷 Photos envoyées par le client</div>
+      <?= quote_photos_html($q) ?>
+      <?php endif; ?>
     </div>
   </div>
 

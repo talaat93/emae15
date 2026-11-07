@@ -299,8 +299,8 @@ if ($sid <= 0) {
       <tbody>
       <?php foreach ($recentQuotes as $q): ?>
         <tr>
-          <td><b><?= e($q['full_name']) ?></b> · <?= e($q['phone']) ?>
-            <div style="font-size:.8rem;color:var(--d-t2);"><?= e(trim((string)$q['service_type']) ?: 'Service non précisé') ?> · <?= e((string)$q['city']) ?> · <?= e(date('d/m H:i', strtotime((string)$q['created_at']))) ?></div>
+          <td><?= quote_type_badge($q) ?> <b><?= e($q['full_name']) ?></b> · <?= e($q['phone']) ?>
+            <div style="font-size:.8rem;color:var(--d-t2);"><?= e(trim((string)$q['service_type']) ?: 'Service non précisé') ?> · <?= e((string)$q['city']) ?> · <?= e(date('d/m H:i', strtotime((string)$q['created_at']))) ?><?= ($nbPh = count(quote_client_photos($q))) ? ' · 📷 '.$nbPh : '' ?></div>
             <div style="font-size:.82rem;margin-top:.2rem;"><?= e(mb_strimwidth(trim((string)$q['message']), 0, 160, '…')) ?></div></td>
           <td style="text-align:right;"><a class="d-btn d-btn--sm d-btn--primary" href="<?= e(url_for('dispatcher/qualify.php?quote='.(int)$q['id'])) ?>">Qualifier</a></td>
         </tr>
@@ -351,6 +351,13 @@ $quote   = $s['quote_id'] ? db_fetch('SELECT * FROM quotes WHERE id = ?', [(int)
   <div class="qual-danger" role="alert">
     <div class="qual-danger-title">DANGER — <?= e(ucfirst((string)$danger['kind'])) ?> : lisez ces consignes au client maintenant</div>
     <ol><?php foreach ($danger['instructions'] as $ins): ?><li><?= e((string)$ins) ?></li><?php endforeach; ?></ol>
+  </div>
+  <?php endif; ?>
+
+  <?php if ($quote && quote_client_photos($quote)): ?>
+  <div class="d-card" style="padding:.9rem 1rem;margin-bottom:1rem;">
+    <div style="font-size:.8rem;font-weight:700;margin-bottom:.45rem;">📷 Photos envoyées par le client</div>
+    <?= quote_photos_html($quote) ?>
   </div>
   <?php endif; ?>
 

@@ -32,6 +32,12 @@ require_once __DIR__ . '/includes/stats.php';
 stats_track_view($route, $currentZone['slug'] ?? '');
 
 /* ── POST FORM ── */
+// Envoi plus lourd que la limite du serveur : PHP vide alors tout le formulaire.
+// Sans ce test, le client croirait sa demande partie alors qu'elle est perdue.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && (int)($_SERVER['CONTENT_LENGTH'] ?? 0) > 0) {
+    flash('error', 'Vos photos sont trop lourdes : votre demande n\'a pas été envoyée. Réessayez avec moins de photos, ou appelez-nous au '.company_phone().'.');
+    redirect_to(route_url($route));
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();
     if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to(route_url($route)); }
@@ -49,11 +55,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
             [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
         unset($_qe);
     }
-    $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so];
+    $qId   = db_last_id();
+    $qType = quote_request_type((string)($_POST['request_type'] ?? ''));
+    // La demande est déjà enregistrée : une photo refusée ne peut plus la faire perdre.
+    $qPhotos = quote_store_photos($_FILES['photos'] ?? []);
+    try {
+        db_execute('UPDATE quotes SET request_type = ?, client_photos = ? WHERE id = ?',
+            [$qType, $qPhotos['files'] ? json_encode($qPhotos['files']) : null, $qId]);
+    } catch (Throwable $_qe) { error_log('[EMAE] demande #'.$qId.' : '.$_qe->getMessage()); unset($_qe); }
+    $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so,
+            'quote_id'=>$qId,'request_type'=>$qType,'photos'=>$qPhotos['files'],'photos_refused'=>$qPhotos['refused']];
     send_quote_notification($qData);
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
     $_SESSION['quote_conversion'] = 1;
     flash('success', quote_form_options()['success_message']);
+    if ($qPhotos['refused'] > 0) {
+        flash('error', ($qPhotos['refused'] > 1 ? $qPhotos['refused'].' photos n\'ont pas pu être jointes' : 'Une photo n\'a pas pu être jointe')
+            .' (formats acceptés : JPG, PNG ou WebP, '.QUOTE_PHOTO_MAX_MB.' Mo maximum). Votre demande est bien partie.');
+    }
     redirect_to(route_url($route));
 }
 
@@ -131,8 +150,11 @@ if ($route === '' || $route === 'home') {
       </div>
 
       <div class="hero-actions">
-        <a class="btn btn-p btn-lg" href="<?= e($btn1url) ?>"><?= e(setting('home_button1_label','Devis gratuit')) ?></a>
-        <a class="btn btn-outline btn-lg" href="<?= e($btn2url) ?>">📞 <?= e(setting('home_button2_label','Appeler maintenant')) ?></a>
+        <?php // L'admin peut échanger les deux boutons : la couleur suit le lien, pas la position.
+        foreach ([[$btn1url, setting('home_button1_label','Devis gratuit')], [$btn2url, setting('home_button2_label','Appeler maintenant')]] as [$_bUrl, $_bLabel]):
+            $_bCall = str_starts_with($_bUrl, 'tel:'); ?>
+        <a class="btn <?= $_bCall ? 'btn-p' : 'btn-outline' ?> btn-lg" href="<?= e($_bUrl) ?>"><?= $_bCall ? '📞 ' : '' ?><?= e($_bLabel) ?></a>
+        <?php endforeach; unset($_bUrl, $_bLabel, $_bCall); ?>
       </div>
 
       <div class="hero-trust">
@@ -154,7 +176,7 @@ if ($route === '' || $route === 'home') {
       <div class="hero-card">
         <div class="hero-card-tag"><?= e(setting('home_quote_eyebrow','Rappel gratuit sous 30 min')) ?></div>
         <h2><?= e(setting('home_quote_title','Obtenir un devis')) ?></h2>
-        <?php render_quote_form($cards, 'hero'); ?>
+        <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
     </div>
   </div>
@@ -282,11 +304,7 @@ if ($route === '' || $route === 'home') {
     <div class="reals-grid" style="margin-top:2rem;">
       <?php foreach ($reals as $r): ?>
       <div class="real-card">
-        <?php if (trim((string)($r['image_path']??''))!==''): ?>
-          <div class="real-img"><?= picture_html($r['image_path'], $r['title'], ['loading'=>'lazy']) ?></div>
-        <?php else: ?>
-          <div class="real-placeholder">🔧</div>
-        <?php endif; ?>
+        <?php render_realisation_media($r); ?>
         <div class="real-body">
           <?php if (trim((string)($r['service_type']??''))!==''): ?><div class="real-svc"><?= e($r['service_type']) ?></div><?php endif; ?>
           <div class="real-h"><?= e($r['title']) ?></div>
@@ -856,8 +874,8 @@ if ($route === 'faq') {
   <div class="faq-cta">
     <h2><?= e($faq['cta_title']) ?></h2><p><?= e($faq['cta_lead']) ?></p>
     <div class="acts">
-      <a class="btn btn-p btn-lg" href="<?= e(route_url($faq['cta_url'])) ?>"><?= e($faq['cta_button']) ?></a>
-      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+      <a class="btn btn-outline btn-lg" href="<?= e(route_url($faq['cta_url'])) ?>"><?= e($faq['cta_button']) ?></a>
+      <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
     </div>
   </div>
 </div></section>
@@ -884,9 +902,10 @@ if ($route === 'contact') {
   <div class="contact-box">
     <div class="cbox-h"><?= e($cfg['form_title']) ?></div>
     <div class="cbox-sub"><?= e($cfg['form_subtitle']) ?></div>
-    <form method="post" class="cf-form">
+    <form method="post" class="cf-form" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
       <input type="hidden" name="form_type" value="quote">
+      <input type="hidden" name="request_type" value="devis">
       <input type="hidden" name="source" value="contact_page">
       <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off">
       <div class="cf-row">
@@ -900,6 +919,7 @@ if ($route === 'contact') {
       <label class="cf-label">Service<select class="cf-input" name="service_type"><option value="">Choisir</option><?php foreach($cards as $c):?><option value="<?=e($c['title'])?>"><?=e($c['title'])?></option><?php endforeach;?></select></label>
       <label class="cf-label">Urgence<select class="cf-input" name="urgency"><option value="Normale">Normale</option><option value="Urgente">Urgente — sous 24h</option><option value="Très urgente">Très urgente — immédiat</option></select></label>
       <label class="cf-label">Votre besoin *<textarea class="cf-input cf-textarea" name="message" placeholder="Décrivez votre demande…" required></textarea></label>
+      <?php render_quote_photo_field(); ?>
       <button class="btn btn-p btn-lg btn-block" type="submit"><?= e(quote_form_options()['submit_label']) ?></button>
       <p class="f-meta" style="margin-top:.5rem;">✓ Gratuit <span class="f-meta-dot"></span> ✓ Sans engagement <span class="f-meta-dot"></span> ✓ Réponse rapide</p>
     </form>
@@ -970,7 +990,7 @@ if ($route === 'realisations') {
     <div class="reals-grid">
       <?php foreach ($reals as $r): ?>
       <div class="real-card">
-        <?php if(trim((string)($r['image_path']??''))!==''):?><div class="real-img"><?= picture_html($r['image_path'], $r['title'], ['loading'=>'lazy']) ?></div><?php else:?><div class="real-placeholder">🔧</div><?php endif;?>
+        <?php render_realisation_media($r); ?>
         <div class="real-body">
           <?php if(trim((string)($r['service_type']??''))!==''):?><div class="real-svc"><?=e($r['service_type'])?></div><?php endif;?>
           <div class="real-h"><?=e($r['title'])?></div>
@@ -1022,8 +1042,8 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
     <h2><?= e(setting('tarifs_cta_title','Besoin d\'un prix précis ?')) ?></h2>
     <p><?= e(setting('tarifs_cta_lead','Décrivez votre besoin, nous vous répondons avec un chiffrage clair et sans engagement.')) ?></p>
     <div class="acts">
-      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('tarifs_cta_btn','Demander un devis gratuit')) ?></a>
-      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+      <a class="btn btn-outline btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('tarifs_cta_btn','Demander un devis gratuit')) ?></a>
+      <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
     </div>
   </div>
 </div></section>
@@ -1069,8 +1089,8 @@ if ($route === 'services') {
     <h3><?= e(setting('services_cta_title','Besoin d\'un technicien ?')) ?></h3>
     <p><?= e(setting('services_cta_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Devis gratuit et sans engagement.')) ?></p>
     <div class="sp-acts">
-      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('services_cta_btn','Devis gratuit en 2 min')) ?></a>
-      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+      <a class="btn btn-outline btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('services_cta_btn','Devis gratuit en 2 min')) ?></a>
+      <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
     </div>
   </div>
 </div></section>
@@ -1110,8 +1130,8 @@ if ($tpl !== null || $page) {
     <span class="ph-badge"><?= e(company_hours()) ?></span>
   </div>
   <div class="btn-row" style="margin-top:1.75rem;">
-    <a class="btn btn-p btn-lg" href="#etre-rappele"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
-    <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    <a class="btn btn-outline btn-lg" href="#etre-rappele"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
+    <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
   </div>
   </div>
 
@@ -1120,7 +1140,7 @@ if ($tpl !== null || $page) {
     <div class="hero-card">
       <div class="hero-card-tag"><?= e(setting('svc_quote_eyebrow','Rappel gratuit sous 30 min')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
-      <?php render_quote_form($cards, 'service_'.$sk); ?>
+      <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
   </div>
   </div>
@@ -1164,7 +1184,7 @@ if ($tpl !== null || $page) {
   <div class="reals-grid" style="margin-top:1.75rem;">
     <?php foreach ($svcReals as $r): ?>
     <div class="real-card">
-      <?php if(trim((string)($r['image_path']??''))!==''):?><div class="real-img"><img src="<?=e(asset_url($r['image_path']))?>" alt="<?=e($r['title'])?>" loading="lazy"></div><?php else:?><div class="real-placeholder">🔧</div><?php endif;?>
+      <?php render_realisation_media($r); ?>
       <div class="real-body">
         <div class="real-h"><?=e($r['title'])?></div>
         <?php if(trim((string)($r['description']??''))!==''):?><p style="font-size:.8rem;color:var(--t2);margin:.25rem 0 0;font-weight:300;"><?=e($r['description'])?></p><?php endif;?>

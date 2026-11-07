@@ -583,28 +583,189 @@ function quote_form_options(): array
         'mail_to'        => setting('form_email_to',        company_email()),
     ];
 }
+/* ═══════════════════════════════════════════════════
+   DEMANDES DU SITE : RAPPEL OU DEVIS, PHOTOS DU CLIENT
+   Les photos montrent l'intérieur des logements : elles restent dans un dossier
+   fermé au public et ne s'ouvrent que par admin/quote_photo.php, une fois connecté.
+═══════════════════════════════════════════════════ */
+const QUOTE_PHOTOS_MAX    = 3;
+const QUOTE_PHOTO_MAX_MB  = 10;
+const QUOTE_MAIL_ATTACH_MAX_MB = 10;
+
+function quote_request_type(string $raw): string { return $raw === 'rappel' ? 'rappel' : 'devis'; }
+
+/** Dossier privé des photos, créé fermé au public. */
+function quote_photo_dir(): string
+{
+    $dir = __DIR__.'/../storage/uploads/demandes';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    if (!is_file($dir.'/.htaccess')) @file_put_contents($dir.'/.htaccess', "Require all denied\n");
+    // Témoin sans donnée : permet de vérifier depuis l'extérieur que le dossier est bien fermé.
+    if (!is_file($dir.'/ferme.txt')) @file_put_contents($dir.'/ferme.txt', "Ce dossier doit rester inaccessible depuis le web.\n");
+    return $dir;
+}
+
+/** Extension à donner au fichier, ou null si ce n'est pas une vraie image acceptée. */
+function quote_photo_ext(string $path): ?string
+{
+    $mime = @mime_content_type($path) ?: '';
+    $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime] ?? null;
+    return ($ext !== null && @getimagesize($path) !== false) ? $ext : null;
+}
+
+/** Range les photos envoyées ($_FILES['photos']). Retour : noms enregistrés, nombre de refus. */
+function quote_store_photos(array $f): array
+{
+    $out = ['files' => [], 'refused' => 0];
+    if (!is_array($f['name'] ?? null)) return $out;
+    foreach (array_keys($f['name']) as $i) {
+        $err = (int)($f['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+        if ($err === UPLOAD_ERR_NO_FILE) continue;
+        $tmp = (string)($f['tmp_name'][$i] ?? '');
+        $ext = ($err === UPLOAD_ERR_OK
+                && count($out['files']) < QUOTE_PHOTOS_MAX
+                && (int)($f['size'][$i] ?? 0) <= QUOTE_PHOTO_MAX_MB * 1048576
+                && is_uploaded_file($tmp)) ? quote_photo_ext($tmp) : null;
+        $name = $ext !== null ? bin2hex(random_bytes(16)).'.'.$ext : '';
+        if ($ext !== null && move_uploaded_file($tmp, quote_photo_dir().'/'.$name)) $out['files'][] = $name;
+        else $out['refused']++;
+    }
+    return $out;
+}
+
+/** Noms des photos d'une demande (rien d'autre qu'un nom généré par le site n'est accepté). */
+function quote_client_photos(array $q): array
+{
+    $list = json_decode((string)($q['client_photos'] ?? ''), true);
+    if (!is_array($list)) return [];
+    return array_values(array_filter($list, static fn($n): bool => is_string($n) && preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/', $n) === 1));
+}
+
+function quote_delete_photos(array $q): void
+{
+    foreach (quote_client_photos($q) as $name) @unlink(__DIR__.'/../storage/uploads/demandes/'.$name);
+}
+
+/** Photos du client pour une intervention créée à partir d'une demande du site. */
+function intervention_client_photos_html(array $iv): string
+{
+    if (empty($iv['quote_id'])) return '';
+    try { $q = db_fetch('SELECT id, client_photos FROM quotes WHERE id = ?', [(int)$iv['quote_id']]); }
+    catch (Throwable $e) { return ''; }
+    return $q ? quote_photos_html($q) : '';
+}
+
+/** Vignettes cliquables des photos du client (admin, dispatcher et technicien). */
+function quote_photos_html(array $q): string
+{
+    $html = '';
+    foreach (quote_client_photos($q) as $n => $_) {
+        $url = e(url_for('admin/quote_photo.php?id='.(int)$q['id'].'&n='.$n));
+        $html .= '<a href="'.$url.'" target="_blank" rel="noopener" style="display:block;width:110px;height:110px;border-radius:8px;overflow:hidden;background:#f0f4ff;">'
+               . '<img src="'.$url.'" alt="Photo envoyée par le client" loading="lazy" style="width:100%;height:100%;object-fit:cover;"></a>';
+    }
+    return $html === '' ? '' : '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'.$html.'</div>';
+}
+
+/** Étiquette Rappel / Devis ; rien pour les demandes antérieures, dont le type est inconnu. */
+function quote_type_badge(array $q): string
+{
+    $t = (string)($q['request_type'] ?? '');
+    if ($t === 'rappel') return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:#fff3e0;color:#b84700;font-weight:700;font-size:.78rem;white-space:nowrap;">📞 Rappel</span>';
+    if ($t === 'devis')  return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:#e8f0ff;color:#1a3baa;font-weight:700;font-size:.78rem;white-space:nowrap;">📋 Devis</span>';
+    return '';
+}
+
+/**
+ * Enveloppe du message : un simple HTML sans pièce jointe, sinon du multipart.
+ * $files : [nom affiché => chemin]. Retour : [en-têtes de contenu, corps].
+ */
+function quote_mail_message(string $html, array $files): array
+{
+    if ($files === []) return ["Content-Type: text/html; charset=UTF-8\r\n", $html];
+    $b = 'emae-'.bin2hex(random_bytes(12));
+    $body = "--$b\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+          . chunk_split(base64_encode($html))."\r\n";
+    foreach ($files as $name => $path) {
+        $mime = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][pathinfo($name, PATHINFO_EXTENSION)] ?? 'application/octet-stream';
+        $body .= "--$b\r\nContent-Type: $mime; name=\"$name\"\r\nContent-Transfer-Encoding: base64\r\n"
+               . "Content-Disposition: attachment; filename=\"$name\"\r\n\r\n"
+               . chunk_split(base64_encode((string)file_get_contents($path)))."\r\n";
+    }
+    return ["Content-Type: multipart/mixed; boundary=\"$b\"\r\n", $body."--$b--\r\n"];
+}
+
 function send_quote_notification(array $data): bool
 {
     $to = setting('form_email_to', company_email());
     if (trim($to) === '') return false;
+    $m  = quote_notification_compose($data);
+    $ok = mail($to, $m['subject'], $m['body'], $m['headers']);
+    // Un mail refusé à cause de ses pièces jointes ne doit pas faire perdre la demande.
+    if (!$ok && $m['attached'] > 0) {
+        $m  = quote_notification_compose($data, false);
+        $ok = mail($to, $m['subject'], $m['body'], $m['headers']);
+    }
+    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.company_email());
+    return $ok;
+}
 
-    $name       = trim($data['full_name']    ?? '');
-    $phone      = trim($data['phone']        ?? '');
-    $email      = trim($data['email']        ?? '');
-    $city       = trim($data['city']         ?? '');
-    $address    = trim($data['address']      ?? '');
-    $postalCode = trim($data['postal_code']  ?? '');
-    $service    = trim($data['service_type'] ?? '');
+/** Prépare le mail reçu par l'entreprise. Retour : subject, body, headers, html, attached. */
+function quote_notification_compose(array $data, bool $attach = true): array
+{
+    $to = setting('form_email_to', company_email());
+    $esc = static fn(string $v): string => htmlspecialchars(trim($v), ENT_QUOTES, 'UTF-8');
+    $rawName    = trim($data['full_name']    ?? '');
+    $rawEmail   = trim($data['email']        ?? '');
+    $name       = $esc($data['full_name']    ?? '');
+    $phone      = $esc($data['phone']        ?? '');
+    $email      = filter_var($rawEmail, FILTER_VALIDATE_EMAIL) ? $esc($rawEmail) : '';
+    $city       = $esc($data['city']         ?? '');
+    $address    = $esc($data['address']      ?? '');
+    $postalCode = $esc($data['postal_code']  ?? '');
+    $service    = $esc($data['service_type'] ?? '');
     $message    = trim($data['message']      ?? '');
-    $urgency    = trim($data['urgency']      ?? 'Normale');
-    $source     = trim($data['source']       ?? '');
+    $rawUrgency = trim($data['urgency']      ?? 'Normale');
+    $urgency    = $esc($rawUrgency);
+    $source     = $esc($data['source']       ?? '');
     $site    = company_name();
     $now     = date('d/m/Y à H:i');
+    $quoteId = (int)($data['quote_id'] ?? 0);
+
+    // Le type se lit partout : nom de l'expéditeur et objet dans la liste des mails, bandeau dans le mail.
+    $isCallback = quote_request_type((string)($data['request_type'] ?? '')) === 'rappel';
+    $typeSender = $isCallback ? 'Rappel' : 'Devis';
+    $typeColor  = $isCallback ? '#F07B1D' : '#1D4ED8';
+    $typeBanner = $isCallback ? '📞 DEMANDE DE RAPPEL — le client attend votre appel' : '📋 DEMANDE DE DEVIS';
+    $subjectTxt = ($isCallback ? '📞 À RAPPELER — ' : '📋 DEVIS — ').str_replace(["\r", "\n"], ' ', $rawName).' ('.str_replace(["\r", "\n"], ' ', $rawUrgency).')';
+
+    // Photos : jointes au mail tant que le total reste raisonnable, sinon à voir sur la fiche.
+    $attachments = [];
+    $tooHeavy = 0;
+    $weight = 0;
+    $photos = array_values(array_filter((array)($data['photos'] ?? []), 'is_string'));
+    foreach ($photos as $i => $file) {
+        $path = __DIR__.'/../storage/uploads/demandes/'.basename($file);
+        $size = is_file($path) ? (int)filesize($path) : 0;
+        if ($attach && $size > 0 && $weight + $size <= QUOTE_MAIL_ATTACH_MAX_MB * 1048576) {
+            $weight += $size;
+            $attachments['photo-'.($i + 1).'.'.pathinfo($file, PATHINFO_EXTENSION)] = $path;
+        } else {
+            $tooHeavy++;
+        }
+    }
+    $photoLines = [];
+    if ($attachments !== []) $photoLines[] = count($attachments) > 1 ? '📷 <strong>'.count($attachments).' photos jointes</strong> à ce mail.' : '📷 <strong>1 photo jointe</strong> à ce mail.';
+    if ($tooHeavy > 0)       $photoLines[] = '📷 '.($tooHeavy > 1 ? $tooHeavy.' photos à voir' : '1 photo à voir').' sur la fiche de la demande.';
+    $refused = (int)($data['photos_refused'] ?? 0);
+    if ($refused > 0)        $photoLines[] = '⚠️ '.($refused > 1 ? $refused.' photos refusées' : '1 photo refusée').' (format ou taille), à redemander au client si besoin.';
+    $photoBlock = $photoLines === [] ? '' : '<tr><td style="padding:0 36px 24px;"><div style="background:#f8faff;border:1px solid #dde5f3;border-radius:6px;padding:12px 16px;font-size:14px;color:#222;line-height:1.7;">'.implode('<br>', $photoLines).'</div></td></tr>';
+    $adminLink = site_base_url().($quoteId > 0 ? '/admin/dossier.php?id='.$quoteId : '/admin/quotes.php');
 
     $urgencyColor = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#c0392b' : '#1a7ab5';
     $urgencyBg    = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#fdf2f2' : '#f0f7ff';
 
-    $subject = '=?UTF-8?B?'.base64_encode('🔔 Nouvelle demande — '.$name.' ('.$urgency.')').'?=';
+    $subject = '=?UTF-8?B?'.base64_encode($subjectTxt).'?=';
 
     $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
@@ -612,8 +773,8 @@ function send_quote_notification(array $data): bool
 <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
   <tr><td style="background:#061029;padding:28px 36px;">
     <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">'.$site.'</p>
-    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Nouvelle demande de devis</p>
   </td></tr>
+  <tr><td style="background:'.$typeColor.';padding:16px 36px;font-size:17px;font-weight:700;color:#ffffff;">'.$typeBanner.'</td></tr>
   <tr><td style="padding:20px 36px 0;">
     <span style="display:inline-block;background:'.$urgencyBg.';color:'.$urgencyColor.';border:1px solid '.$urgencyColor.';border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;">⚡ Urgence : '.$urgency.'</span>
     <span style="display:inline-block;margin-left:10px;color:#888;font-size:13px;">'.$now.'</span>
@@ -627,7 +788,7 @@ function send_quote_notification(array $data): bool
       </tr>
       <tr style="background:#fff;">
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📞 Téléphone</td>
-        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/\s+/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/[^0-9+]/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
       </tr>
       '.($email !== '' ? '<tr>
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">✉️ Email</td>
@@ -651,8 +812,9 @@ function send_quote_notification(array $data): bool
     <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">💬 Message du client</p>
     <div style="background:#f8faff;border-left:4px solid #F07B1D;border-radius:6px;padding:16px 18px;font-size:14px;color:#222;line-height:1.7;">'.nl2br(htmlspecialchars($message, ENT_QUOTES)).'</div>
   </td></tr>
+  '.$photoBlock.'
   <tr><td style="padding:0 36px 32px;text-align:center;">
-    <a href="'.site_base_url().'/admin/quotes.php" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir dans l\'admin →</a>
+    <a href="'.$adminLink.'" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir la fiche dans l\'admin →</a>
   </td></tr>
   <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
     <p style="margin:0;font-size:12px;color:#888;">Email automatique — '.$site.' · Ne pas répondre</p>
@@ -661,19 +823,19 @@ function send_quote_notification(array $data): bool
 </td></tr></table>
 </body></html>';
 
-    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — '.$typeSender).'?=';
     $fromEmail = company_email();
-    $replyTo   = $email !== '' ? $email : $to;
+    // Adresse validée plus haut : une adresse piégée ne peut pas ajouter d'en-tête au mail.
+    $replyTo   = $email !== '' ? $rawEmail : $to;
 
+    [$contentHeader, $body] = quote_mail_message($html, $attachments);
     $headers  = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= $contentHeader;
     $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
 
-    $ok = mail($to, $subject, $html, $headers);
-    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.$fromEmail);
-    return $ok;
+    return ['subject' => $subject, 'subject_text' => $subjectTxt, 'body' => $body, 'headers' => $headers, 'html' => $html, 'attached' => count($attachments)];
 }
 
 function send_quote_confirmation_to_client(array $data): bool

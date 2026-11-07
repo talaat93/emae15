@@ -209,3 +209,104 @@ document.addEventListener('DOMContentLoaded', function () {
     targets.forEach(function (el) { observer.observe(el); });
   })();
 });
+
+/* Photos des formulaires de demande : on ajoute les photos une à une (prises à
+   l'appareil, par exemple), on peut en retirer, et elles sont allégées avant
+   l'envoi pour passer même avec une connexion mobile. Si le navigateur ne sait
+   pas faire, le champ reste un envoi de fichiers ordinaire. */
+document.addEventListener('DOMContentLoaded', function () {
+  var MAX_SIDE = 1600, THUMB = 144;
+  var canEdit = false;
+  try { canEdit = typeof DataTransfer === 'function' && !!new DataTransfer().items; } catch (e) {}
+
+  function decode(file) {
+    return new Promise(function (ok, ko) {
+      var r = new FileReader();
+      r.onerror = ko;
+      r.onload = function () {
+        var i = new Image();
+        i.onload = function () { ok(i); };
+        i.onerror = ko;
+        i.src = r.result;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+  function draw(img, side) {
+    var k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
+    var c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+  function prepare(file) {
+    return decode(file).then(function (img) {
+      var thumb = draw(img, THUMB).toDataURL('image/jpeg', .7);
+      return new Promise(function (ok) {
+        draw(img, MAX_SIDE).toBlob(function (blob) {
+          var name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+          // Un format que le serveur refuse (HEIC…) est toujours converti, même si le JPEG pèse plus.
+          var usual = /^image\/(jpeg|png|webp)$/.test(file.type);
+          var out = blob && (blob.size < file.size || !usual) ? new File([blob], name, {type: 'image/jpeg'}) : file;
+          ok({file: out, thumb: thumb});
+        }, 'image/jpeg', .82);
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-quote-photos]').forEach(function (box) {
+    var input = box.querySelector('input[type=file]');
+    var list  = box.querySelector('.f-photo-list');
+    var msg   = box.querySelector('.f-photo-msg');
+    var form  = box.closest('form');
+    var max   = parseInt(box.getAttribute('data-max'), 10) || 3;
+    var items = [], busy = 0;
+    var submit = form ? form.querySelector('[type=submit]') : null;
+    var label  = submit ? submit.textContent : '';
+
+    function say(t) { msg.textContent = t; msg.hidden = !t; }
+    function sync() {
+      if (canEdit) {
+        var dt = new DataTransfer();
+        items.forEach(function (it) { dt.items.add(it.file); });
+        input.files = dt.files;
+      }
+      list.textContent = '';
+      items.forEach(function (it, n) {
+        var d = document.createElement('div'); d.className = 'f-photo-item';
+        var i = document.createElement('img'); i.src = it.thumb; i.alt = 'Photo ' + (n + 1);
+        d.appendChild(i);
+        if (canEdit) {
+          var x = document.createElement('button');
+          x.type = 'button'; x.className = 'f-photo-del'; x.textContent = '✕';
+          x.setAttribute('aria-label', 'Retirer la photo ' + (n + 1));
+          x.addEventListener('click', function () { items.splice(n, 1); say(''); sync(); });
+          d.appendChild(x);
+        }
+        list.appendChild(d);
+      });
+    }
+    function lock() { if (submit) submit.disabled = busy > 0; }
+
+    input.addEventListener('change', function () {
+      var picked = Array.prototype.slice.call(input.files || []);
+      if (!canEdit) items = [];
+      var room = max - items.length - busy;
+      say(picked.length > room ? 'Vous pouvez envoyer ' + max + ' photos au maximum.' : '');
+      picked = picked.slice(0, Math.max(0, room));
+      if (canEdit) sync();   // en attendant : seules les photos déjà prêtes restent dans le champ
+      picked.forEach(function (file) {
+        busy++; lock();
+        prepare(file).then(function (it) { items.push(it); }, function () {
+          if (canEdit) say('Cette photo n\'a pas pu être lue. Formats acceptés : JPG, PNG ou WebP.');
+        }).then(function () { busy--; lock(); sync(); });
+      });
+    });
+
+    if (form && submit) {
+      form.addEventListener('submit', function () { submit.disabled = true; submit.textContent = 'Envoi en cours…'; });
+      window.addEventListener('pageshow', function () { submit.disabled = busy > 0; submit.textContent = label; });
+    }
+  });
+});

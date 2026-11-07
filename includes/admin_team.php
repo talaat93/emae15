@@ -80,6 +80,7 @@ function admin_hidden_screens(): array
         'services_hero_images.php' => ['Images hero des services',    'page_content.php'],
         'page_edit.php'            => ['Modifier une page',           'pages.php'],
         'dossier.php'              => ['Dossier d\'intervention',      'quotes.php'],
+        'quote_photo.php'          => ['Photos d\'une demande',        'quotes.php'],
         // Doublon historique de « Couleurs & polices »
         'design.php'               => ['Design & Couleurs',           'appearance.php'],
     ];

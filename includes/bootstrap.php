@@ -716,6 +716,20 @@ if (!file_exists($_mf32)) {
     unset($_me);
 }
 unset($_mf32);
+// Auto-migration v15.33 — type de demande (rappel ou devis), photos envoyées par
+// le client, photo « avant » des réalisations.
+$_mf33 = __DIR__.'/../storage/.mig_v15_demandes_photos';
+if (!file_exists($_mf33)) {
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN request_type VARCHAR(20) NULL",
+        "ALTER TABLE quotes ADD COLUMN client_photos TEXT NULL",
+        "ALTER TABLE realisations ADD COLUMN before_image_path VARCHAR(255) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    quote_photo_dir();
+    @file_put_contents($_mf33, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf33);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

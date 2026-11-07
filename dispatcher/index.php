@@ -248,8 +248,8 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
       <table class="d-table"><tbody>
       <?php foreach ($siteQuotes as $q): ?>
         <tr>
-          <td><b><?= e($q['full_name']) ?></b> · <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', (string)$q['phone'])) ?>"><?= e($q['phone']) ?></a>
-            <div style="font-size:.8rem;color:var(--d-t2);"><?= e(trim((string)$q['service_type']) ?: 'Service non précisé') ?><?= $q['city'] ? ' · '.e((string)$q['city']) : '' ?> · reçue le <?= e(date('d/m à H:i', strtotime((string)$q['created_at']))) ?></div></td>
+          <td><?= quote_type_badge($q) ?> <b><?= e($q['full_name']) ?></b> · <a href="tel:<?= e(preg_replace('/[^0-9+]/', '', (string)$q['phone'])) ?>"><?= e($q['phone']) ?></a>
+            <div style="font-size:.8rem;color:var(--d-t2);"><?= e(trim((string)$q['service_type']) ?: 'Service non précisé') ?><?= $q['city'] ? ' · '.e((string)$q['city']) : '' ?> · reçue le <?= e(date('d/m à H:i', strtotime((string)$q['created_at']))) ?><?= ($nbPh = count(quote_client_photos($q))) ? ' · 📷 '.$nbPh : '' ?></div></td>
           <td style="text-align:right;"><a class="d-btn d-btn--sm d-btn--primary" href="<?= e(url_for('dispatcher/qualify.php?quote='.(int)$q['id'])) ?>">Qualifier</a></td>
         </tr>
       <?php endforeach; ?>

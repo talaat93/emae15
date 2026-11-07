@@ -394,10 +394,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-696 assertions, aucune base de données nécessaire : chaque test remplace
+755 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 170 fichiers PHP.
+sur les 172 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -415,6 +415,7 @@ sur les 170 fichiers PHP.
 | `test_secteurs.php` | lieux cités, variables par zone, mise en conformité des secteurs et son annulation |
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
+| `test_demandes.php` | mails rappel / devis, photos des clients (vraies images seulement, aucun autre fichier accessible), avant / après, couleur des boutons |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
@@ -544,7 +545,8 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
-| *(voir `git log`)* | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
+| *(voir `git log`)* | Rappel ou devis distingués (`quotes.request_type`, objet, expéditeur et bandeau du mail), photos client (`quotes.client_photos`, dossier fermé `storage/uploads/demandes`, lecture par `admin/quote_photo.php` après connexion : admin, dispatcher, et technicien seulement pour ses propres demandes, allégées dans le navigateur par `site.js`, jointes au mail jusqu'à 10 Mo), photo avant des réalisations (`before_image_path`, `render_realisation_media()`), bouton d'appel en orange et bouton devis dans son ancienne couleur. Migration automatique `.mig_v15_demandes_photos` |
+| `19cd3c7` | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
 | `cf858e8` | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |

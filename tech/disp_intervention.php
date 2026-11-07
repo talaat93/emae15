@@ -396,6 +396,9 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       <?php if (!empty($iv['installation_type'])): ?><div class="ta-row"><span>Installation</span><span><?= e($iv['installation_type']) ?></span></div><?php endif; ?>
       <?php if (!empty($iv['description'])): ?><div class="ta-text" style="margin-top:.6rem;"><?= e($iv['description']) ?></div><?php endif; ?>
       <?php if (!empty($iv['fault_reported'])): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Panne signalée : <?= e($iv['fault_reported']) ?></div><?php endif; ?>
+      <?php if (($clientPhotos = intervention_client_photos_html($iv)) !== ''): ?>
+      <div style="margin-top:.7rem;"><div class="ta-muted" style="font-size:.85rem;margin-bottom:.35rem;">📷 Photos envoyées par le client</div><?= $clientPhotos ?></div>
+      <?php endif; ?>
       <?php if (($mn = materials_text($iv['materials_needed'] ?? '')) !== ''): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Matériel à prévoir :
 <?= e($mn) ?></div><?php endif; ?>
       <?php if (!empty($iv['notes_admin'])): ?><div class="ta-note"><b>Consignes du dispatcher</b><?= e($iv['notes_admin']) ?></div><?php endif; ?>

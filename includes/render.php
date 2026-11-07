@@ -82,7 +82,9 @@ function render_head(array $meta): void
         $labels = array_values(array_filter(array_map('trim', explode(',', $gAdsCv))));
         echo '<script>window._gAdsId="'.e($gAdsId).'";window._gAdsCv='.json_encode($labels).';</script>';
     }
-    echo '<script defer src="'.e(asset_url('assets/js/site.js')).'"></script>';
+    // Numéro de version : le navigateur garde ce fichier un mois, le formulaire photos en dépend.
+    $jsV = @filemtime(__DIR__.'/../assets/js/site.js') ?: time();
+    echo '<script defer src="'.e(asset_url('assets/js/site.js')).'?v='.$jsV.'"></script>';
     echo '</head><body>';
 }
 
@@ -280,7 +282,44 @@ function render_footer(): void
 }
 
 /* ── FORMULAIRE RÉUTILISABLE ── */
-function render_quote_form(array $cards, string $source = 'form'): void
+/** Champ d'envoi de photos, commun à tous les formulaires de demande (voir assets/js/site.js). */
+function render_quote_photo_field(): void
+{ ?>
+  <div class="f-field f-photos" data-quote-photos data-max="<?= QUOTE_PHOTOS_MAX ?>">
+    <span class="f-label">Photos de votre installation (facultatif)</span>
+    <label class="f-photo-btn">
+      <input class="f-photo-input" type="file" name="photos[]" accept="image/*" multiple>
+      <span>📷 Ajouter des photos (<?= QUOTE_PHOTOS_MAX ?> maximum)</span>
+    </label>
+    <div class="f-photo-list" aria-live="polite"></div>
+    <p class="f-photo-msg" hidden></p>
+  </div>
+<?php
+}
+
+/** Photo(s) d'une réalisation : avant et après côte à côte quand les deux existent. */
+function render_realisation_media(array $r): void
+{
+    $title  = (string)($r['title'] ?? '');
+    $after  = trim((string)($r['image_path'] ?? ''));
+    $before = trim((string)($r['before_image_path'] ?? ''));
+    $alt    = ['loading' => 'lazy'];
+    if ($before !== '' && $after !== '') {
+        echo '<div class="real-ba">'
+            .'<div class="real-img">'.picture_html($before, $title.' — avant', $alt).'<span class="real-tag">Avant</span></div>'
+            .'<div class="real-img">'.picture_html($after, $title.' — après', $alt).'<span class="real-tag real-tag--after">Après</span></div>'
+            .'</div>';
+    } elseif ($after !== '') {
+        echo '<div class="real-img">'.picture_html($after, $title, $alt).'</div>';
+    } elseif ($before !== '') {
+        echo '<div class="real-img">'.picture_html($before, $title.' — avant', $alt).'<span class="real-tag">Avant</span></div>';
+    } else {
+        echo '<div class="real-placeholder">🔧</div>';
+    }
+}
+
+/** $type : « rappel » pour les encarts « Être rappelé », « devis » pour les autres. */
+function render_quote_form(array $cards, string $source = 'form', string $type = 'devis'): void
 {
     $placeholder = geo_replace(setting('home_quote_city_placeholder','Ex : {ville}…'));
     $submitLabel = quote_form_options()['submit_label'] ?? 'Envoyer ma demande';
@@ -288,9 +327,10 @@ function render_quote_form(array $cards, string $source = 'form'): void
     $cp = preg_match('/\d{2}/', function_exists('zone_var_value') ? zone_var_value('code_postal') : '', $m) ? $m[0] : '';
     $cpExemple = $cp !== '' ? 'Ex : '.$cp.'000' : 'Ex : 25000';
     ?>
-<form action="<?= e(route_url('quote')) ?>" method="post">
+<form action="<?= e(route_url('quote')) ?>" method="post" enctype="multipart/form-data">
   <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
   <input type="hidden" name="form_type" value="quote">
+  <input type="hidden" name="request_type" value="<?= e(quote_request_type($type)) ?>">
   <input type="hidden" name="source" value="<?= e($source) ?>">
   <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off">
   <div class="f-row">
@@ -332,6 +372,7 @@ function render_quote_form(array $cards, string $source = 'form'): void
     <span class="f-label">Votre besoin *</span>
     <textarea class="f-input f-textarea" name="message" placeholder="Décrivez votre panne ou votre demande..." required></textarea>
   </div>
+  <?php render_quote_photo_field(); ?>
   <button class="btn btn-p btn-lg btn-block" type="submit"><?= e($submitLabel) ?></button>
   <p class="f-meta">✓ Gratuit <span class="f-meta-dot"></span> ✓ Sans engagement <span class="f-meta-dot"></span> ✓ Réponse rapide</p>
 </form>

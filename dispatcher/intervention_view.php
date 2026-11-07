@@ -371,6 +371,12 @@ function fmt_dur(int $mins): string {
               <span style="font-size:.84rem;color:var(--d-t1);line-height:1.5;"><?= nl2br(e($iv['description'])) ?></span>
             </div>
             <?php endif; ?>
+            <?php if (($clientPhotos = intervention_client_photos_html($iv)) !== ''): ?>
+            <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
+              <span class="d-info-label">Photos envoyées par le client</span>
+              <?= $clientPhotos ?>
+            </div>
+            <?php endif; ?>
             <?php if (materials_text($iv['materials_needed'] ?? '') !== ''): ?>
             <div class="d-info-row" style="flex-direction:column;gap:.35rem;">
               <span class="d-info-label">Matériel nécessaire</span>
