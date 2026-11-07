@@ -394,10 +394,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-664 assertions, aucune base de données nécessaire : chaque test remplace
+692 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 169 fichiers PHP.
+sur les 171 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -432,6 +432,11 @@ du site et les deux nouveaux écrans d'admin.
 ## 7. Pièges déjà rencontrés
 
 À lire avant de déboguer quoi que ce soit de similaire.
+
+**Le dossier local peut être très en retard sur GitHub.** Le 7 novembre 2026,
+`C:\xampp\htdocs\emae15` avait 72 commits de retard sur `origin/main`. Toujours
+faire `git fetch` et comparer avant de commencer : pousser une vieille base
+écraserait le site en ligne.
 
 **`backdrop-filter` casse `position: fixed`.** Un élément qui porte un
 `backdrop-filter` devient le bloc conteneur de ses descendants en
@@ -539,6 +544,7 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |
 | `d660dd8` | Pages métier : présentation du métier et textes sous chaque titre de section |

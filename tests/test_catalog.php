@@ -42,6 +42,9 @@ foreach (admin_page_catalog() as $pid => $page) {
             $trade = substr($pid, 7);
             $suf   = substr($f['key'], strlen('svc_'.$trade.'_'));
             if (!array_key_exists($suf, service_template($trade) ?? [])) $ghosts[] = $pid.'/'.$f['key'];
+        } elseif (str_starts_with($f['key'], 'tarifs_') && array_key_exists(substr($f['key'], 7), tarifs_default_rows())) {
+            // grille de prix : clé construite à l'exécution par tarifs_groups()
+            if (!str_contains($public, 'setting_plain(\'tarifs_\'.$trade)')) $ghosts[] = $pid.'/'.$f['key'];
         } elseif (!str_contains($public, "setting('".$f['key']."'")) {
             $ghosts[] = $pid.'/'.$f['key'];
         }
@@ -89,7 +92,7 @@ foreach (admin_page_catalog() as $pid=>$page) {
             if (isset($seen[$f['key']])) $dupes[] = $f['key'];
             $seen[$f['key']] = true;
             if (trim((string)($f['label'] ?? ''))==='') $bad[] = $f['key'].': sans intitulé';
-            if (!in_array($f['type'] ?? '', ['text','textarea','list'], true)) $bad[] = $f['key'].': type invalide';
+            if (!in_array($f['type'] ?? '', ['text','textarea','list','toggle'], true)) $bad[] = $f['key'].': type invalide';
         }
     }
 }

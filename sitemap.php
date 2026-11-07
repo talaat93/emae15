@@ -18,6 +18,7 @@ foreach (['electricite','plomberie','chauffage','climatisation','vmc','portail']
     $add(route_url($svc), 'weekly', '0.9', $today);
 }
 $add(route_url('realisations'),  'weekly',  '0.8', $today);
+if (tarifs_enabled()) $add(route_url('tarifs'), 'monthly', '0.7', $today);
 $add(route_url('avis'),          'weekly',  '0.7', $today);
 $add(route_url('faq'),           'monthly', '0.7', $today);
 $add(route_url('contact'),       'monthly', '0.8', $today);

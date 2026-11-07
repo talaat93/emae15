@@ -940,7 +940,7 @@ if ($route === 'quote') {
 
 /* ════ RÉALISATIONS ════ */
 if ($route === 'realisations') {
-    $reals = all_realisations();
+    $reals = visible_realisations(1000);
     $meta  = ['title'=>setting('reals_meta_title','Réalisations | '.company_name()),'description'=>setting('reals_meta_description','Nos chantiers et interventions.'),'canonical'=>route_url('realisations')];
     render_head($meta); render_header(route_url('realisations'));
 ?>
@@ -970,6 +970,51 @@ if ($route === 'realisations') {
       <?php endforeach; ?>
     </div>
   <?php endif; ?>
+</div></section>
+<?php render_footer(); exit; }
+
+/* ════ TARIFS ════ */
+// Désactivée, la page n'existe que pour l'admin connecté, qui peut la préparer avant de la publier.
+if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
+    $meta = ['title'=>setting('tarifs_meta_title','Tarifs | '.company_name()),'description'=>setting('tarifs_meta_description','Nos tarifs en électricité, plomberie, chauffage et climatisation. Devis gratuit avant toute intervention.'),'canonical'=>route_url('tarifs')];
+    render_head($meta); render_header(route_url('tarifs'));
+    $quoteLabel = setting('tarifs_quote_label','Sur devis');
+?>
+<?php if (!tarifs_enabled()): ?>
+<div class="tarif-draft"><div class="wrap">👁️ Aperçu réservé à l'administrateur : cette page est désactivée et invisible pour vos visiteurs. <a href="<?= e(url_for('admin/page_content.php?p=page_tarifs')) ?>">L'activer</a></div></div>
+<?php endif; ?>
+<section class="page-hero"><div class="wrap"><div class="ph-eyebrow"><?= e(setting('tarifs_eyebrow','Tarification')) ?></div>
+  <h1 class="ph-h1"><?= e(setting('tarifs_title','Nos')) ?> <em><?= e(setting('tarifs_title_hl','tarifs')) ?></em></h1>
+  <p class="ph-lead"><?= e(setting('tarifs_lead','Des prix clairs, confirmés avant toute intervention.')) ?></p>
+</div></section>
+<section class="sec sec-navy"><div class="wrap">
+  <div class="tarif-grid">
+    <?php foreach (tarifs_groups() as $g): ?>
+    <div class="tarif-card">
+      <h2 class="tarif-card-h"><span aria-hidden="true"><?= e($g['icon']) ?></span> <?= e($g['label']) ?></h2>
+      <ul class="tarif-list">
+        <?php foreach ($g['rows'] as $row): [$label,$price,$detail] = array_pad(array_values((array)$row), 3, ''); ?>
+        <li class="tarif-row">
+          <div class="tarif-row-txt">
+            <span class="tarif-label"><?= e((string)$label) ?></span>
+            <?php if (trim((string)$detail)!==''): ?><span class="tarif-detail"><?= e((string)$detail) ?></span><?php endif; ?>
+          </div>
+          <span class="tarif-price<?= trim((string)$price)==='' ? ' is-quote' : '' ?>"><?= e(trim((string)$price)!=='' ? (string)$price : $quoteLabel) ?></span>
+        </li>
+        <?php endforeach; ?>
+      </ul>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <p class="tarif-note"><?= e(setting('tarifs_note','Tarifs donnés à titre indicatif. Le prix définitif est confirmé par un devis gratuit avant toute intervention.')) ?></p>
+  <div class="faq-cta">
+    <h2><?= e(setting('tarifs_cta_title','Besoin d\'un prix précis ?')) ?></h2>
+    <p><?= e(setting('tarifs_cta_lead','Décrivez votre besoin, nous vous répondons avec un chiffrage clair et sans engagement.')) ?></p>
+    <div class="acts">
+      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('tarifs_cta_btn','Demander un devis gratuit')) ?></a>
+      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    </div>
+  </div>
 </div></section>
 <?php render_footer(); exit; }
 
@@ -1051,6 +1096,30 @@ if ($tpl !== null || $page) {
     <?php endforeach; ?>
   </div>
 </div></section>
+
+<?php $svcReals = realisations_for_trade($sk); if (!empty($svcReals)): ?>
+<!-- Réalisations du métier -->
+<div class="divider"></div>
+<section class="sec sec-navy"><div class="wrap">
+  <div class="svc-label"><?= e(setting('svc_reals_label','Nos réalisations')) ?></div>
+  <h2 class="section-title"><?= e(setting('svc_reals_title','Chantiers')) ?> <em><?= e(setting('svc_reals_title_hl','réalisés')) ?></em></h2>
+  <div class="reals-grid" style="margin-top:1.75rem;">
+    <?php foreach ($svcReals as $r): ?>
+    <div class="real-card">
+      <?php if(trim((string)($r['image_path']??''))!==''):?><div class="real-img"><img src="<?=e(asset_url($r['image_path']))?>" alt="<?=e($r['title'])?>" loading="lazy"></div><?php else:?><div class="real-placeholder">🔧</div><?php endif;?>
+      <div class="real-body">
+        <div class="real-h"><?=e($r['title'])?></div>
+        <?php if(trim((string)($r['description']??''))!==''):?><p style="font-size:.8rem;color:var(--t2);margin:.25rem 0 0;font-weight:300;"><?=e($r['description'])?></p><?php endif;?>
+        <?php if(trim((string)($r['city']??''))!==''):?><div class="real-city">📍 <?=e($r['city'])?></div><?php endif;?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <div style="text-align:center;margin-top:2rem;">
+    <a class="btn btn-ghost-p" href="<?= e(route_url('realisations')) ?>"><?= e(setting('reals_btn','Voir toutes nos réalisations')) ?> →</a>
+  </div>
+</div></section>
+<?php endif; ?>
 
 <!-- Processus -->
 <section class="sec sec-card"><div class="wrap">
@@ -1172,6 +1241,7 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
 <?php render_footer(); exit; }
 
 // 404
+http_response_code(404);
 $meta = ['title'=>'Page introuvable | '.company_name(),'description'=>'404.','canonical'=>route_url($route)];
 render_head($meta); render_header('');
 echo '<section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Erreur 404</div><h1 class="ph-h1">Page introuvable</h1><p class="ph-lead">La page demandée n\'existe pas ou a été déplacée.</p><div class="btn-row" style="margin-top:1.75rem;"><a class="btn btn-p" href="'.e(route_url('')).'">Retour à l\'accueil</a></div></div></section>';

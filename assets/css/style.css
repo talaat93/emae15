@@ -1255,3 +1255,18 @@ body{background:var(--navy-2);}
   .section-title{font-size:clamp(1.4rem,5.5vw,2rem);}
   .stats-band .stat-value{font-size:clamp(1.8rem,7vw,2.4rem);}
 }
+/* ── Page Tarifs ── */
+.tarif-draft{background:#fef3c7;color:#78350f;font-size:.85rem;padding:.6rem 0;}
+.tarif-draft a{color:#78350f;font-weight:700;text-decoration:underline;}
+.tarif-grid{display:grid;gap:.85rem;}
+.tarif-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r3);padding:1.35rem;}
+.tarif-card-h{font-family:var(--font-h);font-size:1.15rem;font-weight:800;color:#fff;margin:0 0 .6rem;}
+.tarif-list{list-style:none;margin:0;padding:0;}
+.tarif-row{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;padding:.7rem 0;border-top:1px solid var(--line);}
+.tarif-row-txt{min-width:0;}
+.tarif-label{display:block;font-size:.9rem;color:var(--t1);}
+.tarif-detail{display:block;font-size:.76rem;color:var(--t2);font-weight:300;margin-top:.15rem;}
+.tarif-price{flex:0 0 auto;max-width:50%;text-align:right;font-weight:700;font-size:.92rem;color:var(--p);}
+.tarif-price.is-quote{color:var(--t2);font-weight:500;}
+.tarif-note{font-size:.8rem;color:var(--t2);text-align:center;max-width:680px;margin:1.5rem auto 2rem;}
+@media(min-width:1024px){.tarif-grid{grid-template-columns:1fr 1fr;}}

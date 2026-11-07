@@ -505,9 +505,59 @@ function nav_items(): array
         ['label'=>setting('nav_zones','Nos zones'),        'url'=>route_url('zones')],
         ['label'=>setting('nav_avis','Avis clients'),      'url'=>route_url('avis')],
         ['label'=>setting('nav_realisations','Réalisations'), 'url'=>route_url('realisations')],
+        ...(tarifs_enabled() ? [['label'=>setting('nav_tarifs','Tarifs'), 'url'=>route_url('tarifs')]] : []),
         ['label'=>setting('nav_faq','FAQ'),                'url'=>route_url('faq')],
         ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact')],
     ];
+}
+
+/* ═══════════════════════════════════════════════════
+   TARIFS
+═══════════════════════════════════════════════════ */
+
+/**
+ * La page Tarifs est-elle publiée ? Réglage unique pour tout le site : on lit
+ * la valeur globale, pour qu'une copie « Dupliquer depuis Global » faite
+ * dans une zone ne fige pas l'état de la page dans cette zone.
+ */
+function tarifs_enabled(): bool
+{
+    return global_setting('tarifs_enabled', '0') === '1';
+}
+
+/**
+ * Lignes d'origine de chaque grille : [prestation, prix, précision].
+ * Aucun prix n'est prérempli : un prix vide s'affiche « Sur devis ».
+ */
+function tarifs_default_rows(): array
+{
+    $rows = [
+        'electricite'   => ['Dépannage électrique','Remplacement de tableau électrique','Ajout de prise ou de circuit','Mise aux normes NF C 15-100','Rénovation électrique complète'],
+        'plomberie'     => ['Recherche et réparation de fuite','Débouchage de canalisation','Remplacement de robinetterie','Remplacement de chauffe-eau','Entretien préventif annuel'],
+        'chauffage'     => ['Dépannage de chaudière','Entretien annuel de chaudière','Entretien de pompe à chaleur','Installation de chaudière ou de pompe à chaleur'],
+        'climatisation' => ['Dépannage de climatiseur','Entretien saisonnier','Recharge en fluide frigorigène','Installation de climatisation'],
+        'vmc'           => ['Dépannage de VMC','Nettoyage des bouches et des gaines','Entretien annuel et contrôle des débits','Installation de VMC simple ou double flux'],
+        'portail'       => ['Dépannage de portail bloqué','Motorisation de portail','Installation de visiophone','Dépannage d\'interphone ou de digicode'],
+        'automatisme'   => ['Dépannage de volet roulant','Motorisation de volet ou de store','Dépannage d\'électroménager'],
+    ];
+    return array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
+}
+
+/** Grilles à afficher, une par métier, avec les lignes propres à la zone si elle en a. */
+function tarifs_groups(): array
+{
+    $defaults = tarifs_default_rows();
+    $trades   = service_trade_defaults();
+    $out = [];
+    foreach (array_keys($defaults) as $trade) {
+        $rows = json_decode(setting_plain('tarifs_'.$trade), true);
+        $out[] = [
+            'label' => service_template($trade)['label'],
+            'icon'  => $trades[$trade]['icon_svc'],
+            'rows'  => (is_array($rows) && $rows !== []) ? $rows : $defaults[$trade],
+        ];
+    }
+    return $out;
 }
 
 function seo_defaults(string $route = 'home', ?array $page = null): array
@@ -1305,6 +1355,34 @@ function visible_realisations(int $limit = 6): array
     try {
         return db_fetch_all('SELECT * FROM realisations WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT '.max(1,(int)$limit));
     } catch (Throwable $e) { return []; }
+}
+
+/** Types de service proposés dans l'admin pour une réalisation ou un avis. */
+function service_type_options(): array
+{
+    return ['Électricité','Plomberie','Chauffage','Climatisation','Chauffage & Climatisation','CVC','PAC','VMC & Ventilation','Portail & Visiophone','Automatismes & Électroménager','Maintenance','Dépannage'];
+}
+
+/** Métiers auxquels se rattache un type de service. « Chauffage & Climatisation » en donne deux. */
+function realisation_trades(string $serviceType): array
+{
+    $motifs = [
+        'electricite'   => '/[ée]lectri/iu',
+        'plomberie'     => '/plomb/iu',
+        'chauffage'     => '/chauff|chaudi|\bpac\b|pompe/iu',
+        'climatisation' => '/clim|\bcvc\b/iu',
+        'vmc'           => '/ventil|\bvmc\b/iu',
+        'portail'       => '/portail|visiophone|interphone|digicode/iu',
+        'automatisme'   => '/automatism|\bvolets?\b|\bstores?\b|domotique|[ée]lectrom[ée]nager/iu',
+    ];
+    return array_keys(array_filter($motifs, static fn(string $m): bool => preg_match($m, $serviceType) === 1));
+}
+
+/** Les réalisations publiées d'un métier, pour sa page service. */
+function realisations_for_trade(string $trade, int $limit = 6): array
+{
+    $rows = array_filter(visible_realisations(1000), static fn(array $r): bool => in_array($trade, realisation_trades((string)($r['service_type'] ?? '')), true));
+    return array_slice(array_values($rows), 0, $limit);
 }
 
 function all_realisations(): array

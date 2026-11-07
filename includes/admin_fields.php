@@ -174,6 +174,7 @@ function admin_page_catalog(): array
                         ['key'=>'nav_zones','label'=>'Lien Nos zones','type'=>'text','default'=>'Nos zones'],
                         ['key'=>'nav_avis','label'=>'Lien Avis clients','type'=>'text','default'=>'Avis clients'],
                         ['key'=>'nav_realisations','label'=>'Lien Réalisations','type'=>'text','default'=>'Réalisations'],
+                        ['key'=>'nav_tarifs','label'=>'Lien Tarifs','type'=>'text','default'=>'Tarifs','help'=>'Visible seulement si la page Tarifs est activée.'],
                     ],
                 ],
                 [
@@ -416,6 +417,9 @@ function admin_page_catalog(): array
                         ['key'=>'svc_interv_title','label'=>'Interventions — titre','type'=>'text','default'=>'Ce que nous'],
                         ['key'=>'svc_interv_title_hl','label'=>'Interventions — fin en couleur','type'=>'text','default'=>'faisons'],
                         ['key'=>'svc_interv_lead','label'=>'Interventions — texte sous le titre','type'=>'textarea','default'=>'Chaque situation demande une réponse adaptée. Voici les interventions que nos techniciens réalisent au quotidien {en_region}.'],
+                        ['key'=>'svc_reals_label','label'=>'Réalisations — surtitre','type'=>'text','default'=>'Nos réalisations'],
+                        ['key'=>'svc_reals_title','label'=>'Réalisations — titre','type'=>'text','default'=>'Chantiers'],
+                        ['key'=>'svc_reals_title_hl','label'=>'Réalisations — fin en couleur','type'=>'text','default'=>'réalisés'],
                         ['key'=>'svc_process_label','label'=>'Méthode — surtitre','type'=>'text','default'=>'Notre méthode'],
                         ['key'=>'svc_process_title','label'=>'Méthode — titre','type'=>'text','default'=>'Intervention en'],
                         ['key'=>'svc_process_title_hl','label'=>'Méthode — fin en couleur','type'=>'text','default'=>'3 étapes'],
@@ -431,6 +435,62 @@ function admin_page_catalog(): array
                         ['key'=>'svc_form_label','label'=>'Formulaire — surtitre','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'svc_form_tag','label'=>'Formulaire — étiquette','type'=>'text','default'=>'Votre technicien'],
                         ['key'=>'svc_form_title','label'=>'Formulaire — titre','type'=>'text','default'=>'Devis gratuit'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_tarifs' => [
+            'label' => 'Page Tarifs',
+            'icon'  => '💶',
+            'route' => 'tarifs',
+            'intro' => 'Tant que la page est désactivée, seul un administrateur connecté peut la voir : vous pouvez la préparer avant de la publier.',
+            'sections' => [
+                [
+                    'id'    => 'statut',
+                    'label' => 'Publication',
+                    'seen'  => 'Active ou retire la page et son lien dans le menu',
+                    'fields' => [
+                        ['key'=>'tarifs_enabled','label'=>'Page Tarifs','type'=>'toggle','default'=>'0','check'=>'Afficher la page Tarifs sur le site','help'=>'Désactivée, la page disparaît du menu et du plan du site, et son adresse renvoie une erreur 404. Ce réglage vaut pour tout le site, zones comprises.'],
+                    ],
+                ],
+                [
+                    'id'    => 'grilles',
+                    'label' => 'Grilles de prix',
+                    'seen'  => 'Une grille par métier',
+                    'note'  => 'Un prix laissé vide s\'affiche « Sur devis ». Précisez si vos prix sont HT ou TTC.',
+                    'fields' => array_map(static function (string $trade, array $rows): array {
+                        return ['key'=>'tarifs_'.$trade,'label'=>service_trade_defaults()[$trade]['label'],'type'=>'list','default'=>$rows,
+                            'columns'=>[
+                                ['k'=>'label','label'=>'Prestation'],
+                                ['k'=>'price','label'=>'Prix (ex : à partir de 90 € TTC)','w'=>'240px'],
+                                ['k'=>'detail','label'=>'Précision (facultatif)'],
+                            ]];
+                    }, array_keys(tarifs_default_rows()), tarifs_default_rows()),
+                ],
+                [
+                    'id'    => 'hero',
+                    'label' => 'Textes de la page',
+                    'seen'  => 'Le haut de page, la mention sous les grilles et l\'appel à l\'action',
+                    'fields' => [
+                        ['key'=>'tarifs_eyebrow','label'=>'Surtitre','type'=>'text','default'=>'Tarification'],
+                        ['key'=>'tarifs_title','label'=>'Titre','type'=>'text','default'=>'Nos'],
+                        ['key'=>'tarifs_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'tarifs'],
+                        ['key'=>'tarifs_quote_label','label'=>'Texte si aucun prix','type'=>'text','default'=>'Sur devis'],
+                        ['key'=>'tarifs_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des prix clairs, confirmés avant toute intervention.'],
+                        ['key'=>'tarifs_note','label'=>'Mention sous les grilles','type'=>'textarea','default'=>'Tarifs donnés à titre indicatif. Le prix définitif est confirmé par un devis gratuit avant toute intervention.'],
+                        ['key'=>'tarifs_cta_title','label'=>'Appel à l\'action — titre','type'=>'text','default'=>'Besoin d\'un prix précis ?'],
+                        ['key'=>'tarifs_cta_btn','label'=>'Appel à l\'action — bouton','type'=>'text','default'=>'Demander un devis gratuit'],
+                        ['key'=>'tarifs_cta_lead','label'=>'Appel à l\'action — texte','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous répondons avec un chiffrage clair et sans engagement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'tarifs_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Tarifs | '.$name],
+                        ['key'=>'tarifs_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Nos tarifs en électricité, plomberie, chauffage, climatisation, ventilation, portail et automatismes. Devis gratuit avant toute intervention.'],
                     ],
                 ],
             ],
@@ -607,6 +667,12 @@ function admin_field_is_list(array $f): bool
     return ($f['type'] ?? '') === 'list';
 }
 
+/** Interrupteur oui/non, commun à tout le site : il ne se personnalise pas par zone. */
+function admin_field_is_toggle(array $f): bool
+{
+    return ($f['type'] ?? '') === 'toggle';
+}
+
 /** Colonnes d'une liste. Une liste sans colonnes déclarées en a une seule. */
 function admin_list_columns(array $f): array
 {
@@ -684,7 +750,7 @@ function admin_list_flatten(array $f): string
 function admin_field_is_inline(array $f): bool
 {
     if (array_key_exists('inline', $f)) return (bool)$f['inline'];
-    if (admin_field_is_list($f)) return false;
+    if (admin_field_is_list($f) || admin_field_is_toggle($f)) return false;
     $k = $f['key'];
     foreach (['meta_title','meta_desc','meta_description','og_','_url','_cities','_tags','_placeholder'] as $pat) {
         if (str_contains($k, $pat)) return false;
@@ -734,6 +800,7 @@ function admin_json_block_plain(string $blob): array
 function admin_field_raw(array $f): string
 {
     if (admin_field_is_list($f)) return raw_setting($f['key']);
+    if (admin_field_is_toggle($f)) return global_setting($f['key'], (string)($f['default'] ?? '0'));
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
         return trim((string)(admin_json_block_plain($blob)[$sub] ?? ''));
@@ -745,6 +812,7 @@ function admin_field_raw(array $f): string
 function admin_field_shown(array $f): string
 {
     if (admin_field_is_list($f)) return admin_list_flatten($f);
+    if (admin_field_is_toggle($f)) return admin_field_raw($f);
     $default = (string)($f['default'] ?? '');
     if (!empty($f['json'])) {
         $raw = admin_field_raw($f);
@@ -760,6 +828,14 @@ function admin_field_save(array $f, string $value): bool
     if (admin_field_is_list($f)) return false;
     $value = trim($value);
     if ($value === admin_field_raw($f)) return false;
+    if (admin_field_is_toggle($f)) {
+        // Écrit la valeur globale, quelle que soit la zone en cours d'édition.
+        $zone = zone_context();
+        set_zone_context(null);
+        set_setting($f['key'], $value === '1' ? '1' : '0');
+        set_zone_context($zone);
+        return true;
+    }
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
         $data = admin_json_block_plain($blob);

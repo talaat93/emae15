@@ -23,11 +23,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('admin/realisations.php');
     }
 
+    // Modification d'une réalisation existante (la photo actuelle reste si aucune n'est envoyée)
+    if (isset($_POST['action']) && $_POST['action'] === 'edit') {
+        $id    = (int)($_POST['id'] ?? 0);
+        $title = trim((string)($_POST['title'] ?? ''));
+        if ($title === '') {
+            flash('error', 'Le titre est obligatoire.');
+            redirect_to('admin/realisations.php?edit='.$id);
+        }
+        db_execute('UPDATE realisations SET title = ?, description = ?, service_type = ?, city = ?, zone_id = ? WHERE id = ?', [
+            $title,
+            trim((string)($_POST['description'] ?? '')),
+            trim((string)($_POST['service_type'] ?? '')),
+            trim((string)($_POST['city'] ?? '')),
+            ((int)($_POST['zone_id'] ?? 0)) ?: null,
+            $id,
+        ]);
+        $image = upload_image_field('image', 'realisations');
+        if ($image !== null) {
+            db_execute('UPDATE realisations SET image_path = ? WHERE id = ?', [$image, $id]);
+        }
+        if ($image === null && !empty($_FILES['image']['name'])) {
+            flash('error', 'Textes enregistrés, mais la photo a été refusée (format ou taille). L\'ancienne est conservée.');
+        } else {
+            flash('success', 'Réalisation modifiée.');
+        }
+        redirect_to('admin/realisations.php');
+    }
+
     // Réaffectation de zone
     if (isset($_POST['action']) && $_POST['action'] === 'setzone') {
         db_execute('UPDATE realisations SET zone_id = ? WHERE id = ?',
             [((int)($_POST['zone_id'] ?? 0)) ?: null, (int)($_POST['id'] ?? 0)]);
         flash('success', 'Zone de la réalisation mise à jour.');
+        redirect_to('admin/realisations.php');
+    }
+
+    // Changement du type de service, qui décide de la page métier d'affichage
+    if (isset($_POST['action']) && $_POST['action'] === 'setservice') {
+        db_execute('UPDATE realisations SET service_type = ? WHERE id = ?',
+            [trim((string)($_POST['service_type'] ?? '')), (int)($_POST['id'] ?? 0)]);
+        flash('success', 'Type de service mis à jour.');
         redirect_to('admin/realisations.php');
     }
 
@@ -63,7 +99,10 @@ if (isset($_GET['delete'])) {
 }
 
 $reals = all_realisations();
-$serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Maintenance','CVC','PAC','Dépannage'];
+$serviceOptions = service_type_options();
+// Le même formulaire sert à ajouter et, avec ?edit=ID, à modifier.
+$edit = isset($_GET['edit']) ? db_fetch('SELECT * FROM realisations WHERE id = ?', [(int)$_GET['edit']]) : null;
+$editService = (string)($edit['service_type'] ?? '');
 ?>
 
 <div class="admin-page-toolbar">
@@ -80,30 +119,37 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
 <div class="admin-stack">
   <!-- Add form -->
   <section class="admin-panel">
-    <div class="admin-panel__head"><h2>Ajouter une réalisation</h2><p>Photo + titre + service + ville = maximum de confiance client.</p></div>
+    <div class="admin-panel__head"><h2><?= $edit ? 'Modifier : '.e($edit['title']) : 'Ajouter une réalisation' ?></h2><p>Photo + titre + service + ville = maximum de confiance client.</p></div>
     <div class="admin-panel__body">
-      <form method="post" enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data" action="<?= e(url_for('admin/realisations.php')) ?>">
         <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-        <input type="hidden" name="action" value="add">
+        <input type="hidden" name="action" value="<?= $edit ? 'edit' : 'add' ?>">
+        <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><?php endif; ?>
         <div class="admin-form-grid admin-form-grid--2">
-          <label class="admin-field"><span>Titre *</span><input type="text" name="title" required placeholder="Ex : Remplacement tableau électrique Paris 15e"></label>
-          <label class="admin-field"><span>Ville</span><input type="text" name="city" placeholder="Ex : Meaux, Paris, Toulouse"></label>
+          <label class="admin-field"><span>Titre *</span><input type="text" name="title" required value="<?= e((string)($edit['title'] ?? '')) ?>" placeholder="Ex : Remplacement tableau électrique Paris 15e"></label>
+          <label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Ex : Meaux, Paris, Toulouse"></label>
         </div>
         <div class="admin-form-grid admin-form-grid--2">
           <label class="admin-field"><span>Type de service</span>
             <select name="service_type">
               <option value="">Choisir</option>
-              <?php foreach ($serviceOptions as $s): ?><option value="<?= e($s) ?>"><?= e($s) ?></option><?php endforeach; ?>
+              <?php foreach (array_unique(array_merge($serviceOptions, $editService !== '' ? [$editService] : [])) as $s): ?><option value="<?= e($s) ?>" <?= $s === $editService ? 'selected' : '' ?>><?= e($s) ?></option><?php endforeach; ?>
             </select>
+            <small style="color:#7b8aa8;">Affiche aussi le chantier sur la page du métier. « Maintenance » et « Dépannage » ne sont rattachés à aucun métier.</small>
           </label>
-          <label class="admin-field"><span>Photo (jpg, png, webp)</span><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp"></label>
+          <label class="admin-field"><span><?= $edit ? 'Remplacer la photo (facultatif)' : 'Photo (jpg, png, webp)' ?></span><input type="file" name="image" accept=".jpg,.jpeg,.png,.webp">
+            <?php if ($edit && trim((string)($edit['image_path'] ?? '')) !== ''): ?><img src="<?= e(asset_url($edit['image_path'])) ?>" alt="Photo actuelle" style="width:120px;height:84px;object-fit:cover;border-radius:8px;margin-top:.4rem;"><?php endif; ?>
+          </label>
         </div>
         <label class="admin-field"><span>Zone d'affichage</span>
-          <?= zone_select_field('zone_id', zone_ctx_id()) ?>
+          <?= zone_select_field('zone_id', $edit ? (int)($edit['zone_id'] ?? 0) : zone_ctx_id()) ?>
           <small style="color:#7b8aa8;">« Toutes les zones » affiche ce chantier sur l'ensemble du site.</small>
         </label>
-        <label class="admin-field"><span>Description courte</span><textarea name="description" rows="3" placeholder="Décrivez rapidement l'intervention réalisée..."></textarea></label>
-        <div class="admin-savebar"><button class="admin-btn admin-btn--primary" type="submit">Ajouter</button></div>
+        <label class="admin-field"><span>Description courte</span><textarea name="description" rows="3" placeholder="Décrivez rapidement l'intervention réalisée..."><?= e((string)($edit['description'] ?? '')) ?></textarea></label>
+        <div class="admin-savebar">
+          <?php if ($edit): ?><a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/realisations.php')) ?>">Annuler</a><?php endif; ?>
+          <button class="admin-btn admin-btn--primary" type="submit"><?= $edit ? 'Enregistrer' : 'Ajouter' ?></button>
+        </div>
       </form>
     </div>
   </section>
@@ -128,7 +174,22 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
                   <?php endif; ?>
                 </td>
                 <td style="font-weight:700;"><?= e($r['title']) ?></td>
-                <td><?= e((string)($r['service_type']??'')) ?></td>
+                <td>
+                  <?php $curService = (string)($r['service_type'] ?? ''); ?>
+                  <form method="post" style="margin:0;">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+                    <input type="hidden" name="action" value="setservice">
+                    <input type="hidden" name="id" value="<?= (int)$r['id'] ?>">
+                    <select name="service_type" onchange="this.form.submit()" style="font-size:.8rem;padding:.25rem;">
+                      <option value="">Choisir</option>
+                      <?php foreach (array_unique(array_merge($serviceOptions, $curService !== '' ? [$curService] : [])) as $s): ?>
+                        <option value="<?= e($s) ?>" <?= $s === $curService ? 'selected' : '' ?>><?= e($s) ?></option>
+                      <?php endforeach; ?>
+                    </select>
+                  </form>
+                  <?php if (realisation_trades($curService) === []): ?><small style="color:#b45309;display:block;margin-top:.2rem;">Sur aucune page métier</small><?php endif; ?>
+                </td>
+                <td><?= e((string)($r['city']??'')) ?></td>
                 <td>
                   <form method="post" style="margin:0;">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
@@ -140,6 +201,7 @@ $serviceOptions = ['Électricité','Plomberie','Chauffage & Climatisation','Main
                 <td><?= (int)$r['is_visible'] === 1 ? '<span style="color:#16a34a;font-weight:700;">✓ Oui</span>' : '<span style="color:#dc2626;">Non</span>' ?></td>
                 <td>
                   <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                    <a class="admin-btn admin-btn--primary" href="<?= e(url_for('admin/realisations.php?edit='.(int)$r['id'])) ?>" style="min-height:36px;padding:0 .75rem;font-size:.82rem;">Modifier</a>
                     <a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/realisations.php?toggle='.(int)$r['id'])) ?>" style="min-height:36px;padding:0 .75rem;font-size:.82rem;">
                       <?= (int)$r['is_visible'] === 1 ? 'Masquer' : 'Afficher' ?>
                     </a>

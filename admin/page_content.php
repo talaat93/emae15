@@ -165,6 +165,16 @@ require_once __DIR__ . '/partials/header.php';
       <div class="admin-form-grid admin-form-grid--2">
         <?php foreach ($s['fields'] as $f):
             if (admin_field_is_list($f)) { include __DIR__.'/partials/field_list.php'; continue; }
+            if (admin_field_is_toggle($f)):
+                $on = admin_field_raw($f) === '1';
+        ?>
+        <div class="admin-field" style="grid-column:1/-1">
+          <span><?= e($f['label']) ?> <em class="pc-tag" style="<?= $on ? 'color:#15803d;background:#dcfce7;' : '' ?>"><?= $on ? 'En ligne' : 'Désactivée' ?></em></span>
+          <input type="hidden" name="<?= e($f['key']) ?>" value="0">
+          <label class="check-row"><input type="checkbox" name="<?= e($f['key']) ?>" value="1" <?= $on ? 'checked' : '' ?>> <?= e($f['check'] ?? $f['label']) ?></label>
+          <?php if (!empty($f['help'])): ?><small class="pc-help"><?= e($f['help']) ?></small><?php endif; ?>
+        </div>
+        <?php continue; endif;
             $key     = $f['key'];
             $raw     = admin_field_raw($f);
             $shown   = admin_field_shown($f);   // ce que le visiteur voit aujourd'hui
