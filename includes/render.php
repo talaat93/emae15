@@ -184,6 +184,9 @@ function render_footer(): void
         <li><a href="<?= e(route_url('plomberie')) ?>">Plomberie</a></li>
         <li><a href="<?= e(route_url('chauffage')) ?>">Chauffage & PAC</a></li>
         <li><a href="<?= e(route_url('climatisation')) ?>">Climatisation CVC</a></li>
+        <li><a href="<?= e(route_url('vmc')) ?>">VMC & Ventilation</a></li>
+        <li><a href="<?= e(route_url('portail')) ?>">Portail & Visiophone</a></li>
+        <li><a href="<?= e(route_url('automatisme')) ?>">Automatismes & Électroménager</a></li>
         <li><a href="<?= e(route_url('services')) ?>">Tous nos services</a></li>
       </ul>
     </div>

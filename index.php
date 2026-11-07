@@ -199,6 +199,17 @@ if ($route === '' || $route === 'home') {
         </div>
       </a>
       <?php endforeach; ?>
+      <?php if (count($cards) % 2 === 1): // Un nombre impair de cartes laisserait un trou dans la grille. ?>
+      <a class="svc-card" href="<?= e(route_url('services')) ?>">
+        <div class="svc-placeholder"><div class="svc-placeholder-lines"></div><div class="svc-placeholder-icon">🧰</div></div>
+        <div class="svc-overlay"></div>
+        <span class="svc-arrow">→</span>
+        <div class="svc-body">
+          <div class="svc-name"><?= e(setting('services_all_title','Tous nos services')) ?></div>
+          <div class="svc-desc"><?= e(setting('services_all_desc','Découvrez l\'ensemble de nos métiers et de nos prestations.')) ?></div>
+        </div>
+      </a>
+      <?php endif; ?>
     </div>
   </div>
 </section>
@@ -1012,6 +1023,53 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
     <p><?= e(setting('tarifs_cta_lead','Décrivez votre besoin, nous vous répondons avec un chiffrage clair et sans engagement.')) ?></p>
     <div class="acts">
       <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('tarifs_cta_btn','Demander un devis gratuit')) ?></a>
+      <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    </div>
+  </div>
+</div></section>
+<?php render_footer(); exit; }
+
+/* ════ NOS SERVICES ════ */
+// Composée à partir des fiches métier : un métier ajouté apparaît ici tout seul,
+// avec les textes modifiés dans son écran d'administration.
+if ($route === 'services') {
+    $page  = page_by_slug('services');
+    $meta  = $page ? seo_defaults('services', $page) : ['title'=>'Nos services | '.company_name(),'description'=>'Nos services multitechniques.','canonical'=>route_url('services')];
+    $trades = array_keys(service_trade_defaults());
+    $icones = service_trade_defaults();
+    $teintes = ['electricite'=>'#E8921A','plomberie'=>'#1a7ab5','chauffage'=>'#c0392b','climatisation'=>'#2980b9','vmc'=>'#16a085','portail'=>'#8e44ad','automatisme'=>'#d4a017'];
+    render_head($meta); render_header(route_url('services'));
+?>
+<section class="page-hero"><div class="wrap"><div class="ph-eyebrow"><?= e(setting('services_eyebrow','Nos services')) ?></div>
+  <h1 class="ph-h1"><?= e(setting('services_h1','Services')) ?></h1>
+  <p class="ph-lead"><?= e(setting('services_page_lead','Nos services multitechniques')) ?></p>
+</div></section>
+<section class="sec sec-navy"><div class="wrap">
+  <div class="sp-intro">
+    <h2><?= e(setting('services_intro_title','Nos '.count($trades).' pôles d\'intervention')) ?></h2>
+    <p><?= e(geo_replace(setting('services_intro_lead','Un seul interlocuteur pour l\'ensemble de vos besoins techniques. EMAE intervient en urgence, installation, entretien et mise aux normes {en_region}.'))) ?></p>
+  </div>
+  <div class="sp-grid">
+    <?php foreach ($trades as $trade): $tpl = service_template($trade); ?>
+    <div class="sp-card" style="--sp-teinte:<?= e($teintes[$trade] ?? '#F07B1D') ?>">
+      <span class="sp-icon" aria-hidden="true"><?= e($icones[$trade]['icon_svc']) ?></span>
+      <h3 class="sp-title"><?= e($tpl['label']) ?></h3>
+      <p class="sp-desc"><?= e(geo_replace($tpl['desc'])) ?></p>
+      <div class="sp-tags">
+        <?php foreach ((array)$tpl['badges'] as $b): ?><span class="sp-tag"><?= e(is_array($b) ? (string)reset($b) : (string)$b) ?></span><?php endforeach; ?>
+      </div>
+      <ul class="sp-list">
+        <?php foreach (array_slice((array)$tpl['offer_items'], 0, 5) as $it): ?><li><?= e(is_array($it) ? (string)reset($it) : (string)$it) ?></li><?php endforeach; ?>
+      </ul>
+      <a class="sp-link" href="<?= e(route_url($trade)) ?>"><?= e(setting('services_card_link','Voir nos prestations')) ?> →</a>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <div class="sp-cta">
+    <h3><?= e(setting('services_cta_title','Besoin d\'un technicien ?')) ?></h3>
+    <p><?= e(setting('services_cta_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Devis gratuit et sans engagement.')) ?></p>
+    <div class="sp-acts">
+      <a class="btn btn-p btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('services_cta_btn','Devis gratuit en 2 min')) ?></a>
       <a class="btn btn-outline btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
     </div>
   </div>

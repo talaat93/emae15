@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <div>
     <div class="admin-breadcrumb">Accueil</div>
     <h1 class="admin-page-title">Pôles d'intervention — cartes accueil</h1>
-    <p class="admin-page-subtitle">Les 4 cartes « Nos pôles d'intervention » visibles sur la page d'accueil. L'image s'affiche en fond de chaque carte.</p>
+    <p class="admin-page-subtitle">Les cartes « Nos pôles d'intervention » visibles sur la page d'accueil. L'image s'affiche en fond de chaque carte.</p>
   </div>
 </div>
 
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <section class="admin-panel">
   <div class="admin-panel__head">
-    <h2>Modifier les 4 cartes</h2>
+    <h2>Modifier les cartes</h2>
     <p>Titre, image de fond, lien, badge, description courte et tags (séparés par des virgules).</p>
   </div>
   <div class="admin-panel__body repeat-grid">

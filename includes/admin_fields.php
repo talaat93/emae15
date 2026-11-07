@@ -70,6 +70,8 @@ function admin_page_catalog(): array
                         ['key'=>'services_section_label','label'=>'Surtitre','type'=>'text','default'=>'Nos pôles d\'intervention'],
                         ['key'=>'services_title','label'=>'Titre','type'=>'text','default'=>'Tout ce dont vous avez'],
                         ['key'=>'services_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'besoin'],
+                        ['key'=>'services_all_title','label'=>'Tuile « Tous nos services » — titre','type'=>'text','default'=>'Tous nos services'],
+                        ['key'=>'services_all_desc','label'=>'Tuile « Tous nos services » — texte','type'=>'text','default'=>'Découvrez l\'ensemble de nos métiers et de nos prestations.'],
                         ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes {en_region} — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
                     ],
                 ],
@@ -392,6 +394,31 @@ function admin_page_catalog(): array
                     'fields' => [
                         ['key'=>'reals_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Réalisations | '.$name],
                         ['key'=>'reals_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Nos chantiers et interventions.'],
+                    ],
+                ],
+            ],
+        ],
+
+        'page_nos_services' => [
+            'label' => 'Page Nos services',
+            'icon'  => '🧰',
+            'route' => 'services',
+            'intro' => 'La page qui présente tous les métiers. Le contenu de chaque carte se modifie dans l\'écran du métier concerné.',
+            'sections' => [
+                [
+                    'id'    => 'textes',
+                    'label' => 'Textes de la page',
+                    'seen'  => 'Le haut de page, l\'introduction et l\'appel à l\'action',
+                    'fields' => [
+                        ['key'=>'services_eyebrow','label'=>'Surtitre','type'=>'text','default'=>'Nos services'],
+                        ['key'=>'services_h1','label'=>'Grand titre','type'=>'text','default'=>'Services'],
+                        ['key'=>'services_page_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Nos services multitechniques'],
+                        ['key'=>'services_intro_title','label'=>'Introduction — titre','type'=>'text','default'=>'Nos '.count(service_trade_defaults()).' pôles d\'intervention'],
+                        ['key'=>'services_intro_lead','label'=>'Introduction — texte','type'=>'textarea','default'=>'Un seul interlocuteur pour l\'ensemble de vos besoins techniques. EMAE intervient en urgence, installation, entretien et mise aux normes {en_region}.'],
+                        ['key'=>'services_card_link','label'=>'Lien des cartes','type'=>'text','default'=>'Voir nos prestations'],
+                        ['key'=>'services_cta_title','label'=>'Appel à l\'action — titre','type'=>'text','default'=>'Besoin d\'un technicien ?'],
+                        ['key'=>'services_cta_lead','label'=>'Appel à l\'action — texte','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Devis gratuit et sans engagement.'],
+                        ['key'=>'services_cta_btn','label'=>'Appel à l\'action — bouton','type'=>'text','default'=>'Devis gratuit en 2 min'],
                     ],
                 ],
             ],

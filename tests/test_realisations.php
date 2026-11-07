@@ -52,6 +52,16 @@ $src = file_get_contents($R.'/index.php');
 $d = strpos($src, "if (\$route === 'realisations') {");
 check('elle lit les réalisations visibles', str_contains(substr($src, (int)$d, 120), 'visible_realisations('), true);
 
+echo "\n5. La page Nos services présente tous les métiers\n";
+$d = strpos($src, "if (\$route === 'services') {");
+check('la page a son gabarit', $d !== false, true);
+check('elle parcourt les fiches métier', str_contains(substr($src, (int)$d, 500), 'array_keys(service_trade_defaults())'), true);
+
+echo "\n6. Les cartes de l'accueil couvrent tous les métiers\n";
+$cartes = service_cards_v14();
+check('une carte par métier', array_column($cartes, 'link'), array_keys(service_trade_defaults()));
+check('chaque carte a son icône', count(array_filter(array_column($cartes, 'placeholder_icon'))), count($cartes));
+
 echo "\n";
 echo $fail === 0 ? "$pass assertions PASSENT\n" : "$fail ÉCHECS sur ".($pass+$fail)."\n";
 exit($fail === 0 ? 0 : 1);

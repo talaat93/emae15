@@ -1618,13 +1618,20 @@ function service_cards_v14(): array
 {
     $default = [
         ['title'=>'Électricité',          'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
-         'tags'=>['Dépannage','Installation','Mise aux normes']],
+         'tags'=>['Dépannage','Installation','Mise aux normes'], 'placeholder_icon'=>'⚡'],
         ['title'=>'Plomberie',            'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
-         'tags'=>['Fuite','Sanitaires','Entretien']],
+         'tags'=>['Fuite','Sanitaires','Entretien'], 'placeholder_icon'=>'💧'],
         ['title'=>'Chauffage & PAC',      'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
-         'tags'=>['Chaudière','PAC','Entretien annuel']],
+         'tags'=>['Chaudière','PAC','Entretien annuel'], 'placeholder_icon'=>'🔥'],
         ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
-         'tags'=>['Clim','CVC','Installation']],
+         'tags'=>['Clim','CVC','Installation'], 'placeholder_icon'=>'❄️'],
+        // Ces titres sont aussi ceux du formulaire de devis : les garder identiques évite les doublons.
+        ['title'=>'VMC & Ventilation',    'image'=>'','link'=>'vmc',          'badge'=>'Qualité de l\'air','desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
+         'tags'=>['VMC','Entretien','Humidité'], 'placeholder_icon'=>'🌬️'],
+        ['title'=>'Portail & Visiophone', 'image'=>'','link'=>'portail',      'badge'=>'Portail bloqué','desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
+         'tags'=>['Portail','Visiophone','Interphone'], 'placeholder_icon'=>'🚪'],
+        ['title'=>'Automatismes & Électroménager','image'=>'','link'=>'automatisme','badge'=>'Volets & domotique','desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
+         'tags'=>['Volets','Domotique','Électroménager'], 'placeholder_icon'=>'🤖'],
     ];
     $cards = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
@@ -1638,6 +1645,7 @@ function service_cards_v14(): array
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
             'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
             'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
+            'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')) ?: $fallback['placeholder_icon'],
         ];
     }
     return $out;

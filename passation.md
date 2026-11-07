@@ -394,10 +394,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-692 assertions, aucune base de données nécessaire : chaque test remplace
+696 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 171 fichiers PHP.
+sur les 170 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -544,7 +544,8 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
-| *(voir `git log`)* | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
+| *(voir `git log`)* | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
+| `cf858e8` | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |
 | `d660dd8` | Pages métier : présentation du métier et textes sous chaque titre de section |
