@@ -87,6 +87,10 @@ function notif_sms(string $to, string $message): bool
 function notif_abs_url(string $path): string
 {
     $base = site_base_url();
+    if ($base === '' && empty($_SERVER['HTTP_HOST'])) {
+        // Tâche planifiée (pas de navigateur) : adresse du site retenue lors d'une visite.
+        $base = global_setting('site_public_origin', '');
+    }
     if ($base === '') {
         $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
         $base = $scheme.'://'.($_SERVER['HTTP_HOST'] ?? 'localhost');
@@ -323,6 +327,9 @@ function notify_client_scheduled(array $iv, array $tech): void
     $s = notif_iv_summary($iv);
     $co = company_name();
     $msg = $co.' : votre intervention ('.$s['what'].') est planifiée le '.$s['when'].'. Technicien : '.$tech['name'].'.';
+    // Lien de suivi : le client voit quand le technicien part et arrive.
+    $track = function_exists('intervention_track_url') ? intervention_track_url((int)$iv['id']) : '';
+    if ($track !== '') $msg .= ' Suivi : '.$track;
     $client = get_client_by_id((int)$iv['client_id']);
     if (!$client) return;
     if (notif_enabled('notif_client_email') && !empty($client['email'])) {
@@ -331,7 +338,7 @@ function notify_client_scheduled(array $iv, array $tech): void
             'Votre intervention <b>'.htmlspecialchars($s['what'], ENT_QUOTES, 'UTF-8').'</b> est planifiée le <b>'.htmlspecialchars($s['when'], ENT_QUOTES, 'UTF-8').'</b>.',
             'Votre technicien : '.htmlspecialchars((string)$tech['name'], ENT_QUOTES, 'UTF-8').'. Il vous préviendra lorsqu\'il sera en route.',
             'Pour toute question, répondez simplement à cet e-mail.',
-        ]);
+        ], $track !== '' ? $track : null, 'Suivre mon intervention');
     }
     if (notif_enabled('notif_client_sms') && !empty($client['phone'])) notif_sms((string)$client['phone'], $msg);
 }
@@ -347,11 +354,13 @@ function notify_client_en_route(int $ivId): void
         if (!$client) return;
         $techName = (string)($iv['tech_name'] ?? 'Votre technicien');
         $msg = company_name().' : '.$techName.' est en route pour votre intervention. Il arrive bientôt.';
+        $track = function_exists('intervention_track_url') ? intervention_track_url($ivId) : '';
+        if ($track !== '') $msg .= ' Suivi : '.$track;
         if (notif_enabled('notif_client_sms') && !empty($client['phone'])) notif_sms((string)$client['phone'], $msg);
         if (notif_enabled('notif_client_email') && !empty($client['email'])) {
             notif_mail((string)$client['email'], 'Votre technicien est en route', 'Votre technicien est en route', [
                 htmlspecialchars($techName, ENT_QUOTES, 'UTF-8').' vient de partir pour votre intervention et arrive bientôt.',
-            ]);
+            ], $track !== '' ? $track : null, 'Suivre mon intervention');
         }
     } catch (Throwable $e) { error_log('[EMAE notif] en route #'.$ivId.' : '.$e->getMessage()); }
 }

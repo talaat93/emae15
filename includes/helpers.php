@@ -489,7 +489,7 @@ function schema_local_business(): string
         $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc,'bestRating'=>5,'worstRating'=>1];
     }
     if ($wa !== '') {
-        $data['sameAs'] = ['https://wa.me/'.preg_replace('/[^0-9]/', '', $wa)];
+        $data['sameAs'] = ['https://wa.me/'.(function_exists('whatsapp_digits') ? whatsapp_digits($wa) : preg_replace('/[^0-9]/', '', $wa))];
     }
     return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }
@@ -592,7 +592,19 @@ const QUOTE_PHOTOS_MAX    = 3;
 const QUOTE_PHOTO_MAX_MB  = 10;
 const QUOTE_MAIL_ATTACH_MAX_MB = 10;
 
-function quote_request_type(string $raw): string { return $raw === 'rappel' ? 'rappel' : 'devis'; }
+/** rappel, devis, rdv (rendez-vous en ligne) ou entretien (contrat d'entretien) ; tout le reste = devis. */
+function quote_request_type(string $raw): string { return in_array($raw, ['rappel', 'rdv', 'entretien'], true) ? $raw : 'devis'; }
+
+/** Présentation de chaque type : expéditeur du mail, couleur, bandeau, début d'objet, étiquette. */
+function quote_type_info(string $type): array
+{
+    return [
+        'rappel'    => ['Rappel',      '#F07B1D', '📞 DEMANDE DE RAPPEL — le client attend votre appel', '📞 À RAPPELER — ', '📞 Rappel',      '#fff3e0', '#b84700'],
+        'rdv'       => ['Rendez-vous', '#0F766E', '📅 DEMANDE DE RENDEZ-VOUS — créneau à confirmer au client', '📅 RENDEZ-VOUS — ', '📅 Rendez-vous', '#e6f6f4', '#0f5e57'],
+        'entretien' => ['Entretien',   '#7C3AED', '🔧 DEMANDE DE CONTRAT D\'ENTRETIEN', '🔧 ENTRETIEN — ', '🔧 Entretien',   '#f1eafe', '#5b21b6'],
+        'devis'     => ['Devis',       '#1D4ED8', '📋 DEMANDE DE DEVIS', '📋 DEVIS — ', '📋 Devis',      '#e8f0ff', '#1a3baa'],
+    ][quote_request_type($type)];
+}
 
 /** Dossier privé des photos, créé fermé au public. */
 function quote_photo_dir(): string
@@ -671,9 +683,10 @@ function quote_photos_html(array $q): string
 function quote_type_badge(array $q): string
 {
     $t = (string)($q['request_type'] ?? '');
-    if ($t === 'rappel') return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:#fff3e0;color:#b84700;font-weight:700;font-size:.78rem;white-space:nowrap;">📞 Rappel</span>';
-    if ($t === 'devis')  return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:#e8f0ff;color:#1a3baa;font-weight:700;font-size:.78rem;white-space:nowrap;">📋 Devis</span>';
-    return '';
+    if (!in_array($t, ['rappel', 'devis', 'rdv', 'entretien'], true)) return '';
+    $i = quote_type_info($t);
+    $slot = $t === 'rdv' && !empty($q['preferred_date']) ? '<br><small style="color:#0f5e57;">'.e(booking_day_label((string)$q['preferred_date']).(isset(booking_slots()[(string)($q['preferred_slot'] ?? '')]) ? ' — '.booking_slots()[(string)$q['preferred_slot']] : '')).'</small>' : '';
+    return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:'.$i[5].';color:'.$i[6].';font-weight:700;font-size:.78rem;white-space:nowrap;">'.$i[4].'</span>'.$slot;
 }
 
 /**
@@ -733,11 +746,11 @@ function quote_notification_compose(array $data, bool $attach = true): array
     $quoteId = (int)($data['quote_id'] ?? 0);
 
     // Le type se lit partout : nom de l'expéditeur et objet dans la liste des mails, bandeau dans le mail.
-    $isCallback = quote_request_type((string)($data['request_type'] ?? '')) === 'rappel';
-    $typeSender = $isCallback ? 'Rappel' : 'Devis';
-    $typeColor  = $isCallback ? '#F07B1D' : '#1D4ED8';
-    $typeBanner = $isCallback ? '📞 DEMANDE DE RAPPEL — le client attend votre appel' : '📋 DEMANDE DE DEVIS';
-    $subjectTxt = ($isCallback ? '📞 À RAPPELER — ' : '📋 DEVIS — ').str_replace(["\r", "\n"], ' ', $rawName).' ('.str_replace(["\r", "\n"], ' ', $rawUrgency).')';
+    [$typeSender, $typeColor, $typeBanner, $subjectStart] = quote_type_info((string)($data['request_type'] ?? ''));
+    $subjectTxt = $subjectStart.str_replace(["\r", "\n"], ' ', $rawName).' ('.str_replace(["\r", "\n"], ' ', $rawUrgency).')';
+    if (trim((string)($data['slot_label'] ?? '')) !== '') {
+        $typeBanner .= '<br><span style="font-size:15px;font-weight:400;">Créneau souhaité : <strong>'.$esc((string)$data['slot_label']).'</strong></span>';
+    }
 
     // Photos : jointes au mail tant que le total reste raisonnable, sinon à voir sur la fiche.
     $attachments = [];
@@ -1245,12 +1258,68 @@ function webp_variant_path(string $path): ?string
  */
 function picture_html(string $path, string $alt, array $attrs = []): string
 {
+    // Une photo de 4 Mo affichée sur une carte de 400 px : on sert une copie réduite.
+    $small = image_resized_variant($path, (int)($attrs['data-max'] ?? 1200));
+    unset($attrs['data-max']);
+    if ($small !== null) {
+        $path = $small['src'];
+        $attrs += ['width' => $small['w'], 'height' => $small['h']];   // réserve la place : la page ne « saute » plus
+    }
     $attrStr = '';
     foreach ($attrs as $k => $v) { $attrStr .= ' ' . e($k) . '="' . e((string)$v) . '"'; }
     $img = '<img src="' . e(asset_url($path)) . '" alt="' . e($alt) . '"' . $attrStr . '>';
-    $webp = webp_variant_path($path);
+    $webp = $small['webp'] ?? webp_variant_path($path);
     if ($webp === null) return $img;
     return '<picture><source srcset="' . e(asset_url($webp)) . '" type="image/webp">' . $img . '</picture>';
+}
+
+/**
+ * Copie réduite d'une image envoyée sur le site (largeur maximale $maxW), créée à la
+ * première demande puis réutilisée : « photo.jpg » → « photo-w1200.jpg » et
+ * « photo-w1200.webp ». Retour : ['src', 'webp' (ou null), 'w', 'h'], ou null quand
+ * l'image est déjà légère, n'est pas un JPEG/PNG du site, ou que le serveur ne sait
+ * pas réduire les images (l'original est alors affiché, comme avant).
+ */
+function image_resized_variant(string $path, int $maxW = 1200): ?array
+{
+    $rel = ltrim($path, '/');
+    if ($maxW < 64 || !preg_match('#^storage/uploads/[A-Za-z0-9_/.-]+\.(jpe?g|png)$#i', $rel) || str_contains($rel, '..')) return null;
+    $src = __DIR__.'/../'.$rel;
+    if (!is_file($src)) return null;
+    $ext  = strtolower(pathinfo($rel, PATHINFO_EXTENSION)) === 'png' ? 'png' : 'jpg';
+    $base = preg_replace('/\.[a-z]+$/i', '', $rel).'-w'.$maxW;
+    $out  = $base.'.'.$ext;
+    $webp = $base.'.webp';
+    $skip = __DIR__.'/../'.$base.'.skip';
+    if (is_file(__DIR__.'/../'.$out)) {
+        $s = @getimagesize(__DIR__.'/../'.$out);
+        return $s ? ['src' => $out, 'webp' => is_file(__DIR__.'/../'.$webp) ? $webp : null, 'w' => $s[0], 'h' => $s[1]] : null;
+    }
+    if (is_file($skip) || !function_exists('imagecreatetruecolor')) return null;
+    $info = @getimagesize($src);
+    // Déjà légère et pas trop large : rien à faire (et on ne recommence pas à chaque visite).
+    if (!$info || ($info[0] <= $maxW && filesize($src) < 200 * 1024) || $info[0] * $info[1] > 40_000_000) { @touch($skip); return null; }
+    try {
+        @ini_set('memory_limit', '256M');
+        $im = $ext === 'png' ? @imagecreatefrompng($src) : @imagecreatefromjpeg($src);
+        if (!$im) { @touch($skip); return null; }
+        // Photos de téléphone : la rotation est dans les métadonnées, pas dans les pixels.
+        if ($ext === 'jpg' && function_exists('exif_read_data')) {
+            $o = (int)((@exif_read_data($src)['Orientation'] ?? 1));
+            $rot = [3 => 180, 6 => -90, 8 => 90][$o] ?? 0;
+            if ($rot !== 0 && ($r = imagerotate($im, $rot, 0)) !== false) { imagedestroy($im); $im = $r; }
+        }
+        $w = imagesx($im); $h = imagesy($im);
+        $nw = min($maxW, $w); $nh = max(1, (int)round($h * $nw / $w));
+        $dst = imagecreatetruecolor($nw, $nh);
+        if ($ext === 'png') { imagealphablending($dst, false); imagesavealpha($dst, true); }
+        imagecopyresampled($dst, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        $ok = $ext === 'png' ? imagepng($dst, __DIR__.'/../'.$out, 8) : imagejpeg($dst, __DIR__.'/../'.$out, 80);
+        if ($ok && function_exists('imagewebp')) @imagewebp($dst, __DIR__.'/../'.$webp, 80);
+        imagedestroy($im); imagedestroy($dst);
+        if (!$ok) { @touch($skip); return null; }
+        return ['src' => $out, 'webp' => is_file(__DIR__.'/../'.$webp) ? $webp : null, 'w' => $nw, 'h' => $nh];
+    } catch (Throwable $e) { @touch($skip); return null; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1517,6 +1586,28 @@ function visible_realisations(int $limit = 6): array
     try {
         return db_fetch_all('SELECT * FROM realisations WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT '.max(1,(int)$limit));
     } catch (Throwable $e) { return []; }
+}
+
+/**
+ * Réalisations, celles faites près du visiteur d'abord : même ville, puis villes
+ * du secteur (la zone en cours, ou la liste donnée). Les autres suivent.
+ * Chaque ligne reçoit 'local' : 2 = même ville, 1 = même secteur, 0 = ailleurs.
+ */
+function realisations_local(int $limit, string $city = '', array $areaCities = []): array
+{
+    $norm = static fn(string $s): string => trim((string)preg_replace('/[^a-z0-9]+/', ' ', function_exists('text_ascii_lower') ? text_ascii_lower($s) : strtolower($s)));
+    if ($areaCities === [] && zone_ctx_slug() !== '' && function_exists('intervention_zones')) {
+        foreach (intervention_zones() as $z) if ($z['slug'] === zone_ctx_slug()) $areaCities = $z['cities'];
+    }
+    $c    = $norm($city);
+    $area = array_map($norm, $areaCities);
+    $rows = array_map(static function (array $r) use ($norm, $c, $area): array {
+        $rc = $norm((string)($r['city'] ?? ''));
+        $r['local'] = $rc === '' ? 0 : (($c !== '' && $rc === $c) ? 2 : (in_array($rc, $area, true) ? 1 : 0));
+        return $r;
+    }, visible_realisations(1000));
+    usort($rows, static fn(array $a, array $b): int => $b['local'] <=> $a['local']);   // tri stable : l'ordre choisi dans l'admin est gardé
+    return array_slice($rows, 0, max(1, $limit));
 }
 
 /** Types de service proposés dans l'admin pour une réalisation ou un avis. */

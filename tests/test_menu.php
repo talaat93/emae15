@@ -27,7 +27,7 @@ check('aucun écran orphelin', $orphelins, []);
 
 echo "\n2. Le menu est court et sans doublon\n";
 $groupes = admin_screens();
-check('5 rubriques + vue d\'ensemble', count($groupes), 5);
+check('6 rubriques + vue d\'ensemble (Croissance ajoutée en novembre 2026)', count($groupes), 6);
 $liens = admin_screen_files();
 check('liens du menu', count($liens), count(array_unique($liens)));
 echo "  info  ".count($liens)." liens dans le menu (contre 28 écrans + 10 pages du catalogue avant)\n";

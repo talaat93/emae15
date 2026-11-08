@@ -29,6 +29,12 @@ require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
 require_once __DIR__ . '/client360.php';
 require_once __DIR__ . '/finance.php';
+require_once __DIR__ . '/growth.php';
+require_once __DIR__ . '/content_pages.php';
+require_once __DIR__ . '/automations.php';
+require_once __DIR__ . '/client_space.php';
+require_once __DIR__ . '/payments.php';
+require_once __DIR__ . '/contracts.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -730,6 +736,26 @@ if (!file_exists($_mf33)) {
     unset($_me, $__sql);
 }
 unset($_mf33);
+// Auto-migration v15.34 — rendez-vous en ligne, alertes, demandes d'avis, suivi
+// d'intervention, saisies non terminées, espace client, paiements, contrats d'entretien.
+$_mf34 = __DIR__.'/../storage/.mig_v15_croissance';
+if (!file_exists($_mf34)) {
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN preferred_date DATE NULL",
+        "ALTER TABLE quotes ADD COLUMN preferred_slot VARCHAR(40) NULL",
+        "ALTER TABLE quotes ADD COLUMN alerted_at DATETIME NULL",
+        "ALTER TABLE quotes ADD COLUMN review_requested_at DATETIME NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_completed_at DATETIME NULL",
+        "ALTER TABLE quotes ADD INDEX idx_rdv (request_type, preferred_date)",
+        "ALTER TABLE interventions ADD COLUMN track_token VARCHAR(24) NULL",
+        "ALTER TABLE interventions ADD COLUMN review_requested_at DATETIME NULL",
+        "ALTER TABLE interventions ADD INDEX idx_track (track_token)",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    auto_messages_table(); partial_table(); client_codes_table(); payments_table(); contracts_table();
+    @file_put_contents($_mf34, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf34);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

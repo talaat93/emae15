@@ -19,6 +19,15 @@ foreach (['electricite','plomberie','chauffage','climatisation','vmc','portail']
 }
 $add(route_url('realisations'),  'weekly',  '0.8', $today);
 if (tarifs_enabled()) $add(route_url('tarifs'), 'monthly', '0.7', $today);
+// Pages ajoutées en novembre 2026 : seulement quand elles sont activées.
+if (pannes_enabled()) {
+    $add(route_url('pannes'), 'monthly', '0.7', $today);
+    foreach (array_keys(panne_defaults()) as $_pslug) $add(route_url($_pslug), 'monthly', '0.7', $today);
+}
+if (aides_enabled())      $add(route_url('aides'),       'monthly', '0.6', $today);
+if (estimation_enabled()) $add(route_url('estimation'),  'monthly', '0.6', $today);
+if (booking_enabled())    $add(route_url('rendez-vous'), 'monthly', '0.6', $today);
+if (entretien_enabled())  $add(route_url('entretien'),   'monthly', '0.6', $today);
 $add(route_url('avis'),          'weekly',  '0.7', $today);
 $add(route_url('faq'),           'monthly', '0.7', $today);
 $add(route_url('contact'),       'monthly', '0.8', $today);

@@ -37,6 +37,12 @@ function admin_screens(): array
             'pages.php'        => ['📄 Pages libres'],
             'gallery.php'      => ['🖼️ Galerie médias'],
         ],
+        'Croissance' => [
+            'leads.php'        => ['📊 Suivi des demandes'],
+            'growth.php'       => ['🚀 Conversion & avis'],
+            'contracts.php'    => ['🔧 Contrats d\'entretien'],
+            'payments.php'     => ['💳 Paiements en ligne'],
+        ],
         'Activité' => [
             'quotes.php'       => ['📋 Demandes & interventions'],
             'technicians.php'  => ['👷 Techniciens'],

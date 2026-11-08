@@ -310,3 +310,33 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
+
+/* Demandes non terminées : quand le visiteur a saisi son nom et un téléphone
+   complet, la saisie part en tâche de fond (sans les photos ni le message).
+   Actif seulement si l'option est cochée dans l'admin (attribut data-partial). */
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('form[data-partial]').forEach(function (form) {
+    var url = form.getAttribute('data-partial');
+    var last = '';
+    var timer = null;
+    function send() {
+      var phone = (form.phone && form.phone.value || '').replace(/\D/g, '');
+      if (phone.length < 9 || !form.full_name || form.full_name.value.trim() === '') return;
+      var data = new FormData();
+      ['csrf_token', 'partial_token', 'full_name', 'phone', 'email', 'postal_code', 'service_type', 'source'].forEach(function (k) {
+        if (form[k]) data.append(k, form[k].value);
+      });
+      data.append('form_type', 'partial');
+      var sig = phone + '|' + form.full_name.value + '|' + (form.postal_code ? form.postal_code.value : '') + '|' + (form.service_type ? form.service_type.value : '');
+      if (sig === last) return;
+      last = sig;
+      try {
+        if (navigator.sendBeacon) navigator.sendBeacon(url, data);
+        else fetch(url, {method: 'POST', body: data, keepalive: true, credentials: 'same-origin'});
+      } catch (e) {}
+    }
+    form.addEventListener('change', function () { clearTimeout(timer); timer = setTimeout(send, 800); });
+    form.addEventListener('submit', function () { clearTimeout(timer); last = 'envoyé'; });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && last !== 'envoyé') send(); });
+  });
+});

@@ -12,6 +12,7 @@ declare(strict_types=1);
  * (exactement la valeur de repli utilisée par le site), help (optionnel).
  * Un champ peut viser un sous-élément d'un bloc JSON via json => [clé, sous-clé].
  */
+require_once __DIR__.'/content_pages.php';
 function admin_page_catalog(): array
 {
     $name = company_name();
@@ -654,6 +655,8 @@ function admin_service_pages(): array
             ],
         ];
     }
+    // Pages panne, aides, estimation, rendez-vous, entretien (includes/content_pages.php).
+    $pages += content_pages_catalog();
     return $pages;
 }
 

@@ -21,6 +21,16 @@ if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets'
     }
     unset($_zobj);
 }
+// Adresse qui ne correspond à rien (/tests/x.php, /ancienne-page…) : avant, l'accueil
+// s'affichait avec un code 200, et Google voyait des doublons de l'accueil. Une
+// ancienne adresse « propre » d'une page qui existe (/plomberie) est redirigée.
+if ($_zs0 !== '' && $_zs0 !== 'index.php' && $currentZone === null && $route === '') {
+    if (count($_zsegs) === 1 && public_route_exists($_zs0)) {
+        header('Location: '.absolute_url(route_url($_zs0)), true, 301);
+        exit;
+    }
+    $route = '__introuvable__';
+}
 unset($_zuri, $_zbase, $_zsegs, $_zs0);
 // Active le contexte : tous les réglages et contenus deviennent ceux de la zone,
 // avec repli automatique sur les valeurs globales.
@@ -29,7 +39,7 @@ set_zone_context($currentZone);
 // Mesure d'audience interne : un compteur par jour et par page, sans
 // aucune donnée personnelle. Ignorée pour les robots et pour vous-même.
 require_once __DIR__ . '/includes/stats.php';
-stats_track_view($route, $currentZone['slug'] ?? '');
+if ($route !== '__introuvable__') stats_track_view($route, $currentZone['slug'] ?? '');
 
 /* ── POST FORM ── */
 // Envoi plus lourd que la limite du serveur : PHP vide alors tout le formulaire.
@@ -38,14 +48,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && (int)($_SERVER['CO
     flash('error', 'Vos photos sont trop lourdes : votre demande n\'a pas été envoyée. Réessayez avec moins de photos, ou appelez-nous au '.company_phone().'.');
     redirect_to(route_url($route));
 }
+// Saisie en cours d'un formulaire (nom + téléphone), envoyée en tâche de fond par
+// site.js : permet de rappeler un visiteur qui n'a pas terminé. Désactivé par défaut.
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'partial') {
+    header('Content-Type: application/json; charset=utf-8');
+    $okP = hash_equals(csrf_token(), (string)($_POST['csrf_token'] ?? '')) && rate_limit_passed('partial_save', 3) && trim((string)($_POST['website'] ?? '')) === ''
+        && partial_save($_POST);
+    echo json_encode(['ok' => $okP]);
+    exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
     verify_csrf();
+    // Un caractère mal encodé (vieux navigateur, copier-coller) faisait échouer l'enregistrement : la demande était perdue.
+    array_walk($_POST, static function (&$v): void { if (is_string($v)) $v = mb_scrub($v, 'UTF-8'); });
     if (!rate_limit_passed('quote_submit', 8)) { flash('error','Merci de patienter quelques secondes.'); redirect_to(route_url($route)); }
     if (trim((string)($_POST['website'] ?? '')) !== '') { redirect_to(route_url($route)); }
     $fn=$_POST['full_name']??''; $ph=$_POST['phone']??''; $em=$_POST['email']??'';
     $ci=$_POST['city']??''; $ad=$_POST['address']??''; $pc=$_POST['postal_code']??'';
     $sv=$_POST['service_type']??''; $mg=$_POST['message']??'';
     $ur=$_POST['urgency']??'Normale'; $so=$_POST['source']??'';
+    $qType = quote_request_type((string)($_POST['request_type'] ?? ''));
+    // Rendez-vous en ligne : le créneau est revérifié ici (il a pu se remplir entre-temps).
+    $bDate = null; $bSlot = null; $bLabel = '';
+    if ($qType === 'rdv') {
+        [$bDate, $bSlot] = array_pad(explode('|', (string)($_POST['booking'] ?? ''), 2), 2, '');
+        $bLabel = (booking_enabled() || admin_logged_in()) ? (string)booking_validate((string)$bDate, (string)$bSlot) : '';
+        if ($bLabel === '') { flash('error', 'Ce créneau n\'est plus disponible : choisissez-en un autre, ou appelez-nous au '.company_phone().'.'); redirect_to(route_url($route)); }
+        $reason = mb_substr(trim((string)($_POST['booking_reason'] ?? '')), 0, 120);
+        $mg = 'Rendez-vous souhaité : '.$bLabel."\nMotif : ".($reason !== '' ? $reason : 'non précisé').(trim((string)$mg) !== '' ? "\n\n".trim((string)$mg) : '');
+        if ($sv === '' && $reason !== '') $sv = $reason;
+    }
     if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to(route_url($route)); }
     try {
         db_execute('INSERT INTO quotes (full_name,phone,email,city,address,postal_code,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
@@ -56,19 +88,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
         unset($_qe);
     }
     $qId   = db_last_id();
-    $qType = quote_request_type((string)($_POST['request_type'] ?? ''));
     // La demande est déjà enregistrée : une photo refusée ne peut plus la faire perdre.
     $qPhotos = quote_store_photos($_FILES['photos'] ?? []);
     try {
         db_execute('UPDATE quotes SET request_type = ?, client_photos = ? WHERE id = ?',
             [$qType, $qPhotos['files'] ? json_encode($qPhotos['files']) : null, $qId]);
+        if ($bLabel !== '') db_execute('UPDATE quotes SET preferred_date = ?, preferred_slot = ? WHERE id = ?', [$bDate, $bSlot, $qId]);
     } catch (Throwable $_qe) { error_log('[EMAE] demande #'.$qId.' : '.$_qe->getMessage()); unset($_qe); }
     $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so,
-            'quote_id'=>$qId,'request_type'=>$qType,'photos'=>$qPhotos['files'],'photos_refused'=>$qPhotos['refused']];
+            'quote_id'=>$qId,'request_type'=>$qType,'photos'=>$qPhotos['files'],'photos_refused'=>$qPhotos['refused'],'slot_label'=>$bLabel];
     send_quote_notification($qData);
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
+    quote_after_submit_messages($qData);
+    partial_delete((string)($_POST['partial_token'] ?? ''));
     $_SESSION['quote_conversion'] = 1;
-    flash('success', quote_form_options()['success_message']);
+    flash('success', $bLabel !== '' ? 'Votre demande de rendez-vous ('.$bLabel.') est bien enregistrée. Nous vous rappelons pour confirmer l\'heure.' : quote_form_options()['success_message']);
     if ($qPhotos['refused'] > 0) {
         flash('error', ($qPhotos['refused'] > 1 ? $qPhotos['refused'].' photos n\'ont pas pu être jointes' : 'Une photo n\'a pas pu être jointe')
             .' (formats acceptés : JPG, PNG ou WebP, '.QUOTE_PHOTO_MAX_MB.' Mo maximum). Votre demande est bien partie.');
@@ -83,7 +117,8 @@ if ($route === '' || $route === 'home') {
     $cards  = service_cards_v14();
     $why    = why_us_settings();
     $banner = hero_banner_settings();
-    $reals  = visible_realisations(3);
+    // Sur une page de zone, les chantiers du secteur passent devant.
+    $reals  = $currentZone ? realisations_local(3) : visible_realisations(3);
     $revs   = visible_reviews(3);
     $meta   = seo_defaults('home');
 
@@ -156,6 +191,7 @@ if ($route === '' || $route === 'home') {
         <a class="btn <?= $_bCall ? 'btn-p' : 'btn-outline' ?> btn-lg" href="<?= e($_bUrl) ?>"><?= $_bCall ? '📞 ' : '' ?><?= e($_bLabel) ?></a>
         <?php endforeach; unset($_bUrl, $_bLabel, $_bCall); ?>
       </div>
+      <?= render_google_badge() ?>
 
       <div class="hero-trust">
         <?php foreach ([
@@ -812,6 +848,28 @@ if ($route === 'landing') {
   </div>
 </section>
 
+<?php $lpReals = array_values(array_filter(realisations_local(3, $p_ville, $villes_dept), static fn(array $r): bool => $r['local'] > 0)); if ($lpReals): ?>
+<!-- RÉALISATIONS PRÈS DE LA VILLE -->
+<section class="sec sec-navy">
+  <div class="wrap">
+    <div class="svc-label">Nos réalisations</div>
+    <h2 class="section-title">Chantiers réalisés près de <em><?= e($p_ville) ?></em></h2>
+    <div class="reals-grid" style="margin-top:1.75rem;">
+      <?php foreach ($lpReals as $r): ?>
+      <div class="real-card">
+        <?php render_realisation_media($r); ?>
+        <div class="real-body">
+          <?php if (trim((string)($r['service_type']??''))!==''): ?><div class="real-svc"><?= e($r['service_type']) ?></div><?php endif; ?>
+          <div class="real-h"><?= e($r['title']) ?></div>
+          <?php if (trim((string)($r['city']??''))!==''): ?><div class="real-city">📍 <?= e($r['city']) ?></div><?php endif; ?>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    </div>
+  </div>
+</section>
+<?php endif; unset($lpReals); ?>
+
 <!-- FORMULAIRE DEVIS -->
 <section class="sec sec-navy" id="lp-form">
   <div class="wrap" style="max-width:700px;">
@@ -1096,6 +1154,27 @@ if ($route === 'services') {
 </div></section>
 <?php render_footer(); exit; }
 
+/* ════ PAGES AJOUTÉES EN NOVEMBRE 2026 (gabarits : includes/pages_extra.php) ════ */
+// Une page désactivée n'existe pas pour les visiteurs (404) ; un admin connecté la
+// prévisualise. Sans ce garde-fou, « chaudiere-en-panne » tomberait sur la page Chauffage.
+require_once __DIR__ . '/includes/pages_extra.php';
+$_extra = [
+    'pannes'        => [pannes_enabled(),     'render_page_pannes_index'],
+    'aides'         => [aides_enabled(),      'render_page_aides'],
+    'estimation'    => [estimation_enabled(), 'render_page_estimation'],
+    'rendez-vous'   => [booking_enabled(),    'render_page_rdv'],
+    'entretien'     => [entretien_enabled(),  'render_page_entretien'],
+    'suivi'         => [true,                 'render_page_suivi'],
+    'espace-client' => [true,                 'render_page_espace_client'],
+    'paiement'      => [true,                 'render_page_paiement'],
+];
+if (isset(panne_defaults()[$route])) $_extra[$route] = [pannes_enabled(), static fn() => render_page_panne($route)];
+if (isset($_extra[$route])) {
+    if ($_extra[$route][0] || admin_logged_in()) { ($_extra[$route][1])(); exit; }
+    $route = '__introuvable__';
+}
+unset($_extra);
+
 /* ════ PAGES SERVICE ════ */
 // La page peut exister en base — on reprend alors son titre et son contenu —
 // ou ne pas exister : l'adresse du métier suffit désormais à afficher la page.
@@ -1133,6 +1212,7 @@ if ($tpl !== null || $page) {
     <a class="btn btn-outline btn-lg" href="#etre-rappele"><?= e(setting('svc_page_btn_devis','Devis gratuit')) ?></a>
     <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
   </div>
+  <?= render_google_badge() ?>
   </div>
 
   <!-- Être rappelé : le même encart que sur l'accueil, métier présélectionné -->
@@ -1221,6 +1301,12 @@ if ($tpl !== null || $page) {
     <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details>
     <?php endforeach; ?>
   </div>
+  <?php $svcPannes = pannes_for_trade($sk); if ($svcPannes): ?>
+  <div class="svc-label" style="margin-top:2.25rem;">Pannes fréquentes : que faire ?</div>
+  <div class="px-chips">
+    <?php foreach ($svcPannes as $_pn): ?><a class="px-chip" href="<?= e(route_url($_pn['slug'])) ?>"><?= e($_pn['icon'].' '.$_pn['h1']) ?></a><?php endforeach; unset($_pn); ?>
+  </div>
+  <?php endif; ?>
 </div></section>
 
 <!-- Zones couvertes -->
@@ -1306,6 +1392,8 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
 
   <h2>Données personnelles</h2>
   <p>Les informations recueillies via les formulaires de ce site sont enregistrées dans un fichier informatisé par <?= e(company_name()) ?> pour permettre la gestion des demandes d'intervention. Conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez-nous à : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>.</p>
+  <?php $_keep = (int)growth_get('quote_photos_keep_months'); ?>
+  <p>Les photos jointes à une demande servent uniquement à préparer l'intervention<?= $_keep > 0 ? ' et sont supprimées automatiquement '.$_keep.' mois après la demande' : '' ?>. Votre numéro de téléphone peut être utilisé pour vous envoyer des SMS liés à votre demande : accusé de réception, suivi de l'intervention, rappel d'entretien si vous avez un contrat, et une demande d'avis après l'intervention.<?= partial_enabled() ? ' Si vous saisissez votre nom et votre téléphone dans un formulaire sans l\'envoyer, ces informations sont conservées 30 jours au plus afin de pouvoir vous rappeler.' : '' ?> Les paiements en ligne sont traités par Stripe : aucune donnée de carte bancaire n'est conservée par <?= e(company_name()) ?>.</p>
 
   <h2>Cookies</h2>
   <p>Ce site utilise des cookies techniques nécessaires à son fonctionnement. Aucun cookie publicitaire ou de tracking tiers n'est utilisé sans votre consentement.</p>
@@ -1322,5 +1410,5 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
 http_response_code(404);
 $meta = ['title'=>'Page introuvable | '.company_name(),'description'=>'404.','canonical'=>route_url($route)];
 render_head($meta); render_header('');
-echo '<section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Erreur 404</div><h1 class="ph-h1">Page introuvable</h1><p class="ph-lead">La page demandée n\'existe pas ou a été déplacée.</p><div class="btn-row" style="margin-top:1.75rem;"><a class="btn btn-p" href="'.e(route_url('')).'">Retour à l\'accueil</a></div></div></section>';
+echo '<section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Erreur 404</div><h1 class="ph-h1">Page introuvable</h1><p class="ph-lead">La page demandée n\'existe pas ou a été déplacée.</p><div class="btn-row" style="margin-top:1.75rem;"><a class="btn btn-p" href="'.e(company_phone_link()).'">📞 '.e(company_phone()).'</a><a class="btn btn-outline" href="'.e(route_url('')).'">Retour à l\'accueil</a><a class="btn btn-outline" href="'.e(route_url('services')).'">Nos services</a></div></div></section>';
 render_footer();

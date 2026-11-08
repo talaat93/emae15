@@ -26,7 +26,7 @@ function check(string $l, mixed $g, mixed $w): void { global $pass,$fail;
 
 // Tout le code qui rend le site public.
 $public = '';
-foreach (['index.php','includes/render.php','includes/helpers.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
+foreach (['index.php','includes/render.php','includes/helpers.php','includes/content_pages.php','includes/pages_extra.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
 
 echo "\n1. Aucun champ fantôme sur l'ensemble du site\n";
 $ghosts = [];
@@ -45,7 +45,12 @@ foreach (admin_page_catalog() as $pid => $page) {
         } elseif (str_starts_with($f['key'], 'tarifs_') && array_key_exists(substr($f['key'], 7), tarifs_default_rows())) {
             // grille de prix : clé construite à l'exécution par tarifs_groups()
             if (!str_contains($public, 'setting_plain(\'tarifs_\'.$trade)')) $ghosts[] = $pid.'/'.$f['key'];
-        } elseif (!str_contains($public, "setting('".$f['key']."'")) {
+        } elseif (preg_match('/^panne_(.+)_(h1|lead|checks|never|alert|call|meta_title|meta_desc)$/', $f['key'], $pm)) {
+            // pages panne : clé construite à l'exécution par panne_page(), qui doit connaître la page
+            if (!isset(panne_defaults()[str_replace('_', '-', $pm[1])]) || !str_contains($public, "cp_text(\$k.'".$pm[2]."'") && !str_contains($public, "cp_lines(\$k.'".$pm[2]."'")) $ghosts[] = $pid.'/'.$f['key'];
+        } elseif (!str_contains($public, "setting('".$f['key']."'") && !str_contains($public, "cp_text('".$f['key']."'")
+                  && !str_contains($public, "cp_lines('".$f['key']."'") && !str_contains($public, "global_setting('".$f['key']."'")
+                  && !str_contains($public, "setting_plain('".$f['key']."'")) {
             $ghosts[] = $pid.'/'.$f['key'];
         }
     }

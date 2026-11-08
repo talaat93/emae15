@@ -35,6 +35,8 @@ function render_head(array $meta): void
     echo '<title>'.e($meta['title']).'</title>';
     echo '<meta name="description" content="'.e($meta['description']).'">';
     echo '<link rel="canonical" href="'.e($meta['canonical']).'">';
+    // Pages personnelles (suivi, espace client, paiement) : jamais dans Google.
+    if (!empty($meta['robots'])) echo '<meta name="robots" content="'.e((string)$meta['robots']).'">';
     echo '<meta name="theme-color" content="#0A0C10">';
     echo '<meta property="og:title" content="'.e($meta['title']).'">';
     echo '<meta property="og:description" content="'.e($meta['description']).'">';
@@ -98,6 +100,7 @@ function render_header(string $active = ''): void
     $phone     = company_phone();
     $phoneLink = company_phone_link();
 
+    render_availability_bar();
     if ($showTopbar): ?>
 <div class="topbar">
   <div class="wrap topbar-in">
@@ -127,7 +130,8 @@ function render_header(string $active = ''): void
         $logoExists = trim($logo) !== '' && file_exists(__DIR__.'/../'.$logo);
       ?>
       <?php if ($logoExists): ?>
-        <img src="<?= e(asset_url($logo)) ?>" alt="<?= e(company_name()) ?>" style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="eager" fetchpriority="high">
+        <?php $logoSmall = image_resized_variant($logo, 440); /* affiché sur 220 px au plus : inutile d'envoyer plus grand */ ?>
+        <img src="<?= e(asset_url($logoSmall['src'] ?? $logo)) ?>" alt="<?= e(company_name()) ?>"<?= $logoSmall ? ' width="'.(int)$logoSmall['w'].'" height="'.(int)$logoSmall['h'].'"' : '' ?> style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="eager" fetchpriority="high">
       <?php else: ?>
         <div>
           <div class="brand-name">EM<span>AE</span></div>
@@ -199,6 +203,13 @@ function render_footer(): void
           <li><a href="<?= e($item['url']) ?>"><?= e($item['label']) ?></a></li>
         <?php endforeach; ?>
         <li><a href="<?= e(route_url('quote')) ?>">Devis gratuit</a></li>
+        <?php foreach ([
+            ['pannes', 'Pannes fréquentes', pannes_enabled()], ['estimation', 'Estimer un prix', estimation_enabled()],
+            ['rendez-vous', 'Prendre rendez-vous', booking_enabled()], ['entretien', 'Contrats d\'entretien', entretien_enabled()],
+            ['aides', 'Aides et primes', aides_enabled()], ['espace-client', 'Espace client', client_space_enabled()],
+        ] as [$_r, $_l, $_on]): if ($_on): ?>
+        <li><a href="<?= e(route_url($_r)) ?>"><?= e($_l) ?></a></li>
+        <?php endif; endforeach; unset($_r, $_l, $_on); ?>
         <li><a href="<?= e(url_for('sitemap.php')) ?>">Sitemap</a></li>
       </ul>
     </div>
@@ -249,8 +260,8 @@ function render_footer(): void
 </div>
 <?php endif; ?>
 
-<?php $waNum = preg_replace('/[^0-9]/', '', company_whatsapp()); if ($waNum !== ''): ?>
-<a class="wa-btn" href="https://wa.me/<?= e($waNum) ?>" target="_blank" rel="noopener noreferrer" aria-label="Contacter par WhatsApp">
+<?php $waUrl = whatsapp_url(); if ($waUrl !== ''): ?>
+<a class="wa-btn" href="<?= e($waUrl) ?>" target="_blank" rel="noopener noreferrer" aria-label="Contacter par WhatsApp">
   <svg width="30" height="30" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
 </a>
 <?php endif; ?>
@@ -279,6 +290,8 @@ function render_footer(): void
 </script>
 </body></html>
 <?php
+    // Alertes, demandes d'avis, rappels : lancés après l'envoi de la page (includes/automations.php).
+    if (function_exists('automations_schedule')) automations_schedule();
 }
 
 /* ── FORMULAIRE RÉUTILISABLE ── */
@@ -293,6 +306,8 @@ function render_quote_photo_field(): void
     </label>
     <div class="f-photo-list" aria-live="polite"></div>
     <p class="f-photo-msg" hidden></p>
+    <?php $keep = (int)growth_get('quote_photos_keep_months'); ?>
+    <p class="f-hint">Vos photos servent uniquement à préparer l'intervention<?= $keep > 0 ? ' et sont supprimées automatiquement après '.$keep.' mois' : '' ?>.</p>
   </div>
 <?php
 }
@@ -318,18 +333,23 @@ function render_realisation_media(array $r): void
     }
 }
 
-/** $type : « rappel » pour les encarts « Être rappelé », « devis » pour les autres. */
-function render_quote_form(array $cards, string $source = 'form', string $type = 'devis'): void
+/**
+ * $type : « rappel » pour les encarts « Être rappelé », « devis » pour les autres.
+ * $prefill : service et message déjà remplis (page Estimation, pages panne).
+ */
+function render_quote_form(array $cards, string $source = 'form', string $type = 'devis', array $prefill = []): void
 {
+    $partial = partial_enabled();
     $placeholder = geo_replace(setting('home_quote_city_placeholder','Ex : {ville}…'));
     $submitLabel = quote_form_options()['submit_label'] ?? 'Envoyer ma demande';
     // Exemple de code postal pris dans le secteur de la page (25000, 39100…), pas à Paris.
     $cp = preg_match('/\d{2}/', function_exists('zone_var_value') ? zone_var_value('code_postal') : '', $m) ? $m[0] : '';
     $cpExemple = $cp !== '' ? 'Ex : '.$cp.'000' : 'Ex : 25000';
     ?>
-<form action="<?= e(route_url('quote')) ?>" method="post" enctype="multipart/form-data">
+<form action="<?= e(route_url('quote')) ?>" method="post" enctype="multipart/form-data"<?= $partial ? ' data-partial="'.e(route_url('quote')).'"' : '' ?>>
   <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
   <input type="hidden" name="form_type" value="quote">
+  <?php if ($partial): ?><input type="hidden" name="partial_token" value="<?= e(bin2hex(random_bytes(16))) ?>"><?php endif; ?>
   <input type="hidden" name="request_type" value="<?= e(quote_request_type($type)) ?>">
   <input type="hidden" name="source" value="<?= e($source) ?>">
   <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off">
@@ -337,6 +357,7 @@ function render_quote_form(array $cards, string $source = 'form', string $type =
     <div class="f-field"><span class="f-label">Nom complet *</span><input class="f-input" type="text" name="full_name" placeholder="Votre nom" required></div>
     <div class="f-field"><span class="f-label">Téléphone *</span><input class="f-input" type="tel" name="phone" placeholder="06 00 00 00 00" required></div>
   </div>
+  <?php if ($partial): ?><p class="f-hint">Si vous n'allez pas jusqu'au bout, nous pourrons vous rappeler à ce numéro au sujet de votre demande.</p><?php endif; ?>
   <div class="f-row">
     <div class="f-field"><span class="f-label">Email</span><input class="f-input" type="email" name="email" placeholder="votre@email.fr"></div>
     <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" placeholder="<?= e($cpExemple) ?>" pattern="[0-9]{5}" maxlength="5" required></div>
@@ -354,7 +375,7 @@ function render_quote_form(array $cards, string $source = 'form', string $type =
       foreach (['VMC & Ventilation', 'Portail & Visiophone', 'Automatismes & Électroménager'] as $extra) {
           if (!in_array($extra, $titles, true)) $titles[] = $extra;
       }
-      $pageTrade = str_starts_with($source, 'service_') ? substr($source, 8) : '';
+      $pageTrade = str_starts_with($source, 'service_') ? substr($source, 8) : (string)($prefill['trade'] ?? '');
       foreach ($titles as $t):
           $sel = $pageTrade !== '' && service_detect_trade(strtr($t, ['É'=>'e','é'=>'e','è'=>'e'])) === $pageTrade; ?>
       <option value="<?= e($t) ?>"<?= $sel ? ' selected' : '' ?>><?= e($t) ?></option><?php endforeach; ?>
@@ -370,7 +391,7 @@ function render_quote_form(array $cards, string $source = 'form', string $type =
   </div>
   <div class="f-field">
     <span class="f-label">Votre besoin *</span>
-    <textarea class="f-input f-textarea" name="message" placeholder="Décrivez votre panne ou votre demande..." required></textarea>
+    <textarea class="f-input f-textarea" name="message" placeholder="Décrivez votre panne ou votre demande..." required><?= e((string)($prefill['message'] ?? '')) ?></textarea>
   </div>
   <?php render_quote_photo_field(); ?>
   <button class="btn btn-p btn-lg btn-block" type="submit"><?= e($submitLabel) ?></button>

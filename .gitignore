@@ -18,3 +18,5 @@ storage/pennylane_sync.lock
 storage/uploads/devis/
 # Photos envoyées par les clients avec leur demande : données personnelles
 storage/uploads/demandes/
+# Horodatage et verrou des tâches automatiques (includes/automations.php)
+storage/.automations_*

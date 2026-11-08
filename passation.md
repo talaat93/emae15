@@ -366,6 +366,34 @@ reste dû).
 
 ---
 
+## 4quater. Outils de croissance (novembre 2026)
+
+Vingt améliorations ajoutées d'un coup. Rubrique « Croissance » du menu admin.
+Réglages **globaux** (zones comprises) : lire avec `growth_get()` /
+`global_setting()`, écrire avec `growth_save()`, jamais avec `set_setting()`
+(qui écrirait dans la zone choisie dans l'admin).
+
+| Fichier | Contenu |
+|---|---|
+| `includes/growth.php` | bandeau de disponibilité, note Google (affichée seulement si lien + note + nombre saisis), WhatsApp (`whatsapp_digits()`), SMS automatiques et leurs garde-fous (`auto_messages` : 1 par numéro et par jour, plafond quotidien), demandes non terminées (`quote_partials`), créneaux de rendez-vous |
+| `includes/content_pages.php` | textes par défaut des pages panne, aides, estimation, rendez-vous, entretien + leurs sections du catalogue (`content_pages_catalog()`) |
+| `includes/pages_extra.php` | gabarits de ces pages (appelés par `index.php`) |
+| `includes/client_space.php` | lien de suivi d'intervention (`interventions.track_token`), espace client avec code à 6 chiffres (`client_login_codes`) |
+| `includes/payments.php` + `api/stripe_webhook.php` | paiement par carte via Stripe Checkout (`online_payments`), webhook signé, montant revérifié ; Pennylane n'est jamais modifié |
+| `includes/contracts.php` | contrats d'entretien (`maintenance_contracts`) |
+| `includes/automations.php` + `cron/automations.php` | tâches toutes les 5 min : alerte demande sans réponse, demande d'avis, rappels d'entretien, suppression des photos, réduction des photos, note Google. Lancées après l'affichage d'une page **et** par le cron Pennylane existant |
+| `admin/growth.php`, `leads.php`, `contracts.php`, `payments.php` | écrans |
+
+Règles : une page désactivée renvoie 404 (sinon « chaudiere-en-panne » tomberait
+sur la page Chauffage par `service_detect_trade`) ; un admin connecté la
+prévisualise. Une adresse inconnue renvoie maintenant une vraie 404 ; une
+ancienne adresse propre d'une page existante (`/plomberie`) est redirigée (301).
+`picture_html()` sert une copie réduite (`-w1200.jpg` + `.webp`, créée au premier
+besoin, GD requis, sinon l'original). Les adresses dans les messages envoyés par
+le cron utilisent `site_public_origin`, retenu quand un admin ouvre l'admin.
+
+---
+
 ## 5. Conventions de travail
 
 Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
@@ -394,10 +422,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-755 assertions, aucune base de données nécessaire : chaque test remplace
+827 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 172 fichiers PHP.
+sur les 186 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -416,6 +444,7 @@ sur les 172 fichiers PHP.
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 | `test_demandes.php` | mails rappel / devis, photos des clients (vraies images seulement, aucun autre fichier accessible), avant / après, couleur des boutons |
+| `test_croissance.php` | outils de conversion : numéro WhatsApp, horaires du bandeau, note Google jamais inventée, SMS automatiques, créneaux de rendez-vous, pages panne, 404, signature Stripe, échéances d'entretien, espace client, suivi |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
@@ -505,6 +534,19 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 - [ ] Vérifier les villes reprises automatiquement sur la page Contact
       (4 par zone, 18 au maximum).
 
+### Outils de croissance — à faire par le propriétaire (novembre 2026)
+
+- [ ] Corriger le numéro WhatsApp (Identité & coordonnées) : celui en ligne a
+      un chiffre de moins qu'un mobile, le bouton ne fonctionne pas.
+- [ ] Conversion & avis : coller le lien « Demander des avis » de la fiche
+      Google, la note et le nombre d'avis (sinon ni badge ni demandes d'avis).
+- [ ] Saisir les identifiants OVH (Notifications SMS) : sans eux, aucun SMS.
+- [ ] Relire les 8 pages panne (actives dès la mise en ligne).
+- [ ] Avant d'activer : prix des grilles Tarifs (Estimation), certification
+      RGE (Aides), prix des offres (Entretien), créneaux (Rendez-vous),
+      clé Stripe et webhook (Paiements), espace client, demandes non terminées.
+- [ ] Ajouter ses clients sous contrat dans Contrats d'entretien.
+
 ### Pennylane — à faire par le propriétaire
 
 - [ ] Générer le jeton Pennylane avec les droits : clients, produits,
@@ -545,7 +587,8 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
-| *(voir `git log`)* | Rappel ou devis distingués (`quotes.request_type`, objet, expéditeur et bandeau du mail), photos client (`quotes.client_photos`, dossier fermé `storage/uploads/demandes`, lecture par `admin/quote_photo.php` après connexion : admin, dispatcher, et technicien seulement pour ses propres demandes, allégées dans le navigateur par `site.js`, jointes au mail jusqu'à 10 Mo), photo avant des réalisations (`before_image_path`, `render_realisation_media()`), bouton d'appel en orange et bouton devis dans son ancienne couleur. Migration automatique `.mig_v15_demandes_photos` |
+| *(voir `git log`)* | 20 outils de croissance (§4quater) : bandeau de disponibilité, note Google, demande d'avis, SMS d'accusé de réception, vraie 404, WhatsApp, réalisations près de la ville, 8 pages panne, suivi des demandes, alerte sans réponse, conservation des photos, rendez-vous, estimation, demandes non terminées, contrats d'entretien, espace client, suivi d'intervention, paiement Stripe, aides et primes, photos réduites. Migration `.mig_v15_croissance`. Corrigé au passage : la case « SMS à l'admin à chaque demande » n'envoyait rien ; un caractère mal encodé faisait perdre une demande |
+| `b20f827` | Rappel ou devis distingués (`quotes.request_type`, objet, expéditeur et bandeau du mail), photos client (`quotes.client_photos`, dossier fermé `storage/uploads/demandes`, lecture par `admin/quote_photo.php` après connexion : admin, dispatcher, et technicien seulement pour ses propres demandes, allégées dans le navigateur par `site.js`, jointes au mail jusqu'à 10 Mo), photo avant des réalisations (`before_image_path`, `render_realisation_media()`), bouton d'appel en orange et bouton devis dans son ancienne couleur. Migration automatique `.mig_v15_demandes_photos` |
 | `19cd3c7` | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
 | `cf858e8` | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
