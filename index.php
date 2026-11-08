@@ -210,7 +210,7 @@ if ($route === '' || $route === 'home') {
 
     <div class="hero-form">
       <div class="hero-card">
-        <div class="hero-card-tag"><?= e(setting('home_quote_eyebrow','Rappel gratuit sous 30 min')) ?></div>
+        <div class="hero-card-tag"><?= e(setting('home_quote_eyebrow','Rappel gratuit sous 5 min')) ?></div>
         <h2><?= e(setting('home_quote_title','Obtenir un devis')) ?></h2>
         <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
@@ -400,11 +400,11 @@ if ($route === '' || $route === 'home') {
     <div class="qs-info">
       <div class="svc-label"><?= e(setting('qs_label','Devis gratuit')) ?></div>
       <h2><?= e(setting('qs_title','Besoin d\'un')) ?> <em><?= e(setting('qs_title_hl','technicien ?')) ?></em></h2>
-      <p><?= e(setting('qs_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Aucune visite facturée sans votre accord.')) ?></p>
+      <p><?= e(setting('qs_lead','Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Aucune visite facturée sans votre accord.')) ?></p>
       <div class="qs-perks">
         <?php foreach ([
           setting('qs_perk_1','Devis 100% gratuit et sans engagement'),
-          setting('qs_perk_2','Rappel sous 30 minutes garanti'),
+          setting('qs_perk_2','Rappel sous 5 minutes garanti'),
           setting('qs_perk_3','Tarif annoncé avant toute intervention'),
           setting('qs_perk_4','Technicien qualifié et assuré'),
           setting('qs_perk_5','Disponible 7j/7, urgences 24h/24'),
@@ -556,7 +556,7 @@ if ($route === 'zones') {
   <div class="wrap" style="max-width:760px;">
     <div class="svc-label">Intervention rapide</div>
     <h2 class="section-title">Demandez votre <em>devis gratuit</em></h2>
-    <p class="section-lead" style="margin-bottom:2rem;">Précisez votre ville et votre besoin — nous confirmons la disponibilité dans votre zone sous 30 minutes.</p>
+    <p class="section-lead" style="margin-bottom:2rem;">Précisez votre ville et votre besoin — nous confirmons la disponibilité dans votre zone sous 5 minutes.</p>
     <div class="hero-card" style="background:var(--card);">
       <div class="hero-card-tag">Gratuit et sans engagement</div>
       <h2 style="font-family:var(--font-h);font-size:1.3rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">Obtenir un devis</h2>
@@ -654,7 +654,7 @@ if ($route === 'landing') {
         'jura'     => ['nom'=>'Jura',       'code'=>'39','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Lons-le-Saunier',
                        'villes'=>['Lons-le-Saunier','Dole','Saint-Claude','Champagnole','Morez','Poligny','Orgelet','Arbois']],
         'doubs'    => ['nom'=>'Doubs',      'code'=>'25','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Besançon',
-                       'villes'=>['Besançon','Montbéliard','Pontarlier','Audincourt','Morteau','Valentigney','Baume-les-Dames','Maîche']],
+                       'villes'=>['Besançon','Pontarlier','Audincourt','Morteau','Valentigney','Baume-les-Dames','Maîche']],
         'cote-dor' => ['nom'=>"Côte-d'Or",  'code'=>'21','region'=>'Bourgogne-Franche-Comté','chef_lieu'=>'Dijon',
                        'villes'=>['Dijon','Beaune','Chenôve','Longvic','Quetigny','Talant','Auxonne','Montbard']],
         /* Auvergne-Rhône-Alpes */
@@ -951,7 +951,7 @@ if ($route === 'contact') {
   <p class="ph-lead"><?= e($cfg['hero_lead']) ?></p>
   <div class="ph-badges">
     <span class="ph-badge hl">✓ <?= e(setting('contact_badge_1','Devis gratuit')) ?></span>
-    <span class="ph-badge">⚡ <?= e(setting('contact_badge_2','Réponse sous 30 min')) ?></span>
+    <span class="ph-badge">⚡ <?= e(setting('contact_badge_2','Réponse sous 5 min')) ?></span>
     <span class="ph-badge">📍 <?= e(company_regions()) ?></span>
     <span class="ph-badge">🕐 <?= e(company_hours()) ?></span>
   </div>
@@ -1015,8 +1015,8 @@ if ($route === 'quote') {
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Devis gratuit</div>
   <h1 class="ph-h1"><?= e(setting('quote_hero_title','Votre demande d\'intervention')) ?></h1>
-  <p class="ph-lead"><?= e(setting('quote_hero_lead','Remplissez ce formulaire. Un technicien vous rappelle sous 30 minutes avec un chiffrage clair, sans engagement.')) ?></p>
-  <div class="ph-badges"><span class="ph-badge hl">✓ 100% gratuit</span><span class="ph-badge">⚡ Réponse sous 30 min</span><span class="ph-badge">📍 <?=e(company_regions())?></span></div>
+  <p class="ph-lead"><?= e(setting('quote_hero_lead','Remplissez ce formulaire. Un technicien vous rappelle sous 5 minutes avec un chiffrage clair, sans engagement.')) ?></p>
+  <div class="ph-badges"><span class="ph-badge hl">✓ 100% gratuit</span><span class="ph-badge">⚡ Réponse sous 5 min</span><span class="ph-badge">📍 <?=e(company_regions())?></span></div>
 </div></section>
 <section class="sec sec-navy"><div class="wrap" style="max-width:660px;">
   <div class="qs-card">
@@ -1145,7 +1145,7 @@ if ($route === 'services') {
   </div>
   <div class="sp-cta">
     <h3><?= e(setting('services_cta_title','Besoin d\'un technicien ?')) ?></h3>
-    <p><?= e(setting('services_cta_lead','Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Devis gratuit et sans engagement.')) ?></p>
+    <p><?= e(setting('services_cta_lead','Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Devis gratuit et sans engagement.')) ?></p>
     <div class="sp-acts">
       <a class="btn btn-outline btn-lg" href="<?= e(route_url('quote')) ?>"><?= e(setting('services_cta_btn','Devis gratuit en 2 min')) ?></a>
       <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
@@ -1218,7 +1218,7 @@ if ($tpl !== null || $page) {
   <!-- Être rappelé : le même encart que sur l'accueil, métier présélectionné -->
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
-      <div class="hero-card-tag"><?= e(setting('svc_quote_eyebrow','Rappel gratuit sous 30 min')) ?></div>
+      <div class="hero-card-tag"><?= e(setting('svc_quote_eyebrow','Rappel gratuit sous 5 min')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
@@ -1231,6 +1231,35 @@ if ($tpl !== null || $page) {
   <?php if (trim($tpl['intro']) !== ''): ?>
   <div class="svc-intro">
     <?php foreach (preg_split('/\R\s*\R/', trim($tpl['intro'])) ?: [] as $para): ?><p><?= e(trim($para)) ?></p><?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+  <?php
+  // Blocs propres à un métier : prestations recherchées sur Google (chauffe-eau, volets)
+  // et filtre des coupures réseau, qui relèvent d'Enedis et non d'un électricien.
+  $svcExtras = [
+      'chauffage' => [
+          ['🚿', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
+                 setting('svc_chauffage_ecs_text', 'Plus d\'eau chaude ? Nous dépannons et remplaçons les chauffe-eau électriques, les ballons d\'eau chaude et la production d\'eau chaude des chaudières : résistance, thermostat, groupe de sécurité, fuite du ballon. Remplacement complet si l\'appareil est hors d\'usage, avec mise en service le jour même quand c\'est possible.')],
+      ],
+      'electricite' => [
+          ['🪟', setting('svc_electricite_volets_title', 'Volets roulants électriques'),
+                 setting('svc_electricite_volets_text', 'Volet roulant bloqué, moteur qui ne répond plus, interrupteur ou télécommande en panne : nous dépannons et motorisons vos volets roulants électriques, et remplaçons le moteur quand il est hors service.')],
+          ['🚪', setting('svc_electricite_acces_title', 'Portails électriques et visiophones'),
+                 setting('svc_electricite_acces_text', 'Portail électrique qui ne s\'ouvre plus, visiophone ou interphone muet : diagnostic, réparation, remplacement et installation neuve.')],
+      ],
+  ][$sk] ?? [];
+  ?>
+  <?php if ($svcExtras): ?>
+  <div class="interv-grid" style="margin:0 0 2rem;">
+    <?php foreach ($svcExtras as [$ico, $t, $d]): ?>
+    <div class="interv-card"><div class="interv-ico"><?= $ico ?></div><div class="interv-h"><?= e($t) ?></div><p class="interv-p"><?= e($d) ?></p></div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+  <?php if ($sk === 'electricite'): ?>
+  <div class="svc-intro" style="border-left:4px solid var(--primary);padding:.9rem 1.1rem;margin:0 0 2rem;">
+    <p style="margin:0;"><strong><?= e(setting('svc_electricite_enedis_title', 'Coupure dans tout le quartier ou le village ?')) ?></strong>
+    <?= e(setting('svc_electricite_enedis_text', 'Si vos voisins n\'ont plus de courant non plus, la panne vient du réseau public : appelez Enedis au 09 72 67 50 suivi du numéro de votre département (21, 25, 39…), gratuit 24h/24. Si vous êtes le seul sans électricité, c\'est votre installation : appelez-nous.')) ?></p>
   </div>
   <?php endif; ?>
   <div class="svc-label"><?= e(setting('svc_offer_label','Notre offre')) ?></div>

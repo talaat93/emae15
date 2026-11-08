@@ -315,7 +315,7 @@ if (!file_exists($_mf12)) {
             ['paris-ile-de-france','Paris / Île-de-France','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','75,77,78,91,92,93,94,95',0],
             ['cote-dor','Côte-d\'Or','Dijon|Beaune|Auxonne|Montbard|Nuits-Saint-Georges','21',1],
             ['jura','Jura','Lons-le-Saunier|Dole|Saint-Claude|Morez|Champagnole','39',2],
-            ['doubs','Doubs','Besançon|Pontarlier|Montbéliard|Morteau|Baume-les-Dames','25',3],
+            ['doubs','Doubs','Besançon|Pontarlier|Morteau|Baume-les-Dames','25',3],
             ['seine-saint-denis','Seine-Saint-Denis','Saint-Denis|Bobigny|Montreuil|Aubervilliers|Pantin|Noisy-le-Grand','93',4],
         ];
         foreach ($__zd as [$__sl,$__nm,$__ci,$__pc,$__so]) {
@@ -756,6 +756,34 @@ if (!file_exists($_mf34)) {
     unset($_me, $__sql);
 }
 unset($_mf34);
+// Auto-migration v15.35 — pages d'arrivée Google Ads (08/11/2026) : Montbéliard, exclu
+// des annonces, disparaît des textes et des villes ; le délai de rappel annoncé
+// passe partout à 5 minutes, comme dans l'encart des pages métier.
+$_mf35 = __DIR__.'/../storage/.mig_v15_pages_ads';
+if (!file_exists($_mf35)) {
+    @file_put_contents($_mf35, date('c'));
+    try {
+        $__rep = [
+            'Montbéliard, Quetigny' => 'Quetigny', ' et Montbéliard' => ' et Chenôve', ', Montbéliard' => '',
+            'Montbéliard, ' => '', '|Montbéliard' => '', 'Montbéliard|' => '',
+            'sous 30 minutes' => 'sous 5 minutes', 'sous 30 min' => 'sous 5 min',
+            'en 30 minutes' => 'en 5 minutes', 'en 30 min' => 'en 5 min',
+        ];
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_value LIKE '%Montbéliard%' OR setting_value LIKE '%30 min%'") as $__r) {
+            $__v = strtr((string)$__r['setting_value'], $__rep);
+            if ($__v !== (string)$__r['setting_value']) {
+                db_execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$__v, $__r['setting_key']]);
+            }
+        }
+        foreach (db_fetch_all("SELECT id, cities FROM zones WHERE cities LIKE '%Montbéliard%'") as $__r) {
+            $__v = trim((string)preg_replace(['/\s*Montbéliard\s*([|,\n])/u', '/([|,\n])\s*Montbéliard\s*$/u'], ['', ''], (string)$__r['cities']));
+            db_execute('UPDATE zones SET cities = ? WHERE id = ?', [$__v, (int)$__r['id']]);
+        }
+        settings_cache(true);
+    } catch (Throwable $_me) { error_log('Migration v15.35 : '.$_me->getMessage()); }
+    unset($_me, $__rep, $__r, $__v);
+}
+unset($_mf35);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

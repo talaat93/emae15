@@ -362,7 +362,8 @@ function render_quote_form(array $cards, string $source = 'form', string $type =
     <div class="f-field"><span class="f-label">Email</span><input class="f-input" type="email" name="email" placeholder="votre@email.fr"></div>
     <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" placeholder="<?= e($cpExemple) ?>" pattern="[0-9]{5}" maxlength="5" required></div>
   </div>
-  <div class="f-field"><span class="f-label">Adresse *</span><input class="f-input" type="text" name="address" placeholder="Ex : 12 rue de la République" required></div>
+  <?php /* Adresse facultative : sur téléphone, chaque champ obligatoire en plus fait abandonner des visiteurs ; elle est demandée au rappel. */ ?>
+  <div class="f-field"><span class="f-label">Adresse <span style="font-weight:400;opacity:.7;">(facultatif)</span></span><input class="f-input" type="text" name="address" placeholder="Ex : 12 rue de la République"></div>
   <div class="f-field"><span class="f-label">Ville</span><input class="f-input" type="text" name="city" placeholder="<?= e($placeholder) ?>"></div>
   <div class="f-field">
     <span class="f-label">Service souhaité</span>

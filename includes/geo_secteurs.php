@@ -32,7 +32,7 @@ function geo_departements(): array
     $idf = 'Île-de-France';           $occ = 'Occitanie';
     return [
         '21' => ["Côte-d'Or",            "en Côte-d'Or",               $bfc, ['Dijon','Beaune','Chenôve','Talant','Auxonne','Montbard']],
-        '25' => ['Doubs',                'dans le Doubs',              $bfc, ['Besançon','Montbéliard','Pontarlier','Audincourt','Morteau']],
+        '25' => ['Doubs',                'dans le Doubs',              $bfc, ['Besançon','Pontarlier','Audincourt','Morteau']],
         '39' => ['Jura',                 'dans le Jura',               $bfc, ['Dole','Lons-le-Saunier','Saint-Claude','Champagnole','Morez']],
         '58' => ['Nièvre',               'dans la Nièvre',             $bfc, ['Nevers']],
         '70' => ['Haute-Saône',          'en Haute-Saône',             $bfc, ['Vesoul']],
@@ -285,9 +285,9 @@ function geo_textes_globaux(): array
         'faq_meta_title'           => 'Questions fréquentes — Dépannage {en_region}',
         'faq_meta_description'     => 'Délais, tarifs, garanties, secteurs desservis : les réponses à vos questions sur nos interventions {en_region}.',
         'contact_meta_title'       => 'Contact — Électricien, plombier, chauffagiste {en_region}',
-        'contact_meta_description' => 'Contactez nos équipes pour une intervention {en_region}, autour de {ville}. Réponse sous 30 minutes, devis gratuit.',
+        'contact_meta_description' => 'Contactez nos équipes pour une intervention {en_region}, autour de {ville}. Réponse sous 5 minutes, devis gratuit.',
         'quote_meta_title'         => 'Devis gratuit {en_region} — Électricité, plomberie, chauffage',
-        'quote_meta_description'   => 'Demandez votre devis gratuit pour une intervention {en_region}, autour de {ville}. Rappel sous 30 minutes, sans engagement.',
+        'quote_meta_description'   => 'Demandez votre devis gratuit pour une intervention {en_region}, autour de {ville}. Rappel sous 5 minutes, sans engagement.',
         'reals_meta_title'         => 'Nos chantiers {en_region} — Réalisations',
         'reals_meta_description'   => 'Découvrez nos interventions récentes {en_region} : électricité, plomberie, chauffage et climatisation.',
         'reals_page_lead'          => 'Des interventions propres et documentées {en_region}.',
