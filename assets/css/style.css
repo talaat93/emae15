@@ -178,8 +178,9 @@ body.nav-open .site-header{-webkit-backdrop-filter:none!important;backdrop-filte
 }
  
 .hero-grid{position:relative;z-index:1;display:flex;flex-direction:column;gap:2.5rem;}
-.hero-content{order:2;}
-.hero-form{order:1;}
+/* Téléphone : titre et sous-titre d'abord, encart « rappel rapide » en dessous */
+.hero-content{order:1;}
+.hero-form{order:2;}
  
 /* Badge pulsant */
 .hero-badge{
