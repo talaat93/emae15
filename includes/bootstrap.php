@@ -849,6 +849,30 @@ if (!file_exists($_mf40)) {
     unset($_me);
 }
 unset($_mf40);
+// Auto-migration v15.41 (10/11/2026, décisions du propriétaire) : numéro WhatsApp complet ;
+// zone /idf/ désactivée (l'Île-de-France sera recréée proprement plus tard). Valeurs d'avant
+// sauvegardées (lot « proprietaire-… », annulable depuis Diagnostic des zones).
+$_mf41 = __DIR__.'/../storage/.mig_v15_whatsapp_idf';
+if (!file_exists($_mf41)) {
+    @file_put_contents($_mf41, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'proprietaire-'.date('Ymd-His');
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key = 'company_whatsapp' OR setting_key LIKE 'z:%:company_whatsapp'") as $_r) {
+            geo_sauvegarder($_lot, 'setting:'.$_r['setting_key'], (string)$_r['setting_value']);
+            if ($_r['setting_key'] !== 'company_whatsapp') db_execute('DELETE FROM settings WHERE setting_key = ?', [$_r['setting_key']]);
+        }
+        geo_ecrire_brut('company_whatsapp', '+33767968333');
+        foreach (db_fetch_all("SELECT id, status FROM zones WHERE slug = 'idf'") as $_z) {
+            geo_sauvegarder($_lot, 'zone_status:'.(int)$_z['id'], (string)$_z['status']);
+            db_execute('UPDATE zones SET status = 0 WHERE id = ?', [(int)$_z['id']]);
+        }
+        settings_cache(true);
+        if (function_exists('intervention_zones_flush')) intervention_zones_flush();
+    } catch (Throwable $_me) { error_log('Migration v15.41 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_r, $_z);
+}
+unset($_mf41);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

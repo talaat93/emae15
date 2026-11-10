@@ -436,7 +436,8 @@ function render_footer(): void
  * que si l'assurance est renseignée (Identité & coordonnées → Mentions légales), et la note
  * Google seulement depuis la fiche (review_summary).
  */
-function render_trust_badges(): string
+/** $trade : métier de la page ('' = page générale) ; les badges d'assurance ne s'affichent que pour un métier couvert. */
+function render_trust_badges(string $trade = ''): string
 {
     $b = [];
     if (preg_match('/7\s*j?\s*\/\s*7|7j\/7|24\s*h?\s*\/\s*24/u', company_hours())) $b[] = ['🕐', 'Urgences 7j/7'];
@@ -445,7 +446,9 @@ function render_trust_badges(): string
     $L = legal_info();
     // Assurance : seulement pendant la validité de l'attestation (date de fin réglable dans l'admin).
     $ass = ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin']) ? mb_strtolower($L['assurance'], 'UTF-8') : '';
-    if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) $b[] = ['🛡️', 'Assurance décennale'];
+    if ($trade !== '' && !in_array($trade, $L['assurance_metiers'], true)) $ass = '';   // métier non déclaré à l'assureur (ex. plomberie)
+    $sur = $trade === '' ? ' (électricité, génie climatique)' : '';
+    if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) $b[] = ['🛡️', 'Assurance décennale'.$sur];
     if (preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $ass)) $b[] = ['🛡️', 'RC professionnelle'];
     $out = '<ul class="trust-badges" aria-label="Nos engagements">';
     foreach ($b as [$i, $t]) $out .= '<li><span aria-hidden="true">'.$i.'</span> '.e($t).'</li>';

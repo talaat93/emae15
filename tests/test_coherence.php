@@ -136,7 +136,7 @@ check('identifiant stable', $j['@id'], 'https://www.emaee.fr/#entreprise');
 check('pas de note auto-attribuée', isset($j['aggregateRating']), false);
 check('pas d\'adresse inventée', isset($j['address']), false);
 check('pas de WhatsApp incomplet', isset($j['sameAs']), false);
-check('dénomination légale', $j['legalName'], 'ENTREPRISE MULTI-TECHNIQUE AVANCEE (EMAE)');
+check('dénomination légale (Kbis)', $j['legalName'], 'Entreprise Multi-technique Avancée (EMAE)');
 check('secteur réel', array_column($j['areaServed'], 'name'), ['Doubs', 'Jura', "Côte-d'Or"]);
 check('téléphone international', $j['telephone'], '+33356570303');
 check('SIRET sans espaces', $j['identifier']['value'], '10280260000019');

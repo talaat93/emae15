@@ -471,19 +471,21 @@ function legal_info(): array
 {
     $g = static fn(string $k, string $d = ''): string => trim(global_setting($k, $d));
     return [
-        'denomination' => $g('ml_denomination', 'ENTREPRISE MULTI-TECHNIQUE AVANCEE (EMAE)'),
-        'forme'        => $g('ml_forme', 'SARL'),
+        'denomination' => $g('ml_denomination', 'Entreprise Multi-technique Avancée (EMAE)'),
+        'forme'        => $g('ml_forme', 'SARL à associé unique'),
         'capital'      => $g('ml_capital', '1 000 €'),
-        'siege'        => $g('ml_siege', '60 rue François Ier, 75008 Paris'),
+        'siege'        => $g('ml_siege', '60 rue François Ier, 75008 Paris (domiciliation LegalPlace)'),
         'siren'        => $g('ml_siren', '102 802 600'),
-        'rcs'          => $g('ml_rcs'),          // ex. « RCS Paris » : à reprendre du Kbis
+        'rcs'          => $g('ml_rcs', 'RCS Paris'),   // Kbis du 20/04/2026
         'tva'          => $g('ml_tva'),          // numéro de TVA intracommunautaire, s'il existe
         'directeur'    => $g('ml_directeur'),    // personne physique (nom et prénom)
         'base'         => $g('ml_base', 'Dole (Jura)'),
         'mediateur'    => $g('ml_mediateur'),    // nom et site du médiateur de la consommation
         // Attestation APRIL / ERGO du 04/05/2026 fournie par le propriétaire (10/11/2026).
-        'assurance'    => $g('ml_assurance', 'Responsabilité civile professionnelle et responsabilité décennale obligatoire : ERGO (contrat souscrit par l\'intermédiaire d\'APRIL), contrat n° 26036641771, attestation valable du 30/04/2026 au 31/12/2026, pour les activités déclarées au contrat.'),
-        'assurance_fin'=> $g('ml_assurance_fin', '2026-12-31'),   // après cette date, badges et mention masqués
+        'assurance'    => $g('ml_assurance', 'Responsabilité civile professionnelle et responsabilité décennale obligatoire : ERGO (contrat souscrit par l\'intermédiaire d\'APRIL), contrat n° 26036641771, attestation valable du 30/04/2026 au 31/12/2026. Activités couvertes : électricité et télécommunications (alarmes comprises), installations thermiques de génie climatique (chauffage, climatisation, pompes à chaleur).'),
+        'assurance_fin'=> $g('ml_assurance_fin', '2026-12-31'),
+        // Métiers du site couverts par l'attestation (5.5 électricité, 5.2 génie climatique) : badges d'assurance seulement sur ceux-là.
+        'assurance_metiers' => array_values(array_filter(array_map('trim', explode(',', $g('ml_assurance_metiers', 'electricite,chauffage,climatisation,vmc'))))),
         'updated_at'   => $g('ml_updated_at'),
     ];
 }
@@ -709,10 +711,10 @@ function tarifs_default_rows(): array
         ['Déplacement — dimanche ou jour férié, urgence', '100,80 € TTC', '84 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Déplacement — nuit (22 h - 8 h), urgence', '124,80 € TTC', '104 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Diagnostic', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
-        ['Main-d\'œuvre — intervention programmée, du lundi au samedi', '70,80 €/h TTC', '59 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
-        ['Main-d\'œuvre — urgence du lundi au samedi, ou dimanche et jour férié programmé', '88,80 €/h TTC', '74 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
-        ['Main-d\'œuvre — dimanche ou jour férié, urgence', '106,80 €/h TTC', '89 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
-        ['Main-d\'œuvre — nuit (22 h - 8 h), urgence', '130,80 €/h TTC', '109 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — intervention programmée, du lundi au samedi', '70,80 €/h TTC', '59 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — urgence du lundi au samedi, ou dimanche et jour férié programmé', '88,80 €/h TTC', '74 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — dimanche ou jour férié, urgence', '106,80 €/h TTC', '89 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — nuit (22 h - 8 h), urgence', '130,80 €/h TTC', '109 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Pièces et travaux', 'Sur devis gratuit', 'Devis écrit remis avant les travaux.'],
     ];
     return $out;

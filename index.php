@@ -815,6 +815,15 @@ if ($route === 'landing') {
     }
     unset($_cp, $_ts);
 
+    /* Île-de-France : activité arrêtée pour l'instant (décision du 10/11/2026). Page retirée (410),
+       plutôt qu'un contenu du Doubs affiché à une adresse « Melun » ou « Évry ». */
+    if (in_array($p_dept, ['paris','seine-et-marne','yvelines','essonne','hauts-de-seine','seine-saint-denis','val-de-marne','val-d-oise'], true)) {
+        http_response_code(410);
+        render_head(['title' => 'Page retirée | '.company_name(), 'description' => 'Cette page n\'existe plus.', 'canonical' => route_url(''), 'robots' => 'noindex']);
+        render_header('');
+        echo '<section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Page retirée</div><h1 class="ph-h1">Nous n\'intervenons pas dans ce secteur pour le moment</h1><p class="ph-lead">'.e(company_name()).' intervient en Côte-d\'Or, dans le Jura et le Doubs.</p><div class="btn-row" style="margin-top:1.5rem;"><a class="btn btn-p" href="'.e(url_for('intervention/')).'">Voir nos villes</a><a class="btn btn-outline" href="'.e(route_url('')).'">Accueil</a></div></div></section>';
+        render_footer(); exit;
+    }
     /* Valider dept contre la whitelist (zone principale par défaut) */
     if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';
 
@@ -1340,7 +1349,7 @@ if ($tpl !== null || $page) {
     <div class="hero-card">
       <div class="hero-card-tag"><?= e(claim_clean(setting('svc_quote_eyebrow','Rappel gratuit'), 'Rappel gratuit')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
-      <?= render_trust_badges() ?>
+      <?= render_trust_badges($sk) ?>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
   </div>

@@ -63,8 +63,6 @@ $landing = [
     'doubs'          => ['Besançon','Pontarlier','Audincourt','Morteau','Baume-les-Dames'],
     'jura'           => ['Dole','Lons-le-Saunier','Saint-Claude','Champagnole','Morez','Poligny'],
     'cote-dor'       => ['Dijon','Beaune','Chenôve','Longvic','Quetigny','Talant'],
-    'seine-et-marne' => ['Melun','Meaux','Chelles','Pontault-Combault','Savigny-le-Temple','Fontainebleau'],
-    'essonne'        => ['Évry','Corbeil-Essonnes','Massy','Palaiseau','Viry-Châtillon','Longjumeau'],
 ];
 $metiers = ['electricite','plomberie','chauffage','climatisation'];
 foreach ($landing as $dept => $villes) {

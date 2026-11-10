@@ -97,7 +97,7 @@ function render_city_trade_page(array $c, string $tslug): void
     <div class="hero-card">
       <div class="hero-card-tag">Rappel gratuit</div>
       <h2>Être rappelé</h2>
-      <?= render_trust_badges() ?>
+      <?= render_trust_badges($trade) ?>
       <?php render_quote_form($cards, 'service_'.$trade, 'rappel'); ?>
     </div>
   </div>

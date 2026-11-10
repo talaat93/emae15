@@ -497,6 +497,8 @@ function geo_annuler(string $lot): int
         if (str_starts_with($cible, 'setting:')) {
             geo_ecrire_brut(substr($cible, 8), $old === null ? '' : (string)$old);
             $n++;
+        } elseif (preg_match('/^zone_status:(\d+)$/', $cible, $m)) {
+            try { db_execute('UPDATE zones SET status = ? WHERE id = ?', [(int)$old, (int)$m[1]]); $n++; } catch (Throwable $e) {}
         } elseif (preg_match('/^zone:(\d+):(meta_title|meta_description|hero_h1|hero_subtitle|intro|delay)$/', $cible, $m)) {
             try { db_execute('UPDATE zones SET `'.$m[2].'` = ? WHERE id = ?', [$old, (int)$m[1]]); $n++; }
             catch (Throwable $e) {}
