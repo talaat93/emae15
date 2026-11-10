@@ -21,6 +21,17 @@ if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets'
     }
     unset($_zobj);
 }
+// Pages par ville : /intervention/ (liste) et /intervention/{ville} (includes/city_pages.php).
+if ($_zs0 === 'intervention' && $currentZone === null && count($_zsegs) <= 2) {
+    $_cslug = $_zsegs[1] ?? '';
+    if ($_cslug === '' || city_page($_cslug) !== null) {
+        set_zone_context(null);
+        require_once __DIR__ . '/includes/stats.php';
+        stats_track_view('intervention'.($_cslug !== '' ? '/'.$_cslug : ''), '');
+        if ($_cslug === '') render_city_index(); else render_city_page(city_page($_cslug));
+        exit;
+    }
+}
 // Adresse qui ne correspond à rien (/tests/x.php, /ancienne-page…) : avant, l'accueil
 // s'affichait avec un code 200, et Google voyait des doublons de l'accueil. Une
 // ancienne adresse « propre » d'une page qui existe (/plomberie) est redirigée.
@@ -498,6 +509,11 @@ if ($route === '' || $route === 'home') {
       </div>
     </div>
     <?php unset($_reg, $_listed, $_depts, $_villes, $_az, $_d, $_c); ?>
+    <?php endif; ?>
+    <?php if (!$currentZone): ?>
+    <div class="px-chips" style="justify-content:center;margin-top:1.5rem;">
+      <?php foreach (array_keys(city_pages()) as $_cs): $_cp = city_page($_cs); ?><a class="px-chip" href="<?= e($_cp['url']) ?>">📍 <?= e($_cp['nom']) ?></a><?php endforeach; unset($_cs, $_cp); ?>
+    </div>
     <?php endif; ?>
     <div style="text-align:center;margin-top:2.5rem;">
       <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>

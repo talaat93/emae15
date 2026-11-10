@@ -1543,3 +1543,11 @@ h3.step-h{margin:0;font-size:inherit;}
 .trust-badges li{font-size:.75rem;font-weight:600;color:var(--t1);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:.3rem .65rem;}
 .trust-rating{display:inline-block;margin:0 0 .6rem;font-size:.85rem;color:var(--t1);}
 .trust-rating span{color:#f59e0b;}
+
+/* ── Pages par ville (/intervention/…) ── */
+.city-grid{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));margin-top:1.5rem;}
+.city-card{display:flex;flex-direction:column;gap:.5rem;padding:1.25rem;background:var(--card,rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.1);border-radius:14px;color:var(--t1);text-decoration:none;transition:border-color .2s,transform .2s;}
+.city-card:hover,.city-card:focus-visible{border-color:var(--p);transform:translateY(-2px);}
+.city-card h3{margin:0;font-size:1.1rem;color:#fff;}
+.city-card ul{margin:0;padding-left:1.1rem;color:var(--t2);font-size:.9rem;line-height:1.55;}
+.city-card-more{margin-top:auto;color:var(--p);font-weight:700;font-size:.85rem;}

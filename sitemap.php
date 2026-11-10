@@ -40,6 +40,10 @@ $add(route_url('mentions-legales'), 'yearly', '0.3');
 // Une zone sans département ni ville (ex. /idf/) n'y figure pas, en attendant une décision.
 foreach (intervention_zones_listed() as $_z) $add(url_for($_z['slug'].'/'), 'weekly', '0.8');
 
+// Pages par ville (/intervention/…).
+$add(url_for('intervention/'), 'monthly', '0.7');
+foreach (array_keys(city_pages()) as $_cs) $add(url_for('intervention/'.$_cs), 'monthly', '0.8');
+
 // Pages CMS : les anciennes pages métier (« Électricité »…) redirigent vers la page métier
 // (index.php) : elles ne sont pas listées.
 foreach (all_pages() as $p) {
