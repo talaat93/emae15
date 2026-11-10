@@ -1,0 +1,6 @@
+{
+ "vmc": ["ventilation system", "ventilation unit", "air vent ceiling", "hvac ductwork", "heat recovery ventilation"],
+ "portail": ["automatic gate", "sliding gate", "driveway gate", "metal gate house entrance"],
+ "visiophone": ["video intercom", "intercom", "door entry panel", "video doorbell"],
+ "electromenager": ["washing machine", "appliance repair", "dishwasher", "kitchen appliances"]
+}
