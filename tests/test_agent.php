@@ -107,7 +107,11 @@ check('liste « à bloquer » (domaine)', agent_prefilter([], 'commercial@prospe
 check('liste « à bloquer » : pas un domaine voisin', agent_prefilter([], 'a@monprospection-web.com', 'Bonjour'), null);
 check('liste « à autoriser » passe avant le filtre newsletter', agent_prefilter(['list-id' => 'x'], 'info@syndic-exemple.fr', 'Lettre du syndic'), null);
 
-echo "\n6. Garde-fou : ni prix, ni date, ni heure, ni délai dans un brouillon de l'IA\n";
+echo "\n6. Prix, dates et délais : signalés pour relecture ; « [à compléter] » bloque l'envoi\n";
+check('brouillon complet : rien ne bloque', agent_blocker('Le déplacement est à 44 € HT, nous pouvons passer mardi matin.'), '');
+check('« [à compléter : …] » bloque', agent_blocker('Le remplacement coûte [à compléter : prix du mitigeur].') !== '', true);
+check('« [mardi matin, à confirmer] » bloque', agent_blocker('Nous pouvons passer [mardi matin, à confirmer].') !== '', true);
+check('crochets ordinaires : ne bloquent pas', agent_blocker('Référence [F-2026-118].'), '');
 check('texte sans engagement : accepté', agent_guard("Bonjour,\nPouvez-vous nous envoyer des photos ? Appelez le 03 56 57 03 03, joignable 24h/24 et 7j/7."), '');
 check('prix en euros détecté', str_contains(agent_guard('Le déplacement est à 44 € HT.'), 'montant'), true);
 check('« 150 euros » détecté', str_contains(agent_guard('Comptez environ 150 euros.'), 'montant'), true);
@@ -160,7 +164,21 @@ check('webhook : un autre téléphone ne peut rien faire', (function () { global
 echo "\n11. Schémas : catégories et consignes cohérentes\n";
 check('les catégories du tri IA sont celles des dossiers', agent_triage_schema()['properties']['category']['enum'], array_keys(agent_categories()));
 check('consignes de tri assez longues pour le cache (≥ 512 jetons, environ 2 000 caractères)', mb_strlen(agent_triage_system()) > 2000, true);
-check('consignes de rédaction : interdiction des prix rappelée', str_contains(agent_writer_system(), 'Ne donne jamais de prix'), true);
+check('consignes de rédaction : la liste de prix du propriétaire est fournie', str_contains(agent_writer_system(), 'déplacement 44 €'), true);
+check('consignes de rédaction : aucun autre prix autorisé', str_contains(agent_writer_system(), 'N\'annonce aucun autre prix'), true);
+iset('agent_prices', 'Déplacement : 50 € HT');
+check('prix modifiés dans l\'écran : repris par l\'agent', str_contains(agent_writer_system(), 'Déplacement : 50 € HT'), true);
+check('mode par défaut : envoi activé (bouton Envoyer)', agent_defaults()['agent_mode'], 'live');
+
+echo "\n12. Anciens mails\n";
+iset('agent_start', '2026-11-10'); iset('agent_history_days', '0');
+check('sans historique : depuis la mise en marche', agent_history_since(), '2026-11-10');
+iset('agent_history_days', '30');
+check('30 jours d\'historique', agent_history_since(), '2026-10-11');
+iset('agent_history_reply_days', '7');
+check('mail de 3 jours : brouillon', agent_too_old_to_reply(['source' => 'mail', 'received_at' => date('Y-m-d H:i:s', time() - 3 * 86400)]), false);
+check('mail de 20 jours : rangé sans brouillon', agent_too_old_to_reply(['source' => 'mail', 'received_at' => date('Y-m-d H:i:s', time() - 20 * 86400)]), true);
+check('demande du site : toujours une réponse', agent_too_old_to_reply(['source' => 'site', 'received_at' => '2020-01-01 00:00:00']), false);
 check('modèle de tri : Haiku', AGENT_TRIAGE_MODEL, 'claude-haiku-5-5');
 check('modèle de rédaction : Sonnet', AGENT_WRITER_MODEL, 'claude-sonnet-5-5');
 

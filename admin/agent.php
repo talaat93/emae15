@@ -26,9 +26,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $v = str_replace(',', '.', trim((string)($_POST[$k] ?? '')));
             if (is_numeric($v) && (float)$v >= 0) agent_set($k, (string)(float)$v);
         }
-        foreach (['agent_signature', 'agent_allow', 'agent_block', 'agent_parent_folder'] as $k) {
-            if (array_key_exists($k, $_POST)) agent_set($k, mb_substr(trim((string)$_POST[$k]), 0, 2000));
+        foreach (['agent_signature', 'agent_allow', 'agent_block', 'agent_parent_folder', 'agent_prices', 'agent_delays'] as $k) {
+            if (array_key_exists($k, $_POST)) agent_set($k, mb_substr(trim((string)$_POST[$k]), 0, 4000));
         }
+        if (array_key_exists('agent_history_days', $_POST)) {
+            $hd = (string)max(0, min(3650, (int)$_POST['agent_history_days']));
+            // Plus d'historique demandé : les boîtes sont relues depuis la nouvelle date (sans doublon : même Message-ID).
+            if ((int)$hd > (int)agent_get('agent_history_days')) {
+                foreach ($accounts as $a) { agent_set("agent_{$a}_uidvalidity", ''); agent_set("agent_{$a}_lastuid", ''); }
+            }
+            agent_set('agent_history_days', $hd);
+        }
+        if (array_key_exists('agent_history_reply_days', $_POST)) agent_set('agent_history_reply_days', (string)max(1, min(365, (int)$_POST['agent_history_reply_days'])));
         foreach (array_keys(agent_categories()) as $cat) {
             if (array_key_exists('folder_'.$cat, $_POST)) agent_set('agent_folder_'.$cat, mb_substr(trim((string)$_POST['folder_'.$cat]), 0, 60));
         }
@@ -164,7 +173,7 @@ $claudeOk = claude_is_configured();
 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
 
 <section class="admin-panel" id="marche">
-  <div class="admin-panel__head"><h2>⚙️ Fonctionnement</h2><p>Gardez le <strong>mode test</strong> pendant la première semaine : l'agent trie et rédige sur vos vrais mails, vous jugez ses brouillons depuis Telegram, mais aucun mail ne part. Passez en « envoi activé » seulement quand ses brouillons vous conviennent.</p></div>
+  <div class="admin-panel__head"><h2>⚙️ Fonctionnement</h2><p>En « envoi activé », chaque brouillon arrive sur Telegram avec un bouton <strong>Envoyer</strong> : rien ne part sans votre appui. Le mode test sert à essayer sans aucun risque d'envoi.</p></div>
   <div class="admin-panel__body">
     <label class="admin-field admin-field--check"><div class="check-row"><input type="checkbox" name="agent_enabled" value="1" <?= agent_on() ? 'checked' : '' ?>> Agent en marche (passage toutes les 5 minutes environ)</div></label>
     <div class="admin-form-grid admin-form-grid--2">
@@ -182,6 +191,26 @@ $claudeOk = claude_is_configured();
     <label class="admin-field"><span>Clé de l'API Claude <?= $claudeOk ? '— <b style="color:#15803d;">configurée</b>' : '— non configurée' ?></span><input type="password" name="claude_api_key" value="" autocomplete="new-password" placeholder="Laisser vide pour ne pas changer (sk-ant-…)">
       <small style="color:#888;">Pensez aussi à fixer une limite de dépense mensuelle sur console.anthropic.com (Billing → Limits).</small></label>
     <label class="admin-field"><span>Signature ajoutée sous chaque réponse</span><textarea name="agent_signature" rows="3"><?= e($g('agent_signature')) ?></textarea></label>
+  </div>
+</section>
+
+<section class="admin-panel" id="prix">
+  <div class="admin-panel__head"><h2>💶 Prix, délais et disponibilités</h2><p>L'agent peut annoncer <strong>ces prix et ces délais, et seulement eux</strong>. Les brouillons qui en contiennent sont signalés sur Telegram pour que vous les relisiez avant d'appuyer sur Envoyer. Quand une information lui manque, il écrit <b>[à compléter : …]</b> ou <b>[…, à confirmer]</b> : le bouton Envoyer n'apparaît qu'une fois ce passage corrigé avec « Modifier ».</p></div>
+  <div class="admin-panel__body">
+    <label class="admin-field"><span>Tarifs que l'agent peut annoncer</span><textarea name="agent_prices" rows="9"><?= e($g('agent_prices')) ?></textarea>
+      <small style="color:#b45309;">⚠️ Pré-rempli avec les « tarifs habituels » de votre outil Pennylane. Vérifiez-les : la grille de l'espace dispatcher (Tarifs) contient d'autres montants.</small></label>
+    <label class="admin-field"><span>Délais et disponibilités que l'agent peut annoncer</span><textarea name="agent_delays" rows="4" placeholder="Exemple : urgence à Dole et alentours : technicien sur place en général sous 1 h 30"><?= e($g('agent_delays')) ?></textarea></label>
+  </div>
+</section>
+
+<section class="admin-panel" id="historique">
+  <div class="admin-panel__head"><h2>🗂️ Anciens mails</h2><p>Par défaut, l'agent lit les mails reçus après sa mise en marche. Il peut aussi trier et ranger vos anciens mails : ceux des derniers jours reçoivent un brouillon de réponse, les plus anciens sont seulement rangés (pas de message Telegram pour eux).</p></div>
+  <div class="admin-panel__body">
+    <div class="admin-form-grid admin-form-grid--2">
+      <label class="admin-field"><span>Lire aussi les mails des … derniers jours (0 = aucun)</span><input type="number" name="agent_history_days" min="0" max="3650" value="<?= (int)$g('agent_history_days') ?>"></label>
+      <label class="admin-field"><span>Brouillon de réponse pour les mails de moins de … jours</span><input type="number" name="agent_history_reply_days" min="1" max="365" value="<?= (int)$g('agent_history_reply_days') ?>"></label>
+    </div>
+    <p style="font-size:.82rem;color:#666;">Environ 70 à 120 mails par heure sont traités (davantage avec la tâche planifiée). Le tri d'un mail coûte une fraction de centime ; le plafond par jour s'applique aussi aux anciens mails.</p>
   </div>
 </section>
 

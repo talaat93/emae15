@@ -414,14 +414,20 @@ est sur le même serveur (MX `mail.emaee.fr` = IP du site, **pas OVH**).
 | `includes/pages_extra.php` → `render_page_suite_appel()` | page `?route=suite-appel[&t=jeton]`, noindex ; crée une demande `source = 'suite-appel'` avec `customer_kind`, `company_name`, `company_siret`, `availability` (pour le futur devis Pennylane, phase 4) |
 
 Règles à ne pas casser :
-- **Rien ne part sans un appui sur « Envoyer » dans Telegram**, jamais en mode test
-  (`agent_mode = test`, valeur par défaut). Verrou `status = 'sending'` : un double
-  appui ou une relance de Telegram n'envoie qu'une fois.
-- Un brouillon de l'IA qui contient un montant, une heure, une date ou un délai
-  (`agent_guard()`) est réécrit une fois, puis présenté **sans** bouton Envoyer. Une
-  correction dictée par le propriétaire (« Modifier ») vaut validation.
-- Seuls les mails reçus **après** la mise en marche sont lus (`agent_start`), sans
-  être marqués comme lus (`BODY.PEEK`). Rangement par copie par défaut
+- **Rien ne part sans un appui sur « Envoyer » dans Telegram**, et jamais en mode
+  test. Par choix du propriétaire (10/11/2026), le mode par défaut est « envoi
+  activé » (`agent_mode = live`), sans semaine d'essai. Verrou `status = 'sending'` :
+  un double appui ou une relance de Telegram n'envoie qu'une fois.
+- Prix, dates et délais **autorisés** (choix du propriétaire, 10/11/2026), mais
+  seulement ceux des réglages `agent_prices` (pré-rempli avec les « tarifs
+  habituels » de l'outil Pennylane, différents de la grille dispatcher) et
+  `agent_delays`. `agent_guard()` les **signale** dans la note du brouillon sans
+  bloquer. Ce qui manque est écrit `[à compléter : …]` ou `[…, à confirmer]` :
+  `agent_blocker()` retire alors le bouton Envoyer jusqu'à correction (« Modifier »).
+- Mails lus : depuis la mise en marche (`agent_start`), moins `agent_history_days`
+  jours si le propriétaire demande ses anciens mails ; au-delà de
+  `agent_history_reply_days` jours, un mail est trié et rangé sans brouillon ni
+  message Telegram. Jamais marqués comme lus (`BODY.PEEK`). Rangement par copie par défaut
   (`agent_filing = copy`) dans `EMAE/<catégorie>` (`INBOX.EMAE.…` chez cPanel).
 - Les mails envoyés par le site portent `X-EMAE-Source: site` et ceux de l'agent
   `X-EMAE-Item: <id>` : ils sont ignorés au tri. Les demandes `suite-appel` ne sont
@@ -468,7 +474,7 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-915 assertions, aucune base de données nécessaire : chaque test remplace
+927 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
 sur les 192 fichiers PHP.
@@ -602,10 +608,9 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
       Gmail (entreprisemultitechniqueavance@gmail.com), puis « Tester la connexion ».
 - [ ] Vérifier que la clé de l'API Claude est saisie et fixer une limite de
       dépense mensuelle sur console.anthropic.com.
-- [ ] Mettre l'agent en marche **en mode test** pendant une semaine, juger les
-      brouillons sur Telegram, corriger les catégories fausses dans l'écran.
-- [ ] Au bout de la semaine : relire le bilan, puis décider du passage en
-      « envoi activé ».
+- [ ] Vérifier la liste « Tarifs que l'agent peut annoncer » et compléter les
+      délais, puis choisir combien de jours d'anciens mails relire.
+- [ ] Mettre l'agent en marche, corriger les catégories fausses dans l'écran.
 
 ### Pennylane — à faire par le propriétaire
 
