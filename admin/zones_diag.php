@@ -24,7 +24,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if (($_POST['action'] ?? '') === 'secteurs_annuler') {
         $lot = preg_replace('/[^a-z0-9-]/', '', (string)($_POST['lot'] ?? '')) ?? '';
-        $n = $lot !== '' ? geo_annuler($lot) : 0;
+        $n = 0;
+        // Mise en cohérence : les lots complémentaires (v15.39) s'annulent d'abord, dans l'ordre inverse.
+        $_coh = coherence_dernier_bilan();
+        if ($lot !== '' && $_coh && ($_coh['lot'] ?? '') === $lot) foreach (array_reverse((array)($_coh['lots_suivants'] ?? [])) as $_l) $n += geo_annuler((string)$_l);
+        $n += $lot !== '' ? geo_annuler($lot) : 0;
         admin_log('modification', 'Secteurs — annulation', $n.' valeur(s) restaurée(s)');
         flash('success', $n.' valeur'.($n > 1 ? 's' : '').' remise'.($n > 1 ? 's' : '').' comme avant la mise à jour des secteurs.');
     }

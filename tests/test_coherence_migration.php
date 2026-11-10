@@ -30,6 +30,10 @@ $DB = ['settings' => [
     'zvar_en_ville' => 'à Quetigny , Dijon et Genlis',
     'avail_open_text' => 'Technicien disponible aujourd\'hui — intervention rapide',
     'z:doubs:qs_lead' => 'Plusieurs équipes réparties en Île-de-France pour une arrivée en moins de 90 min.',
+    'zvar_region' => 'Doubs , Côte-d\'Or, Jura',
+    'zvar_en_region' => 'dans le Doubs , la Côte-d\'Or, le Jura et les alentours ',
+    'home_lead' => 'Électricité, plomberie, chauffage, climatisation et pompes à chaleur dans le Doubs , la Côte-d\'Or, le Jura et les alentours . Intervention rapide autour de Quetigny , Dijon et Genlis , devis gratuit, artisans qualifiés.',
+    'home_title_hl' => 'en Île-de-France sur mesure',
 ], 'zones' => [
     1 => ['id'=>1,'slug'=>'idf','name'=>'Bourgogne-Franche-Comté','status'=>1,'sort_order'=>0,'postal_codes'=>'','depts'=>'','cities'=>'','delay'=>'','meta_title'=>'Electricien Paris','hero_h1'=>null],
     2 => ['id'=>2,'slug'=>'jura','name'=>'Jura','status'=>1,'sort_order'=>1,'postal_codes'=>'39','depts'=>'Jura (39)','cities'=>'Dole|Tavaux','delay'=>"Moins d'1 h à Dole, sous 2 h ailleurs",'meta_title'=>null],
@@ -113,6 +117,17 @@ check('texte neutre intact', $S('home_title'), 'Votre expert multitechnique');
 check('bilan enregistré', coherence_dernier_bilan()['lot'] ?? '', $b['lot']);
 check('zone /idf/ sans ville ni département : non listée', array_column(intervention_zones_listed(), 'slug'), ['jura', 'doubs', 'cote-d-or']);
 
+echo "\n1b. Textes globaux figés (v15.39)\n";
+$b3 = coherence_degeler(); settings_cache(true);
+check('accroche de l\'accueil : modèle à variables remis', $S('home_lead'), geo_textes_globaux()['home_lead']);
+check('variable de lieu sans espace en trop', $S('zvar_en_region'), "dans le Doubs, la Côte-d'Or, le Jura et les alentours");
+set_zone_context(null);
+check('accueil : même texte qu\'avant (espaces corrigés)', zone_vars_apply((string)$S('home_lead')), "Électricité, plomberie, chauffage, climatisation et pompes à chaleur dans le Doubs, la Côte-d'Or, le Jura et les alentours. Intervention rapide autour de Quetigny, Dijon et Genlis, devis gratuit, artisans qualifiés.");
+set_zone_context($GLOBALS['DB']['zones'][2]);
+check('Jura : son propre secteur dans l\'accroche', str_contains(zone_vars_apply((string)$S('home_lead')), 'autour de Dole'), true);
+set_zone_context(null);
+check('un seul bilan, lot suivant rattaché', in_array($b3['lot'], coherence_dernier_bilan()['lots_suivants'] ?? [], true), true);
+
 echo "\n2. Rejouée : rien de plus\n";
 $b2 = coherence_appliquer(); settings_cache(true);
 check('aucun texte modifié la deuxième fois', $b2['textes'], 0);
@@ -120,6 +135,7 @@ check('aucun texte modifié la deuxième fois', $b2['textes'], 0);
 echo "\n3. Annulation complète\n";
 geo_annuler($b2['lot']);
 if (!empty($b2['secteurs']['lot'])) geo_annuler($b2['secteurs']['lot']);
+geo_annuler($b3['lot']);
 $n = geo_annuler($b['lot']);
 if (!empty($b['secteurs']['lot'])) geo_annuler($b['secteurs']['lot']);
 settings_cache(true);

@@ -566,6 +566,19 @@ function faq_answer_fix(string $q, string $a): string
     return claim_clean($a);
 }
 
+/**
+ * Texte libre d'une page (saisi dans l'admin) sans les ressources tierces qu'un copier-coller
+ * y a laissées : feuille Google Fonts, scripts externes. Elles transmettraient l'adresse IP du
+ * visiteur à un tiers avant tout consentement. Le texte enregistré n'est pas modifié.
+ */
+function page_html_without_third_party(string $html): string
+{
+    return (string)preg_replace([
+        '#<link\b[^>]*\bhref=["\']?https?://[^"\'>]*(fonts\.googleapis|fonts\.gstatic|googletagmanager|google-analytics|doubleclick)[^>]*>#i',
+        '#<script\b[^>]*\bsrc=["\']?https?://[^>]*>\s*</script>#i',
+    ], '', $html);
+}
+
 /** Lien vers la fiche Google publique (avis), s'il est renseigné. */
 function google_profile_url(): string
 {

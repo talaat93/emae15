@@ -826,6 +826,17 @@ if (!file_exists($_mf38)) {
     unset($_me);
 }
 unset($_mf38);
+// Auto-migration v15.39 — textes globaux figés par la modification sur la page (« autour de
+// Quetigny, Dijon et Genlis » repris tel quel par les zones Jura et Doubs) : modèle à variables
+// remis quand le texte en est exactement la version résolue. Annulable avec la v15.38.
+$_mf39 = __DIR__.'/../storage/.mig_v15_coherence_textes';
+if (!file_exists($_mf39)) {
+    @file_put_contents($_mf39, date('c'));
+    try { require_once __DIR__ . '/admin_fields.php'; coherence_degeler(); }
+    catch (Throwable $_me) { error_log('Migration v15.39 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf39);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

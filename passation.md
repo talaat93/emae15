@@ -483,6 +483,11 @@ Règles posées par la mission de mise en cohérence du site. À respecter dans 
 - **Migration v15.38** (`.mig_v15_coherence`, `includes/coherence.php`) : nettoie la base portée
   par portée, sauvegarde tout (lot `coherence-…`), annulable dans Diagnostic des zones.
   `geo_appliquer(false)` ne réécrit plus les variables et titres globaux du propriétaire.
+  Migration v15.39 (`.mig_v15_coherence_textes`, `coherence_degeler()`) : un texte global figé
+  par la modification sur la page (« autour de Quetigny, Dijon et Genlis », hérité par /jura/)
+  retrouve son modèle à variables quand il en est la version résolue. Annulée avec la v15.38.
+- Texte libre des pages (`content_html`) : `page_html_without_third_party()` retire à l'affichage
+  les feuilles Google Fonts et scripts externes collés dans l'éditeur (page Chauffage).
 - Tests : `test_coherence.php`, `test_coherence_migration.php` (base reproduisant le site du
   10/11/2026), et dans le bac à sable : `cdp_consent.mjs` (navigateur, requêtes réseau).
 
@@ -514,7 +519,7 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1082 assertions, aucune base de données nécessaire : chaque test remplace
+1087 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
 sur les 196 fichiers PHP.

@@ -173,6 +173,50 @@ function coherence_appliquer(): array
     return $bilan;
 }
 
+/** Texte comparable : espaces avant la ponctuation retirés, espaces multiples réduits. */
+function coherence_norm(string $t): string
+{
+    return trim((string)preg_replace(['/\s+([,.;:!?])/u', '/\s+/u'], ['$1', ' '], $t));
+}
+
+/**
+ * Textes globaux « figés » (migration v15.39). Une modification directe sur la page enregistre
+ * la valeur affichée : « …autour de {ville} » devient « …autour de Quetigny, Dijon et Genlis »,
+ * et toutes les zones (Jura, Doubs…) héritent alors des villes de Côte-d'Or. Quand un texte
+ * global est exactement la version résolue de son modèle à variables, le modèle est remis :
+ * le site global affiche le même texte, chaque zone le sien. Variables de lieu : espaces en
+ * trop retirés (« Genlis  | EMAE »). Sauvegardé dans le même lot que la v15.38, annulable.
+ */
+function coherence_degeler(): array
+{
+    $lot   = 'coherence-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+    $bilan = ['lot' => $lot, 'date' => date('c'), 'textes' => 0, 'listes' => 0, 'zones' => 0, 'secteurs' => null];
+    try { geo_sauvegarde_table(); } catch (Throwable $e) {}
+    $avant = zone_context();
+    set_zone_context(null);
+    foreach (settings_cache() as $k => $v) {
+        if (!str_starts_with((string)$k, ZVAR_PREFIX) && !preg_match('/^z:[a-z0-9-]+:'.preg_quote(ZVAR_PREFIX, '/').'/', (string)$k)) continue;
+        $nv = coherence_norm((string)$v);
+        if ($nv !== (string)$v && $nv !== '') coherence_ecrire($lot, (string)$k, $nv, $bilan);
+    }
+    settings_cache(true);
+    foreach (geo_textes_globaux() as $cle => $modele) {
+        if (!str_contains($modele, '{')) continue;
+        $raw = (string)(settings_cache()[$cle] ?? '');
+        if ($raw === '' || str_contains($raw, '{')) continue;
+        if (coherence_norm($raw) === coherence_norm(zone_vars_apply($modele))) coherence_ecrire($lot, $cle, $modele, $bilan);
+    }
+    set_zone_context($avant);
+    settings_cache(true);
+    if (function_exists('admin_inline_keys')) admin_inline_keys(true);
+    $prec = coherence_dernier_bilan();
+    // Un seul bouton d'annulation : le bilan affiché garde le lot principal, celui-ci y est ajouté.
+    $bilan['lot_principal'] = $prec['lot'] ?? '';
+    if ($prec) { $prec['textes'] += $bilan['textes']; $prec['lots_suivants'][] = $lot; geo_ecrire_brut('coherence_bilan', (string)json_encode($prec, JSON_UNESCAPED_UNICODE)); }
+    else geo_ecrire_brut('coherence_bilan', (string)json_encode($bilan, JSON_UNESCAPED_UNICODE));
+    return $bilan;
+}
+
 function coherence_dernier_bilan(): ?array
 {
     $d = json_decode((string)(settings_cache()['coherence_bilan'] ?? ''), true);

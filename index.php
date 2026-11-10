@@ -1464,7 +1464,7 @@ if ($tpl !== null || $page) {
 </div></section>
 
 <?php if (trim((string)($page['content_html']??''))!==''): ?>
-<section class="sec sec-card"><div class="wrap"><div class="rich" style="max-width:860px;"><?= $page['content_html'] ?></div></div></section>
+<section class="sec sec-card"><div class="wrap"><div class="rich" style="max-width:860px;"><?= page_html_without_third_party((string)$page['content_html']) ?></div></div></section>
 <?php endif;
         render_footer(); exit;
     }
@@ -1473,7 +1473,7 @@ if ($tpl !== null || $page) {
     $meta = seo_defaults($route, $page);
     render_head($meta); render_header(route_url($route));
     echo '<section class="page-hero"><div class="wrap"><div class="ph-eyebrow">'.e($page['page_type']).'</div><h1 class="ph-h1">'.e($page['title']).'</h1><p class="ph-lead">'.e($page['excerpt']??'').'</p></div></section>';
-    echo '<section class="sec sec-navy"><div class="wrap"><div class="rich">'.($page['content_html'] ?: '<p style="color:var(--t2)">Contenu à venir.</p>').'</div></div></section>';
+    echo '<section class="sec sec-navy"><div class="wrap"><div class="rich">'.(page_html_without_third_party((string)$page['content_html']) ?: '<p style="color:var(--t2)">Contenu à venir.</p>').'</div></div></section>';
     render_footer(); exit;
 }
 
