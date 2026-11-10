@@ -1416,3 +1416,7 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
 .px-rows{list-style:none;margin:0;padding:0;}
 .px-rows li{display:flex;align-items:center;justify-content:space-between;gap:.75rem;padding:.75rem 0;border-top:1px solid var(--line);color:var(--t1);font-size:.92rem;}
 .px-rows li span small{display:block;color:var(--t2);font-size:.78rem;margin-top:.15rem;}
+
+/* Formulaire « suite à votre appel » */
+.px-radio{display:inline-flex;align-items:center;gap:.4rem;margin:.25rem 1.2rem .25rem 0;cursor:pointer;}
+.qs-card [data-pro][hidden]{display:none;}

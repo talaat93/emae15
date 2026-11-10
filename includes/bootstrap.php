@@ -35,6 +35,8 @@ require_once __DIR__ . '/automations.php';
 require_once __DIR__ . '/client_space.php';
 require_once __DIR__ . '/payments.php';
 require_once __DIR__ . '/contracts.php';
+require_once __DIR__ . '/mailbox.php';
+require_once __DIR__ . '/agent_client.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -784,6 +786,23 @@ if (!file_exists($_mf35)) {
     unset($_me, $__rep, $__r, $__v);
 }
 unset($_mf35);
+// Auto-migration v15.36 — agent relation client : messages traités, journal des actions
+// et de leur coût, liens « suite à votre appel » ; champs utiles au futur devis Pennylane.
+$_mf36 = __DIR__.'/../storage/.mig_v15_agent';
+if (!file_exists($_mf36)) {
+    agent_tables();
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN address VARCHAR(255) NULL",        // déjà là sur la plupart des bases
+        "ALTER TABLE quotes ADD COLUMN postal_code VARCHAR(10) NULL",
+        "ALTER TABLE quotes ADD COLUMN customer_kind VARCHAR(12) NULL",
+        "ALTER TABLE quotes ADD COLUMN company_name VARCHAR(190) NULL",
+        "ALTER TABLE quotes ADD COLUMN company_siret VARCHAR(20) NULL",
+        "ALTER TABLE quotes ADD COLUMN availability VARCHAR(500) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf36, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf36);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

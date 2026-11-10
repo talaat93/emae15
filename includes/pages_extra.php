@@ -285,3 +285,88 @@ function render_page_entretien(): void
 <?php
     render_footer();
 }
+
+/* ── Agent relation client : formulaire « suite à votre appel » ──
+   Lien personnel (?t=…) préparé par l'agent ou depuis l'admin, prérempli avec ce
+   que l'on sait déjà. Sans lien, la page reste utilisable (lien générique à copier
+   dans un SMS). Les réponses deviennent une demande, avec les champs dont Pennylane
+   aura besoin (particulier ou professionnel, société, SIRET). */
+function render_page_suite_appel(): void
+{
+    $token = (string)($_GET['t'] ?? $_POST['t'] ?? '');
+    $link  = $token !== '' ? agent_link_load($token) : null;
+    $self  = route_url('suite-appel').($link ? '&t='.rawurlencode($token) : '');
+    $pre   = $link ? (json_decode((string)$link['prefill'], true) ?: []) : [];
+    $old   = [];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'suite_appel') {
+        verify_csrf();
+        if (trim((string)($_POST['website'] ?? '')) !== '') redirect_to($self);
+        if (!rate_limit_passed('suite_appel', 8)) { flash('error', 'Merci de patienter quelques secondes.'); redirect_to($self); }
+        $res = agent_followup_submit(['t' => $link ? $token : ''] + $_POST, $_FILES);
+        if ($res['ok']) {
+            $_SESSION['suite_appel_ok'] = 1;
+            flash('success', 'Merci, vos informations sont bien arrivées. Nous préparons votre intervention et revenons vers vous rapidement.');
+            if (!empty($res['refused'])) flash('error', 'Certaines photos n\'ont pas pu être jointes (JPG, PNG ou WebP, '.QUOTE_PHOTO_MAX_MB.' Mo maximum). Le reste est bien parti.');
+            redirect_to($self);
+        }
+        flash('error', $res['error']);
+        $old = array_map(static fn($v) => is_string($v) ? $v : '', $_POST);
+    }
+    $v = static fn(string $k): string => (string)($old[$k] ?? $pre[$k] ?? '');
+    $done = !empty($_SESSION['suite_appel_ok']) || ($link && !empty($link['submitted_at']) && !$old);
+    unset($_SESSION['suite_appel_ok']);
+    render_head(['title' => 'Suite à votre appel | '.company_name(), 'description' => 'Complétez vos informations pour préparer l\'intervention.', 'canonical' => route_url('suite-appel'), 'robots' => 'noindex,nofollow']);
+    render_header('');
+    $first = trim((string)strtok($v('full_name'), ' '));
+    px_hero('Suite à votre appel', $first !== '' ? 'Bonjour '.$first.', préparons votre intervention' : 'Préparons votre intervention',
+        'Merci pour votre appel. Pour que le technicien arrive avec le bon matériel, complétez ces quelques informations. Vous pouvez aussi simplement répondre à notre message.', false);
+    echo '<section class="sec sec-navy"><div class="wrap px-narrow">';
+    if ($done) {
+        echo '<div class="px-note">✅ Vos informations sont bien enregistrées. Nous revenons vers vous rapidement. Une urgence ? Appelez le <a href="'.e(company_phone_link()).'" style="color:var(--p);font-weight:700;">'.e(company_phone()).'</a>.</div></div></section>';
+        render_footer();
+        return;
+    }
+    $kind = $v('customer_kind') === 'pro' ? 'pro' : 'particulier';
+    $services = ['Électricité', 'Plomberie', 'Chauffage', 'Climatisation / pompe à chaleur', 'VMC', 'Entretien de chaudière', 'Portail / visiophone', 'Autre'];
+    ?>
+  <div class="px-note">🚨 Urgence en cours (fuite, plus de courant, odeur de gaz) ? Appelez directement le <a href="<?= e(company_phone_link()) ?>" style="color:var(--p);font-weight:700;"><?= e(company_phone()) ?></a>, jour et nuit.</div>
+  <form class="qs-card" action="<?= e($self) ?>" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+    <input type="hidden" name="form_type" value="suite_appel">
+    <?php if ($link): ?><input type="hidden" name="t" value="<?= e($token) ?>"><?php endif; ?>
+    <input type="text" name="website" value="" class="hp" tabindex="-1" autocomplete="off">
+    <h2 class="px-form-title">1. Vos coordonnées</h2>
+    <div class="f-field"><span class="f-label">Vous êtes</span>
+      <label class="px-radio"><input type="radio" name="customer_kind" value="particulier"<?= $kind === 'particulier' ? ' checked' : '' ?>> un particulier</label>
+      <label class="px-radio"><input type="radio" name="customer_kind" value="pro"<?= $kind === 'pro' ? ' checked' : '' ?>> un professionnel, un syndic ou un bailleur</label>
+    </div>
+    <div class="f-row" data-pro<?= $kind === 'pro' ? '' : ' hidden' ?>>
+      <div class="f-field"><span class="f-label">Société *</span><input class="f-input" type="text" name="company_name" value="<?= e($v('company_name')) ?>"></div>
+      <div class="f-field"><span class="f-label">SIRET (facultatif)</span><input class="f-input" type="text" name="siret" inputmode="numeric" maxlength="17" value="<?= e($v('siret')) ?>"></div>
+    </div>
+    <div class="f-row">
+      <div class="f-field"><span class="f-label">Nom complet *</span><input class="f-input" type="text" name="full_name" required autocomplete="name" value="<?= e($v('full_name')) ?>"></div>
+      <div class="f-field"><span class="f-label">Téléphone *</span><input class="f-input" type="tel" name="phone" required autocomplete="tel" value="<?= e($v('phone')) ?>"></div>
+    </div>
+    <div class="f-field"><span class="f-label">E-mail</span><input class="f-input" type="email" name="email" autocomplete="email" value="<?= e($v('email')) ?>"></div>
+    <h2 class="px-form-title" style="margin-top:1.5rem;">2. Le lieu de l'intervention</h2>
+    <div class="f-field"><span class="f-label">Adresse *</span><input class="f-input" type="text" name="address" required autocomplete="street-address" value="<?= e($v('address')) ?>"></div>
+    <div class="f-row">
+      <div class="f-field"><span class="f-label">Code postal *</span><input class="f-input" type="text" name="postal_code" required pattern="[0-9]{5}" maxlength="5" inputmode="numeric" autocomplete="postal-code" value="<?= e($v('postal_code')) ?>"></div>
+      <div class="f-field"><span class="f-label">Ville *</span><input class="f-input" type="text" name="city" required autocomplete="address-level2" value="<?= e($v('city')) ?>"></div>
+    </div>
+    <h2 class="px-form-title" style="margin-top:1.5rem;">3. Votre besoin</h2>
+    <div class="f-field"><span class="f-label">Type d'intervention</span><select class="f-input" name="service_type">
+      <?php foreach ($services as $s): ?><option<?= $v('service_type') === $s ? ' selected' : '' ?>><?= e($s) ?></option><?php endforeach; ?>
+    </select></div>
+    <div class="f-field"><span class="f-label">Décrivez la panne ou les travaux *</span><textarea class="f-input f-textarea" name="description" required placeholder="Ce qui se passe, depuis quand, marque de l'appareil, accès (étage, digicode)…"><?= e($v('description')) ?></textarea></div>
+    <?php render_quote_photo_field(); ?>
+    <div class="f-field"><span class="f-label">Vos disponibilités (facultatif)</span><textarea class="f-input f-textarea" name="availability" rows="2" placeholder="Exemple : en semaine après 17 h, samedi matin"><?= e($v('availability')) ?></textarea></div>
+    <button class="btn btn-p btn-lg btn-block" type="submit">Envoyer mes informations</button>
+    <p class="f-meta">Vos informations servent uniquement à préparer cette intervention et son devis. <a href="<?= e(route_url('mentions-legales')) ?>">Données personnelles</a></p>
+  </form>
+  <script>document.querySelectorAll('input[name="customer_kind"]').forEach(function(r){r.addEventListener('change',function(){document.querySelector('[data-pro]').hidden=this.value!=='pro';});});</script>
+</div></section>
+<?php
+    render_footer();
+}

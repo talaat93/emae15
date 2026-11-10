@@ -394,6 +394,52 @@ le cron utilisent `site_public_origin`, retenu quand un admin ouvre l'admin.
 
 ---
 
+## 4quinquies. Agent relation client (phase 1 du brief des agents, novembre 2026)
+
+Cahier des charges : `brief-agents-emae.md` (non versionné, à la racine du dossier
+local). Phase 1 = tri des deux boîtes, brouillons, validation sur Telegram,
+formulaire « suite à votre appel ». Écran : Croissance → 🤖 Agent relation client.
+
+**Choix d'architecture (validé par le propriétaire le 10/11/2026)** : l'agent tourne
+sur o2switch, dans les tâches automatiques existantes (`agent_run()` dans
+`automations_run()`), et non sur l'ordinateur du propriétaire. La boîte du domaine
+est sur le même serveur (MX `mail.emaee.fr` = IP du site, **pas OVH**).
+
+| Fichier | Contenu |
+|---|---|
+| `includes/mailbox.php` | IMAP (`ImapLite`) et SMTP (`SmtpLite`) écrits à la main, **sans extension PHP** (imap / mailparse peuvent manquer chez l'hébergeur), lecture MIME (`mime_parse()`), fabrication d'un message (`mime_build()`) |
+| `includes/agent_client.php` | réglages (`agent_get/agent_set`, table `integration_settings`), tables `agent_items` / `agent_log` / `agent_links`, tri sans IA (`agent_prefilter()`), tri par Haiku et rédaction par Sonnet (via `claude_structured()`, consignes en cache), garde-fou `agent_guard()`, envoi (`agent_send_reply()`), Telegram (`agent_tg_*`), formulaire (`agent_followup_*`) |
+| `api/telegram.php` | webhook du bot (en-tête secret obligatoire, seul le téléphone relié agit). **Attention** : ne pas supprimer avec le reste de `api/` (voir §8, décisions en attente) |
+| `admin/agent.php` | écran : marche/arrêt, mode test / envoi activé, boîtes, Telegram, dossiers, lien « suite à votre appel », bilan, journal et coûts |
+| `includes/pages_extra.php` → `render_page_suite_appel()` | page `?route=suite-appel[&t=jeton]`, noindex ; crée une demande `source = 'suite-appel'` avec `customer_kind`, `company_name`, `company_siret`, `availability` (pour le futur devis Pennylane, phase 4) |
+
+Règles à ne pas casser :
+- **Rien ne part sans un appui sur « Envoyer » dans Telegram**, jamais en mode test
+  (`agent_mode = test`, valeur par défaut). Verrou `status = 'sending'` : un double
+  appui ou une relance de Telegram n'envoie qu'une fois.
+- Un brouillon de l'IA qui contient un montant, une heure, une date ou un délai
+  (`agent_guard()`) est réécrit une fois, puis présenté **sans** bouton Envoyer. Une
+  correction dictée par le propriétaire (« Modifier ») vaut validation.
+- Seuls les mails reçus **après** la mise en marche sont lus (`agent_start`), sans
+  être marqués comme lus (`BODY.PEEK`). Rangement par copie par défaut
+  (`agent_filing = copy`) dans `EMAE/<catégorie>` (`INBOX.EMAE.…` chez cPanel).
+- Les mails envoyés par le site portent `X-EMAE-Source: site` et ceux de l'agent
+  `X-EMAE-Item: <id>` : ils sont ignorés au tri. Les demandes `suite-appel` ne sont
+  pas reprises comme demandes du site.
+- Coût réel de chaque appel dans `agent_log.cost_usd` (prix par million de jetons
+  dans `AGENT_PRICES`, cache écrit ×1,25, lu ×0,1), plafond par jour
+  `agent_daily_cap` (le tri sans IA continue au-delà). Un seul passage à la fois
+  (`storage/.agent_lock`).
+- Mots de passe des boîtes et jeton du bot : `integration_secret()`, jamais
+  réaffichés, masqués dans les journaux (`integration_redact()`). Gmail exige un
+  **mot de passe d'application** (validation en deux étapes).
+
+Essai de bout en bout fait sur une copie locale avec de faux serveurs IMAP (façon
+Dovecot/cPanel), SMTP, Claude et Telegram : 80 vérifications. **Pas encore essayé
+contre les vrais serveurs** (Gmail, o2switch, Telegram, API Claude).
+
+---
+
 ## 5. Conventions de travail
 
 Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
@@ -422,10 +468,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-827 assertions, aucune base de données nécessaire : chaque test remplace
+915 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 186 fichiers PHP.
+sur les 192 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -445,6 +491,7 @@ sur les 186 fichiers PHP.
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
 | `test_demandes.php` | mails rappel / devis, photos des clients (vraies images seulement, aucun autre fichier accessible), avant / après, couleur des boutons |
 | `test_croissance.php` | outils de conversion : numéro WhatsApp, horaires du bandeau, note Google jamais inventée, SMS automatiques, créneaux de rendez-vous, pages panne, 404, signature Stripe, échéances d'entretien, espace client, suivi |
+| `test_agent.php` | agent relation client : lecture des mails (encodages, pièces jointes, réponses citées), tri sans IA, garde-fou prix / dates / délais, coût, boutons Telegram selon le mode, **aucun envoi en mode test ni en double** |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
@@ -547,6 +594,19 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
       clé Stripe et webhook (Paiements), espace client, demandes non terminées.
 - [ ] Ajouter ses clients sous contrat dans Contrats d'entretien.
 
+### Agent relation client — à faire par le propriétaire (novembre 2026)
+
+- [ ] Créer le bot Telegram (@BotFather), coller le jeton dans l'écran de l'agent,
+      puis « Relier mon téléphone » **depuis le site en ligne** (Telegram exige https).
+- [ ] Saisir le mot de passe de contact@emaee.fr et le mot de passe d'application
+      Gmail (entreprisemultitechniqueavance@gmail.com), puis « Tester la connexion ».
+- [ ] Vérifier que la clé de l'API Claude est saisie et fixer une limite de
+      dépense mensuelle sur console.anthropic.com.
+- [ ] Mettre l'agent en marche **en mode test** pendant une semaine, juger les
+      brouillons sur Telegram, corriger les catégories fausses dans l'écran.
+- [ ] Au bout de la semaine : relire le bilan, puis décider du passage en
+      « envoi activé ».
+
 ### Pennylane — à faire par le propriétaire
 
 - [ ] Générer le jeton Pennylane avec les droits : clients, produits,
@@ -566,6 +626,9 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 - **`api/`** — 36 fichiers PHP, copie périmée de `admin/`. Rien n'y mène, aucun
   risque de sécurité identifié, mais c'est du poids mort qui trompe les
   recherches dans le code. En attente d'un feu vert pour suppression.
+  **Ne pas supprimer** `api/stripe_webhook.php` ni `api/telegram.php` (webhooks
+  utilisés), ni `api/chat.php`, `api/track.php`, `api/yousign_webhook.php` sans
+  vérifier leur usage.
 - **`tech/index.php`** — copie de la page publique faite sans corriger les
   chemins : elle charge `tech/includes/bootstrap.php`, dossier qui n'existe
   pas, donc elle plante à chaque appel. Plus référencée nulle part depuis que
@@ -587,8 +650,9 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Agent relation client, phase 1 (§4quinquies) : lecture des boîtes du domaine et Gmail sans extension PHP, tri sans IA puis par Haiku, rangement dans `EMAE/<catégorie>`, brouillons par Sonnet déposés dans la boîte, garde-fou prix / dates, validation sur Telegram (`api/telegram.php`), formulaire « suite à votre appel », journal et coût réel, plafond par jour. Migration `.mig_v15_agent`. Les mails du site portent `X-EMAE-Source: site`. `claude_structured()` accepte `model`, `cache_system` et renvoie `usage` |
 | *(voir `git log`)* | Photos fournies avec le site (`assets/img/services/`, photos Unsplash, licence Unsplash : usage commercial libre, sans crédit obligatoire) : cartes VMC (`vmc.jpg`), Portail & Visiophone (`portail.jpg`), Automatismes & Électroménager (`electromenager.jpg`) quand l'admin n'a pas d'image ; fond des pages métier par `service_hero_image()` : vmc, portail (`visiophone.jpg`), automatisme. Une image envoyée dans l'admin reste prioritaire ; les trois métiers ajoutés à « Images hero services ». Sources : unsplash.com/photos/RAliDqgJKbE, 6vVEd4LOxl0, A9wbeTxMBeU, 23coWmkTNSg. Accueil sur téléphone : titre avant l'encart de rappel (`d32720f`) |
-| *(voir `git log`)* | 20 outils de croissance (§4quater) : bandeau de disponibilité, note Google, demande d'avis, SMS d'accusé de réception, vraie 404, WhatsApp, réalisations près de la ville, 8 pages panne, suivi des demandes, alerte sans réponse, conservation des photos, rendez-vous, estimation, demandes non terminées, contrats d'entretien, espace client, suivi d'intervention, paiement Stripe, aides et primes, photos réduites. Migration `.mig_v15_croissance`. Corrigé au passage : la case « SMS à l'admin à chaque demande » n'envoyait rien ; un caractère mal encodé faisait perdre une demande |
+| `fba9194` | 20 outils de croissance (§4quater) : bandeau de disponibilité, note Google, demande d'avis, SMS d'accusé de réception, vraie 404, WhatsApp, réalisations près de la ville, 8 pages panne, suivi des demandes, alerte sans réponse, conservation des photos, rendez-vous, estimation, demandes non terminées, contrats d'entretien, espace client, suivi d'intervention, paiement Stripe, aides et primes, photos réduites. Migration `.mig_v15_croissance`. Corrigé au passage : la case « SMS à l'admin à chaque demande » n'envoyait rien ; un caractère mal encodé faisait perdre une demande |
 | `b20f827` | Rappel ou devis distingués (`quotes.request_type`, objet, expéditeur et bandeau du mail), photos client (`quotes.client_photos`, dossier fermé `storage/uploads/demandes`, lecture par `admin/quote_photo.php` après connexion : admin, dispatcher, et technicien seulement pour ses propres demandes, allégées dans le navigateur par `site.js`, jointes au mail jusqu'à 10 Mo), photo avant des réalisations (`before_image_path`, `render_realisation_media()`), bouton d'appel en orange et bouton devis dans son ancienne couleur. Migration automatique `.mig_v15_demandes_photos` |
 | `19cd3c7` | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
 | `cf858e8` | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |

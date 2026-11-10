@@ -16,7 +16,7 @@ function public_route_exists(string $slug): bool
 {
     $slug = strtolower(trim($slug, '/'));
     if (in_array($slug, ['zones', 'avis', 'faq', 'contact', 'quote', 'realisations', 'services', 'mentions-legales',
-                         'tarifs', 'pannes', 'aides', 'estimation', 'rendez-vous', 'entretien', 'espace-client'], true)) return true;
+                         'tarifs', 'pannes', 'aides', 'estimation', 'rendez-vous', 'entretien', 'espace-client', 'suite-appel'], true)) return true;
     if (isset(service_trade_defaults()[$slug]) || isset(panne_defaults()[$slug])) return true;
     return function_exists('page_by_slug') && page_by_slug($slug) !== null;
 }

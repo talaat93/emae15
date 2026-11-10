@@ -20,3 +20,4 @@ storage/uploads/devis/
 storage/uploads/demandes/
 # Horodatage et verrou des tâches automatiques (includes/automations.php)
 storage/.automations_*
+storage/.agent_lock

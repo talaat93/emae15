@@ -1167,6 +1167,7 @@ $_extra = [
     'suivi'         => [true,                 'render_page_suivi'],
     'espace-client' => [true,                 'render_page_espace_client'],
     'paiement'      => [true,                 'render_page_paiement'],
+    'suite-appel'   => [true,                 'render_page_suite_appel'],
 ];
 if (isset(panne_defaults()[$route])) $_extra[$route] = [pannes_enabled(), static fn() => render_page_panne($route)];
 if (isset($_extra[$route])) {

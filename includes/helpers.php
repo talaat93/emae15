@@ -847,6 +847,7 @@ function quote_notification_compose(array $data, bool $attach = true): array
     $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+    $headers .= "X-EMAE-Source: site\r\n";   // l'agent relation client ignore les mails envoyés par le site
 
     return ['subject' => $subject, 'subject_text' => $subjectTxt, 'body' => $body, 'headers' => $headers, 'html' => $html, 'attached' => count($attachments)];
 }
@@ -928,6 +929,7 @@ function send_quote_confirmation_to_client(array $data): bool
     $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+    $headers .= "X-EMAE-Source: site\r\n";   // l'agent relation client ignore les mails envoyés par le site
 
     $ok = mail($email, $subject, $html, $headers);
     if (!$ok) error_log('[EMAE] send_quote_confirmation_to_client failed — to='.$email.' from='.$fromEmail);

@@ -57,6 +57,7 @@ function automations_run(string $origin = 'page', bool $force = false): array
         'menage'    => 'automation_housekeeping',
         'google'    => 'automation_google_daily',
         'images'    => 'automation_images',
+        'agent'     => 'agent_run',          // agent relation client (désactivé tant qu'il n'est pas mis en marche)
     ] as $name => $fn) {
         try { $out[$name] = $fn(); }
         catch (Throwable $e) { $out[$name] = 'erreur : '.$e->getMessage(); error_log('[EMAE auto] '.$name.' : '.$e->getMessage()); }
