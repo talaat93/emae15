@@ -803,6 +803,13 @@ if (!file_exists($_mf36)) {
     unset($_me, $__sql);
 }
 unset($_mf36);
+// Auto-migration v15.37 — agent : mails envoyés par le propriétaire (table agent_sent).
+$_mf37 = __DIR__.'/../storage/.mig_v15_agent_sent';
+if (!file_exists($_mf37)) {
+    agent_tables();
+    @file_put_contents($_mf37, date('c'));
+}
+unset($_mf37);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

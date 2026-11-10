@@ -203,6 +203,19 @@ function agent_tables(): void
             cost_usd DECIMAL(10,6) NOT NULL DEFAULT 0,
             KEY idx_date (created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+        "CREATE TABLE IF NOT EXISTS agent_sent (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            account VARCHAR(20) NOT NULL DEFAULT '',
+            message_id VARCHAR(250) NOT NULL DEFAULT '',
+            to_emails VARCHAR(500) NOT NULL DEFAULT '',
+            in_reply_to VARCHAR(250) NOT NULL DEFAULT '',
+            subject VARCHAR(250) NOT NULL DEFAULT '',
+            sent_at DATETIME NULL,
+            body TEXT NULL,
+            by_agent TINYINT NOT NULL DEFAULT 0,
+            UNIQUE KEY uq_sent (account, message_id(190)),
+            KEY idx_sent_at (sent_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
         "CREATE TABLE IF NOT EXISTS agent_links (
             token VARCHAR(24) PRIMARY KEY,
             item_id INT NULL,
@@ -437,6 +450,10 @@ function agent_poll_mailboxes(float $deadline): array
         try {
             $im = agent_imap($acc);
             $done[$key] = agent_flush_imap($im, $acc).' · '.agent_fetch_new($im, $acc, $deadline);
+            if (microtime(true) < $deadline) {
+                try { $done[$key] .= ' · '.agent_fetch_sent($im, $acc, $deadline); }
+                catch (Throwable $e) { agent_log('envoyés illisibles', $acc['label'], mb_substr($e->getMessage(), 0, 200)); }
+            }
             $im->logout();
             if (integration_setting('agent_'.$key.'_error', '') !== '') agent_set('agent_'.$key.'_error', '');
         } catch (Throwable $e) {
@@ -520,6 +537,97 @@ function agent_fetch_new(ImapLite $im, array $acc, float $deadline): string
     }
     if (!$uids && $last === 0 && $sel['uidnext'] > 0) agent_set('agent_'.$key.'_lastuid', (string)($sel['uidnext'] - 1));
     return $n.' nouveau(x)';
+}
+
+/** Dossier des mails envoyés de la boîte (Gmail : « [Gmail]/Messages envoyés », cPanel : « INBOX.Sent »). */
+function agent_sent_folder(ImapLite $im): ?string
+{
+    return $im->special('sent', ['Sent', 'Envoyés', 'Sent Messages', 'Sent Items', 'Éléments envoyés', '[Gmail]/Messages envoyés', '[Gmail]/Sent Mail', 'INBOX.Sent']);
+}
+
+/**
+ * Lit les mails envoyés (par le propriétaire depuis sa messagerie, ou par l'agent) :
+ * l'agent sait ainsi qui a déjà eu une réponse, et reprend le fil des échanges dans ses brouillons.
+ */
+function agent_fetch_sent(ImapLite $im, array $acc, float $deadline): string
+{
+    $folder = agent_sent_folder($im);
+    if ($folder === null) return 'pas de dossier Envoyés';
+    $key = $acc['key'];
+    $sel = $im->select($folder);
+    $last = (int)integration_setting('agent_'.$key.'_sent_lastuid', '0');
+    if ((int)integration_setting('agent_'.$key.'_sent_uidvalidity', '0') !== $sel['uidvalidity']) {
+        // Lecture sans IA (donc sans coût) : au moins 90 jours en arrière, pour connaître les échanges récents.
+        $since = min(agent_history_since(), date('Y-m-d', strtotime((agent_get('agent_start') ?: date('Y-m-d')).' -90 days')));
+        $uids = $im->search('SINCE '.date('d-M-Y', strtotime($since)));
+        $last = 0;
+        agent_set('agent_'.$key.'_sent_uidvalidity', (string)$sel['uidvalidity']);
+    } else {
+        $uids = array_values(array_filter($im->search('UID '.($last + 1).':*'), static fn($u) => $u > $last));
+    }
+    $n = 0;
+    foreach (array_slice($uids, 0, 25) as $uid) {
+        if (microtime(true) > $deadline) break;
+        $m = mime_parse($im->fetchRaw($uid, 300_000));
+        $mid = $m['message_id'] !== '' ? $m['message_id'] : $key.'-sent-'.$sel['uidvalidity'].'-'.$uid;
+        preg_match_all('/[A-Z0-9._%+\'-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i', $m['to'].' '.mime_header_decode((string)($m['headers']['cc'] ?? '')), $mm);
+        $to = implode(',', array_unique(array_map('strtolower', $mm[0])));
+        $h = array_change_key_case($m['headers']);
+        try {
+            db_execute('INSERT INTO agent_sent (account, message_id, to_emails, in_reply_to, subject, sent_at, body, by_agent) VALUES (?,?,?,?,?,?,?,?)', [
+                $key, mb_substr($mid, 0, 250), mb_substr($to, 0, 500), mb_substr(trim($m['in_reply_to'], " \t<>"), 0, 250),
+                mb_substr($m['subject'], 0, 250), $m['date'], mb_substr(mime_strip_quoted($m['text']), 0, 4000),
+                isset($h['x-emae-item']) || isset($h['x-emae-source']) ? 1 : 0,
+            ]);
+            $n++;
+        } catch (Throwable $e) { /* déjà connu */ }
+        $last = max($last, $uid);
+        agent_set('agent_'.$key.'_sent_lastuid', (string)$last);
+    }
+    if (!$uids && $last === 0 && $sel['uidnext'] > 0) agent_set('agent_'.$key.'_sent_lastuid', (string)($sel['uidnext'] - 1));
+    $answered = agent_mark_answered($key);
+    return $n.' envoyé(s) lu(s)'.($answered ? ', '.$answered.' déjà répondu(s) par vous' : '');
+}
+
+/** Le propriétaire a-t-il déjà répondu lui-même à ce message (depuis sa messagerie) ? */
+function agent_owner_replied(array $it): bool
+{
+    if ($it['source'] !== 'mail') return false;
+    $mid = (string)$it['message_id'];
+    $to = agent_reply_address($it);
+    $r = db_fetch("SELECT id FROM agent_sent WHERE account = ? AND by_agent = 0
+                   AND ((in_reply_to <> '' AND in_reply_to = ?) OR (? <> '' AND FIND_IN_SET(?, to_emails) > 0 AND sent_at >= ?)) LIMIT 1",
+        [(string)$it['account'], $mid, $to, $to, (string)($it['received_at'] ?: date('Y-m-d H:i:s'))]);
+    return $r !== null;
+}
+
+/** Brouillons en attente devenus inutiles : le propriétaire a répondu depuis sa messagerie. */
+function agent_mark_answered(string $account): int
+{
+    $n = 0;
+    foreach (db_fetch_all("SELECT * FROM agent_items WHERE account = ? AND source = 'mail' AND status IN ('pending', 'classified') AND needs_reply = 1 ORDER BY id DESC LIMIT 50", [$account]) as $it) {
+        if (!agent_owner_replied($it)) continue;
+        db_execute("UPDATE agent_items SET status = 'answered', needs_reply = 0, filter_reason = ? WHERE id = ? AND status IN ('pending', 'classified')", ['déjà répondu par vous', (int)$it['id']]);
+        agent_log('déjà répondu', 'réponse trouvée dans les envoyés', '', (int)$it['id']);
+        $n++;
+    }
+    return $n;
+}
+
+/** Derniers mails envoyés à ce correspondant, pour que le brouillon reprenne le fil. */
+function agent_sent_history(array $it, int $max = 3): string
+{
+    $to = agent_reply_address($it);
+    if ($to === '') return '';
+    $rows = db_fetch_all("SELECT subject, sent_at, body FROM agent_sent WHERE FIND_IN_SET(?, to_emails) > 0 ORDER BY sent_at DESC LIMIT ".(int)$max, [$to]);
+    if (!$rows) return '';
+    $out = "Nos derniers mails envoyés à ce correspondant (du plus récent au plus ancien) :";
+    foreach ($rows as $r) {
+        $b = trim((string)$r['body']);
+        if (mb_strlen($b) > 800) $b = mb_substr($b, 0, 800).' […]';
+        $out .= "\n<envoye date=\"".date('d/m/Y', strtotime((string)$r['sent_at']))."\">\nObjet : ".$r['subject']."\n".$b."\n</envoye>";
+    }
+    return $out;
 }
 
 /** Date à partir de laquelle les mails sont lus : mise en route, moins les jours d'historique demandés. */
@@ -621,9 +729,12 @@ function agent_process_item(array $it): string
     if ($it['source'] === 'site') { $needs = filter_var(agent_reply_address($it), FILTER_VALIDATE_EMAIL) !== false; if (!in_array($cat, ['urgence', 'mecontent', 'devis'], true)) $cat = 'devis'; }
     $old = $needs && agent_too_old_to_reply($it);   // ancien mail : rangé, sans brouillon ni message Telegram
     if ($old) $needs = false;
+    $replied = $needs && agent_owner_replied($it);  // déjà répondu depuis la messagerie : pas de brouillon
+    if ($replied) $needs = false;
     db_execute('UPDATE agent_items SET category = ?, urgency = ?, summary = ?, missing = ?, needs_reply = ?, status = ?, filter_reason = ? WHERE id = ?', [
         $cat, (string)$d['urgency'], mb_substr((string)$d['summary'], 0, 500), json_encode(array_values((array)$d['missing_info']), JSON_UNESCAPED_UNICODE),
-        $needs ? 1 : 0, 'classified', $noReply ? 'adresse qui ne lit pas les réponses' : ($old ? 'ancien mail : rangé sans brouillon' : null), $id,
+        $needs ? 1 : 0, $replied ? 'answered' : 'classified',
+        $noReply ? 'adresse qui ne lit pas les réponses' : ($old ? 'ancien mail : rangé sans brouillon' : ($replied ? 'déjà répondu par vous' : null)), $id,
     ]);
     if (!$needs) return 'trié : '.agent_cat_label($cat);
 
@@ -652,6 +763,7 @@ function agent_write_draft(array $it, array $tri, string $instruction = ''): str
         ."\nInformations manquantes : ".(implode(', ', (array)($tri['missing_info'] ?? json_decode((string)($it['missing'] ?? '[]'), true) ?? [])) ?: 'aucune')
         .($link !== '' ? "\nLien du formulaire à proposer : ".$link : '')
         .($it['source'] === 'site' ? "\nCe message vient du formulaire de demande du site emaee.fr : la personne attend un premier retour par e-mail." : '')
+        .(($hist = agent_sent_history($it)) !== '' ? "\n\n".$hist."\nTiens compte de ces échanges : ne redemande pas ce qui a déjà été obtenu, reste cohérent avec ce qui a été dit, et reprends le ton employé." : '')
         ."\n\n".agent_mail_for_ai($it);
     $messages = [['role' => 'user', 'content' => $ctx]];
     if ($instruction !== '') {

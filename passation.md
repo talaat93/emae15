@@ -429,6 +429,12 @@ Règles à ne pas casser :
   `agent_history_reply_days` jours, un mail est trié et rangé sans brouillon ni
   message Telegram. Jamais marqués comme lus (`BODY.PEEK`). Rangement par copie par défaut
   (`agent_filing = copy`) dans `EMAE/<catégorie>` (`INBOX.EMAE.…` chez cPanel).
+- Mails envoyés : `agent_fetch_sent()` lit le dossier \Sent (au moins 90 jours, sans IA)
+  dans la table `agent_sent` (`by_agent = 1` pour ceux de l'agent). Un mail auquel le
+  propriétaire a déjà répondu depuis sa messagerie (`In-Reply-To`, ou mail envoyé à
+  l'expéditeur après réception) passe en statut `answered`, sans brouillon ; les 3
+  derniers envoyés au correspondant sont joints à la consigne de rédaction.
+  Migration `.mig_v15_agent_sent`.
 - Les mails envoyés par le site portent `X-EMAE-Source: site` et ceux de l'agent
   `X-EMAE-Item: <id>` : ils sont ignorés au tri. Les demandes `suite-appel` ne sont
   pas reprises comme demandes du site.
@@ -655,6 +661,7 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Agent : lecture des mails envoyés (`agent_sent`, statut `answered` « répondu par vous », fil des échanges dans les brouillons) ; refus de connexion IMAP accompagné de la raison donnée par le serveur |
 | *(voir `git log`)* | Agent relation client, phase 1 (§4quinquies) : lecture des boîtes du domaine et Gmail sans extension PHP, tri sans IA puis par Haiku, rangement dans `EMAE/<catégorie>`, brouillons par Sonnet déposés dans la boîte, garde-fou prix / dates, validation sur Telegram (`api/telegram.php`), formulaire « suite à votre appel », journal et coût réel, plafond par jour. Migration `.mig_v15_agent`. Les mails du site portent `X-EMAE-Source: site`. `claude_structured()` accepte `model`, `cache_system` et renvoie `usage` |
 | *(voir `git log`)* | Photos fournies avec le site (`assets/img/services/`, photos Unsplash, licence Unsplash : usage commercial libre, sans crédit obligatoire) : cartes VMC (`vmc.jpg`), Portail & Visiophone (`portail.jpg`), Automatismes & Électroménager (`electromenager.jpg`) quand l'admin n'a pas d'image ; fond des pages métier par `service_hero_image()` : vmc, portail (`visiophone.jpg`), automatisme. Une image envoyée dans l'admin reste prioritaire ; les trois métiers ajoutés à « Images hero services ». Sources : unsplash.com/photos/RAliDqgJKbE, 6vVEd4LOxl0, A9wbeTxMBeU, 23coWmkTNSg. Accueil sur téléphone : titre avant l'encart de rappel (`d32720f`) |
 | `fba9194` | 20 outils de croissance (§4quater) : bandeau de disponibilité, note Google, demande d'avis, SMS d'accusé de réception, vraie 404, WhatsApp, réalisations près de la ville, 8 pages panne, suivi des demandes, alerte sans réponse, conservation des photos, rendez-vous, estimation, demandes non terminées, contrats d'entretien, espace client, suivi d'intervention, paiement Stripe, aides et primes, photos réduites. Migration `.mig_v15_croissance`. Corrigé au passage : la case « SMS à l'admin à chaque demande » n'envoyait rien ; un caractère mal encodé faisait perdre une demande |

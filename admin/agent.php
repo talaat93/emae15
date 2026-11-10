@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $hd = (string)max(0, min(3650, (int)$_POST['agent_history_days']));
             // Plus d'historique demandé : les boîtes sont relues depuis la nouvelle date (sans doublon : même Message-ID).
             if ((int)$hd > (int)agent_get('agent_history_days')) {
-                foreach ($accounts as $a) { agent_set("agent_{$a}_uidvalidity", ''); agent_set("agent_{$a}_lastuid", ''); }
+                foreach ($accounts as $a) { foreach (['', 'sent_'] as $p) { agent_set("agent_{$a}_{$p}uidvalidity", ''); agent_set("agent_{$a}_{$p}lastuid", ''); } }
             }
             agent_set('agent_history_days', $hd);
         }
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($_POST["agent_{$a}_pass_clear"])) set_integration_secret('agent_pass_'.$a, '');
             // Boîte changée : on repart des mails reçus à partir d'aujourd'hui.
             if (trim((string)($_POST["agent_{$a}_user"] ?? '')) !== '' && trim((string)$_POST["agent_{$a}_user"]) !== agent_get("agent_{$a}_user")) {
-                agent_set("agent_{$a}_uidvalidity", ''); agent_set("agent_{$a}_lastuid", '');
+                foreach (['', 'sent_'] as $p) { agent_set("agent_{$a}_{$p}uidvalidity", ''); agent_set("agent_{$a}_{$p}lastuid", ''); }
             }
         }
         $tg = trim((string)($_POST['telegram_bot_token'] ?? ''));
@@ -140,7 +140,7 @@ try {
         FROM agent_items WHERE created_at >= ?", [$since.' 00:00:00']) ?? [];
 } catch (Throwable $e) { $items = []; $log = []; $st = []; $since = date('Y-m-d'); }
 $statusLabels = ['new' => '⏳ à traiter', 'filtered' => '🗑️ écarté', 'ignored' => '— ignoré', 'classified' => '📁 rangé', 'pending' => '✉️ brouillon en attente',
-                 'approved' => '👍 jugé bon (test)', 'sending' => '📤 envoi…', 'sent' => '✅ envoyé', 'refused' => '❌ refusé', 'error' => '⚠️ erreur'];
+                 'approved' => '👍 jugé bon (test)', 'sending' => '📤 envoi…', 'sent' => '✅ envoyé', 'answered' => '↩️ répondu par vous', 'refused' => '❌ refusé', 'error' => '⚠️ erreur'];
 $claudeOk = claude_is_configured();
 ?>
 <div class="admin-page-toolbar">
@@ -210,6 +210,7 @@ $claudeOk = claude_is_configured();
       <label class="admin-field"><span>Lire aussi les mails des … derniers jours (0 = aucun)</span><input type="number" name="agent_history_days" min="0" max="3650" value="<?= (int)$g('agent_history_days') ?>"></label>
       <label class="admin-field"><span>Brouillon de réponse pour les mails de moins de … jours</span><input type="number" name="agent_history_reply_days" min="1" max="365" value="<?= (int)$g('agent_history_reply_days') ?>"></label>
     </div>
+    <p style="font-size:.82rem;color:#666;">📤 Les <strong>mails envoyés</strong> sont lus aussi, sur au moins 90 jours (sans IA, donc sans coût) : l'agent ne prépare pas de brouillon pour un mail auquel vous avez déjà répondu depuis votre messagerie, et ses brouillons tiennent compte de vos derniers échanges avec la personne.</p>
     <p style="font-size:.82rem;color:#666;">Environ 70 à 120 mails par heure sont traités (davantage avec la tâche planifiée). Le tri d'un mail coûte une fraction de centime ; le plafond par jour s'applique aussi aux anciens mails.</p>
   </div>
 </section>

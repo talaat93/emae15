@@ -42,7 +42,11 @@ final class ImapLite
         $greet = $this->line();
         if (!str_starts_with($greet, '* OK') && !str_starts_with($greet, '* PREAUTH')) throw new MailboxError('Réponse inattendue du serveur de mail.');
         $r = $this->cmd('LOGIN '.self::q($user).' '.self::q($pass));
-        if (!$r['ok']) throw new MailboxError('Identifiant ou mot de passe refusé par '.$this->host.'.');
+        if (!$r['ok']) {
+            // La raison donnée par le serveur aide (Gmail : « Application-specific password required », « Invalid credentials »…).
+            $why = trim((string)preg_replace('/^(NO|BAD)\s*(\[[^\]]*\])?\s*/i', '', $r['status']));
+            throw new MailboxError('Identifiant ou mot de passe refusé par '.$this->host.($why !== '' ? ' (réponse du serveur : '.mb_substr($why, 0, 140).')' : '').'.');
+        }
         $this->caps = [];
         foreach ($this->cmd('CAPABILITY')['lines'] as $l) {
             if (preg_match('/^\* CAPABILITY (.+)$/i', $l, $m)) $this->caps = array_map('strtoupper', preg_split('/\s+/', trim($m[1])));
