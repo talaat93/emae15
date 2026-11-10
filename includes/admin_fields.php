@@ -151,8 +151,8 @@ function admin_page_catalog(): array
                     'fields' => [
                         ['key'=>'zones_label','label'=>'Surtitre','type'=>'text','default'=>'Zone d\'intervention'],
                         ['key'=>'zones_title','label'=>'Titre','type'=>'text','default'=>'Nos zones d\'intervention'],
-                        ['key'=>'zones_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'partout en France'],
-                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'{region} — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
+                        ['key'=>'home_zone_region','label'=>'Région affichée (titre et carte)','type'=>'text','default'=>'Bourgogne-Franche-Comté','help'=>'Une seule carte regroupe vos départements (Jura, Côte-d’Or, Doubs) ; les pages de chaque département restent en ligne.'],
+                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Nous intervenons {en_region}.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement}. La phrase sur la disponibilité et le délai est ajoutée automatiquement.'],
                         ['key'=>'zones_btn','label'=>'Bouton','type'=>'text','default'=>'Demander une intervention'],
                     ],
                 ],

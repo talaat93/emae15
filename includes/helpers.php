@@ -481,7 +481,9 @@ function legal_info(): array
         'directeur'    => $g('ml_directeur'),    // personne physique (nom et prénom)
         'base'         => $g('ml_base', 'Dole (Jura)'),
         'mediateur'    => $g('ml_mediateur'),    // nom et site du médiateur de la consommation
-        'assurance'    => $g('ml_assurance'),    // assureur et couverture géographique
+        // Attestation APRIL / ERGO du 04/05/2026 fournie par le propriétaire (10/11/2026).
+        'assurance'    => $g('ml_assurance', 'Responsabilité civile professionnelle et responsabilité décennale obligatoire : ERGO (contrat souscrit par l\'intermédiaire d\'APRIL), contrat n° 26036641771, attestation valable du 30/04/2026 au 31/12/2026, pour les activités déclarées au contrat.'),
+        'assurance_fin'=> $g('ml_assurance_fin', '2026-12-31'),   // après cette date, badges et mention masqués
         'updated_at'   => $g('ml_updated_at'),
     ];
 }
@@ -690,7 +692,7 @@ function tarifs_default_rows(): array
         // Lignes exigées pour un dépannage (arrêté du 24 janvier 2017) : déplacement, taux horaire TTC
         // et son décompte, majorations avec leurs horaires. Vides = « Sur devis » tant que le prix
         // n'est pas validé : aucun montant n'est inventé.
-        'base'          => ['Frais de déplacement','Diagnostic','Main-d\'œuvre : taux horaire TTC et mode de décompte','Majoration soir, dimanche et jours fériés (horaires et taux)','Établissement du devis'],
+        'base'          => [],   // lignes chiffrées ci-dessous (tarifs habituels EMAE dans Pennylane, HT)
         'electricite'   => ['Dépannage électrique','Remplacement de tableau électrique','Ajout de prise ou de circuit','Mise aux normes NF C 15-100','Rénovation électrique complète'],
         'plomberie'     => ['Recherche et réparation de fuite','Débouchage de canalisation','Remplacement de robinetterie','Remplacement de chauffe-eau','Entretien préventif annuel'],
         'chauffage'     => ['Dépannage de chaudière','Entretien annuel de chaudière','Entretien de pompe à chaleur','Installation de chaudière ou de pompe à chaleur'],
@@ -699,7 +701,21 @@ function tarifs_default_rows(): array
         'portail'       => ['Dépannage de portail bloqué','Motorisation de portail','Installation de visiophone','Dépannage d\'interphone ou de digicode'],
         'automatisme'   => ['Dépannage de volet roulant','Motorisation de volet ou de store','Dépannage d\'électroménager'],
     ];
-    return array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
+    $out = array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
+    $out['base'] = [
+        ['Déplacement — intervention programmée, du lundi au samedi', '52,80 € TTC', '44 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — urgence, du lundi au samedi', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — dimanche ou jour férié, programmé', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — dimanche ou jour férié, urgence', '100,80 € TTC', '84 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — nuit (22 h - 8 h), urgence', '124,80 € TTC', '104 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Diagnostic', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — intervention programmée, du lundi au samedi', '70,80 €/h TTC', '59 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — urgence du lundi au samedi, ou dimanche et jour férié programmé', '88,80 €/h TTC', '74 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — dimanche ou jour férié, urgence', '106,80 €/h TTC', '89 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — nuit (22 h - 8 h), urgence', '130,80 €/h TTC', '109 €/h HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Pièces et travaux', 'Sur devis gratuit', 'Devis écrit remis avant les travaux.'],
+    ];
+    return $out;
 }
 
 /** Grilles à afficher, une par métier, avec les lignes propres à la zone si elle en a. */

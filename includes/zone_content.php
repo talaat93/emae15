@@ -32,7 +32,7 @@ function zone_content_packs(): array
                     'trust_1_sub'       => 'Moins de 2h en urgence en Île-de-France',
                     'qs_lead'           => 'Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Nos équipes couvrent Paris et la petite comme la grande couronne.',
                     'zones_title'       => 'Nos zones d\'intervention en',
-                    'zones_title_hl'    => 'Île-de-France',
+                    'home_zone_region'  => 'Île-de-France',
                     'zones_lead'        => 'Paris, Hauts-de-Seine, Seine-Saint-Denis, Val-de-Marne, Seine-et-Marne, Yvelines, Essonne et Val-d\'Oise — délai moyen d\'intervention inférieur à 2 heures pour les urgences.',
                     'why_lead'          => 'Des artisans qualifiés, des délais respectés, des devis clairs. Nos équipes connaissent le bâti francilien, des immeubles haussmanniens aux copropriétés récentes.',
                 ],

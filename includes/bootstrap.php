@@ -837,6 +837,16 @@ if (!file_exists($_mf39)) {
     unset($_me);
 }
 unset($_mf39);
+// Auto-migration v15.40 — page Tarifs publiée (grille de base reprise de Pennylane, 10/11/2026),
+// sauf si le propriétaire l'a déjà réglée lui-même.
+$_mf40 = __DIR__.'/../storage/.mig_v15_tarifs_publies';
+if (!file_exists($_mf40)) {
+    @file_put_contents($_mf40, date('c'));
+    try { if (!db_fetch("SELECT id FROM settings WHERE setting_key = 'tarifs_enabled'")) db_execute("INSERT INTO settings (setting_key, setting_value) VALUES ('tarifs_enabled', '1')"); settings_cache(true); }
+    catch (Throwable $_me) { error_log('Migration v15.40 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf40);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

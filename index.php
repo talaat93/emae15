@@ -471,25 +471,33 @@ if ($route === '' || $route === 'home') {
       </div>
     </div>
     <?php else: ?>
-    <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em><?= e(geo_replace(claim_clean(setting('zones_title_hl','{en_region}'), '{en_region}'))) ?></em></h2>
-    <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead','{region}. '.intervention_terms_text())))) ?></p>
-    <div class="zones-grid">
-      <?php /* Source unique : la table des zones. Voir includes/zones_core.php.
-               Une zone sans département ni ville (ancienne zone renommée) n'est pas listée. */
-            foreach (intervention_zones_listed() as $_az): ?>
+    <?php
+    // Accueil du site global : une seule carte régionale (choix du propriétaire, 10/11/2026) qui
+    // regroupe les départements desservis ; les pages /jura/, /doubs/, /cote-d-or/ restent en ligne.
+    $_reg = trim(setting('home_zone_region', 'Bourgogne-Franche-Comté'));
+    $_listed = intervention_zones_listed();
+    $_depts = []; foreach ($_listed as $_az) foreach ($_az['depts'] as $_d) $_depts[] = $_d;
+    // Villes prises à tour de rôle dans chaque zone : Dijon, Besançon et Dole d'abord.
+    $_villes = [];
+    for ($_i = 0; $_i < 5; $_i++) foreach ($_listed as $_az) if (isset($_az['cities'][$_i]) && !in_array($_az['cities'][$_i], $_villes, true)) $_villes[] = $_az['cities'][$_i];
+    usort($_villes, static fn($a, $b) => (int)!in_array($a, ['Dijon', 'Besançon', 'Dole'], true) <=> (int)!in_array($b, ['Dijon', 'Besançon', 'Dole'], true));
+    unset($_i); ?>
+    <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em>en <?= e($_reg) ?></em></h2>
+    <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead', 'Nous intervenons {en_region}.'), 'Nous intervenons {en_region}.')).' '.intervention_terms_text()) ?></p>
+    <div class="zones-grid zones-grid--one">
       <div class="zone-card">
-        <a href="<?= e(url_for($_az['slug'].'/')) ?>" style="text-decoration:none;color:inherit;">
-          <div class="zone-name"><?= e($_az['name']) ?></div>
-          <?php if ($_az['intro'] !== ''): ?><p class="zone-text"><?= e($_az['intro']) ?></p><?php endif; ?>
-          <?php if (!empty($_az['cities'])): ?>
+        <a href="<?= e(route_url('zones')) ?>" style="text-decoration:none;color:inherit;">
+          <div class="zone-name"><?= e($_reg) ?></div>
+          <?php if ($_depts): ?><p class="zone-text"><?= e(implode(' · ', array_values(array_unique($_depts)))) ?></p><?php endif; ?>
+          <?php if ($_villes): ?>
           <div class="zone-chips" style="margin-top:.5rem;">
-            <?php foreach (array_slice($_az['cities'],0,6) as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
+            <?php foreach ($_villes as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
           </div>
           <?php endif; ?>
         </a>
       </div>
-      <?php endforeach; ?>
     </div>
+    <?php unset($_reg, $_listed, $_depts, $_villes, $_az, $_d, $_c); ?>
     <?php endif; ?>
     <div style="text-align:center;margin-top:2.5rem;">
       <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>
@@ -1553,7 +1561,7 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
   <h2>Hébergeur</h2>
   <p><?= e(setting('ml_hebergeur', 'o2switch SAS — 222-224 boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr')) ?></p>
 
-  <?php if ($L['assurance'] !== ''): ?>
+  <?php if ($L['assurance'] !== '' && ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin'])): ?>
   <h2>Assurance professionnelle</h2>
   <p><?= e($L['assurance']) ?></p>
   <?php endif; ?>

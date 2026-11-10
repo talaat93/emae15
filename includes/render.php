@@ -442,7 +442,9 @@ function render_trust_badges(): string
     if (preg_match('/7\s*j?\s*\/\s*7|7j\/7|24\s*h?\s*\/\s*24/u', company_hours())) $b[] = ['🕐', 'Urgences 7j/7'];
     $b[] = ['🆓', 'Devis gratuit'];
     $b[] = ['📋', 'Prix annoncé avant déplacement'];
-    $ass = mb_strtolower(legal_info()['assurance'], 'UTF-8');
+    $L = legal_info();
+    // Assurance : seulement pendant la validité de l'attestation (date de fin réglable dans l'admin).
+    $ass = ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin']) ? mb_strtolower($L['assurance'], 'UTF-8') : '';
     if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) $b[] = ['🛡️', 'Assurance décennale'];
     if (preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $ass)) $b[] = ['🛡️', 'RC professionnelle'];
     $out = '<ul class="trust-badges" aria-label="Nos engagements">';

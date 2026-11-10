@@ -13,7 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // Mentions légales et engagements publiés : réglages globaux (identiques sur toutes les zones).
-    $legalKeys = ['ml_denomination','ml_forme','ml_capital','ml_siege','ml_siren','ml_rcs','ml_tva','ml_directeur','ml_base','ml_mediateur','ml_assurance',
+    $legalKeys = ['ml_denomination','ml_forme','ml_capital','ml_siege','ml_siren','ml_rcs','ml_tva','ml_directeur','ml_base','ml_mediateur','ml_assurance','ml_assurance_fin',
                   'callback_delay','intervention_terms_text','hours_text'];
     if (isset($_POST['legal_sent'])) {
         $changed = false;
@@ -101,7 +101,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       <label class="admin-field"><span>Directeur de la publication (prénom et nom)</span><input type="text" name="ml_directeur" value="<?= e($gv('ml_directeur')) ?>" placeholder="Une personne physique, pas « EMAE »"></label>
       <label class="admin-field"><span>Base d'intervention</span><input type="text" name="ml_base" value="<?= e($L['base']) ?>" placeholder="Ex : Dole (Jura)"></label>
       <label class="admin-field"><span>Médiateur de la consommation (nom et site)</span><input type="text" name="ml_mediateur" value="<?= e($gv('ml_mediateur')) ?>" placeholder="Obligatoire pour les clients particuliers — à renseigner après adhésion"></label>
-      <label class="admin-field"><span>Assurance professionnelle (assureur, couverture)</span><input type="text" name="ml_assurance" value="<?= e($gv('ml_assurance')) ?>" placeholder="Ex : décennale — assureur, zone couverte"></label>
+      <label class="admin-field"><span>Assurance professionnelle (assureur, contrat, validité)</span><input type="text" name="ml_assurance" value="<?= e($L['assurance']) ?>"></label>
+      <label class="admin-field"><span>Fin de validité de l'attestation</span><input type="date" name="ml_assurance_fin" value="<?= e($L['assurance_fin']) ?>"><small style="color:#888;">Après cette date, les badges « Assurance décennale » et « RC pro » disparaissent du site : renseignez la nouvelle attestation.</small></label>
     </div>
   </div>
 </section>
