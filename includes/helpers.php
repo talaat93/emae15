@@ -687,6 +687,10 @@ function tarifs_enabled(): bool
 function tarifs_default_rows(): array
 {
     $rows = [
+        // Lignes exigées pour un dépannage (arrêté du 24 janvier 2017) : déplacement, taux horaire TTC
+        // et son décompte, majorations avec leurs horaires. Vides = « Sur devis » tant que le prix
+        // n'est pas validé : aucun montant n'est inventé.
+        'base'          => ['Frais de déplacement','Diagnostic','Main-d\'œuvre : taux horaire TTC et mode de décompte','Majoration soir, dimanche et jours fériés (horaires et taux)','Établissement du devis'],
         'electricite'   => ['Dépannage électrique','Remplacement de tableau électrique','Ajout de prise ou de circuit','Mise aux normes NF C 15-100','Rénovation électrique complète'],
         'plomberie'     => ['Recherche et réparation de fuite','Débouchage de canalisation','Remplacement de robinetterie','Remplacement de chauffe-eau','Entretien préventif annuel'],
         'chauffage'     => ['Dépannage de chaudière','Entretien annuel de chaudière','Entretien de pompe à chaleur','Installation de chaudière ou de pompe à chaleur'],
@@ -707,8 +711,8 @@ function tarifs_groups(): array
     foreach (array_keys($defaults) as $trade) {
         $rows = json_decode(setting_plain('tarifs_'.$trade), true);
         $out[] = [
-            'label' => service_template($trade)['label'],
-            'icon'  => $trades[$trade]['icon_svc'],
+            'label' => $trade === 'base' ? 'Déplacement et main-d\'œuvre' : service_template($trade)['label'],
+            'icon'  => $trade === 'base' ? '🧾' : $trades[$trade]['icon_svc'],
             'rows'  => (is_array($rows) && $rows !== []) ? $rows : $defaults[$trade],
         ];
     }
@@ -3071,6 +3075,51 @@ function service_trade_defaults(): array
 }
 
 /**
+ * Signes d'alerte de chaque métier (« Quand nous appeler ? ») : symptômes que le client
+ * reconnaît lui-même, sans promesse de délai. Modifiables par métier dans Contenu du site.
+ */
+function service_alert_signs(): array
+{
+    return [
+        'electricite'   => ['Le disjoncteur ou l\'interrupteur différentiel saute à répétition',
+                            'Odeur de brûlé ou de plastique chaud près d\'une prise ou du tableau',
+                            'Une prise ou un interrupteur chauffe, noircit ou grésille',
+                            'Les lumières vacillent ou baissent quand un appareil démarre',
+                            'Plus de courant dans une partie du logement seulement',
+                            'Petite décharge en touchant un appareil ou un robinet : ne touchez plus à rien et coupez le courant au disjoncteur général'],
+        'plomberie'     => ['Fuite visible, tache d\'humidité au plafond ou sur un mur',
+                            'Le compteur d\'eau tourne alors que tous les robinets sont fermés',
+                            'Évier, douche ou WC qui s\'évacue lentement ou déborde',
+                            'Mauvaises odeurs qui remontent des canalisations',
+                            'Eau marron ou trouble au robinet',
+                            'Plus d\'eau chaude, ou chauffe-eau qui goutte en continu'],
+        'chauffage'     => ['Radiateurs froids ou tièdes alors que le chauffage est allumé',
+                            'Chaudière en sécurité ou code d\'erreur affiché',
+                            'Pression de la chaudière qui baisse souvent',
+                            'Bruits inhabituels : claquements, sifflements, gargouillis',
+                            'Plus d\'eau chaude au robinet',
+                            'Odeur de gaz : sortez, n\'actionnez aucun interrupteur et appelez Urgence Sécurité Gaz au 0 800 47 33 33'],
+        'climatisation' => ['Le climatiseur souffle de l\'air tiède',
+                            'De l\'eau coule de l\'unité intérieure',
+                            'Bruit ou vibration anormale',
+                            'Mauvaise odeur à la mise en marche',
+                            'L\'appareil s\'arrête tout seul ou affiche un code d\'erreur'],
+        'vmc'           => ['Les bouches n\'aspirent plus : une feuille de papier n\'y tient pas',
+                            'Buée persistante, moisissures ou odeurs dans la salle de bains',
+                            'Bruit anormal du caisson de ventilation',
+                            'Le moteur ne tourne plus'],
+        'portail'       => ['Le portail ne réagit plus à la télécommande',
+                            'Le portail s\'arrête ou repart en sens inverse',
+                            'Visiophone sans image ou sans son',
+                            'Gâche électrique ou digicode qui n\'ouvre plus'],
+        'automatisme'   => ['Volet roulant bloqué ou qui descend de travers',
+                            'Le moteur du volet grogne sans faire bouger le tablier',
+                            'Télécommande ou interrupteur sans effet',
+                            'Lave-linge ou lave-vaisselle qui ne vidange plus ou affiche un code d\'erreur'],
+    ];
+}
+
+/**
  * Présentation de chaque métier, affichée sous le grand titre : deux
  * paragraphes (séparés par une ligne vide) qui situent le besoin du client,
  * puis ce que nous faisons et où. Aucune promesse absente du reste du site.
@@ -3401,5 +3450,7 @@ function service_template(string $trade): ?array
         'brands_on'   => global_setting($p . 'brands_on', '1') === '1',   // interrupteur commun à toutes les zones
         'brands_title'=> setting($p . 'brands_title', service_brand_titles()[$trade] ?? 'Toutes marques'),
         'faq'         => $list($p . 'faq',         $d['faq']),
+        'signs'       => $list($p . 'signs',       service_alert_signs()[$trade] ?? []),
+        'signs_title' => setting($p . 'signs_title', 'Quand nous appeler ?'),
     ];
 }

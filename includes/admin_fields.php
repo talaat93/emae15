@@ -447,6 +447,15 @@ function admin_page_catalog(): array
                         ['key'=>'svc_process_title','label'=>'Méthode — titre','type'=>'text','default'=>'Intervention en'],
                         ['key'=>'svc_process_title_hl','label'=>'Méthode — fin en couleur','type'=>'text','default'=>'3 étapes'],
                         ['key'=>'svc_process_lead','label'=>'Méthode — texte sous le titre','type'=>'textarea','default'=>'Un fonctionnement simple et transparent, du premier appel au compte rendu final.'],
+                        ['key'=>'svc_method_1_title','label'=>'Méthode — étape 1, titre','type'=>'text','default'=>'Diagnostic sur place'],
+                        ['key'=>'svc_method_1_text','label'=>'Méthode — étape 1, texte','type'=>'textarea','default'=>'Le technicien recherche la cause de la panne et vous l\'explique simplement.'],
+                        ['key'=>'svc_method_2_title','label'=>'Méthode — étape 2, titre','type'=>'text','default'=>'Devis clair avant travaux'],
+                        ['key'=>'svc_method_2_text','label'=>'Méthode — étape 2, texte','type'=>'textarea','default'=>'Vous connaissez le prix avant toute réparation et vous décidez : rien n\'est fait sans votre accord.'],
+                        ['key'=>'svc_method_3_title','label'=>'Méthode — étape 3, titre','type'=>'text','default'=>'Réparation aux normes'],
+                        ['key'=>'svc_method_3_text','label'=>'Méthode — étape 3, texte','type'=>'textarea','default'=>'Réparation ou installation dans les règles de l\'art, puis facture détaillée en fin d\'intervention.'],
+                        ['key'=>'svc_signs_label','label'=>'Signes d\'alerte — surtitre','type'=>'text','default'=>'Signes d\'alerte'],
+                        ['key'=>'svc_cta_title','label'=>'Bas de page — titre de l\'appel à l\'action','type'=>'text','default'=>'Un problème maintenant ?'],
+                        ['key'=>'svc_cta_lead','label'=>'Bas de page — texte','type'=>'textarea','default'=>'Appelez-nous ou demandez à être rappelé : nous faisons le point avec vous et vous annonçons le prix avant tout déplacement.'],
                         ['key'=>'svc_faq_label','label'=>'FAQ — surtitre','type'=>'text','default'=>'FAQ'],
                         ['key'=>'svc_faq_title','label'=>'FAQ — titre','type'=>'text','default'=>'Questions'],
                         ['key'=>'svc_faq_title_hl','label'=>'FAQ — fin en couleur','type'=>'text','default'=>'fréquentes'],
@@ -483,7 +492,7 @@ function admin_page_catalog(): array
                     'seen'  => 'Une grille par métier',
                     'note'  => 'Un prix laissé vide s\'affiche « Sur devis ». Précisez si vos prix sont HT ou TTC.',
                     'fields' => array_map(static function (string $trade, array $rows): array {
-                        return ['key'=>'tarifs_'.$trade,'label'=>service_trade_defaults()[$trade]['label'],'type'=>'list','default'=>$rows,
+                        return ['key'=>'tarifs_'.$trade,'label'=>$trade === 'base' ? 'Déplacement et main-d\'œuvre (obligatoire pour le dépannage : prix TTC)' : service_trade_defaults()[$trade]['label'],'type'=>'list','default'=>$rows,
                             'columns'=>[
                                 ['k'=>'label','label'=>'Prestation'],
                                 ['k'=>'price','label'=>'Prix (ex : à partir de 90 € TTC)','w'=>'240px'],
@@ -623,6 +632,17 @@ function admin_service_pages(): array
                             ['k'=>'text','label'=>'Texte court','type'=>'textarea'],
                          ],
                          'help'=>'Une carte par ligne. Gardez le texte court : une ou deux lignes suffisent.'],
+                    ],
+                ],
+                [
+                    'id'    => 'signes',
+                    'label' => 'Quand nous appeler ?',
+                    'seen'  => 'La liste des signes d\'alerte, sous l\'offre',
+                    'fields' => [
+                        ['key'=>$p.'signs_title','label'=>'Titre de la section','type'=>'text','default'=>'Quand nous appeler ?'],
+                        ['key'=>$p.'signs','label'=>'Signes d\'alerte','type'=>'list','default'=>service_alert_signs()[$trade] ?? [],
+                         'columns'=>[['k'=>'v','label'=>'Signe']],
+                         'help'=>'Un symptôme par ligne, tel que le client le constate. Liste vide : section masquée.'],
                     ],
                 ],
                 [

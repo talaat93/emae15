@@ -230,6 +230,7 @@ if ($route === '' || $route === 'home') {
       <div class="hero-card">
         <div class="hero-card-tag"><?= e(claim_clean(setting('home_quote_eyebrow', 'Rappel gratuit'), 'Rappel gratuit')) ?></div>
         <h2><?= e(setting('home_quote_title','Être rappelé')) ?></h2>
+        <?= render_trust_badges() ?>
         <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
     </div>
@@ -1301,6 +1302,7 @@ if ($tpl !== null || $page) {
     <div class="hero-card">
       <div class="hero-card-tag"><?= e(claim_clean(setting('svc_quote_eyebrow','Rappel gratuit'), 'Rappel gratuit')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
+      <?= render_trust_badges() ?>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
   </div>
@@ -1379,6 +1381,21 @@ if ($tpl !== null || $page) {
   </div>
 </div></section>
 
+<?php $_signs = array_values(array_filter(array_map(static fn($s) => trim(is_array($s) ? (string)($s['v'] ?? reset($s)) : (string)$s), (array)$tpl['signs']), 'strlen')); if ($_signs): ?>
+<!-- Signes d'alerte : quand appeler -->
+<section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
+  <div class="svc-label"><?= e(setting('svc_signs_label','Signes d\'alerte')) ?></div>
+  <h2 class="section-title"><?= e($tpl['signs_title']) ?></h2>
+  <ul class="sign-list">
+    <?php foreach ($_signs as $_s): ?><li><?= e($_s) ?></li><?php endforeach; ?>
+  </ul>
+  <div class="btn-row" style="margin-top:1.5rem;">
+    <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé</a>
+  </div>
+</div></section>
+<?php endif; unset($_signs, $_s); ?>
+
 <?php $svcReals = realisations_for_trade($sk); if (!empty($svcReals)): ?>
 <!-- Réalisations du métier -->
 <div class="divider"></div>
@@ -1409,9 +1426,10 @@ if ($tpl !== null || $page) {
   <h2 class="section-title"><?= e(setting('svc_process_title','Intervention en')) ?> <em><?= e(setting('svc_process_title_hl','3 étapes')) ?></em></h2>
   <p class="section-lead svc-lead"><?= e(setting('svc_process_lead','Un fonctionnement simple et transparent, du premier appel au compte rendu final.')) ?></p>
   <div class="steps-grid" style="margin-top:1.75rem;">
-    <div class="step-card"><div class="step-num">1</div><div><div class="step-h"><?= e(setting('process_1_title','Contact immédiat')) ?></div><p class="step-p"><?= e(setting('process_1_text','Appelez ou envoyez votre demande. Nous répondons immédiatement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num">2</div><div><div class="step-h"><?= e(setting('process_2_title','Déplacement rapide')) ?></div><p class="step-p"><?= e(setting('process_2_text','Technicien qualifié dépêché sur place. Délai et tarif confirmés avant déplacement.')) ?></p></div></div>
-    <div class="step-card"><div class="step-num">3</div><div><div class="step-h"><?= e(setting('process_3_title','Intervention & rapport')) ?></div><p class="step-p"><?= e(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu et facture détaillés.')) ?></p></div></div>
+    <?php /* Étapes propres aux pages métier : diagnostic, devis, réparation (textes communs aux métiers dans Contenu du site). */ ?>
+    <div class="step-card"><div class="step-num">1</div><div><h3 class="step-h"><?= e(setting('svc_method_1_title','Diagnostic sur place')) ?></h3><p class="step-p"><?= e(claim_clean(setting('svc_method_1_text','Le technicien recherche la cause de la panne et vous l\'explique simplement.'))) ?></p></div></div>
+    <div class="step-card"><div class="step-num">2</div><div><h3 class="step-h"><?= e(setting('svc_method_2_title','Devis clair avant travaux')) ?></h3><p class="step-p"><?= e(claim_clean(setting('svc_method_2_text','Vous connaissez le prix avant toute réparation et vous décidez : rien n\'est fait sans votre accord.'))) ?></p></div></div>
+    <div class="step-card"><div class="step-num">3</div><div><h3 class="step-h"><?= e(setting('svc_method_3_title','Réparation aux normes')) ?></h3><p class="step-p"><?= e(claim_clean(setting('svc_method_3_text','Réparation ou installation dans les règles de l\'art, puis facture détaillée en fin d\'intervention.'))) ?></p></div></div>
   </div>
 </div></section>
 
@@ -1421,16 +1439,32 @@ if ($tpl !== null || $page) {
   <h2 class="section-title"><?= e(setting('svc_faq_title','Questions')) ?> <em><?= e(setting('svc_faq_title_hl','fréquentes')) ?></em></h2>
   <p class="section-lead svc-lead"><?= e(setting('svc_faq_lead','Les réponses aux questions que nos clients nous posent le plus souvent. Une autre question ? Appelez-nous, nous vous répondons directement.')) ?></p>
   <div class="sfaq-list" style="margin-top:1.75rem;">
-    <?php foreach ($tpl['faq'] as [$q,$a]): ?>
-    <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e(faq_answer_fix((string)$q, (string)$a)) ?></p></details>
+    <?php $_faqLd = [];
+    foreach ($tpl['faq'] as [$q,$a]): $_a = faq_answer_fix((string)$q, (string)$a);
+        if (trim((string)$q) !== '' && trim($_a) !== '') $_faqLd[] = ['@type'=>'Question','name'=>(string)$q,'acceptedAnswer'=>['@type'=>'Answer','text'=>$_a]]; ?>
+    <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($_a) ?></p></details>
     <?php endforeach; ?>
   </div>
+  <?php /* Balisage FAQPage : exactement les questions et réponses affichées. */
+  if ($_faqLd): ?><script type="application/ld+json"><?= json_encode(['@context'=>'https://schema.org','@type'=>'FAQPage','mainEntity'=>$_faqLd], JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG) ?></script><?php endif; unset($_faqLd, $_a); ?>
   <?php $svcPannes = pannes_for_trade($sk); if ($svcPannes): ?>
   <div class="svc-label" style="margin-top:2.25rem;">Pannes fréquentes : que faire ?</div>
   <div class="px-chips">
     <?php foreach ($svcPannes as $_pn): ?><a class="px-chip" href="<?= e(route_url($_pn['slug'])) ?>"><?= e($_pn['icon'].' '.$_pn['h1']) ?></a><?php endforeach; unset($_pn); ?>
   </div>
   <?php endif; ?>
+</div></section>
+
+<!-- Appel à l'action -->
+<section class="cta-band"><div class="wrap cta-band-in">
+  <div>
+    <h2 class="cta-band-h"><?= e(setting('svc_cta_title','Un problème maintenant ?')) ?></h2>
+    <p class="cta-band-p"><?= e(claim_clean(setting('svc_cta_lead','Appelez-nous ou demandez à être rappelé : nous faisons le point avec vous et vous annonçons le prix avant tout déplacement.'))) ?></p>
+  </div>
+  <div class="cta-band-acts">
+    <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé gratuitement</a>
+  </div>
 </div></section>
 
 <!-- Zones couvertes -->

@@ -1528,3 +1528,18 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
 .ck-btn:hover{background:#1e3370;}
 .ck-btn:focus-visible,.f-input:focus-visible,.cf-input:focus-visible,.btn:focus-visible,.mob-bar a:focus-visible{outline:3px solid #F7A55E;outline-offset:2px;}
 .f-err{color:#fca5a5;font-size:.78rem;margin:.1rem 0 0;}
+
+/* ── Signes d'alerte, bandeau d'appel, badges de réassurance (pages métier) ── */
+.sign-list{list-style:none;padding:0;margin:1.25rem 0 0;display:grid;gap:.6rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));}
+.sign-list li{position:relative;padding:.75rem 1rem .75rem 2.4rem;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;color:var(--t1);line-height:1.5;}
+.sign-list li::before{content:"⚠";position:absolute;left:.85rem;top:.72rem;color:var(--p);}
+h3.step-h{margin:0;font-size:inherit;}
+.cta-band{background:linear-gradient(135deg,#152555,#0b1641);border-top:1px solid rgba(255,255,255,.08);border-bottom:1px solid rgba(255,255,255,.08);padding:2.5rem 0;}
+.cta-band-in{display:flex;flex-wrap:wrap;gap:1.25rem;align-items:center;justify-content:space-between;}
+.cta-band-h{font-size:1.5rem;margin:0 0 .35rem;color:#fff;}
+.cta-band-p{margin:0;color:var(--t2);max-width:560px;}
+.cta-band-acts{display:flex;flex-wrap:wrap;gap:.6rem;}
+.trust-badges{list-style:none;padding:0;margin:0 0 1rem;display:flex;flex-wrap:wrap;gap:.4rem;}
+.trust-badges li{font-size:.75rem;font-weight:600;color:var(--t1);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:999px;padding:.3rem .65rem;}
+.trust-rating{display:inline-block;margin:0 0 .6rem;font-size:.85rem;color:var(--t1);}
+.trust-rating span{color:#f59e0b;}

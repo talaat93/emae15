@@ -290,8 +290,8 @@ function render_header(string $active = ''): void
 
 <!-- Barre CTA fixe mobile -->
 <div class="mob-bar">
-  <a href="<?= e($phoneLink) ?>" class="mob-bar-call"><?= icon_svg('phone') ?> Appeler</a>
-  <a href="<?= e(route_url('quote')) ?>" class="mob-bar-devis">📋 Devis gratuit</a>
+  <a href="<?= e($phoneLink) ?>" class="mob-bar-call" aria-label="Appeler le <?= e($phone) ?>"><?= icon_svg('phone') ?> Appeler</a>
+  <a href="<?= e(route_url('quote')) ?>" class="mob-bar-devis">📋 Devis &amp; intervention</a>
 </div>
 
 <?php
@@ -428,6 +428,31 @@ function render_footer(): void
 <?php
     // Alertes, demandes d'avis, rappels : lancés après l'envoi de la page (includes/automations.php).
     if (function_exists('automations_schedule')) automations_schedule();
+}
+
+/**
+ * Badges de réassurance, posés au-dessus des formulaires de rappel. Seuls les engagements
+ * documentés s'affichent : « Assurance décennale » et « RC professionnelle » n'apparaissent
+ * que si l'assurance est renseignée (Identité & coordonnées → Mentions légales), et la note
+ * Google seulement depuis la fiche (review_summary).
+ */
+function render_trust_badges(): string
+{
+    $b = [];
+    if (preg_match('/7\s*j?\s*\/\s*7|7j\/7|24\s*h?\s*\/\s*24/u', company_hours())) $b[] = ['🕐', 'Urgences 7j/7'];
+    $b[] = ['🆓', 'Devis gratuit'];
+    $b[] = ['📋', 'Prix annoncé avant déplacement'];
+    $ass = mb_strtolower(legal_info()['assurance'], 'UTF-8');
+    if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) $b[] = ['🛡️', 'Assurance décennale'];
+    if (preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $ass)) $b[] = ['🛡️', 'RC professionnelle'];
+    $out = '<ul class="trust-badges" aria-label="Nos engagements">';
+    foreach ($b as [$i, $t]) $out .= '<li><span aria-hidden="true">'.$i.'</span> '.e($t).'</li>';
+    $out .= '</ul>';
+    if (($rs = review_summary()) !== null) {
+        $out = '<a class="trust-rating" href="'.e($rs['url']).'" target="_blank" rel="noopener"><span aria-hidden="true">★</span> <strong>'
+             .e(number_format($rs['rating'], 1, ',', '')).'/5</strong> · '.e((string)$rs['count']).' avis Google</a>'.$out;
+    }
+    return $out;
 }
 
 /* ── FORMULAIRE RÉUTILISABLE ── */
