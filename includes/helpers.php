@@ -447,6 +447,12 @@ function company_slogan(): string { return setting('company_slogan', 'Dépannage
 function company_whatsapp(): string { return setting('company_whatsapp', ''); }
 function site_logo_path(): string { return setting('site_logo', 'storage/uploads/logos/logo-emae-default.svg'); }
 function site_logo_url(): string { return asset_url(site_logo_path()); }
+/** Le logo choisi est-il le logo EMAE d'origine ? Un autre logo envoyé dans l'admin s'affiche tel quel. */
+function site_logo_is_emae(string $logo): bool
+{
+    return in_array(basename($logo), ['20260412174717-7d1ee290.png', '20260408005456-a088045a.png',
+        '20260407130649-bf10931c.png', 'logo-emae.png', 'logo-emae-default.svg'], true);
+}
 function site_logo_width(): string { return css_value(setting('site_logo_width', '180'), '180px'); }
 function site_logo_height(): string { return css_value(setting('site_logo_height', 'auto'), 'auto'); }
 function site_logo_position(): string { $p = setting('site_logo_position', 'left'); return in_array($p, ['left','center','right']) ? $p : 'left'; }
@@ -2793,8 +2799,16 @@ function service_trade_defaults(): array
         'desc'=>'Dépannage, installation, mise aux normes et rénovation électrique {en_region}.',
         'badges'=>['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation'],
         'offer_title'=>'Ce que nous proposons en électricité',
-        'offer_items'=>['Dépannage et remise en service (urgence 24h/7j)','Remplacement et mise en conformité de tableaux électriques','Ajout ou réparation de circuits, prises, lignes dédiées','Installation et dépannage d\'éclairage intérieur et extérieur','Rénovation électrique complète (logement, commerce)','Mise aux normes NF C 15-100 obligatoire','Câblage neuf pour constructions et extensions','Contrôle et diagnostic de l\'installation existante'],
-        'interv'=>[['⚡','Panne électrique','Diagnostic et remise en service rapide.'],['🧰','Tableau électrique','Remplacement et sécurisation.'],['🔌','Prises & circuits','Ajout, réparation, remplacement.'],['💡','Éclairage','LED, intérieur, extérieur, technique.'],['🏗️','Installation neuve','Câblage neuf ou réfection.'],['✅','Mise aux normes','NF C 15-100.'],['🔄','Rénovation','Modernisation de l\'installation.'],['🚨','Urgence 24h/7j','Astreinte permanente.']],
+        'offer_items'=>[
+          ['urgence', 'Dépannage 24h/7j', 'Panne de courant ou disjoncteur qui saute : diagnostic et remise en service rapide, de jour comme de nuit.'],
+          ['tableau', 'Tableau électrique', 'Remplacement et mise en conformité du tableau, des disjoncteurs et des différentiels.'],
+          ['prise', 'Prises et circuits', 'Ajout ou réparation de prises, de circuits et de lignes dédiées.'],
+          ['ampoule', 'Éclairage', 'Pose et dépannage de l\'éclairage intérieur et extérieur, LED et éclairage technique.'],
+          ['renovation', 'Rénovation électrique', 'Remise à neuf complète de l\'installation d\'un logement ou d\'un commerce.'],
+          ['conformite', 'Mise aux normes', 'Mise en conformité de votre installation selon la norme NF C 15-100.'],
+          ['cablage', 'Câblage neuf', 'Câblage complet pour une construction, une extension ou une réfection.'],
+          ['diagnostic', 'Diagnostic', 'Contrôle de l\'installation existante, avec un compte rendu détaillé.'],
+        ],
         'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
       ],
       'plomberie' => [
@@ -2802,8 +2816,16 @@ function service_trade_defaults(): array
         'desc'=>'Dépannage fuite, réparation sanitaire et entretien réseau {en_region}.',
         'badges'=>['Fuite urgente','Débouchage','Sanitaires','Entretien réseau'],
         'offer_title'=>'Ce que nous proposons en plomberie',
-        'offer_items'=>['Recherche et réparation de fuites visibles ou cachées','Dépannage et remplacement de robinetterie','Débouchage de canalisations et WC','Remplacement de WC, lavabo, baignoire, douche','Réparation et remplacement de chauffe-eau','Entretien préventif annuel','Intervention sur réseaux d\'alimentation et d\'évacuation','Mise en conformité des installations sanitaires'],
-        'interv'=>[['💧','Recherche de fuite','Localisation précise et réparation.'],['🚿','Sanitaires','WC, robinetterie, évacuations.'],['🧯','Urgence plomberie','Mise en sécurité immédiate.'],['🔩','Réseaux','Tuyauteries, alimentations, raccordements.'],['🛁','Équipements','Baignoire, douche, évier, robinet.'],['🌡️','Chauffe-eau','Diagnostic, remplacement, mise en service.'],['🧼','Entretien','Maintenance courante préventive.'],['📋','Rapport','Compte rendu détaillé systématique.']],
+        'offer_items'=>[
+          ['fuite', 'Recherche de fuite', 'Fuite visible ou cachée : localisation précise, puis réparation.'],
+          ['robinet', 'Robinetterie', 'Dépannage et remplacement de robinets et de mitigeurs.'],
+          ['debouchage', 'Débouchage', 'Canalisations, WC, évier : débouchage et remise en écoulement.'],
+          ['sanitaires', 'Sanitaires', 'Remplacement de WC, lavabo, baignoire ou douche.'],
+          ['chauffe-eau', 'Chauffe-eau', 'Diagnostic, réparation ou remplacement, avec mise en service.'],
+          ['entretien', 'Entretien préventif', 'Une visite annuelle pour éviter les fuites et les pannes.'],
+          ['reseau', 'Réseaux', 'Tuyauteries d\'alimentation et d\'évacuation, raccordements.'],
+          ['conformite', 'Mise en conformité', 'Mise aux normes de vos installations sanitaires.'],
+        ],
         'faq'=>[['Intervenez-vous en urgence pour une fuite ?',setting('faq_plomb_1_a','Oui, disponible '.company_hours().'. Appelez-nous pour une intervention immédiate.')],['Faites-vous le remplacement de chauffe-eau ?',setting('faq_plomb_2_a','Oui, diagnostic, remplacement et mise en service de tous types de chauffe-eau.')],['Proposez-vous un contrat d\'entretien ?',setting('faq_plomb_3_a','Oui, contrats de maintenance préventive annuels disponibles.')],['Que faire en cas de fuite importante ?',setting('faq_plomb_4_a','Coupez l\'arrivée d\'eau principale et appelez-nous immédiatement.')]],
       ],
       'chauffage' => [
@@ -2811,8 +2833,16 @@ function service_trade_defaults(): array
         'desc'=>'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien {en_region}.',
         'badges'=>['Panne chaudière','Pompe à chaleur','Chaudière gaz/fioul','Entretien annuel'],
         'offer_title'=>'Ce que nous proposons en chauffage',
-        'offer_items'=>['Dépannage et remise en service de chaudières gaz, fioul, électrique','Entretien annuel réglementaire de chaudière (obligatoire)','Dépannage et entretien de pompes à chaleur air/air et air/eau','Installation de PAC et chaudières neuves','Diagnostic et optimisation de la consommation énergétique','Remplacement de corps de chauffe, brûleurs, circulateurs','Réglage thermostat, programmation, vannes thermostatiques','Urgences hiver — astreinte renforcée en période froide'],
-        'interv'=>[['🔥','Panne chaudière','Gaz, fioul, électrique.'],['♨️','Pompe à chaleur','Air/air et air/eau.'],['🌡️','Régulation','Thermostats, sondes, programmation.'],['🛠️','Optimisation','Amélioration performances et confort.'],['🏗️','Installation','Chaudière ou PAC neuve.'],['📊','Entretien annuel','Contrat réglementaire.'],['🚨','Urgence hiver','Astreinte renforcée.'],['📋','Rapport','Compte rendu et recommandations.']],
+        'offer_items'=>[
+          ['chaudiere', 'Panne de chaudière', 'Gaz, fioul ou électrique : diagnostic et remise en service.'],
+          ['entretien', 'Entretien annuel', 'L\'entretien réglementaire obligatoire, avec rapport d\'intervention.'],
+          ['pac', 'Pompe à chaleur', 'Dépannage et entretien des PAC air/air et air/eau.'],
+          ['installation', 'Installation neuve', 'Pose d\'une chaudière ou d\'une pompe à chaleur neuve, mise en service.'],
+          ['economie', 'Économies d\'énergie', 'Diagnostic et optimisation de votre consommation.'],
+          ['pieces', 'Pièces', 'Remplacement de corps de chauffe, brûleurs et circulateurs.'],
+          ['radiateur', 'Régulation', 'Thermostat, programmation et vannes thermostatiques.'],
+          ['froid', 'Urgence hiver', 'Astreinte renforcée pendant les périodes de grand froid.'],
+        ],
         'faq'=>[['Intervenez-vous sur les chaudières gaz et fioul ?',setting('faq_chauf_1_a','Oui, sur tous types de chaudières : gaz, fioul, électrique et condensation.')],['Proposez-vous l\'installation de pompe à chaleur ?',setting('faq_chauf_2_a','Oui, PAC air/air, air/eau — installation, entretien et dépannage.')],['Faites-vous l\'entretien annuel de chaudière ?',setting('faq_chauf_3_a','Oui, contrat d\'entretien annuel réglementaire avec rapport d\'intervention.')],['Mon chauffage tombe en panne en hiver, que faire ?',setting('faq_chauf_4_a','Appelez-nous immédiatement — priorité absolue aux urgences de chauffage en hiver.')]],
       ],
       'climatisation' => [
@@ -2820,8 +2850,16 @@ function service_trade_defaults(): array
         'desc'=>'Installation, dépannage et entretien de climatisation et CVC {en_region}.',
         'badges'=>['Clim en panne','CVC','Installation split','Entretien saisonnier'],
         'offer_title'=>'Ce que nous proposons en climatisation',
-        'offer_items'=>['Dépannage de tout type de climatiseur (split, multi-split, gainable)','Installation de climatisation pour particuliers et professionnels','Entretien saisonnier (nettoyage, vérification, réglages)','Recharge en fluide frigorigène','Contrôle des performances et optimisation','Systèmes gainables et centralisés','VMC et ventilation mécanique','Étude et conseil avant installation'],
-        'interv'=>[['❄️','Panne climatisation','Diagnostic et remise en service.'],['🌬️','Qualité air','Contrôle du soufflage et diffusion.'],['🧼','Entretien saisonnier','Nettoyage et réglages.'],['🏗️','Installation','Splits, multi-splits, gainables.'],['📈','Performances','Contrôle et optimisation.'],['💨','VMC','Ventilation mécanique.'],['🚨','Urgence','Prise en charge prioritaire.'],['📋','Rapport','Compte rendu systématique.']],
+        'offer_items'=>[
+          ['clim', 'Panne de climatisation', 'Split, multi-split ou gainable : diagnostic et remise en service.'],
+          ['installation', 'Installation', 'Pose de climatisation pour les particuliers et les professionnels.'],
+          ['nettoyage', 'Entretien saisonnier', 'Nettoyage, vérifications et réglages avant chaque saison.'],
+          ['fluide', 'Fluide frigorigène', 'Recharge du circuit en fluide frigorigène.'],
+          ['performance', 'Performances', 'Contrôle du rendement et optimisation des réglages.'],
+          ['batiment', 'Gainable et centralisé', 'Systèmes gainables et installations centralisées.'],
+          ['ventilation', 'VMC et ventilation', 'Ventilation mécanique et qualité de l\'air intérieur.'],
+          ['conseil', 'Étude et conseil', 'Étude de votre besoin et conseil avant toute installation.'],
+        ],
         'faq'=>[['Intervenez-vous sur tous types de climatiseurs ?',setting('faq_clim_1_a','Oui, splits, multi-splits, gainables et systèmes CVC.')],['Proposez-vous l\'installation de climatisation ?',setting('faq_clim_2_a','Oui, fourniture, pose et mise en service avec conseil adapté.')],['Quand faire l\'entretien de sa climatisation ?',setting('faq_clim_3_a','Idéalement avant chaque saison (printemps et automne) pour garantir les performances.')],['Intervenez-vous pour les entreprises ?',setting('faq_clim_4_a','Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.')]],
       ],
       'vmc' => [
@@ -2829,8 +2867,16 @@ function service_trade_defaults(): array
         'desc'=>'Installation, dépannage et entretien de VMC simple et double flux {en_region}.',
         'badges'=>['VMC simple flux','VMC double flux','Entretien annuel','Qualité de l\'air'],
         'offer_title'=>'Ce que nous proposons en ventilation',
-        'offer_items'=>['Installation de VMC simple flux et double flux','Remplacement de moteur ou de caisson défaillant','Nettoyage et désinfection des bouches et gaines','Entretien annuel et contrôle des débits','Diagnostic humidité, condensation et moisissures','Mise en conformité de la ventilation d\'un logement','Ventilation de locaux professionnels et commerces','Conseil sur le choix du système adapté au bâti'],
-        'interv'=>[['🌬️','Panne de VMC','Diagnostic et remise en service.'],['🔧','Moteur & caisson','Remplacement des pièces défaillantes.'],['🧼','Nettoyage','Bouches, gaines et filtres.'],['💧','Humidité','Traitement des causes de condensation.'],['🏗️','Installation neuve','Simple ou double flux.'],['📊','Contrôle des débits','Mesure et réglage.'],['🏢','Locaux pros','Commerces, bureaux, restauration.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'offer_items'=>[
+          ['vmc', 'Installation de VMC', 'Simple flux ou double flux, adaptée à votre logement.'],
+          ['moteur', 'Moteur et caisson', 'Remplacement du moteur ou du caisson défaillant.'],
+          ['nettoyage', 'Nettoyage', 'Bouches et gaines nettoyées et désinfectées.'],
+          ['performance', 'Entretien et débits', 'Entretien annuel, mesure et réglage des débits.'],
+          ['humidite', 'Humidité', 'Diagnostic de la condensation et des moisissures.'],
+          ['conformite', 'Mise en conformité', 'Une ventilation conforme pour votre logement.'],
+          ['commerce', 'Locaux professionnels', 'Ventilation des commerces, bureaux et restaurants.'],
+          ['conseil', 'Conseil', 'Le système adapté à votre bâti, simple ou double flux.'],
+        ],
         'faq'=>[['Faut-il entretenir sa VMC ?',setting('faq_vmc_1_a','Oui, un nettoyage annuel des bouches et un contrôle des débits garantissent son efficacité et la qualité de l\'air.')],['Simple ou double flux ?',setting('faq_vmc_2_a','Le double flux récupère la chaleur de l\'air extrait et convient aux logements bien isolés. Nous vous conseillons selon votre bâti.')],['Ma VMC est bruyante, est-ce grave ?',setting('faq_vmc_3_a','Souvent un encrassement ou un moteur en fin de vie. Un diagnostic permet de trancher rapidement.')],['Intervenez-vous en copropriété ?',setting('faq_vmc_4_a','Oui, sur les VMC individuelles comme sur les installations collectives.')]],
       ],
       'portail' => [
@@ -2838,9 +2884,16 @@ function service_trade_defaults(): array
         'desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès {en_region}.',
         'badges'=>['Portail bloqué','Motorisation','Visiophone','Interphone'],
         'offer_title'=>'Ce que nous proposons en contrôle d\'accès',
-        'offer_items'=>['Dépannage de portail et portail de garage bloqué','Motorisation de portail battant ou coulissant','Installation et remplacement de visiophone','Interphone individuel et collectif','Programmation de télécommandes et badges','Remplacement de platine de rue et de combiné','Dépannage de digicode et de gâche électrique','Entretien et réglage des automatismes']
-        ,
-        'interv'=>[['🚪','Portail bloqué','Déblocage et remise en service.'],['⚙️','Motorisation','Battant, coulissant, garage.'],['📹','Visiophone','Installation et remplacement.'],['🔔','Interphone','Individuel ou collectif.'],['🎛️','Télécommandes','Programmation et copies.'],['🔢','Digicode','Dépannage et changement de code.'],['🔌','Gâche électrique','Remplacement et câblage.'],['🛠️','Entretien','Réglage et graissage.']],
+        'offer_items'=>[
+          ['portail', 'Portail bloqué', 'Déblocage et remise en service de portails et portes de garage.'],
+          ['motorisation', 'Motorisation', 'Motorisation de portail battant ou coulissant.'],
+          ['visiophone', 'Visiophone', 'Installation et remplacement de visiophones.'],
+          ['interphone', 'Interphone', 'Interphones individuels et collectifs.'],
+          ['telecommande', 'Télécommandes et badges', 'Programmation de télécommandes et de badges, copies.'],
+          ['batiment', 'Platine de rue', 'Remplacement de la platine de rue et du combiné.'],
+          ['digicode', 'Digicode et gâche', 'Dépannage de digicode et de gâche électrique.'],
+          ['outil', 'Entretien', 'Réglage et entretien des automatismes.'],
+        ],
         'faq'=>[['Mon portail ne s\'ouvre plus, que faire ?',setting('faq_portail_1_a','Coupez l\'alimentation et appelez-nous. La panne vient souvent de la motorisation, des photocellules ou de la carte électronique.')],['Peut-on motoriser un portail existant ?',setting('faq_portail_2_a','Oui dans la plupart des cas, après vérification de l\'état des piliers et du portail.')],['Installez-vous des visiophones connectés ?',setting('faq_portail_3_a','Oui, y compris les modèles avec renvoi d\'appel sur téléphone.')],['Intervenez-vous en copropriété ?',setting('faq_portail_4_a','Oui, sur les interphones et portails collectifs, en coordination avec le syndic.')]],
       ],
       'automatisme' => [
@@ -2848,9 +2901,16 @@ function service_trade_defaults(): array
         'desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager {en_region}.',
         'badges'=>['Volet roulant','Store motorisé','Domotique','Électroménager'],
         'offer_title'=>'Ce que nous proposons en automatismes',
-        'offer_items'=>['Dépannage et remplacement de volets roulants','Motorisation de volets et de stores existants','Installation de stores et brise-soleil motorisés','Programmation de commandes et de scénarios domotiques','Dépannage de lave-linge, lave-vaisselle et sèche-linge','Raccordement et mise en service d\'électroménager','Remplacement de moteurs, cartes et télécommandes','Conseil sur les équipements connectés']
-        ,
-        'interv'=>[['🪟','Volet bloqué','Déblocage et réparation.'],['⚙️','Motorisation','Volets, stores, pergolas.'],['📱','Domotique','Commandes et scénarios.'],['🔌','Raccordement','Mise en service d\'appareils.'],['🧺','Lave-linge','Diagnostic et réparation.'],['🍽️','Lave-vaisselle','Fuites, vidange, résistance.'],['🎛️','Télécommandes','Programmation et remplacement.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'offer_items'=>[
+          ['volet', 'Volets roulants', 'Dépannage et remplacement de volets roulants.'],
+          ['motorisation', 'Motorisation', 'Motorisation de volets et de stores existants.'],
+          ['store', 'Stores et brise-soleil', 'Installation de stores et brise-soleil motorisés.'],
+          ['domotique', 'Domotique', 'Programmation de commandes et de scénarios.'],
+          ['lave-linge', 'Électroménager', 'Dépannage de lave-linge, lave-vaisselle et sèche-linge.'],
+          ['cablage', 'Raccordement', 'Raccordement et mise en service de vos appareils.'],
+          ['carte', 'Pièces électroniques', 'Remplacement de moteurs, cartes et télécommandes.'],
+          ['connecte', 'Équipements connectés', 'Conseil pour choisir et installer vos équipements connectés.'],
+        ],
         'faq'=>[['Réparez-vous les volets roulants électriques ?',setting('faq_auto_1_a','Oui : moteur, lame, tablier, coffre et commande. Le diagnostic précise ce qui doit être remplacé.')],['Peut-on motoriser des volets manuels ?',setting('faq_auto_2_a','Oui dans la plupart des cas, sans changer le tablier ni le coffre.')],['Intervenez-vous sur l\'électroménager ?',setting('faq_auto_3_a','Oui, sur le gros électroménager : lave-linge, lave-vaisselle, sèche-linge, four et plaques.')],['Faut-il remplacer ou réparer ?',setting('faq_auto_4_a','Nous annonçons le coût de la réparation avant d\'intervenir : vous décidez en connaissance de cause.')]],
       ],
     ];
@@ -2958,6 +3018,114 @@ function service_page_slug(string $trade): string
 }
 
 /** Textes effectifs d'un métier : personnalisés si définis, d'origine sinon. */
+/**
+ * Dessins des prestations (assets/img/icons/<clé>.png) : trait orange, fond transparent.
+ * Clé => libellé affiché dans l'admin. Ajouter un dessin : déposer le PNG et l'inscrire ici.
+ */
+function service_icons(): array
+{
+    return [
+        'eclair' => 'Éclair (dépannage électrique)',
+        'prise' => 'Prise',
+        'ampoule' => 'Ampoule (éclairage)',
+        'tableau' => 'Tableau électrique',
+        'cablage' => 'Câblage, raccordement',
+        'renovation' => 'Maison électrique (rénovation)',
+        'conformite' => 'Bouclier (mise aux normes)',
+        'diagnostic' => 'Loupe (diagnostic)',
+        'urgence' => '24h/24 (urgence)',
+        'fuite' => 'Goutte et loupe (fuite)',
+        'robinet' => 'Robinet',
+        'debouchage' => 'Ventouse (débouchage)',
+        'sanitaires' => 'Baignoire (sanitaires)',
+        'chauffe-eau' => 'Chauffe-eau',
+        'reseau' => 'Tuyau (réseaux)',
+        'entretien' => 'Calendrier (entretien)',
+        'chaudiere' => 'Chaudière',
+        'radiateur' => 'Radiateur',
+        'pac' => 'Pompe à chaleur',
+        'flamme' => 'Flamme',
+        'thermometre' => 'Thermomètre',
+        'economie' => 'Maison verte (économies)',
+        'pieces' => 'Engrenage (pièces)',
+        'froid' => 'Flocon (urgence hiver, froid)',
+        'clim' => 'Climatiseur',
+        'nettoyage' => 'Pulvérisateur (nettoyage)',
+        'fluide' => 'Thermomètre froid (fluide)',
+        'performance' => 'Jauge (performances, débits)',
+        'batiment' => 'Immeubles',
+        'commerce' => 'Commerce',
+        'ventilation' => 'Air (ventilation)',
+        'vmc' => 'Bouche de VMC',
+        'moteur' => 'Ventilateur (moteur)',
+        'humidite' => 'Gouttes (humidité)',
+        'conseil' => 'Bulle (conseil)',
+        'installation' => 'Outils (installation)',
+        'outil' => 'Clé (réparation)',
+        'portail' => 'Portail',
+        'motorisation' => 'Automatisme (motorisation)',
+        'visiophone' => 'Visiophone',
+        'interphone' => 'Sonnette (interphone)',
+        'telecommande' => 'Télécommande',
+        'digicode' => 'Digicode',
+        'gache' => 'Cadenas (gâche, serrure)',
+        'volet' => 'Volet roulant',
+        'store' => 'Store',
+        'domotique' => 'Maison connectée',
+        'lave-linge' => 'Lave-linge',
+        'lave-vaisselle' => 'Lave-vaisselle',
+        'carte' => 'Carte électronique',
+        'connecte' => 'Wi-Fi (connecté)',
+        'check' => 'Coche (par défaut)',
+    ];
+}
+
+function service_icon_url(string $key): string
+{
+    $key = isset(service_icons()[$key]) ? $key : 'check';
+    return asset_url('assets/img/icons/'.$key.'.png');
+}
+
+/**
+ * Prestations d'un métier, sous forme de cartes : dessin, titre, texte court.
+ * Accepte aussi l'ancien format (une phrase par prestation) d'une liste déjà
+ * enregistrée dans l'admin : la phrase devient le titre, avec la coche par défaut.
+ */
+function service_offer_cards(array $items): array
+{
+    $out = [];
+    foreach ($items as $it) {
+        if (is_array($it)) {
+            $v = array_values($it);
+            [$icon, $title, $text] = [trim((string)($v[0] ?? '')), trim((string)($v[1] ?? '')), trim((string)($v[2] ?? ''))];
+        } else {
+            [$icon, $title, $text] = ['check', trim((string)$it), ''];
+        }
+        if ($title === '' && $text === '') continue;
+        $out[] = ['icon' => isset(service_icons()[$icon]) ? $icon : 'check', 'title' => $title, 'text' => $text];
+    }
+    return $out;
+}
+
+/** Marques affichées en bandeau sur une page métier (modifiables dans l'admin). */
+function service_brand_defaults(): array
+{
+    return [
+        'chauffage'     => ['Saunier Duval', 'Frisquet', 'De Dietrich', 'Viessmann', 'Vaillant', 'Chaffoteaux', 'ELM Leblanc',
+                            'Atlantic', 'Bosch', 'Ariston', 'Chappée', 'Buderus', 'Daikin', 'Mitsubishi Electric'],
+        'climatisation' => ['Daikin', 'Mitsubishi Electric', 'Fujitsu', 'Hitachi', 'Toshiba', 'Panasonic', 'LG',
+                            'Samsung', 'Gree', 'Midea', 'Carrier', 'Airwell', 'Atlantic'],
+    ];
+}
+
+function service_brand_titles(): array
+{
+    return [
+        'chauffage'     => 'Toutes marques de chaudières et de pompes à chaleur',
+        'climatisation' => 'Toutes marques de climatisation',
+    ];
+}
+
 function service_template(string $trade): ?array
 {
     $d = service_trade_defaults()[$trade] ?? null;
@@ -2982,7 +3150,9 @@ function service_template(string $trade): ?array
         'offer_title' => setting($p . 'offer_title', $d['offer_title']),
         'badges'      => $list($p . 'badges',      $d['badges']),
         'offer_items' => $list($p . 'offer_items', $d['offer_items']),
-        'interv'      => $list($p . 'interv',      $d['interv']),
+        'brands'      => $list($p . 'brands',      service_brand_defaults()[$trade] ?? []),
+        'brands_on'   => global_setting($p . 'brands_on', '1') === '1',   // interrupteur commun à toutes les zones
+        'brands_title'=> setting($p . 'brands_title', service_brand_titles()[$trade] ?? 'Toutes marques'),
         'faq'         => $list($p . 'faq',         $d['faq']),
     ];
 }

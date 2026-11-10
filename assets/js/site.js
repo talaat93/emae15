@@ -340,3 +340,26 @@ document.addEventListener('DOMContentLoaded', function () {
     document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && last !== 'envoyé') send(); });
   });
 });
+
+/* Pages métier : flèches des prestations défilantes */
+(function () {
+  document.querySelectorAll('[data-ofr]').forEach(function (box) {
+    var sc = box.querySelector('.ofr-scroller');
+    var prev = box.querySelector('[data-ofr-prev]'), next = box.querySelector('[data-ofr-next]');
+    if (!sc || !prev || !next) return;
+    function step() {
+      var card = sc.querySelector('.ofr-card');
+      return card ? card.getBoundingClientRect().width + parseFloat(getComputedStyle(sc).columnGap || 0) : sc.clientWidth * 0.8;
+    }
+    function update() {
+      var max = sc.scrollWidth - sc.clientWidth - 2;
+      prev.disabled = sc.scrollLeft <= 2;
+      next.disabled = sc.scrollLeft >= max;
+    }
+    prev.addEventListener('click', function () { sc.scrollBy({ left: -step(), behavior: 'smooth' }); });
+    next.addEventListener('click', function () { sc.scrollBy({ left: step(), behavior: 'smooth' }); });
+    sc.addEventListener('scroll', function () { window.requestAnimationFrame(update); }, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+})();

@@ -157,17 +157,19 @@ check('  → ordre du formulaire', admin_list_rows($fb), ['B','A','C']);
 admin_list_save($fb, []);
 check('liste vidée → retour à l\'origine', admin_list_rows($fb), ['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation']);
 
-echo "\n10. Listes à plusieurs colonnes\n";
-$fi = admin_catalog_fields('metier_chauffage')['svc_chauffage_interv'];
+echo "\n10. Listes à plusieurs colonnes (prestations : dessin, titre, texte)\n";
+$fi = admin_catalog_fields('metier_chauffage')['svc_chauffage_offer_items'];
 check('3 colonnes déclarées', count(admin_list_columns($fi)), 3);
-admin_list_save($fi, [0=>['icon'=>'🔥','title'=>'Panne','text'=>'Diagnostic.'],
-                      1=>['icon'=>'','title'=>'','text'=>'']]);
-check('ligne vide écartée',   count(admin_list_rows($fi)), 1);
-check('colonnes dans l\'ordre', admin_list_rows($fi)[0], ['🔥','Panne','Diagnostic.']);
-check('le site reçoit la même chose', service_template('chauffage')['interv'][0], ['🔥','Panne','Diagnostic.']);
+check('le dessin se choisit dans une liste', admin_list_columns($fi)[0]['type'], 'select');
+admin_list_save($fi, [0=>['icon'=>'flamme','title'=>'Panne','text'=>'Diagnostic.'],
+                      1=>['icon'=>'chaudiere','title'=>'','text'=>'']]);
+check('ligne sans texte écartée, même avec un dessin choisi', count(admin_list_rows($fi)), 1);
+check('colonnes dans l\'ordre', admin_list_rows($fi)[0], ['flamme','Panne','Diagnostic.']);
+check('le site reçoit la même chose', service_offer_cards(service_template('chauffage')['offer_items'])[0],
+      ['icon'=>'flamme','title'=>'Panne','text'=>'Diagnostic.']);
 
 echo "\n11. Les listes ne sont pas éditables sur la page\n";
-check('liste écartée de l\'édition en place', isset(admin_inline_keys()['svc_chauffage_interv']), false);
+check('liste écartée de l\'édition en place', isset(admin_inline_keys()['svc_chauffage_offer_items']), false);
 check('mais trouvable par la recherche', str_contains(admin_field_shown($fi), 'Diagnostic.'), true);
 
 echo "\n".($fail===0 ? "TOUS LES TESTS PASSENT ($pass)" : "$fail ÉCHEC(S) sur ".($pass+$fail))."\n";

@@ -129,7 +129,14 @@ function render_header(string $active = ''): void
         }
         $logoExists = trim($logo) !== '' && file_exists(__DIR__.'/../'.$logo);
       ?>
-      <?php if ($logoExists): ?>
+      <?php if ($logoExists && site_logo_is_emae($logo)): ?>
+        <?php /* Logo EMAE : l'emblème et « EMAE » en image, la mention en vrai texte,
+                 plus grande et nette que dans l'image où elle devenait illisible sur téléphone. */ ?>
+        <span class="brand-emae">
+          <img class="brand-mark" src="<?= e(asset_url('assets/img/logo-emae-mark.png')) ?>" alt="<?= e(company_name()) ?>" width="516" height="150" loading="eager" fetchpriority="high">
+          <span class="brand-tag">Entreprise multitechnique<br>avancée</span>
+        </span>
+      <?php elseif ($logoExists): ?>
         <?php $logoSmall = image_resized_variant($logo, 440); /* affiché sur 220 px au plus : inutile d'envoyer plus grand */ ?>
         <img src="<?= e(asset_url($logoSmall['src'] ?? $logo)) ?>" alt="<?= e(company_name()) ?>"<?= $logoSmall ? ' width="'.(int)$logoSmall['w'].'" height="'.(int)$logoSmall['h'].'"' : '' ?> style="height:48px;width:auto;max-width:220px;object-fit:contain;" loading="eager" fetchpriority="high">
       <?php else: ?>

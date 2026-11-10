@@ -236,7 +236,7 @@ require_once __DIR__ . '/partials/header.php';
 .fl__row{display:flex;gap:.4rem;align-items:flex-start;background:#f7faff;border:1px solid #e4ebf7;border-radius:10px;padding:.4rem;}
 .fl__row.is-drag{opacity:.4;}
 .fl__row.is-over{border-color:#2f66d2;box-shadow:0 0 0 2px rgba(47,102,210,.18);}
-.fl__row input,.fl__row textarea{flex:1;min-width:0;padding:.45rem .6rem;border:1px solid #dde5f3;border-radius:8px;font-size:.88rem;font-family:inherit;background:#fff;}
+.fl__row input,.fl__row textarea,.fl__row select{flex:1;min-width:0;padding:.45rem .6rem;border:1px solid #dde5f3;border-radius:8px;font-size:.88rem;font-family:inherit;background:#fff;}
 .fl__row input:focus,.fl__row textarea:focus{outline:2px solid #2f66d2;outline-offset:1px;}
 .fl__grip{flex:0 0 22px;text-align:center;color:#a8b4cc;cursor:grab;user-select:none;padding-top:.45rem;font-size:.9rem;}
 .fl__del{flex:0 0 30px;border:none;background:none;color:#c0392b;cursor:pointer;font-size:.95rem;border-radius:8px;padding:.35rem 0;}
@@ -245,7 +245,7 @@ require_once __DIR__ . '/partials/header.php';
 .fl__add{border:1px dashed #b9c7e2;background:#fff;color:#2f66d2;border-radius:10px;padding:.42rem .85rem;font-size:.84rem;font-weight:700;cursor:pointer;}
 .fl__add:hover{background:#eef4ff;}
 .fl__actions small{color:#8494b4;font-size:.75rem;}
-@media(max-width:700px){.fl__head{display:none;}.fl__row{flex-wrap:wrap;}.fl__row input,.fl__row textarea{flex:1 1 100%;}}
+@media(max-width:700px){.fl__head{display:none;}.fl__row{flex-wrap:wrap;}.fl__row input,.fl__row textarea,.fl__row select{flex:1 1 100%;}}
 .pc-field.is-focus{outline:3px solid #F07B1D;outline-offset:6px;border-radius:8px;}
 .pc-savebar{position:sticky;bottom:0;background:#fff;border-top:1px solid #dde5f3;padding:.85rem 1rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;z-index:5;}
 .pc-savebar__note{font-size:.78rem;color:#7b88a6;margin-right:auto;}
@@ -268,7 +268,7 @@ document.querySelectorAll('.fl').forEach(function(box){
     // Les noms de champs doivent rester numérotés dans l'ordre affiché.
     function renumber(){
         rows.querySelectorAll('.fl__row').forEach(function(row, i){
-            row.querySelectorAll('input,textarea').forEach(function(el){
+            row.querySelectorAll('input,textarea,select').forEach(function(el){
                 el.name = el.name.replace(/\[(?:\d+|__I__)\]/, '[' + i + ']');
             });
         });

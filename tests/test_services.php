@@ -45,18 +45,23 @@ check('les 4 métiers sont reconnus', array_keys($base), ['electricite','plomber
 foreach ($base as $trade => $want) {
     $got = service_template($trade);
     check("« $trade » identique au code d'origine",
-        [$got['label'],$got['desc'],$got['offer_title'],$got['badges'],$got['offer_items'],$got['interv'],$got['faq']],
-        [$want['label'],$want['desc'],$want['offer_title'],$want['badges'],$want['offer_items'],$want['interv'],$want['faq']]);
+        [$got['label'],$got['desc'],$got['offer_title'],$got['badges'],$got['faq']],
+        [$want['label'],$want['desc'],$want['offer_title'],$want['badges'],$want['faq']]);
+    // Évolution voulue (novembre 2026) : les prestations deviennent des cartes, les tuiles « Nos interventions » disparaissent.
+    $cards = service_offer_cards($got['offer_items']);
+    check("  → 8 cartes de prestation", count($cards), 8);
+    check("  → chacune a un dessin, un titre et un texte",
+        array_filter($cards, fn($c) => $c['icon'] !== 'check' && $c['title'] !== '' && $c['text'] !== ''), $cards);
 }
 check('métier inconnu → rien', service_template('maconnerie'), null);
 
 echo "\n2. Volume réellement rendu modifiable\n";
 $n = 0;
-foreach ($base as $t => $d) $n += 3 + count($d['badges']) + count($d['offer_items']) + count($d['interv'])*3 + count($d['faq'])*2;
+foreach ($base as $t => $d) $n += 3 + count($d['badges']) + count($d['offer_items'])*3 + count($d['faq'])*2;
 echo "  info  $n textes des pages métier passent en base\n";
 check('chaque métier a 4 badges',        array_map(fn($d)=>count($d['badges']), $base), ['electricite'=>4,'plomberie'=>4,'chauffage'=>4,'climatisation'=>4]);
 check('chaque métier a 8 prestations',   array_map(fn($d)=>count($d['offer_items']), $base), ['electricite'=>8,'plomberie'=>8,'chauffage'=>8,'climatisation'=>8]);
-check('chaque métier a 8 interventions', array_map(fn($d)=>count($d['interv']), $base), ['electricite'=>8,'plomberie'=>8,'chauffage'=>8,'climatisation'=>8]);
+check('plus de tuiles « Nos interventions »', array_key_exists('interv', service_template('electricite')), false);
 check('chaque métier a 4 questions',     array_map(fn($d)=>count($d['faq']), $base), ['electricite'=>4,'plomberie'=>4,'chauffage'=>4,'climatisation'=>4]);
 
 echo "\n3. Chaque métier se rédige séparément\n";
@@ -71,11 +76,20 @@ check('badges plomberie remplacés', service_template('plomberie')['badges'], ['
 check('badges électricité intacts', count(service_template('electricite')['badges']), 4);
 
 echo "\n4. Les listes à plusieurs colonnes gardent leur forme\n";
-set_setting('svc_chauffage_interv', json_encode([['🔥','Panne','Diagnostic rapide.'],['♨️','PAC','Air/eau.']], JSON_UNESCAPED_UNICODE));
+set_setting('svc_chauffage_offer_items', json_encode([['flamme','Panne','Diagnostic rapide.'],['pac','PAC','Air/eau.']], JSON_UNESCAPED_UNICODE));
 settings_cache(true);
-$iv = service_template('chauffage')['interv'];
-check('2 tuiles enregistrées', count($iv), 2);
-check('icône, titre et texte préservés', $iv[0], ['🔥','Panne','Diagnostic rapide.']);
+$iv = service_offer_cards(service_template('chauffage')['offer_items']);
+check('2 cartes enregistrées', count($iv), 2);
+check('dessin, titre et texte préservés', $iv[0], ['icon'=>'flamme','title'=>'Panne','text'=>'Diagnostic rapide.']);
+set_setting('svc_chauffage_offer_items', json_encode(['Ancienne prestation écrite en une phrase'], JSON_UNESCAPED_UNICODE));
+settings_cache(true);
+check('ancien format (une phrase) : devient le titre, coche par défaut', service_offer_cards(service_template('chauffage')['offer_items'])[0],
+      ['icon'=>'check','title'=>'Ancienne prestation écrite en une phrase','text'=>'']);
+set_setting('svc_chauffage_offer_items', json_encode([['inconnu','Titre','Texte']], JSON_UNESCAPED_UNICODE));
+settings_cache(true);
+check('dessin inconnu → coche par défaut', service_offer_cards(service_template('chauffage')['offer_items'])[0]['icon'], 'check');
+set_setting('svc_chauffage_offer_items', '');
+settings_cache(true);
 
 echo "\n5. Une liste vidée revient au texte d'origine\n";
 set_setting('svc_plomberie_badges', '');
@@ -106,7 +120,7 @@ foreach (['vmc'=>'VMC & Ventilation','portail'=>'Portail & Visiophone','automati
     check("  → son nom",            $d['label'], $nom);
     check("  → ses pastilles",      count($d['badges']) >= 3, true);
     check("  → ses prestations",    count($d['offer_items']) >= 6, true);
-    check("  → ses tuiles",         count($d['interv']), 8);
+    check("  → ses 8 cartes",       count(service_offer_cards($d['offer_items'])), 8);
     check("  → sa FAQ",             count($d['faq']), 4);
 }
 check('sept métiers au total', count(service_trade_defaults()), 7);

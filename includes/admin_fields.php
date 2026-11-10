@@ -441,10 +441,7 @@ function admin_page_catalog(): array
                         ['key'=>'svc_quote_title','label'=>'Encart « Être rappelé » — titre','type'=>'text','default'=>'Être rappelé gratuitement'],
                         ['key'=>'svc_offer_label','label'=>'Surtitre de l\'offre','type'=>'text','default'=>'Notre offre'],
                         ['key'=>'svc_offer_lead','label'=>'Offre — texte sous le titre','type'=>'textarea','default'=>'Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.'],
-                        ['key'=>'svc_interv_label','label'=>'Interventions — surtitre','type'=>'text','default'=>'Nos interventions'],
-                        ['key'=>'svc_interv_title','label'=>'Interventions — titre','type'=>'text','default'=>'Ce que nous'],
-                        ['key'=>'svc_interv_title_hl','label'=>'Interventions — fin en couleur','type'=>'text','default'=>'faisons'],
-                        ['key'=>'svc_interv_lead','label'=>'Interventions — texte sous le titre','type'=>'textarea','default'=>'Chaque situation demande une réponse adaptée. Voici les interventions que nos techniciens réalisent au quotidien {en_region}.'],
+                        ['key'=>'svc_brands_note','label'=>'Bandeau des marques — mention sous les noms','type'=>'text','default'=>'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.'],
                         ['key'=>'svc_reals_label','label'=>'Réalisations — surtitre','type'=>'text','default'=>'Nos réalisations'],
                         ['key'=>'svc_reals_title','label'=>'Réalisations — titre','type'=>'text','default'=>'Chantiers'],
                         ['key'=>'svc_reals_title_hl','label'=>'Réalisations — fin en couleur','type'=>'text','default'=>'réalisés'],
@@ -618,25 +615,30 @@ function admin_service_pages(): array
                 [
                     'id'    => 'offre',
                     'label' => 'Notre offre',
-                    'seen'  => 'La liste à puces de vos prestations',
+                    'seen'  => 'Les cartes défilantes de vos prestations : un dessin, un titre, un texte court',
                     'fields' => [
                         ['key'=>$p.'offer_title','label'=>'Titre de la section','type'=>'text','default'=>$d['offer_title']],
                         ['key'=>$p.'offer_items','label'=>'Prestations','type'=>'list','default'=>$d['offer_items'],
-                         'columns'=>[['k'=>'v','label'=>'Prestation']]],
+                         'string_col'=>'title',
+                         'columns'=>[
+                            ['k'=>'icon','label'=>'Dessin','w'=>'190px','type'=>'select','options'=>service_icons()],
+                            ['k'=>'title','label'=>'Titre'],
+                            ['k'=>'text','label'=>'Texte court','type'=>'textarea'],
+                         ],
+                         'help'=>'Une carte par ligne. Gardez le texte court : une ou deux lignes suffisent.'],
                     ],
                 ],
                 [
-                    'id'    => 'interventions',
-                    'label' => 'Nos interventions',
-                    'seen'  => 'Les tuiles illustrées au milieu de la page',
+                    'id'    => 'marques',
+                    'label' => 'Marques',
+                    'seen'  => 'Le bandeau défilant des marques, sous l\'en-tête de la page',
                     'fields' => [
-                        ['key'=>$p.'interv','label'=>'Tuiles d\'intervention','type'=>'list','default'=>$d['interv'],
-                         'columns'=>[
-                            ['k'=>'icon','label'=>'Icône','w'=>'80px'],
-                            ['k'=>'title','label'=>'Titre'],
-                            ['k'=>'text','label'=>'Description'],
-                         ],
-                         'help'=>'L\'icône est un emoji. Copiez-en un depuis votre clavier d\'émojis.'],
+                        ['key'=>$p.'brands_on','label'=>'Bandeau des marques','type'=>'toggle','default'=>'1','check'=>'Afficher le bandeau des marques sur cette page',
+                         'help'=>'Il ne s\'affiche que si la liste ci-dessous contient au moins une marque.'],
+                        ['key'=>$p.'brands_title','label'=>'Titre du bandeau','type'=>'text','default'=>service_brand_titles()[$trade] ?? 'Toutes marques'],
+                        ['key'=>$p.'brands','label'=>'Marques','type'=>'list','default'=>service_brand_defaults()[$trade] ?? [],
+                         'columns'=>[['k'=>'v','label'=>'Marque']],
+                         'help'=>'Les noms défilent en texte. Ne citez que des marques sur lesquelles vous intervenez réellement.'],
                     ],
                 ],
                 [
@@ -742,9 +744,13 @@ function admin_list_save(array $f, array $rows): bool
     $clean = [];
     foreach ($rows as $row) {
         if ($multi) {
-            $vals = [];
-            foreach ($cols as $c) $vals[] = trim((string)($row[$c['k']] ?? ''));
-            if (implode('', $vals) === '') continue;          // ligne entièrement vide : ignorée
+            $vals = []; $typed = '';
+            foreach ($cols as $c) {
+                $v = trim((string)($row[$c['k']] ?? ''));
+                $vals[] = $v;
+                if (($c['type'] ?? 'text') !== 'select') $typed .= $v;   // une liste déroulante a toujours une valeur
+            }
+            if ($typed === '') continue;                      // ligne entièrement vide : ignorée
             $clean[] = $vals;
         } else {
             $v = trim((string)(is_array($row) ? reset($row) : $row));

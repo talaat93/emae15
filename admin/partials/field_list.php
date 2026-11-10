@@ -32,7 +32,13 @@ $lOwn   = admin_list_stored($f) !== null;
 
   <div class="fl__rows">
     <?php foreach ($lRows as $i => $row):
-        $vals = $lMulti ? (is_array($row) ? array_values($row) : []) : [is_array($row) ? (string)reset($row) : (string)$row];
+        if ($lMulti && !is_array($row)) {
+            // Ancien format (une phrase par ligne) : la phrase va dans la colonne prévue.
+            $vals = array_fill(0, count($lCols), '');
+            foreach ($lCols as $ci => $c) if ($c['k'] === ($f['string_col'] ?? $lCols[0]['k'])) $vals[$ci] = (string)$row;
+        } else {
+            $vals = $lMulti ? array_values((array)$row) : [is_array($row) ? (string)reset($row) : (string)$row];
+        }
     ?>
     <div class="fl__row">
       <span class="fl__grip" title="Glisser pour réordonner">⠿</span>
@@ -41,7 +47,12 @@ $lOwn   = admin_list_stored($f) !== null;
           $val  = (string)($vals[$ci] ?? '');
           $style = !empty($c['w']) ? 'flex:0 0 '.e($c['w']).';' : '';
       ?>
-        <?php if (($c['type'] ?? 'text') === 'textarea'): ?>
+        <?php if (($c['type'] ?? 'text') === 'select'): ?>
+          <select name="<?= e($name) ?>" style="<?= $style ?>">
+            <?php $selVal = isset($c['options'][$val]) ? $val : (string)array_key_last($c['options']);
+                  foreach ($c['options'] as $ok => $ol): ?><option value="<?= e((string)$ok) ?>"<?= (string)$ok === $selVal ? ' selected' : '' ?>><?= e($ol) ?></option><?php endforeach; ?>
+          </select>
+        <?php elseif (($c['type'] ?? 'text') === 'textarea'): ?>
           <textarea name="<?= e($name) ?>" rows="2" style="<?= $style ?>" placeholder="<?= e($c['label']) ?>"><?= e($val) ?></textarea>
         <?php else: ?>
           <input type="text" name="<?= e($name) ?>" value="<?= e($val) ?>" style="<?= $style ?>" placeholder="<?= e($c['label']) ?>">
@@ -62,6 +73,12 @@ $lOwn   = admin_list_stored($f) !== null;
     foreach ($lCols as $c) {
         $style = !empty($c['w']) ? 'flex:0 0 '.e($c['w']).';' : '';
         $nm    = $lKey.'[__I__]['.$c['k'].']';
+        if (($c['type'] ?? 'text') === 'select') {
+            echo '<select name="'.e($nm).'" style="'.$style.'">';
+            foreach ($c['options'] as $ok => $ol) echo '<option value="'.e((string)$ok).'">'.e($ol).'</option>';
+            echo '</select>';
+            continue;
+        }
         echo (($c['type'] ?? 'text') === 'textarea')
             ? '<textarea name="'.e($nm).'" rows="2" style="'.$style.'" placeholder="'.e($c['label']).'"></textarea>'
             : '<input type="text" name="'.e($nm).'" value="" style="'.$style.'" placeholder="'.e($c['label']).'">';

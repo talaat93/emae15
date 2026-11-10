@@ -1137,7 +1137,7 @@ if ($route === 'services') {
         <?php foreach ((array)$tpl['badges'] as $b): ?><span class="sp-tag"><?= e(is_array($b) ? (string)reset($b) : (string)$b) ?></span><?php endforeach; ?>
       </div>
       <ul class="sp-list">
-        <?php foreach (array_slice((array)$tpl['offer_items'], 0, 5) as $it): ?><li><?= e(is_array($it) ? (string)reset($it) : (string)$it) ?></li><?php endforeach; ?>
+        <?php foreach (array_slice(service_offer_cards((array)$tpl['offer_items']), 0, 5) as $it): ?><li><?= e($it['title']) ?></li><?php endforeach; ?>
       </ul>
       <a class="sp-link" href="<?= e(route_url($trade)) ?>"><?= e(setting('services_card_link','Voir nos prestations')) ?> →</a>
     </div>
@@ -1227,8 +1227,26 @@ if ($tpl !== null || $page) {
   </div>
 </section>
 
+<?php $svcBrands = array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen'));
+      if ($svcBrands && $tpl['brands_on']): ?>
+<!-- Marques : bandeau défilant (texte, pas de logos de fabricants) -->
+<section class="brands" aria-label="<?= e($tpl['brands_title']) ?>">
+  <div class="wrap"><p class="brands-h"><?= e($tpl['brands_title']) ?></p></div>
+  <div class="brands-band">
+    <div class="brands-track">
+      <?php for ($_bi = 0; $_bi < 2; $_bi++): ?>
+      <ul class="brands-list"<?= $_bi ? ' aria-hidden="true"' : '' ?>>
+        <?php foreach ($svcBrands as $_b): ?><li><?= e($_b) ?></li><?php endforeach; ?>
+      </ul>
+      <?php endfor; unset($_bi, $_b); ?>
+    </div>
+  </div>
+  <div class="wrap"><p class="brands-note"><?= e(setting('svc_brands_note', 'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.')) ?></p></div>
+</section>
+<?php endif; ?>
+
 <!-- Ce que nous proposons -->
-<section class="sec sec-card"><div class="wrap">
+<section class="sec sec-navy"><div class="wrap">
   <?php if (trim($tpl['intro']) !== ''): ?>
   <div class="svc-intro">
     <?php foreach (preg_split('/\R\s*\R/', trim($tpl['intro'])) ?: [] as $para): ?><p><?= e(trim($para)) ?></p><?php endforeach; ?>
@@ -1239,21 +1257,21 @@ if ($tpl !== null || $page) {
   // et filtre des coupures réseau, qui relèvent d'Enedis et non d'un électricien.
   $svcExtras = [
       'chauffage' => [
-          ['🚿', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
+          ['chauffe-eau', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
                  setting('svc_chauffage_ecs_text', 'Plus d\'eau chaude ? Nous dépannons et remplaçons les chauffe-eau électriques, les ballons d\'eau chaude et la production d\'eau chaude des chaudières : résistance, thermostat, groupe de sécurité, fuite du ballon. Remplacement complet si l\'appareil est hors d\'usage, avec mise en service le jour même quand c\'est possible.')],
       ],
       'electricite' => [
-          ['🪟', setting('svc_electricite_volets_title', 'Volets roulants électriques'),
+          ['volet', setting('svc_electricite_volets_title', 'Volets roulants électriques'),
                  setting('svc_electricite_volets_text', 'Volet roulant bloqué, moteur qui ne répond plus, interrupteur ou télécommande en panne : nous dépannons et motorisons vos volets roulants électriques, et remplaçons le moteur quand il est hors service.')],
-          ['🚪', setting('svc_electricite_acces_title', 'Portails électriques et visiophones'),
+          ['portail', setting('svc_electricite_acces_title', 'Portails électriques et visiophones'),
                  setting('svc_electricite_acces_text', 'Portail électrique qui ne s\'ouvre plus, visiophone ou interphone muet : diagnostic, réparation, remplacement et installation neuve.')],
       ],
   ][$sk] ?? [];
   ?>
   <?php if ($svcExtras): ?>
-  <div class="interv-grid" style="margin:0 0 2rem;">
+  <div class="ofr-extras">
     <?php foreach ($svcExtras as [$ico, $t, $d]): ?>
-    <div class="interv-card"><div class="interv-ico"><?= $ico ?></div><div class="interv-h"><?= e($t) ?></div><p class="interv-p"><?= e($d) ?></p></div>
+    <div class="ofr-card"><span class="ofr-ico"><img src="<?= e(service_icon_url($ico)) ?>" alt="" width="64" height="64" loading="lazy"></span><h3 class="ofr-h"><?= e($t) ?></h3><p class="ofr-p"><?= e($d) ?></p></div>
     <?php endforeach; ?>
   </div>
   <?php endif; ?>
@@ -1266,22 +1284,24 @@ if ($tpl !== null || $page) {
   <div class="svc-label"><?= e(setting('svc_offer_label','Notre offre')) ?></div>
   <h2 class="section-title"><?= e($tpl['offer_title']) ?></h2>
   <p class="section-lead svc-lead"><?= e(setting('svc_offer_lead','Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.')) ?></p>
-  <div class="svc-offer-grid">
-    <?php foreach ($tpl['offer_items'] as $oi): ?>
-    <div class="qs-perk"><?= e($oi) ?></div>
-    <?php endforeach; ?>
-  </div>
-</div></section>
-
-<!-- Interventions -->
-<section class="sec sec-navy"><div class="wrap">
-  <div class="svc-label"><?= e(setting('svc_interv_label','Nos interventions')) ?></div>
-  <h2 class="section-title"><?= e(setting('svc_interv_title','Ce que nous')) ?> <em><?= e(setting('svc_interv_title_hl','faisons')) ?></em></h2>
-  <p class="section-lead svc-lead"><?= e(setting('svc_interv_lead','Chaque situation demande une réponse adaptée. Voici les interventions que nos techniciens réalisent au quotidien {en_region}.')) ?></p>
-  <div class="interv-grid" style="margin-top:1.75rem;">
-    <?php foreach ($tpl['interv'] as [$ico,$t,$d]): ?>
-    <div class="interv-card"><div class="interv-ico"><?= $ico ?></div><div class="interv-h"><?= e($t) ?></div><p class="interv-p"><?= e($d) ?></p></div>
-    <?php endforeach; ?>
+  <?php $svcOffers = service_offer_cards((array)$tpl['offer_items']); ?>
+  <div class="ofr" data-ofr>
+    <div class="ofr-scroller" tabindex="0" role="region" aria-label="<?= e($tpl['offer_title']) ?>">
+      <?php foreach ($svcOffers as $o): ?>
+      <article class="ofr-card">
+        <span class="ofr-ico"><img src="<?= e(service_icon_url($o['icon'])) ?>" alt="" width="64" height="64" loading="lazy"></span>
+        <h3 class="ofr-h"><?= e($o['title']) ?></h3>
+        <?php if ($o['text'] !== ''): ?><p class="ofr-p"><?= e($o['text']) ?></p><?php endif; ?>
+      </article>
+      <?php endforeach; unset($o); ?>
+    </div>
+    <?php if (count($svcOffers) > 1): ?>
+    <div class="ofr-nav">
+      <span class="ofr-hint">Faites défiler <span aria-hidden="true">→</span></span>
+      <button type="button" class="ofr-btn" data-ofr-prev aria-label="Prestations précédentes">←</button>
+      <button type="button" class="ofr-btn" data-ofr-next aria-label="Prestations suivantes">→</button>
+    </div>
+    <?php endif; ?>
   </div>
 </div></section>
 
