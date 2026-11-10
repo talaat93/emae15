@@ -48,13 +48,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($_POST) && (int)($_SERVER['CO
     flash('error', 'Vos photos sont trop lourdes : votre demande n\'a pas été envoyée. Réessayez avec moins de photos, ou appelez-nous au '.company_phone().'.');
     redirect_to(route_url($route));
 }
-// Saisie en cours d'un formulaire (nom + téléphone), envoyée en tâche de fond par
-// site.js : permet de rappeler un visiteur qui n'a pas terminé. Désactivé par défaut.
+// Ancien envoi en tâche de fond d'une saisie non terminée (retiré en novembre 2026) :
+// une page restée en cache ou une requête directe ne doit rien enregistrer.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'partial') {
+    http_response_code(410);
     header('Content-Type: application/json; charset=utf-8');
-    $okP = hash_equals(csrf_token(), (string)($_POST['csrf_token'] ?? '')) && rate_limit_passed('partial_save', 3) && trim((string)($_POST['website'] ?? '')) === ''
-        && partial_save($_POST);
-    echo json_encode(['ok' => $okP]);
+    echo json_encode(['ok' => false]);
     exit;
 }
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'quote') {
@@ -78,13 +77,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
         $mg = 'Rendez-vous souhaité : '.$bLabel."\nMotif : ".($reason !== '' ? $reason : 'non précisé').(trim((string)$mg) !== '' ? "\n\n".trim((string)$mg) : '');
         if ($sv === '' && $reason !== '') $sv = $reason;
     }
-    if (trim($fn)===''||trim($ph)===''||trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to(route_url($route)); }
+    // Rappel express : téléphone et code postal suffisent ; le besoin et le nom sont facultatifs.
+    if ($qType === 'rappel' && trim((string)$mg) === '') $mg = 'Demande de rappel (formulaire express)';
+    $phDigits = strlen((string)preg_replace('/\D/', '', (string)$ph));
+    if (trim((string)$ph) === '' || $phDigits < 9 || $phDigits > 15) { flash('error','Indiquez un numéro de téléphone complet pour que nous puissions vous rappeler.'); redirect_to(route_url($route)); }
+    if (trim((string)$pc) !== '' && !preg_match('/^\d{5}$/', trim((string)$pc))) { flash('error','Le code postal doit comporter 5 chiffres.'); redirect_to(route_url($route)); }
+    if (($qType !== 'rappel' && trim($fn)==='') || trim($mg)==='') { flash('error','Merci de remplir les champs obligatoires.'); redirect_to(route_url($route)); }
     try {
         db_execute('INSERT INTO quotes (full_name,phone,email,city,address,postal_code,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
             [trim($fn),trim($ph),trim($em),trim($ci),trim($ad),trim($pc),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
     } catch (Throwable $_qe) {
-        db_execute('INSERT INTO quotes (full_name,phone,email,city,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?)',
-            [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+        try {
+            db_execute('INSERT INTO quotes (full_name,phone,email,city,service_type,message,urgency,status,source) VALUES (?,?,?,?,?,?,?,?,?)',
+                [trim($fn),trim($ph),trim($em),trim($ci),trim($sv),trim($mg),trim($ur),'nouveau',trim($so)]);
+        } catch (Throwable $_qe2) {
+            // Jamais de faux succès : la demande n'est pas enregistrée, le visiteur le sait et peut appeler.
+            error_log('[EMAE] demande non enregistrée : '.$_qe2->getMessage());
+            flash('error', 'Votre demande n\'a pas pu être enregistrée, désolé. Appelez-nous au '.company_phone().' ou réessayez dans un instant.');
+            redirect_to(route_url($route));
+        }
         unset($_qe);
     }
     $qId   = db_last_id();
@@ -137,6 +148,9 @@ if ($route === '' || $route === 'home') {
         if ($zMT !== '') $meta['title']       = $zMT;
         if ($zMD !== '') $meta['description'] = $zMD;
         $meta['canonical']   = url_for($currentZone['slug'].'/');
+        // Zone non listée (ni département ni ville, ex. /idf/ renommée « Bourgogne-Franche-Comté ») :
+        // la page reste accessible mais n'est pas proposée à l'indexation tant qu'elle n'est pas tranchée.
+        if (!in_array($currentZone['slug'], array_column(intervention_zones_listed(), 'slug'), true)) $meta['robots'] = 'noindex, follow';
         unset($zMT, $zMD);
     }
 
@@ -194,24 +208,28 @@ if ($route === '' || $route === 'home') {
       <?= render_google_badge() ?>
 
       <div class="hero-trust">
-        <?php foreach ([
-          ['⚡', setting('trust_1_title','Intervention rapide'), setting('trust_1_sub','Moins de 2h en urgence')],
-          ['🆓', setting('trust_2_title','Devis gratuit'),      setting('trust_2_sub','Sans engagement')],
-          ['⭐', setting('trust_3_title',setting('schema_rating_value','4.9').'/5'), setting('trust_3_sub',setting('schema_review_count','120').' avis')],
-          ['🔒', setting('trust_4_title','Certifiés'),          setting('trust_4_sub','Artisans qualifiés')],
+        <?php
+        // Note : seulement celle de la fiche Google (lien + date), jamais un chiffre saisi sans source.
+        $_rs = review_summary();
+        $_trust3 = $_rs ? ['⭐', number_format($_rs['rating'], 1, ',', '').'/5', $_rs['count'].' avis Google'] : ['📋', 'Prix annoncé', 'avant déplacement'];
+        foreach ([
+          ['⚡', claim_clean(setting('trust_1_title','Urgences 24h/24'), 'Urgences 24h/24'), claim_clean(setting('trust_1_sub','Délai confirmé au téléphone'), 'Délai confirmé au téléphone')],
+          ['🆓', claim_clean(setting('trust_2_title','Devis gratuit'), 'Devis gratuit'),      claim_clean(setting('trust_2_sub','Sans engagement'), 'Sans engagement')],
+          $_trust3,
+          ['🔒', claim_clean(setting('trust_4_title','Artisans qualifiés'), 'Artisans qualifiés'), claim_clean(setting('trust_4_sub','Électricité, plomberie, chauffage'), 'Électricité, plomberie, chauffage')],
         ] as [$ico,$t,$s]): ?>
         <div class="trust-pill">
           <span class="trust-pill-ico"><?= $ico ?></span>
           <span class="trust-pill-txt"><strong><?= e($t) ?></strong><span><?= e($s) ?></span></span>
         </div>
-        <?php endforeach; ?>
+        <?php endforeach; unset($_rs, $_trust3); ?>
       </div>
     </div>
 
     <div class="hero-form">
       <div class="hero-card">
-        <div class="hero-card-tag"><?= e(setting('home_quote_eyebrow','Rappel gratuit sous 5 min')) ?></div>
-        <h2><?= e(setting('home_quote_title','Obtenir un devis')) ?></h2>
+        <div class="hero-card-tag"><?= e(claim_clean(setting('home_quote_eyebrow', 'Rappel gratuit'), 'Rappel gratuit')) ?></div>
+        <h2><?= e(setting('home_quote_title','Être rappelé')) ?></h2>
         <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
     </div>
@@ -279,7 +297,9 @@ if ($route === '' || $route === 'home') {
     <h2 class="section-title"><?= e($why['title'] ?? 'EMAE, votre expert de confiance') ?></h2>
     <?php if (trim($why['lead'] ?? '') !== ''): ?><p class="section-lead"><?= e($why['lead']) ?></p><?php endif; ?>
     <div class="why-grid">
-      <?php foreach (($why['items'] ?? []) as $item): ?>
+      <?php foreach (($why['items'] ?? []) as $item):
+        // Argument fondé sur un chiffre non documenté (note, délai, « 1000+ ») : non publié.
+        if (claim_unsupported((string)($item['title'] ?? '').' '.(string)($item['text'] ?? ''))) continue; ?>
       <div class="why-card">
         <div class="why-icon">
           <?php if (($item['icon_type']??'emoji')==='image' && trim($item['icon_img']??'')!=='' && file_exists(__DIR__.'/'.ltrim($item['icon_img']??'','/'))) : ?>
@@ -299,9 +319,10 @@ if ($route === '' || $route === 'home') {
 </section>
 
 <!-- STATS -->
+<?php $_stats = array_values(array_filter($banner['stats'], static fn(array $s): bool => trim((string)$s['number']) !== '' && !claim_unsupported($s['number'].' '.$s['label']) && !preg_match('/\d\s*\+|<|\d[.,]\d|note|interventions\s*\/\s*an/iu', $s['number'].' '.$s['label']))); if ($_stats): ?>
 <div class="stats-band">
   <div class="wrap stats-grid">
-    <?php foreach ($banner['stats'] as $s): ?>
+    <?php foreach ($_stats as $s): ?>
     <div class="stat-item">
       <span class="stat-n"><?= e($s['number']) ?></span>
       <span class="stat-l"><?= e($s['label']) ?></span>
@@ -309,6 +330,7 @@ if ($route === '' || $route === 'home') {
     <?php endforeach; ?>
   </div>
 </div>
+<?php endif; unset($_stats); ?>
 
 <!-- PROCESSUS -->
 <section class="process-section">
@@ -317,9 +339,9 @@ if ($route === '' || $route === 'home') {
     <h2 class="section-title"><?= e(setting('process_title','Votre intervention en')) ?> <em><?= e(setting('process_title_hl','3 étapes')) ?></em></h2>
     <div class="process-grid">
       <?php $_pn=0; foreach ([
-        [setting('process_1_title','Vous nous contactez'),        setting('process_1_text','Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.')],
-        [setting('process_2_title','Nous organisons l\'intervention'), setting('process_2_text','Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.')],
-        [setting('process_3_title','Intervention & compte rendu'), setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
+        [setting('process_1_title','Vous nous contactez'),        claim_clean(setting('process_1_text','Appelez ou demandez à être rappelé : nous faisons le point sur votre besoin au téléphone.'), 'Appelez ou demandez à être rappelé : nous faisons le point sur votre besoin au téléphone.')],
+        [setting('process_2_title','Nous organisons l\'intervention'), claim_clean(setting('process_2_text', intervention_terms_text()))],
+        [setting('process_3_title','Intervention & compte rendu'), claim_clean(setting('process_3_text','Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.'), 'Diagnostic, réparation ou installation. Compte rendu clair et facture détaillée en fin de chantier.')],
       ] as [$title,$text]): $_pn++; ?>
       <div class="process-step">
         <div class="process-num"><?= $_pn ?></div>
@@ -356,7 +378,8 @@ if ($route === '' || $route === 'home') {
 </section>
 <?php endif; ?>
 
-<!-- AVIS -->
+<!-- AVIS : seulement des témoignages dont la provenance est notée, ou le lien vers la fiche Google -->
+<?php if ($revs || review_summary() || google_profile_url() !== ''): ?>
 <section class="reviews-section">
   <div class="wrap">
     <div class="reviews-header">
@@ -364,13 +387,17 @@ if ($route === '' || $route === 'home') {
         <div class="svc-label"><?= e(setting('reviews_label','Avis clients')) ?></div>
         <h2 class="section-title"><?= e(setting('reviews_title','Ce qu\'ils disent')) ?> <em><?= e(setting('reviews_title_hl','de nous')) ?></em></h2>
       </div>
-      <div class="reviews-score">
+      <?php $_rs = review_summary(); if ($_rs): ?>
+      <a class="reviews-score" href="<?= e($_rs['url']) ?>" target="_blank" rel="noopener">
         <div>
-          <span class="rs-stars">★★★★★</span>
-          <span class="rs-num"><?= e(setting('schema_rating_value','4.9')) ?></span>
-          <span class="rs-info"><?= e(setting('schema_review_count','120')) ?> avis vérifiés</span>
+          <span class="rs-stars" aria-hidden="true">★★★★★</span>
+          <span class="rs-num"><?= e(number_format($_rs['rating'], 1, ',', '')) ?>/5</span>
+          <span class="rs-info"><?= e((string)$_rs['count']) ?> avis Google<?= $_rs['updated'] !== '' ? ' — au '.e($_rs['updated']) : '' ?></span>
         </div>
-      </div>
+      </a>
+      <?php elseif (($_gp = google_profile_url()) !== ''): ?>
+      <a class="reviews-score" href="<?= e($_gp) ?>" target="_blank" rel="noopener"><div><span class="rs-info">Voir nos avis sur Google →</span></div></a>
+      <?php endif; unset($_rs, $_gp); ?>
     </div>
     <div class="reviews-grid">
       <?php foreach ($revs as $rev):
@@ -393,6 +420,7 @@ if ($route === '' || $route === 'home') {
     </div>
   </div>
 </section>
+<?php endif; ?>
 
 <!-- DEVIS SECTION -->
 <section class="quote-section">
@@ -400,16 +428,16 @@ if ($route === '' || $route === 'home') {
     <div class="qs-info">
       <div class="svc-label"><?= e(setting('qs_label','Devis gratuit')) ?></div>
       <h2><?= e(setting('qs_title','Besoin d\'un')) ?> <em><?= e(setting('qs_title_hl','technicien ?')) ?></em></h2>
-      <p><?= e(setting('qs_lead','Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Aucune visite facturée sans votre accord.')) ?></p>
+      <p><?= e(claim_clean(setting('qs_lead','Décrivez votre besoin : nous vous rappelons pour en parler et vous annoncer le prix avant tout déplacement. Aucune visite facturée sans votre accord.'), 'Décrivez votre besoin : nous vous rappelons pour en parler et vous annoncer le prix avant tout déplacement. Aucune visite facturée sans votre accord.')) ?></p>
       <div class="qs-perks">
         <?php foreach ([
-          setting('qs_perk_1','Devis 100% gratuit et sans engagement'),
-          setting('qs_perk_2','Rappel sous 5 minutes garanti'),
-          setting('qs_perk_3','Tarif annoncé avant toute intervention'),
-          setting('qs_perk_4','Technicien qualifié et assuré'),
-          setting('qs_perk_5','Disponible 7j/7, urgences 24h/24'),
+          setting('qs_perk_1','Devis gratuit et sans engagement'),
+          setting('qs_perk_2', callback_promise_short()),
+          setting('qs_perk_3','Prix annoncé avant toute intervention'),
+          setting('qs_perk_4','Technicien qualifié'),
+          setting('qs_perk_5','Urgences 24h/24, interventions planifiées '.booking_weekdays_label()),
           setting('qs_perk_6','Facture détaillée en fin de chantier'),
-        ] as $perk): if (trim($perk)==='') continue; ?>
+        ] as $perk): if (trim($perk)==='' || claim_unsupported($perk)) continue; ?>
         <div class="qs-perk"><?= e($perk) ?></div>
         <?php endforeach; ?>
       </div>
@@ -432,7 +460,7 @@ if ($route === '' || $route === 'home') {
     <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
     <?php if ($currentZone): ?>
     <h2 class="section-title">Villes couvertes <em>en <?= e($currentZone['name']) ?></em></h2>
-    <p class="section-lead">Nos techniciens interviennent sur toutes les villes de la zone <?= e($currentZone['name']) ?>. Délai moyen d'intervention inférieur à 2 heures pour les urgences.</p>
+    <p class="section-lead">Nos techniciens interviennent dans les villes de la zone <?= e($currentZone['name']) ?>. <?= e(intervention_terms_text()) ?></p>
     <div class="zones-grid">
       <div class="zone-card">
         <div class="zone-name"><?= e($currentZone['name']) ?></div>
@@ -442,11 +470,12 @@ if ($route === '' || $route === 'home') {
       </div>
     </div>
     <?php else: ?>
-    <h2 class="section-title"><?= e(setting('zones_title','Nos zones d\'intervention')) ?> <em><?= e(setting('zones_title_hl','partout en France')) ?></em></h2>
-    <p class="section-lead"><?= e(geo_replace(setting('zones_lead','{region} — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.'))) ?></p>
+    <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em><?= e(geo_replace(claim_clean(setting('zones_title_hl','{en_region}'), '{en_region}'))) ?></em></h2>
+    <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead','{region}. '.intervention_terms_text())))) ?></p>
     <div class="zones-grid">
-      <?php /* Source unique : la table des zones. Voir includes/zones_core.php. */
-            foreach (intervention_zones() as $_az): ?>
+      <?php /* Source unique : la table des zones. Voir includes/zones_core.php.
+               Une zone sans département ni ville (ancienne zone renommée) n'est pas listée. */
+            foreach (intervention_zones_listed() as $_az): ?>
       <div class="zone-card">
         <a href="<?= e(url_for($_az['slug'].'/')) ?>" style="text-decoration:none;color:inherit;">
           <div class="zone-name"><?= e($_az['name']) ?></div>
@@ -474,7 +503,7 @@ if ($route === '' || $route === 'home') {
   <h2 class="section-title">Questions <em>fréquentes</em></h2>
   <div class="sfaq-list" style="margin-top:1.75rem;">
     <?php foreach (zone_faq($currentZone) as [$_fq,$_fa]): ?>
-    <details class="sfaq-item"><summary><?= e($_fq) ?></summary><p><?= e($_fa) ?></p></details>
+    <details class="sfaq-item"><summary><?= e($_fq) ?></summary><p><?= e(faq_answer_fix((string)$_fq, (string)$_fa)) ?></p></details>
     <?php endforeach; ?>
   </div>
 </div></section>
@@ -497,11 +526,11 @@ if ($route === 'zones') {
   <div class="wrap">
     <div class="ph-eyebrow">// <?= e($zones['eyebrow']) ?></div>
     <h1 class="ph-h1"><?= e($zones['title']) ?> <em><?= e($zones['title_hl']) ?></em></h1>
-    <p class="ph-lead"><?= e($zones['lead']) ?></p>
+    <p class="ph-lead"><?= e(claim_clean($zones['lead'], 'Électricité, plomberie, chauffage et climatisation dans nos zones. '.intervention_terms_text())) ?></p>
     <div class="ph-badges">
       <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
       <span class="ph-badge">🆓 Devis gratuit</span>
-      <span class="ph-badge">🔒 Artisans certifiés</span>
+      <span class="ph-badge">🔒 Artisans qualifiés</span>
       <span class="ph-badge">📞 <?= e(company_phone()) ?></span>
     </div>
   </div>
@@ -556,7 +585,7 @@ if ($route === 'zones') {
   <div class="wrap" style="max-width:760px;">
     <div class="svc-label">Intervention rapide</div>
     <h2 class="section-title">Demandez votre <em>devis gratuit</em></h2>
-    <p class="section-lead" style="margin-bottom:2rem;">Précisez votre ville et votre besoin — nous confirmons la disponibilité dans votre zone sous 5 minutes.</p>
+    <p class="section-lead" style="margin-bottom:2rem;">Précisez votre ville et votre besoin : nous vous rappelons pour confirmer la disponibilité dans votre secteur. <?= e(callback_promise_short()) ?>.</p>
     <div class="hero-card" style="background:var(--card);">
       <div class="hero-card-tag">Gratuit et sans engagement</div>
       <h2 style="font-family:var(--font-h);font-size:1.3rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">Obtenir un devis</h2>
@@ -569,12 +598,12 @@ if ($route === 'zones') {
 /* ════ AVIS CLIENTS ════ */
 if ($route === 'avis') {
     $allReviews  = all_published_reviews();
-    $ratingVal   = setting('schema_rating_value', '4.6');
-    $reviewCount = setting('schema_review_count', (string)count($allReviews) ?: '120');
-    $gmbUrl      = setting('google_mybusiness_url', '');
+    $rs          = review_summary();      // note Google sourcée (lien + date), sinon aucun chiffre
+    $gmbUrl      = google_profile_url();
     $meta = [
         'title'       => setting('avis_meta_title', 'Avis clients | '.company_name()),
-        'description' => setting('avis_meta_desc',  'Découvrez les avis de nos clients — note de '.$ratingVal.'/5 sur '.$reviewCount.' avis vérifiés.'),
+        'description' => claim_clean(setting('avis_meta_desc', 'Témoignages de clients de '.company_name().' sur nos interventions en électricité, plomberie, chauffage et climatisation.'),
+                                     'Témoignages de clients de '.company_name().' sur nos interventions en électricité, plomberie, chauffage et climatisation.'),
         'canonical'   => route_url('avis'),
     ];
     render_head($meta); render_header(route_url('avis'));
@@ -583,20 +612,24 @@ if ($route === 'avis') {
   <div class="wrap">
     <div class="ph-eyebrow">// Avis clients</div>
     <h1 class="ph-h1"><?= e(setting('avis_title','Ce que disent')) ?> <em><?= e(setting('avis_title_hl','nos clients')) ?></em></h1>
-    <p class="ph-lead"><?= e(setting('avis_lead','Des centaines de clients satisfaits. Voici leurs témoignages.')) ?></p>
+    <p class="ph-lead"><?= e(claim_clean(setting('avis_lead','Les témoignages de nos clients.'), 'Les témoignages de nos clients.')) ?></p>
+    <?php if ($rs || $gmbUrl !== ''): ?>
     <div style="display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+      <?php if ($rs): ?>
       <div style="text-align:center;">
-        <div style="font-family:var(--font-h);font-size:3rem;font-weight:700;color:var(--p);line-height:1;"><?= e($ratingVal) ?></div>
+        <div style="font-family:var(--font-h);font-size:3rem;font-weight:700;color:var(--p);line-height:1;"><?= e(number_format($rs['rating'], 1, ',', '')) ?></div>
         <div style="font-size:.75rem;color:var(--t2);margin-top:.2rem;">sur 5</div>
       </div>
+      <?php endif; ?>
       <div>
-        <div style="color:#f59e0b;font-size:1.3rem;letter-spacing:.1em;">★★★★★</div>
-        <div style="font-size:.85rem;color:var(--t1);margin-top:.3rem;font-weight:600;"><?= e($reviewCount) ?> avis vérifiés</div>
-        <?php if ($gmbUrl !== ''): ?>
-        <a href="<?= e($gmbUrl) ?>" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.35rem;font-size:.78rem;color:var(--p);margin-top:.4rem;font-weight:600;">Voir sur Google →</a>
+        <?php if ($rs): ?>
+        <div style="font-size:.85rem;color:var(--t1);font-weight:600;"><?= e((string)$rs['count']) ?> avis sur notre fiche Google<?= $rs['updated'] !== '' ? ' (relevé du '.e($rs['updated']).')' : '' ?></div>
         <?php endif; ?>
+        <a href="<?= e($rs['url'] ?? $gmbUrl) ?>" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--p);margin-top:.4rem;font-weight:600;">Voir les avis sur Google →</a>
       </div>
     </div>
+    <?php endif; ?>
+
   </div>
 </section>
 
@@ -627,6 +660,7 @@ if ($route === 'avis') {
         <?php if (trim($rv['city']??'') !== ''): ?>
         <div style="font-size:.75rem;color:var(--t2);margin-top:.75rem;">📍 <?= e($rv['city']) ?></div>
         <?php endif; ?>
+        <div style="font-size:.72rem;color:var(--t2);margin-top:.35rem;">Provenance : <?= e((string)($rv['source_note'] ?? '')) ?></div>
       </div>
       <?php endforeach; ?>
     </div>
@@ -788,7 +822,7 @@ if ($route === 'landing') {
       <span class="ph-badge hl">⚡ Urgence 24h/7j</span>
       <span class="ph-badge hl"><?= e($metier_data['urgence']) ?></span>
       <span class="ph-badge">🆓 Devis gratuit</span>
-      <span class="ph-badge">🔒 Artisans certifiés</span>
+      <span class="ph-badge">🔒 Artisans qualifiés</span>
       <span class="ph-badge">📍 <?= e($p_ville) ?> et alentours</span>
     </div>
     <div class="btn-row" style="margin-top:1.75rem;">
@@ -834,10 +868,10 @@ if ($route === 'landing') {
     <h2 class="section-title">Votre <?= e(mb_strtolower($metier_data['label_pro'],'UTF-8')) ?> de confiance à <em><?= e($p_ville) ?></em></h2>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.85rem;margin-top:1.75rem;">
       <?php foreach ([
-        ['⚡','Intervention rapide','Moins de 2h en urgence dans le '.$dept_data['nom'].'.'],
-        ['🆓','Devis 100% gratuit','Sans engagement, tarif annoncé avant intervention.'],
-        ['🔒','Artisans certifiés','Techniciens qualifiés et assurés.'],
-        ['📞','Disponible 24h/7j',company_hours().' — même les jours fériés.'],
+        ['⚡','Urgences 24h/24',intervention_terms_text()],
+        ['🆓','Devis gratuit','Sans engagement, prix annoncé avant intervention.'],
+        ['🔒','Artisans qualifiés','Électricité, plomberie, chauffage et climatisation.'],
+        ['📞',callback_promise_short(),'Laissez votre numéro, nous vous rappelons au sujet de votre demande.'],
       ] as [$ico,$t,$d]): ?>
       <div class="why-card">
         <div class="why-icon"><?= $ico ?></div>
@@ -877,7 +911,7 @@ if ($route === 'landing') {
     <div class="qs-card">
       <div class="hero-card-tag"><?= e($metier_data['icon']) ?> <?= e($metier_data['label_pro']) ?> à <?= e($p_ville) ?></div>
       <h2 style="font-family:var(--font-h);font-size:1.35rem;font-weight:700;color:#fff;margin-bottom:1.25rem;">
-        Intervention rapide dans le <?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)
+        Demande d'intervention — <?= e($dept_data['nom']) ?> (<?= e($dept_data['code']) ?>)
       </h2>
       <?php render_quote_form($cards, 'landing_'.$p_metier.'_'.$p_dept); ?>
     </div>
@@ -889,6 +923,11 @@ if ($route === 'landing') {
 /* ════ FAQ ════ */
 if ($route === 'faq') {
     $faq  = faq_page_settings();
+    // Réponses mises en cohérence (zones, horaires, délais) avant l'affichage ET les données structurées.
+    foreach ($faq['groups'] as $_gi => $_g) foreach (($_g['items'] ?? []) as $_ii => $_it) {
+        $faq['groups'][$_gi]['items'][$_ii]['a'] = faq_answer_fix((string)($_it['q'] ?? ''), (string)($_it['a'] ?? ''));
+    }
+    unset($_gi, $_g, $_ii, $_it);
     $meta = ['title'=>setting('faq_meta_title','FAQ | '.company_name()),'description'=>setting('faq_meta_description','Questions fréquentes.'),'canonical'=>route_url('faq')];
     render_head($meta);
     // FAQPage schema — rich snippets Google
@@ -951,7 +990,7 @@ if ($route === 'contact') {
   <p class="ph-lead"><?= e($cfg['hero_lead']) ?></p>
   <div class="ph-badges">
     <span class="ph-badge hl">✓ <?= e(setting('contact_badge_1','Devis gratuit')) ?></span>
-    <span class="ph-badge">⚡ <?= e(setting('contact_badge_2','Réponse sous 5 min')) ?></span>
+    <span class="ph-badge">⚡ <?= e(claim_clean(setting('contact_badge_2', callback_promise_short()), callback_promise_short())) ?></span>
     <span class="ph-badge">📍 <?= e(company_regions()) ?></span>
     <span class="ph-badge">🕐 <?= e(company_hours()) ?></span>
   </div>
@@ -1015,8 +1054,8 @@ if ($route === 'quote') {
 ?>
 <section class="page-hero"><div class="wrap"><div class="ph-eyebrow">Devis gratuit</div>
   <h1 class="ph-h1"><?= e(setting('quote_hero_title','Votre demande d\'intervention')) ?></h1>
-  <p class="ph-lead"><?= e(setting('quote_hero_lead','Remplissez ce formulaire. Un technicien vous rappelle sous 5 minutes avec un chiffrage clair, sans engagement.')) ?></p>
-  <div class="ph-badges"><span class="ph-badge hl">✓ 100% gratuit</span><span class="ph-badge">⚡ Réponse sous 5 min</span><span class="ph-badge">📍 <?=e(company_regions())?></span></div>
+  <p class="ph-lead"><?= e(claim_clean(setting('quote_hero_lead','Remplissez ce formulaire : nous vous rappelons pour faire le point et vous annoncer le prix avant tout déplacement. Sans engagement.'), 'Remplissez ce formulaire : nous vous rappelons pour faire le point et vous annoncer le prix avant tout déplacement. Sans engagement.')) ?></p>
+  <div class="ph-badges"><span class="ph-badge hl">✓ Devis gratuit</span><span class="ph-badge">⚡ <?= e(callback_promise_short()) ?></span><span class="ph-badge">📍 <?=e(company_regions())?></span></div>
 </div></section>
 <section class="sec sec-navy"><div class="wrap" style="max-width:660px;">
   <div class="qs-card">
@@ -1202,6 +1241,13 @@ unset($_extra);
 // ou ne pas exister : l'adresse du métier suffit désormais à afficher la page.
 $page = page_by_slug($route);
 $sk   = service_detect_trade($route.' '.($page['slug'] ?? '').' '.($page['title'] ?? ''));
+// Ancienne adresse d'une page métier (« ?route=Électricité », « electricien-meaux »…) : doublon
+// de la page métier conservée, avec parfois un ancien texte d'un autre secteur. Redirection
+// permanente vers l'adresse de référence ; la fiche en base n'est pas supprimée.
+if ($sk !== null && $route !== $sk && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    header('Location: '.absolute_url(route_url($sk)), true, 301);
+    exit;
+}
 $tpl  = $sk ? service_template($sk) : null;
 if ($tpl !== null || $page) {
     if ($tpl !== null) {
@@ -1214,6 +1260,19 @@ if ($tpl !== null || $page) {
         // Une seule page de référence par métier (la page en base peut porter
         // un autre slug, ex. « Électricité », qui créait un doublon).
         $meta['canonical'] = route_url($sk);
+        // Page métier d'une zone (/jura/electricite) : page propre seulement si son contenu
+        // diffère réellement de la page métier du site (titre, titre Google, présentation).
+        // Sinon, référence = la page métier du site, sans envoyer la zone vers l'accueil.
+        if ($currentZone) {
+            set_zone_context(null);
+            $_gTpl = service_template($sk);
+            $_gUrl = route_url($sk);
+            set_zone_context($currentZone);
+            if ($_gTpl && $_gTpl['h1'] === $tpl['h1'] && $_gTpl['meta_title'] === $tpl['meta_title'] && $_gTpl['intro'] === $tpl['intro']) {
+                $meta['canonical'] = $_gUrl;
+            }
+            unset($_gTpl, $_gUrl);
+        }
         $cards = service_cards_v14();
         render_head($meta); render_header(route_url($route));
         $heroImg = service_hero_image($sk);
@@ -1240,7 +1299,7 @@ if ($tpl !== null || $page) {
   <!-- Être rappelé : le même encart que sur l'accueil, métier présélectionné -->
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
-      <div class="hero-card-tag"><?= e(setting('svc_quote_eyebrow','Rappel gratuit sous 5 min')) ?></div>
+      <div class="hero-card-tag"><?= e(claim_clean(setting('svc_quote_eyebrow','Rappel gratuit'), 'Rappel gratuit')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
@@ -1363,7 +1422,7 @@ if ($tpl !== null || $page) {
   <p class="section-lead svc-lead"><?= e(setting('svc_faq_lead','Les réponses aux questions que nos clients nous posent le plus souvent. Une autre question ? Appelez-nous, nous vous répondons directement.')) ?></p>
   <div class="sfaq-list" style="margin-top:1.75rem;">
     <?php foreach ($tpl['faq'] as [$q,$a]): ?>
-    <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details>
+    <details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e(faq_answer_fix((string)$q, (string)$a)) ?></p></details>
     <?php endforeach; ?>
   </div>
   <?php $svcPannes = pannes_for_trade($sk); if ($svcPannes): ?>
@@ -1382,7 +1441,7 @@ if ($tpl !== null || $page) {
   <div class="zones-grid" style="margin-top:1.75rem;">
     <?php /* Même source que l'accueil et la page Nos zones : la table des zones. */
           // Sur un sous-site, seule sa zone : la page Jura ne liste pas Paris.
-          foreach (array_filter(intervention_zones(), fn($z) => !$currentZone || $z['slug'] === $currentZone['slug']) as $z): ?>
+          foreach (array_filter(intervention_zones_listed(), fn($z) => !$currentZone || $z['slug'] === $currentZone['slug']) as $z): ?>
     <div class="zone-card">
       <div class="zone-name"><?= e($z['name']) ?></div>
       <?php if ($z['intro'] !== ''): ?><p class="zone-text"><?= e($z['intro']) ?></p><?php endif; ?>
@@ -1439,18 +1498,39 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
 <?php if ($zML !== ''): ?>
   <?= nl2br(e($zML)) ?>
 <?php else: ?>
+  <?php $L = legal_info(); /* Réglages globaux : Identité & coordonnées → Mentions légales */ ?>
   <h2>Éditeur du site</h2>
-  <p><strong><?= e(company_name()) ?></strong><br>
-  <?php $addr = setting('company_address',''); if($addr): ?><?= e($addr) ?><br><?php endif; ?>
-  <?php $siret = company_siret(); if($siret): ?>SIRET : <?= e($siret) ?><br><?php endif; ?>
+  <p>Le site <?= e(preg_replace('#^https?://#', '', rtrim(absolute_url('/'), '/'))) ?> est édité par
+  <strong><?= e($L['denomination']) ?></strong><?= company_name() !== '' && stripos($L['denomination'], company_name()) === false ? ' (nom commercial : '.e(company_name()).')' : '' ?>,
+  <?= e($L['forme']) ?><?= $L['capital'] !== '' ? ' au capital de '.e($L['capital']) : '' ?>.<br>
+  Siège social : <?= e($L['siege']) ?><br>
+  <?php if ($L['siren'] !== ''): ?>SIREN : <?= e($L['siren']) ?><?= $L['rcs'] !== '' ? ' — '.e($L['rcs']) : '' ?><br><?php endif; ?>
+  <?php $siret = company_siret(); if ($siret): ?>SIRET du siège : <?= e($siret) ?><br><?php endif; ?>
+  <?php if ($L['tva'] !== ''): ?>N° de TVA intracommunautaire : <?= e($L['tva']) ?><br><?php endif; ?>
   Téléphone : <a href="<?= e(company_phone_link()) ?>"><?= e(company_phone()) ?></a><br>
   Email : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a></p>
+  <?php if ($L['base'] !== ''): ?>
+  <p>Base d'intervention : <?= e($L['base']) ?>. Zones desservies : <?= e(geo_replace('{region}')) ?>. Le siège social est une adresse administrative ; les interventions ont lieu chez les clients, sur rendez-vous ou en urgence.</p>
+  <?php endif; ?>
 
   <h2>Directeur de la publication</h2>
-  <p><?= e(setting('ml_directeur', company_name())) ?></p>
+  <p><?= $L['directeur'] !== '' ? e($L['directeur']).', gérant' : 'Le gérant de la société, en sa qualité de représentant légal' ?>.</p>
 
   <h2>Hébergeur</h2>
-  <p><?= e(setting('ml_hebergeur', 'o2switch — 222-224 Boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr')) ?></p>
+  <p><?= e(setting('ml_hebergeur', 'o2switch SAS — 222-224 boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr')) ?></p>
+
+  <?php if ($L['assurance'] !== ''): ?>
+  <h2>Assurance professionnelle</h2>
+  <p><?= e($L['assurance']) ?></p>
+  <?php endif; ?>
+
+  <?php if ($L['mediateur'] !== ''): ?>
+  <h2>Médiation de la consommation</h2>
+  <p>En cas de litige non résolu avec notre service client, vous pouvez recourir gratuitement au médiateur de la consommation : <?= e($L['mediateur']) ?>.</p>
+  <?php endif; ?>
+
+  <h2>Prix et devis</h2>
+  <p>Le prix de l'intervention (déplacement, diagnostic, main-d'œuvre et, le cas échéant, pièces) est annoncé avant tout déplacement. Pour les travaux, un devis écrit est remis avant leur réalisation ; l'établissement du devis est gratuit. Une facture détaillée est remise en fin d'intervention.<?= tarifs_enabled() ? ' Nos tarifs sont consultables sur la page <a href="'.e(route_url('tarifs')).'">Tarifs</a>.' : '' ?></p>
 
   <h2>Propriété intellectuelle</h2>
   <p>L'ensemble de ce site relève de la législation française et internationale sur le droit d'auteur et la propriété intellectuelle. Tous les droits de reproduction sont réservés, y compris pour les documents téléchargeables et les représentations iconographiques et photographiques.</p>
@@ -1458,15 +1538,23 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
   <h2>Données personnelles</h2>
   <p>Les informations recueillies via les formulaires de ce site sont enregistrées dans un fichier informatisé par <?= e(company_name()) ?> pour permettre la gestion des demandes d'intervention. Conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez-nous à : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>.</p>
   <?php $_keep = (int)growth_get('quote_photos_keep_months'); ?>
-  <p>Les photos jointes à une demande servent uniquement à préparer l'intervention<?= $_keep > 0 ? ' et sont supprimées automatiquement '.$_keep.' mois après la demande' : '' ?>. Votre numéro de téléphone peut être utilisé pour vous envoyer des SMS liés à votre demande : accusé de réception, suivi de l'intervention, rappel d'entretien si vous avez un contrat, et une demande d'avis après l'intervention.<?= partial_enabled() ? ' Si vous saisissez votre nom et votre téléphone dans un formulaire sans l\'envoyer, ces informations sont conservées 30 jours au plus afin de pouvoir vous rappeler.' : '' ?> Les paiements en ligne sont traités par Stripe : aucune donnée de carte bancaire n'est conservée par <?= e(company_name()) ?>.</p>
+  <p>Les photos jointes à une demande servent uniquement à préparer l'intervention<?= $_keep > 0 ? ' et sont supprimées automatiquement '.$_keep.' mois après la demande' : '' ?>. Votre numéro de téléphone peut être utilisé pour vous envoyer des SMS liés à votre demande : accusé de réception, suivi de l'intervention, rappel d'entretien si vous avez un contrat, et une demande d'avis après l'intervention. Il n'est pas utilisé pour de la prospection commerciale. Rien n'est transmis tant que vous n'avez pas cliqué sur le bouton d'envoi d'un formulaire.<?= payments_enabled() ? ' Si vous réglez une facture par le lien de paiement que nous vous envoyons, le paiement est traité par Stripe : aucune donnée de carte bancaire n\'est conservée par '.e(company_name()).'.' : '' ?></p>
+  <p>Vous pouvez aussi vous inscrire gratuitement sur la liste d'opposition au démarchage téléphonique Bloctel (www.bloctel.gouv.fr).</p>
 
-  <h2>Cookies</h2>
-  <p>Ce site utilise des cookies techniques nécessaires à son fonctionnement. Aucun cookie publicitaire ou de tracking tiers n'est utilisé sans votre consentement.</p>
+  <h2 id="cookies">Cookies</h2>
+  <?php $_ck = consent_tags(); ?>
+  <p>Ce site utilise des cookies techniques nécessaires à son fonctionnement (session, protection des formulaires) et un cookie qui mémorise votre choix sur les cookies pendant 6 mois. Ils ne demandent pas votre accord.</p>
+  <?php if ($_ck['ga'] !== '' || $_ck['ads'] !== ''): ?>
+  <p>Avec votre accord seulement, des cookies Google sont déposés<?= $_ck['ga'] !== '' ? ' pour mesurer l\'audience (Google Analytics)' : '' ?><?= $_ck['ga'] !== '' && $_ck['ads'] !== '' ? ' et' : '' ?><?= $_ck['ads'] !== '' ? ' pour mesurer l\'efficacité de nos annonces (Google Ads : appel ou demande après un clic sur une annonce)' : '' ?>. Tant que vous n'avez pas accepté, aucune balise Google n'est chargée. Refuser n'empêche ni d'appeler ni d'envoyer une demande. <a href="#" data-ck-open>Modifier mes choix</a> à tout moment ; un retrait supprime les cookies Google déjà déposés.</p>
+  <?php else: ?>
+  <p>Aucun cookie publicitaire ou de mesure d'audience tiers n'est utilisé.</p>
+  <?php endif; unset($_ck); ?>
+  <p>Nous comptons aussi les pages vues et les clics sur nos numéros, sans cookie et sans donnée personnelle (un compteur par jour et par page).</p>
 
   <h2>Responsabilité</h2>
   <p><?= e(company_name()) ?> s'efforce d'assurer l'exactitude et la mise à jour des informations diffusées sur ce site. Toutefois, <?= e(company_name()) ?> ne peut garantir l'exactitude, la précision ou l'exhaustivité des informations mises à disposition sur ce site.</p>
 
-  <p style="margin-top:2rem;color:var(--t2);font-size:.85rem;">Dernière mise à jour : <?= date('d/m/Y') ?></p>
+  <?php if ($L['updated_at'] !== '' && strtotime($L['updated_at'])): ?><p style="margin-top:2rem;color:var(--t2);font-size:.85rem;">Dernière mise à jour : <?= e(date('d/m/Y', strtotime($L['updated_at']))) ?></p><?php endif; ?>
 <?php endif; ?>
 </div></div></section>
 <?php render_footer(); exit; }

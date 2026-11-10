@@ -445,6 +445,137 @@ function company_address(): string { return setting('company_address', '{region}
 function company_siret(): string { return setting('company_siret', ''); }
 function company_slogan(): string { return setting('company_slogan', 'Dépannage & installation multitechnique'); }
 function company_whatsapp(): string { return setting('company_whatsapp', ''); }
+/* ── Informations publiées qui doivent rester identiques partout ──
+   Réglages globaux (jamais par zone), modifiables dans Identité & coordonnées. */
+
+/** Délai de rappel annoncé (« 5 minutes », décision du propriétaire du 8 novembre 2026). Vide = aucun chiffre publié. */
+function callback_delay(): string
+{
+    // Réglage absent : la valeur décidée ; réglage vidé dans l'admin : aucun chiffre.
+    $c = settings_cache();
+    return array_key_exists('callback_delay', $c) ? trim((string)$c['callback_delay']) : '5 minutes';
+}
+
+/** « Rappel sous 5 minutes », ou « Rappel rapide » si aucun délai n'est publié. */
+function callback_promise_short(): string { $d = callback_delay(); return $d !== '' ? 'Rappel sous '.$d : 'Rappel rapide'; }
+
+/** Phrase unique sur la disponibilité et le délai d'arrivée : aucun délai chiffré sans donnée réelle. */
+function intervention_terms_text(): string
+{
+    $v = trim(global_setting('intervention_terms_text', ''));
+    return $v !== '' ? $v : 'Disponibilité, délai estimé et conditions d\'intervention confirmés par téléphone avant déplacement.';
+}
+
+/** Identité légale (mentions légales, données structurées). Valeurs vérifiées à l'Annuaire des entreprises le 10/11/2026. */
+function legal_info(): array
+{
+    $g = static fn(string $k, string $d = ''): string => trim(global_setting($k, $d));
+    return [
+        'denomination' => $g('ml_denomination', 'ENTREPRISE MULTI-TECHNIQUE AVANCEE (EMAE)'),
+        'forme'        => $g('ml_forme', 'SARL'),
+        'capital'      => $g('ml_capital', '1 000 €'),
+        'siege'        => $g('ml_siege', '60 rue François Ier, 75008 Paris'),
+        'siren'        => $g('ml_siren', '102 802 600'),
+        'rcs'          => $g('ml_rcs'),          // ex. « RCS Paris » : à reprendre du Kbis
+        'tva'          => $g('ml_tva'),          // numéro de TVA intracommunautaire, s'il existe
+        'directeur'    => $g('ml_directeur'),    // personne physique (nom et prénom)
+        'base'         => $g('ml_base', 'Dole (Jura)'),
+        'mediateur'    => $g('ml_mediateur'),    // nom et site du médiateur de la consommation
+        'assurance'    => $g('ml_assurance'),    // assureur et couverture géographique
+        'updated_at'   => $g('ml_updated_at'),
+    ];
+}
+
+/**
+ * Note et nombre d'avis publiables : uniquement ceux de la fiche Google, avec son lien,
+ * et la date de mise à jour. Sinon null : aucun chiffre affiché (ni « avis vérifiés »).
+ * @return array{rating:float,count:int,url:string,updated:string}|null
+ */
+function review_summary(): ?array
+{
+    if (!function_exists('google_rating')) return null;
+    $g = google_rating();
+    if ($g === null) return null;
+    $u = trim(global_setting('google_rating_updated_at', ''));
+    return $g + ['updated' => $u !== '' && strtotime($u) ? date('d/m/Y', strtotime($u)) : ''];
+}
+
+/**
+ * Une affirmation commerciale non documentée ? (note ou nombre d'avis sans source,
+ * « 1000+ interventions », délai d'arrivée chiffré, « garanti », certification, « technicien
+ * disponible »). Le délai de rappel réglé (callback_delay) reste permis quand le texte parle
+ * de rappel ou de réponse. Sert de filet de sécurité à l'affichage : un ancien réglage
+ * resté en base ne republie pas une promesse retirée.
+ */
+function claim_unsupported(string $t): bool
+{
+    $t = html_entity_decode(strip_tags($t), ENT_QUOTES, 'UTF-8');
+    if (trim($t) === '') return false;
+    $rx = [
+        '/\b\d[.,]\d\s*(\/\s*5|sur\s*5|★|étoiles?)/iu',                         // 4,6/5
+        '/\bavis\s+(clients?\s+)?v[ée]rifi/iu',                                   // « avis vérifiés »
+        '/\b\d{3,}\s*\+|\bplus de\s+\d{2,}\s*(interventions|clients|avis|chantiers)/iu', // 1000+, plus de 120 avis
+        '/(moins\s+d[\'’e ]\s*|sous\s+|en\s+|<\s*|inf[ée]rieur\s+[àa]\s+)(une?\s+|1\s*|2\s*|3\s*|\d+\s*)(h\b|heures?\b)/iu', // délai d'arrivée en heures
+        '/\b(certifi[ée]e?s?|RGE|Qualifelec|Qualibat|QualiPAC|Qualigaz)\b/u',
+        '/\b(rappel|d[ée]lai|intervention|r[ée]ponse)[^.!?]{0,40}\bgaranti/iu',
+        '/technicien\s+disponible/iu',
+        '/[ée]quipes?\s+r[ée]parties/iu',
+    ];
+    foreach ($rx as $r) if (preg_match($r, $t)) return true;
+    // Minutes : seulement le délai de rappel réglé, dans une phrase sur le rappel ou la réponse.
+    if (preg_match_all('/(\d+)\s*(min\b|mins\b|minutes?\b)/iu', $t, $m)) {
+        $ok = (int)callback_delay() > 0 && preg_match('/rappel|rappelons|r[ée]pon/iu', $t);
+        foreach ($m[1] as $n) if (!$ok || (int)$n !== (int)callback_delay()) return true;
+    }
+    return false;
+}
+
+/** Le texte, ou le texte de repli si le premier contient une promesse non documentée. */
+function claim_clean(string $text, ?string $fallback = null): string
+{
+    return claim_unsupported($text) ? ($fallback ?? intervention_terms_text()) : $text;
+}
+
+/** Horaires publiés, distincts selon le type de demande (réglable dans Identité & coordonnées). */
+function hours_text(): string
+{
+    $v = trim(global_setting('hours_text', ''));
+    if ($v !== '') return $v;
+    return 'Urgences : 24h/24 et 7j/7. Interventions planifiées : créneaux '.(function_exists('booking_weekdays_label') ? booking_weekdays_label() : 'du lundi au samedi')
+         .', confirmés par téléphone.';
+}
+
+/**
+ * Réponse de FAQ cohérente avec le reste du site :
+ * - zones : un texte qui cite un autre secteur que celui de la page est remplacé par le secteur réel ;
+ * - horaires : la phrase unique hours_text() ;
+ * - délai : pas de délai chiffré sans donnée réelle.
+ */
+function faq_answer_fix(string $q, string $a): string
+{
+    $qn = function_exists('text_ascii_lower') ? text_ascii_lower($q) : mb_strtolower($q);
+    $profil = function_exists('geo_profil_global') ? (zone_context() ? (geo_profil_zone(zone_context()) ?? geo_profil_global()) : geo_profil_global()) : null;
+    if (preg_match('/zone|secteur|departement|ou intervenez|quelles villes/', $qn) && $profil
+        && geo_hors_secteur($a, $profil)['etrangers']) {
+        return geo_replace('Nous intervenons {en_region}, notamment autour de {ville}. Contactez-nous pour vérifier que votre adresse est dans notre secteur.');
+    }
+    if (preg_match('/horaire/', $qn)) return hours_text();
+    if (preg_match('/delai/', $qn) && claim_unsupported($a)) {
+        return intervention_terms_text().' En cas d\'urgence, appelez le '.company_phone().'.';
+    }
+    return claim_clean($a);
+}
+
+/** Lien vers la fiche Google publique (avis), s'il est renseigné. */
+function google_profile_url(): string
+{
+    foreach ([global_setting('google_mybusiness_url', ''), function_exists('growth_get') ? growth_get('google_reviews_url') : ''] as $u) {
+        $u = trim((string)$u);
+        if (preg_match('#^https://#i', $u)) return $u;
+    }
+    return '';
+}
+
 function site_logo_path(): string { return setting('site_logo', 'storage/uploads/logos/logo-emae-default.svg'); }
 function site_logo_url(): string { return asset_url(site_logo_path()); }
 /** Le logo choisi est-il le logo EMAE d'origine ? Un autre logo envoyé dans l'admin s'affiche tel quel. */
@@ -462,42 +593,47 @@ function site_logo_position(): string { $p = setting('site_logo_position', 'left
 ═══════════════════════════════════════════════════ */
 
 
+/**
+ * Une seule entité pour tout le site (même @id sur chaque page, zones comprises).
+ * - pas d'adresse postale : le siège parisien n'accueille pas de public et la base de
+ *   Dole n'a pas d'adresse confirmée ; areaServed décrit le secteur couvert ;
+ * - pas de note (aggregateRating) : des avis sur sa propre entreprise ne donnent pas
+ *   droit aux étoiles dans Google, et aucune note sourcée n'est enregistrée ;
+ * - sameAs : seulement la fiche Google publique, si elle est renseignée.
+ */
 function schema_local_business(): string
 {
-    $addr = company_address();
-    $wa   = company_whatsapp();
+    $origin = rtrim(absolute_url('/'), '/');
+    $legal  = legal_info();
+    $tel    = preg_replace('/^tel:/i', '', company_phone_link());
+    // Secteur réel : départements du site global, ou de la zone affichée (déduits de ses codes postaux).
+    $profil = function_exists('geo_profil_global') ? (zone_context() && function_exists('geo_profil_zone') ? (geo_profil_zone(zone_context()) ?? geo_profil_global()) : geo_profil_global()) : null;
+    $areas  = $profil ? array_values(array_map(static fn(string $c): string => geo_departements()[$c][0], $profil['codes'])) : [];
     $data = [
         '@context'    => 'https://schema.org',
         '@type'       => 'ElectricalContractor',
+        '@id'         => $origin.'/#entreprise',
         'name'        => company_name(),
-        'telephone'   => company_phone(),
+        'legalName'   => $legal['denomination'],
+        'url'         => $origin.'/',
+        'telephone'   => preg_match('/^\+?\d{9,15}$/', (string)$tel) ? $tel : company_phone(),
         'email'       => company_email(),
         'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.'),
-        'areaServed'  => array_map('trim', explode(',', company_regions())),
-        'openingHoursSpecification' => [[
-            '@type'     => 'OpeningHoursSpecification',
-            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
-            'opens'     => '00:00',
-            'closes'    => '23:59',
-        ]],
-        'url'        => site_base_url() !== '' ? site_base_url() : route_url(''),
-        'priceRange' => '€€',
+        'areaServed'  => array_map(static fn(string $a): array => ['@type' => 'AdministrativeArea', 'name' => $a], $areas),
     ];
-    if ($addr !== '') {
-        $data['address'] = ['@type'=>'PostalAddress','streetAddress'=>$addr,'addressCountry'=>'FR'];
+    // Urgences 24h/24 et 7j/7 : publié seulement si les horaires affichés le disent.
+    if (preg_match('/24\s*h?\s*\/\s*24|24\/7/u', company_hours())) {
+        $data['openingHoursSpecification'] = [[
+            '@type' => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+            'opens' => '00:00', 'closes' => '23:59',
+        ]];
     }
-    if (company_siret() !== '') {
-        $data['identifier'] = ['@type'=>'PropertyValue','name'=>'SIRET','value'=>company_siret()];
-    }
-    $rv = setting('schema_rating_value', '');
-    $rc = setting('schema_review_count', '');
-    if ($rv !== '' && $rc !== '') {
-        $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc,'bestRating'=>5,'worstRating'=>1];
-    }
-    if ($wa !== '') {
-        $data['sameAs'] = ['https://wa.me/'.(function_exists('whatsapp_digits') ? whatsapp_digits($wa) : preg_replace('/[^0-9]/', '', $wa))];
-    }
-    return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    $siret = preg_replace('/\D/', '', company_siret());
+    if (strlen((string)$siret) === 14) $data['identifier'] = ['@type' => 'PropertyValue', 'propertyID' => 'SIRET', 'value' => $siret];
+    if (($g = google_profile_url()) !== '') $data['sameAs'] = [$g];
+    if (($logo = site_logo_path()) !== '' && file_exists(__DIR__.'/../'.$logo)) $data['logo'] = absolute_url(asset_url($logo));
+    return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1361,13 +1497,13 @@ function hero_settings(): array
         'quote_button_label'       => setting('home_quote_button_label',       'Être rappelé gratuitement'),
         'quote_meta'               => setting('home_quote_meta',               '✓ Gratuit  ✓ Rapide  ✓ Sans engagement'),
         'trust_1_icon'  => setting('home_trust_1_icon',  '⚡'),
-        'trust_1_label' => setting('home_trust_1_label', 'Intervention < 2h'),
+        'trust_1_label' => setting('home_trust_1_label', 'Urgences 24h/24'),
         'trust_2_icon'  => setting('home_trust_2_icon',  '🆓'),
         'trust_2_label' => setting('home_trust_2_label', 'Devis gratuit'),
         'trust_3_icon'  => setting('home_trust_3_icon',  '⭐'),
-        'trust_3_label' => setting('home_trust_3_label', '4.9/5 — 120+ avis'),
+        'trust_3_label' => setting('home_trust_3_label', 'Prix annoncé avant déplacement'),
         'trust_4_icon'  => setting('home_trust_4_icon',  '🔒'),
-        'trust_4_label' => setting('home_trust_4_label', 'Artisans certifiés'),
+        'trust_4_label' => setting('home_trust_4_label', 'Artisans qualifiés'),
     ];
 }
 
@@ -1397,10 +1533,10 @@ function hero_banner_settings(): array
         'button2_url'   => setting('home_banner_button2_url',   'quote'),
         'logo_path'     => setting('home_banner_logo_path',     ''),
         'stats'         => [
-            ['number'=>setting('stat_1_number','500+'),  'label'=>setting('stat_1_label','Interventions/an')],
-            ['number'=>setting('stat_2_number','4.9/5'), 'label'=>setting('stat_2_label','Note client')],
-            ['number'=>setting('stat_3_number','< 2h'),  'label'=>setting('stat_3_label','Délai urgence')],
-            ['number'=>setting('stat_4_number','24/7'),  'label'=>setting('stat_4_label','Disponibilité')],
+            ['number'=>setting('stat_1_number','24/7'),  'label'=>setting('stat_1_label','Urgences')],
+            ['number'=>setting('stat_2_number','0 €'), 'label'=>setting('stat_2_label','Devis')],
+            ['number'=>setting('stat_3_number','7'),  'label'=>setting('stat_3_label','Métiers')],
+            ['number'=>setting('stat_4_number','3'),  'label'=>setting('stat_4_label','Départements')],
         ],
     ];
 }
@@ -1541,7 +1677,7 @@ function zones_page_settings(bool $brut = false): array
         'eyebrow'  => 'Zones d\'intervention',
         'title'    => 'Nous intervenons',
         'title_hl' => '{en_region}',
-        'lead'     => 'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.',
+        'lead'     => 'Électricité, plomberie, chauffage et climatisation dans nos zones. Disponibilité, délai estimé et conditions d\'intervention confirmés par téléphone avant déplacement.',
         'regions'  => [
             [
                 'name'  => 'Île-de-France',
@@ -1549,7 +1685,7 @@ function zones_page_settings(bool $brut = false): array
                 'color' => '#1a7ab5',
                 'depts' => ['Paris (75)','Hauts-de-Seine (92)','Seine-Saint-Denis (93)','Val-de-Marne (94)','Seine-et-Marne (77)','Yvelines (78)','Essonne (91)','Val-d\'Oise (95)'],
                 'cities'=> ['Paris','Boulogne-Billancourt','Saint-Denis','Montreuil','Argenteuil','Créteil','Versailles','Nanterre','Colombes','Saint-Maur-des-Fossés','Champigny-sur-Marne','Meaux','Évry','Cergy'],
-                'delay' => 'Moins de 2h en urgence',
+                'delay' => '',
             ],
             [
                 'name'  => 'Occitanie',
@@ -1580,9 +1716,14 @@ function zones_page_settings(bool $brut = false): array
     return $out;
 }
 
+/**
+ * Témoignages publiés : visibles ET dont la provenance est notée (source_note : « avis Google
+ * du 12/03/2026 », « message reçu par SMS »…). Sans provenance, un témoignage reste en attente
+ * dans l'admin : on ne publie pas un avis dont on ne peut pas dire d'où il vient.
+ */
 function all_published_reviews(): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
+    try { return db_fetch_all("SELECT * FROM reviews WHERE is_visible = 1 AND COALESCE(source_note, '') <> ''".zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1675,7 +1816,7 @@ function all_pages(): array
 
 function visible_reviews(int $limit = 6): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
+    try { return db_fetch_all("SELECT * FROM reviews WHERE is_visible = 1 AND COALESCE(source_note, '') <> ''".zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1753,10 +1894,10 @@ function why_section_settings(): array
     $defaultItems = [
         ['icon_type'=>'emoji','icon_emoji'=>'⚡','icon_image'=>'','title'=>'Réponse immédiate 24h/24','text'=>'Nous décrochons toujours. Délai moyen inférieur à 2h pour les urgences.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📋','icon_image'=>'','title'=>'Devis clair avant intervention','text'=>'Le prix est annoncé avant toute action. Zéro surprise sur la facture finale.'],
-        ['icon_type'=>'emoji','icon_emoji'=>'🔒','icon_image'=>'','title'=>'Techniciens qualifiés','text'=>'Nos artisans sont formés, certifiés et expérimentés sur l\'ensemble de nos métiers.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'🔒','icon_image'=>'','title'=>'Techniciens qualifiés','text'=>'Nos artisans sont formés et expérimentés sur l\'ensemble de nos métiers.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📍','icon_image'=>'','title'=>'Présence locale','text'=>'Des techniciens installés dans votre secteur, qui en connaissent le bâti et ses spécificités.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🛠️','icon_image'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur.'],
-        ['icon_type'=>'emoji','icon_emoji'=>'⭐','icon_image'=>'','title'=>'Clients satisfaits','text'=>'Plus de 120 avis vérifiés, une note de 4.9/5. La confiance se construit chantier après chantier.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'💬','icon_image'=>'','title'=>'Prix annoncé','text'=>'Le prix est annoncé avant tout déplacement : aucune visite facturée sans votre accord.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🏗️','icon_image'=>'','title'=>'Particuliers & professionnels','text'=>'Logements, commerces, bureaux, copropriétés — nous adaptons notre organisation à votre contexte.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📞','icon_image'=>'','title'=>'Disponible 24h/7j','text'=>'L\'urgence n\'attend pas. Notre astreinte est active en permanence pour les situations bloquantes.'],
     ];
@@ -1854,12 +1995,12 @@ function why_us_settings(): array
         'title'   => 'EMAE, votre expert multitechnique de confiance',
         'lead'    => 'Des artisans qualifiés, des délais respectés, des devis clairs. Chaque intervention est réalisée avec rigueur et professionnalisme.',
         'items'   => [
-            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Intervention rapide',    'text'=>'Moins de 2h en urgence. Astreinte 24h/24, 7j/7 pour toutes les pannes bloquantes.'],
+            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Urgences 24h/24',        'text'=>'Astreinte 24h/24 et 7j/7 pour les pannes bloquantes. Disponibilité et délai confirmés par téléphone avant déplacement.'],
             ['icon_type'=>'emoji','icon'=>'📋','icon_img'=>'','title'=>'Devis gratuit et clair', 'text'=>'Le prix est annoncé avant toute intervention. Aucune surprise sur la facture finale. Devis sans engagement.'],
-            ['icon_type'=>'emoji','icon'=>'🔒','icon_img'=>'','title'=>'Artisans certifiés',     'text'=>'Nos techniciens sont formés, qualifiés et assurés pour l\'ensemble de nos métiers techniques.'],
+            ['icon_type'=>'emoji','icon'=>'🔒','icon_img'=>'','title'=>'Artisans qualifiés',     'text'=>'Nos techniciens sont formés et qualifiés pour l\'ensemble de nos métiers techniques.'],
             ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Présence locale',        'text'=>'Des techniciens installés dans votre secteur, qui interviennent rapidement sur site.'],
             ['icon_type'=>'emoji','icon'=>'🛠️','icon_img'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur pour tous vos besoins.'],
-            ['icon_type'=>'emoji','icon'=>'⭐','icon_img'=>'','title'=>'Clients satisfaits',     'text'=>'Plus de 120 avis vérifiés, note de 4.9/5. La confiance se construit chantier après chantier.'],
+            ['icon_type'=>'emoji','icon'=>'🧾','icon_img'=>'','title'=>'Facture détaillée',      'text'=>'Diagnostic, travaux et pièces détaillés sur la facture, remise en fin d\'intervention.'],
             ['icon_type'=>'emoji','icon'=>'🏗️','icon_img'=>'','title'=>'Particuliers & pros',   'text'=>'Logements, commerces, bureaux, copropriétés — organisation adaptée à chaque contexte.'],
             ['icon_type'=>'emoji','icon'=>'📞','icon_img'=>'','title'=>'Disponible 24h/7j',      'text'=>'Notre astreinte est active en permanence pour les situations d\'urgence qui n\'attendent pas.'],
         ],
@@ -2809,7 +2950,7 @@ function service_trade_defaults(): array
           ['cablage', 'Câblage neuf', 'Câblage complet pour une construction, une extension ou une réfection.'],
           ['diagnostic', 'Diagnostic', 'Contrôle de l\'installation existante, avec un compte rendu détaillé.'],
         ],
-        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
+        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','Le délai dépend de votre secteur et de nos interventions en cours : il vous est confirmé au téléphone, avant tout déplacement.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
       ],
       'plomberie' => [
         'label'=>'Plomberie','icon_svc'=>'💧',
@@ -2993,7 +3134,8 @@ function service_trade_patterns(): array
  */
 function service_detect_trade(string $contexte): ?string
 {
-    $contexte = mb_strtolower($contexte, 'UTF-8');
+    // Sans accents : « Électricité » (ancienne page en base) est bien la page Électricité.
+    $contexte = function_exists('text_ascii_lower') ? text_ascii_lower(rawurldecode($contexte)) : mb_strtolower($contexte, 'UTF-8');
     $trouve = null; $longueur = 0;
     foreach (service_trade_patterns() as $trade => $motifs) {
         foreach ($motifs as $m) {
@@ -3010,7 +3152,7 @@ function service_page_slug(string $trade): string
     $needles = service_trade_patterns()[$trade] ?? [$trade];
     try {
         foreach (db_fetch_all('SELECT slug, title FROM pages') as $p) {
-            $ctx = mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');
+            $ctx = function_exists('text_ascii_lower') ? text_ascii_lower(($p['slug'] ?? '').' '.($p['title'] ?? '')) : mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');
             foreach ($needles as $n) if (str_contains($ctx, $n)) return (string)$p['slug'];
         }
     } catch (Throwable $e) { /* table absente */ }

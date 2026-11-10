@@ -3,7 +3,7 @@
 Document de reprise. À lire en entier avant de toucher au code : il contient
 plusieurs pièges qui ont déjà coûté du temps.
 
-Dernière mise à jour : 20 octobre 2026.
+Dernière mise à jour : 10 novembre 2026.
 
 ---
 
@@ -452,6 +452,40 @@ contre les vrais serveurs** (Gmail, o2switch, Telegram, API Claude).
 
 ---
 
+## 4sexies. Cohérence, preuves et consentement (10 novembre 2026)
+
+Règles posées par la mission de mise en cohérence du site. À respecter dans tout nouveau texte.
+
+- **Promesses** : `claim_unsupported()` / `claim_clean()` (`includes/helpers.php`) écartent à
+  l'affichage note ou nombre d'avis sans source, « 1000+ », délai d'arrivée chiffré, « garanti »,
+  certifications (RGE, Qualifelec…), « technicien disponible ». Seul le délai de **rappel**
+  `callback_delay()` (« 5 minutes », décision du 8/11) est permis, dans une phrase sur le rappel.
+  Phrases uniques : `intervention_terms_text()`, `hours_text()`, `callback_promise_short()` —
+  réglables dans Identité & coordonnées → « Engagements publiés ».
+- **Avis** : note publiée seulement via `review_summary()` (fiche Google : lien + note + nombre +
+  date). Un témoignage n'est publié que s'il a une provenance (`reviews.source_note`).
+- **Données structurées** : une seule entité `ElectricalContractor`, `@id` = `/#entreprise`, sans
+  adresse ni `aggregateRating` ; `areaServed` = départements du secteur réel ; `sameAs` = fiche Google.
+- **Mentions légales** : `legal_info()` (réglages globaux `ml_*`), siège parisien ≠ base de Dole.
+- **Cookies** : `consent_head_script()` / `render_consent_banner()` (`includes/render.php`). Aucune
+  balise Google avant accord (gtag n'existe pas, rien n'est mis en file), consentement v2 « default »
+  puis « update », choix gardé 6 mois (cookie `emae_consent`), retrait = cookies Google supprimés.
+  Conversions : clic `tel:` → libellés « appel » ; demande enregistrée → libellé « demande » sur la
+  page suivante, une fois, seulement si l'accord existait déjà. WhatsApp : événement GA seulement.
+  Polices hébergées sur le site (`assets/fonts`, `assets/css/fonts.css`) : plus de Google Fonts.
+- **Formulaires** : plus aucun envoi avant le clic (`partial_enabled()` renvoie false, le serveur
+  répond 410 aux anciens envois). Encart « Être rappelé » = rappel express (téléphone + code postal).
+- **Zones** : `intervention_zones_listed()` = zones avec département ou ville ; `/idf/` (vide,
+  renommée « Bourgogne-Franche-Comté ») n'est plus listée et passe en `noindex` — décision en attente.
+- **SEO** : ancienne page métier (« ?route=Électricité ») → 301 vers la page métier ; page métier
+  de zone identique à la globale → canonical vers la globale ; sitemap sans `lastmod`, avec les
+  pages des départements et Automatismes.
+- **Migration v15.38** (`.mig_v15_coherence`, `includes/coherence.php`) : nettoie la base portée
+  par portée, sauvegarde tout (lot `coherence-…`), annulable dans Diagnostic des zones.
+  `geo_appliquer(false)` ne réécrit plus les variables et titres globaux du propriétaire.
+- Tests : `test_coherence.php`, `test_coherence_migration.php` (base reproduisant le site du
+  10/11/2026), et dans le bac à sable : `cdp_consent.mjs` (navigateur, requêtes réseau).
+
 ## 5. Conventions de travail
 
 Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
@@ -480,10 +514,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-927 assertions, aucune base de données nécessaire : chaque test remplace
+1082 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 192 fichiers PHP.
+sur les 196 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -634,6 +668,16 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 
 ### Décisions en attente
 
+- **Île-de-France** : la zone `/idf/` (renommée « Bourgogne-Franche-Comté », sans ville) est
+  masquée des listes et en `noindex` ; les 48 pages d'arrivée Seine-et-Marne / Essonne restent au
+  sitemap. À trancher : activité réelle en IDF ou non (campagnes Ads liées ?).
+- **Données à fournir** (Identité & coordonnées → Mentions légales / Engagements) : numéro
+  WhatsApp complet (l'actuel a 8 chiffres après +33 ; le code contenait autrefois
+  06 67 83 03 76, non confirmé), directeur de la publication (nom), RCS et TVA d'après le Kbis,
+  médiateur de la consommation, assurance, adresse exacte de l'hébergeur, fiche Google (lien,
+  note, nombre d'avis) et provenance de chaque témoignage, tarifs TTC et majorations validés,
+  justificatifs de qualification avant tout badge.
+
 - **`api/`** — 36 fichiers PHP, copie périmée de `admin/`. Rien n'y mène, aucun
   risque de sécurité identifié, mais c'est du poids mort qui trompe les
   recherches dans le code. En attente d'un feu vert pour suppression.
@@ -661,6 +705,7 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Mise en cohérence (§4sexies) : bandeau cookies et consentement v2, plus de collecte sans clic, rappel express, promesses non sourcées filtrées, avis avec provenance, JSON-LD réparé, mentions légales, WhatsApp incomplet masqué, rendez-vous lundi-samedi hors fériés, ancienne page « Électricité » redirigée, sitemap, polices locales. Migration `.mig_v15_coherence` |
 | *(voir `git log`)* | Mention du logo plus discrète ; cartes volets et portails retirées de la page électricité (ils ont leur page métier) ; anciennes listes de prestations enregistrées par l'admin reconnues par `service_offer_legacy()` (elles s'affichaient sans texte ni dessin) ; page Réalisations filtrable par métier (`?metier=electricite`, pastilles dessinées), le bouton d'une page métier y mène filtré |
 | *(voir `git log`)* | Pages métier : « Nos interventions » supprimé (doublon de « Notre offre ») ; prestations en cartes défilantes (dessin + titre + texte court, `offer_items` = `[dessin, titre, texte]`, `service_offer_cards()` lit aussi l'ancien format phrase) ; dessins PNG au trait orange dans `assets/img/icons/` (Tabler Icons, licence MIT, + dessins maison), liste dans `service_icons()` ; cartes volets, portails et chauffe-eau dessinées ; bandeau défilant des marques (`svc_<métier>_brands`, `_brands_title`, `_brands_on`), rempli pour chauffage et climatisation, noms en texte, sans logos de fabricants. Logo EMAE : mention en texte sous « EMAE » (`assets/img/logo-emae-mark.png`, `site_logo_is_emae()`). Corrigé au passage : les tuiles débordaient de l'écran sur téléphone, ce qui faisait dézoomer toute la page |
 | *(voir `git log`)* | Agent : lecture des mails envoyés (`agent_sent`, statut `answered` « répondu par vous », fil des échanges dans les brouillons) ; refus de connexion IMAP accompagné de la raison donnée par le serveur |

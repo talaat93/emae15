@@ -1509,3 +1509,22 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
 .rf-n{font-size:.72rem;color:var(--t2);font-weight:600;}
 .rf-chip.is-on .rf-n{color:var(--p);}
 @media(min-width:640px){ .rf{flex-wrap:wrap;overflow:visible;margin:0 0 2rem;padding:0;} }
+
+/* ── Bandeau cookies (choix Accepter / Refuser / Paramétrer, mêmes boutons) ── */
+.ck-banner{position:fixed;left:0;right:0;bottom:0;z-index:10050;background:#0b1641;border-top:1px solid rgba(255,255,255,.14);box-shadow:0 -12px 32px rgba(0,0,0,.45);padding:1rem 1rem calc(1rem + env(safe-area-inset-bottom));color:#E8ECF5;}
+.ck-banner[hidden]{display:none;}
+.ck-in{max-width:960px;margin:0 auto;}
+.ck-title{font-weight:700;font-size:1rem;margin:0 0 .35rem;color:#fff;}
+.ck-text{font-size:.86rem;line-height:1.55;margin:0 0 .75rem;color:#C9D0E2;}
+.ck-text a{color:#F7A55E;text-decoration:underline;}
+.ck-opts{display:grid;gap:.5rem;margin:0 0 .75rem;font-size:.86rem;}
+.ck-opts[hidden]{display:none;}
+.ck-opt{display:flex;gap:.55rem;align-items:flex-start;cursor:pointer;line-height:1.45;}
+.ck-opt input{margin-top:.2rem;width:18px;height:18px;flex-shrink:0;accent-color:#F07B1D;}
+.ck-note{margin:0;font-size:.78rem;color:#A0A8BF;}
+.ck-btns{display:flex;flex-wrap:wrap;gap:.5rem;}
+.ck-btn{flex:1 1 140px;min-height:44px;padding:.6rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:#152555;color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;}
+.ck-btn[hidden]{display:none;}
+.ck-btn:hover{background:#1e3370;}
+.ck-btn:focus-visible,.f-input:focus-visible,.cf-input:focus-visible,.btn:focus-visible,.mob-bar a:focus-visible{outline:3px solid #F7A55E;outline-offset:2px;}
+.f-err{color:#fca5a5;font-size:.78rem;margin:.1rem 0 0;}

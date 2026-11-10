@@ -67,27 +67,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  /* Tracking Google Ads — fire all conversion labels */
-  function gads_fire(labels){
-    if(typeof gtag==='undefined'||!window._gAdsId||!labels||!labels.length)return;
-    labels.forEach(function(lbl){
-      gtag('event','conversion',{'send_to':window._gAdsId+'/'+lbl});
-    });
-  }
-
-  /* Appels téléphoniques */
+  /* Mesure Google : seulement après accord (window.emaeAdsOk / emaeStatsOk posés par
+     consent_head_script). Chaque action a son événement :
+     - clic sur un numéro : conversion « appel » (libellés réglés dans l'admin) + événement phone_click ;
+       un clic n'est pas la preuve d'un appel abouti ;
+     - clic WhatsApp : événement whatsapp_click seulement (pas de conversion Ads) ;
+     - demande envoyée : conversion « demande » envoyée par le serveur une fois la demande
+       enregistrée (render_head), jamais au clic sur Envoyer. */
+  var telSeen=false;
   document.querySelectorAll('a[href^="tel:"]').forEach(function(l){
     l.addEventListener('click',function(){
-      gads_fire(window._gAdsCv||[]);
-      if(typeof gtag!=='undefined') gtag('event','phone_call',{'event_category':'contact'});
-    });
-  });
-
-  /* Formulaires — la conversion Google Ads « Demande de devis » est envoyée
-     par render_head() une fois l'envoi enregistré, pas ici. */
-  document.querySelectorAll('form').forEach(function(f){
-    f.addEventListener('submit',function(){
-      if(typeof gtag!=='undefined') gtag('event','generate_lead',{'event_category':'lead','event_label':'form_submit'});
+      if(typeof gtag==='undefined'||telSeen)return;
+      telSeen=true; /* une fois par page */
+      var T=window.emaeTags||{};
+      if(window.emaeAdsOk&&T.ads&&T.call)T.call.forEach(function(lbl){gtag('event','conversion',{'send_to':T.ads+'/'+lbl});});
+      if(window.emaeStatsOk)gtag('event','phone_click',{'event_category':'contact'});
     });
   });
 
@@ -164,8 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var waBtn = document.querySelector('.wa-btn');
   if (waBtn) {
     waBtn.addEventListener('click', function () {
-      if (typeof gtag !== 'undefined') gtag('event', 'whatsapp_click', {'event_category': 'contact'});
-      gads_fire(window._gAdsCv || []);
+      if (typeof gtag !== 'undefined' && window.emaeStatsOk) gtag('event', 'whatsapp_click', {'event_category': 'contact'});
     });
   }
 
@@ -311,35 +304,8 @@ document.addEventListener('DOMContentLoaded', function () {
   });
 });
 
-/* Demandes non terminées : quand le visiteur a saisi son nom et un téléphone
-   complet, la saisie part en tâche de fond (sans les photos ni le message).
-   Actif seulement si l'option est cochée dans l'admin (attribut data-partial). */
-document.addEventListener('DOMContentLoaded', function () {
-  document.querySelectorAll('form[data-partial]').forEach(function (form) {
-    var url = form.getAttribute('data-partial');
-    var last = '';
-    var timer = null;
-    function send() {
-      var phone = (form.phone && form.phone.value || '').replace(/\D/g, '');
-      if (phone.length < 9 || !form.full_name || form.full_name.value.trim() === '') return;
-      var data = new FormData();
-      ['csrf_token', 'partial_token', 'full_name', 'phone', 'email', 'postal_code', 'service_type', 'source'].forEach(function (k) {
-        if (form[k]) data.append(k, form[k].value);
-      });
-      data.append('form_type', 'partial');
-      var sig = phone + '|' + form.full_name.value + '|' + (form.postal_code ? form.postal_code.value : '') + '|' + (form.service_type ? form.service_type.value : '');
-      if (sig === last) return;
-      last = sig;
-      try {
-        if (navigator.sendBeacon) navigator.sendBeacon(url, data);
-        else fetch(url, {method: 'POST', body: data, keepalive: true, credentials: 'same-origin'});
-      } catch (e) {}
-    }
-    form.addEventListener('change', function () { clearTimeout(timer); timer = setTimeout(send, 800); });
-    form.addEventListener('submit', function () { clearTimeout(timer); last = 'envoyé'; });
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden' && last !== 'envoyé') send(); });
-  });
-});
+/* Aucune donnée de formulaire ne part avant le clic sur le bouton d'envoi
+   (l'ancien envoi en tâche de fond des saisies non terminées a été retiré). */
 
 /* Pages métier : flèches des prestations défilantes */
 (function () {

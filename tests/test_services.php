@@ -33,8 +33,8 @@ function baseline(): array {
     $code = preg_replace('/^\s*\$tpls = \[/', 'return [', $code, 1);
     // Évolution voulue depuis : les lieux passent par une variable de lieu, ou disparaissent.
     $code = str_replace(
-        ["en '.company_regions().'", 'en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.'],
-        ['{en_region}', 'en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.'],
+        ["en '.company_regions().'", 'En urgence, nous intervenons en moins de 2h en Île-de-France. Le délai est confirmé au téléphone selon votre zone.'],
+        ['{en_region}', 'Le délai dépend de votre secteur et de nos interventions en cours : il vous est confirmé au téléphone, avant tout déplacement.'],
         $code);
     return eval($code);
 }

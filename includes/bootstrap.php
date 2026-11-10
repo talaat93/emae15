@@ -30,6 +30,7 @@ require_once __DIR__ . '/yousign.php';
 require_once __DIR__ . '/client360.php';
 require_once __DIR__ . '/finance.php';
 require_once __DIR__ . '/growth.php';
+require_once __DIR__ . '/coherence.php';
 require_once __DIR__ . '/content_pages.php';
 require_once __DIR__ . '/automations.php';
 require_once __DIR__ . '/client_space.php';
@@ -810,6 +811,21 @@ if (!file_exists($_mf37)) {
     @file_put_contents($_mf37, date('c'));
 }
 unset($_mf37);
+// Auto-migration v15.38 — mise en cohérence des contenus (novembre 2026) : provenance des
+// témoignages (un avis sans provenance n'est plus publié), puis textes enregistrés qui citent
+// un autre secteur ou une promesse non documentée (voir includes/coherence.php). Tout est
+// sauvegardé et s'annule depuis « Diagnostic des zones ».
+$_mf38 = __DIR__.'/../storage/.mig_v15_coherence';
+if (!file_exists($_mf38)) {
+    @file_put_contents($_mf38, date('c'));   // posé avant : une erreur ne relance pas à chaque visite
+    try { db_execute('ALTER TABLE reviews ADD COLUMN source_note VARCHAR(190) NULL'); } catch (Throwable $_me) {}
+    try {
+        require_once __DIR__ . '/admin_fields.php';
+        coherence_appliquer();
+    } catch (Throwable $_me) { error_log('Migration v15.38 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf38);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

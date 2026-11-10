@@ -107,6 +107,18 @@ function intervention_zones(bool $onlyActive = true, bool $refresh = false): arr
     return $cache[$ck] = $out;
 }
 
+/**
+ * Zones affichées aux visiteurs (accueil, Nos zones, Contact, pages métier) : les zones
+ * actives qui ont au moins un département ou une ville. Une ancienne zone vidée et
+ * renommée (ex. /idf/ devenue « Bourgogne-Franche-Comté » sans ville) n'est plus listée :
+ * son lien laissait croire que la région était une page de l'Île-de-France. Elle reste
+ * accessible à son adresse, en attendant une décision (voir passation).
+ */
+function intervention_zones_listed(): array
+{
+    return array_values(array_filter(intervention_zones(), static fn(array $z): bool => $z['depts'] !== [] || $z['cities'] !== []));
+}
+
 /** Vide le cache : à appeler après toute écriture dans la table. */
 function intervention_zones_flush(): void
 {
@@ -122,7 +134,7 @@ function intervention_zones_flush(): void
 function intervention_cities(int $perZone = 4, int $max = 18): array
 {
     $out = [];
-    foreach (intervention_zones() as $z) {
+    foreach (intervention_zones_listed() as $z) {
         foreach (array_slice($z['cities'], 0, max(1, $perZone)) as $c) {
             if (!in_array($c, $out, true)) $out[] = $c;
             if (count($out) >= $max) return $out;
@@ -134,7 +146,7 @@ function intervention_cities(int $perZone = 4, int $max = 18): array
 /** Noms des zones actives, pour les phrases du type « Île-de-France et Jura ». */
 function intervention_zone_names(): array
 {
-    return array_values(array_filter(array_map(fn($z) => $z['name'], intervention_zones())));
+    return array_values(array_filter(array_map(fn($z) => $z['name'], intervention_zones_listed())));
 }
 
 /**
@@ -144,13 +156,14 @@ function intervention_zone_names(): array
 function intervention_regions(): array
 {
     $out = [];
-    foreach (intervention_zones() as $z) {
+    foreach (intervention_zones_listed() as $z) {
         $out[] = [
             'name'   => $z['name'],
             'slug'   => $z['slug'],
             'icon'   => '',
             'color'  => $z['color'],
-            'delay'  => $z['delay'],
+            // Délai chiffré sans donnée réelle (« moins d'1 h à Dole ») : remplacé à l'affichage.
+            'delay'  => function_exists('claim_unsupported') && claim_unsupported($z['delay']) ? 'Délai confirmé au téléphone' : $z['delay'],
             'intro'  => $z['intro'],
             'depts'  => $z['depts'],
             'cities' => $z['cities'],

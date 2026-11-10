@@ -213,6 +213,20 @@ require_once __DIR__ . '/partials/header.php';
       </div>
     <?php endif; ?>
 
+    <?php $coh = coherence_dernier_bilan(); if ($coh): ?>
+      <div class="dg-bilan">
+        <p style="margin:0;">🧹 Mise en cohérence des contenus du <?= e(date('d/m/Y à H:i', strtotime((string)$coh['date']))) ?> :
+           <strong><?= (int)$coh['textes'] ?></strong> réglage(s) modifié(s) ou remis par défaut (promesses non documentées : note sans source,
+           « 1000+ », délais d'arrivée chiffrés, « garanti », certifications ; arguments et FAQ citant un autre secteur ; « qasd »),
+           dont <strong><?= (int)$coh['listes'] ?></strong> liste(s), et <strong><?= (int)$coh['zones'] ?></strong> délai(s) de zone retiré(s).</p>
+        <form method="post" style="margin:.7rem 0 0;" onsubmit="return confirm('Remettre ces contenus exactement comme avant la mise en cohérence ?');">
+          <?= csrf_field() ?>
+          <input type="hidden" name="action" value="secteurs_annuler">
+          <input type="hidden" name="lot" value="<?= e((string)$coh['lot']) ?>">
+          <button class="admin-btn admin-btn--secondary" style="min-height:34px;padding:0 .7rem;font-size:.8rem;" type="submit">↩ Annuler la mise en cohérence</button>
+        </form>
+      </div>
+    <?php endif; unset($coh); ?>
     <?php if (!$controle): ?>
       <p class="dg-ok">✅ Aucun texte ne cite un lieu hors de son secteur.</p>
     <?php else: ?>

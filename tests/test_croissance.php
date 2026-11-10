@@ -145,10 +145,10 @@ echo "\n12. Formulaires\n";
 ob_start(); render_quote_form([], 'test'); $f = (string)ob_get_clean();
 check('demandes non terminées : rien sans accord', str_contains($f, 'data-partial'), false);
 check('durée de conservation des photos annoncée', str_contains($f, 'supprimées automatiquement après 12 mois'), true);
-set('partial_enabled', '1');
+set('partial_enabled', '1');   // ancien réglage resté coché : la collecte sans clic reste retirée
 ob_start(); render_quote_form([], 'test'); $f = (string)ob_get_clean();
-check('activé : mention sous le téléphone', str_contains($f, 'nous pourrons vous rappeler à ce numéro'), true);
-check('activé : jeton de saisie', preg_match('/name="partial_token" value="[a-f0-9]{32}"/', $f), 1);
+check('ancien réglage coché : rien n\'est envoyé avant le clic', str_contains($f, 'data-partial') || str_contains($f, 'partial_token'), false);
+check('ancien réglage coché : le serveur refuse la saisie en cours', partial_save(['partial_token' => str_repeat('a', 32), 'phone' => '0612345678', 'full_name' => 'X']), false);
 ob_start(); render_quote_form([], 'estimation', 'devis', ['message' => 'Débouchage : ']); $f = (string)ob_get_clean();
 check('message prérempli', str_contains($f, '>Débouchage : </textarea>'), true);
 

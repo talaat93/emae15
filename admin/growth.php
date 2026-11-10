@@ -9,7 +9,8 @@ require __DIR__ . '/partials/header.php';
 
 $d = growth_defaults();
 $fields = array_keys($d);
-$toggles = ['avail_enabled', 'auto_sms_client_enabled', 'review_request_enabled', 'alert_unanswered_enabled', 'partial_enabled', 'track_enabled', 'booking_enabled'];
+$toggles = ['avail_enabled', 'auto_sms_client_enabled', 'review_request_enabled', 'alert_unanswered_enabled', 'track_enabled', 'booking_enabled'];
+$fields = array_values(array_diff($fields, ['partial_enabled']));   // collecte sans clic retirée (voir partial_enabled())
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
@@ -32,6 +33,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     // avail_days arrive en cases à cocher (aucune case = tableau absent)
     growth_save('avail_days', implode(',', array_map('intval', (array)($_POST['avail_days_list'] ?? []))));
+    if (isset($_POST['booking_weekdays_sent'])) {
+        $bw = array_values(array_filter(array_map('intval', (array)($_POST['booking_weekdays_list'] ?? [])), static fn(int $n): bool => $n >= 1 && $n <= 7));
+        growth_save('booking_weekdays', $bw ? implode(',', $bw) : '1,2,3,4,5,6');
+    }
     growth_save('client_space_enabled', !empty($_POST['client_space_enabled']) ? '1' : '0');
     if (trim((string)($_POST['google_places_api_key'] ?? '')) !== '') set_integration_secret('google_places_api_key', trim((string)$_POST['google_places_api_key']));
     if (!empty($_POST['google_places_api_key_clear'])) set_integration_secret('google_places_api_key', '');
@@ -157,7 +162,13 @@ $smsOk = sms_configured();
       <label class="admin-field"><span>Rendez-vous maximum par créneau</span><input type="number" name="booking_capacity" value="<?= e($g('booking_capacity')) ?>" min="1" max="20"></label>
       <label class="admin-field"><span>Jours proposés à l'avance</span><input type="number" name="booking_days_ahead" value="<?= e($g('booking_days_ahead')) ?>" min="3" max="60"></label>
     </div>
-    <small style="color:#888;">Les jours proposés sont vos jours d'ouverture (section « Bandeau »), à partir du lendemain.</small>
+    <input type="hidden" name="booking_weekdays_sent" value="1">
+    <div class="admin-field"><span>Jours des interventions planifiées</span><div class="check-row" style="flex-wrap:wrap;gap:.9rem;">
+      <?php $bwd = booking_weekdays(); foreach ([1 => 'Lun', 2 => 'Mar', 3 => 'Mer', 4 => 'Jeu', 5 => 'Ven', 6 => 'Sam', 7 => 'Dim'] as $n => $lab): ?>
+        <label style="display:inline-flex;gap:.3rem;align-items:center;"><input type="checkbox" name="booking_weekdays_list[]" value="<?= $n ?>" <?= in_array($n, $bwd, true) ? 'checked' : '' ?>> <?= $lab ?></label>
+      <?php endforeach; ?>
+    </div></div>
+    <small style="color:#888;">À partir du lendemain (heure de Paris), jours fériés exclus. Ces jours sont repris par la FAQ (« créneaux <?= e(booking_weekdays_label()) ?> ») ; les urgences 24h/24 n'en dépendent pas. Le créneau reste à confirmer par téléphone.</small>
   </div>
 </section>
 
@@ -172,10 +183,9 @@ $smsOk = sms_configured();
 </section>
 
 <section class="admin-panel" id="partiel">
-  <div class="admin-panel__head"><h2>📝 Demandes non terminées</h2><p>Quand un visiteur saisit son nom et son téléphone sans envoyer le formulaire, ses coordonnées sont gardées 30 jours pour que vous puissiez le rappeler. Une mention s'affiche sous le champ téléphone pour l'en informer.</p></div>
+  <div class="admin-panel__head"><h2>📝 Demandes non terminées — retiré</h2><p>Les formulaires n'envoient plus rien avant le clic sur « Envoyer » : garder le nom et le téléphone d'un visiteur qui n'a rien demandé est une collecte qu'il n'a pas choisie. Le serveur refuse aussi ces envois s'ils arrivent encore d'une ancienne page.</p></div>
   <div class="admin-panel__body">
-    <label class="admin-field admin-field--check"><div class="check-row"><input type="checkbox" name="partial_enabled" value="1" <?= $chk('partial_enabled') ?>> Garder les demandes non terminées</div>
-      <small style="color:#888;">Elles apparaissent dans <a href="<?= e(url_for('admin/leads.php#partiels')) ?>">Suivi des demandes</a>. Pensez à le mentionner dans votre politique de confidentialité.</small></label>
+    <p style="font-size:.88rem;color:#555;">Les saisies déjà enregistrées restent visibles dans <a href="<?= e(url_for('admin/leads.php#partiels')) ?>">Suivi des demandes</a> : elles n'ont pas été effacées automatiquement. Décidez de leur sort (rappel, puis suppression) ; elles ne doivent pas servir à de la prospection.</p>
   </div>
 </section>
 

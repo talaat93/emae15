@@ -397,9 +397,11 @@ function geo_ecrire(string $lot, string $cle, string $valeur): bool
  *
  * @return array bilan lisible : textes écrits, retirés, zones non reconnues
  */
-function geo_appliquer(): array
+function geo_appliquer(bool $avecGlobal = true): array
 {
-    $lot   = 'secteurs-'.date('Ymd-His');
+    // $avecGlobal = false : ne réécrit ni les variables ni les titres du site global (choix du
+    // propriétaire depuis la v15.32, ex. « Quetigny, Dijon et Genlis ») ; zones et textes en erreur seulement.
+    $lot   = 'secteurs-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
     $bilan = ['lot' => $lot, 'date' => date('c'), 'ecrits' => 0, 'retires' => 0, 'variables' => 0, 'non_reconnues' => []];
     try { geo_sauvegarde_table(); } catch (Throwable $e) { /* déjà là */ }
 
@@ -408,9 +410,11 @@ function geo_appliquer(): array
 
     // 1. Le site global : ses variables, puis ses titres et descriptions.
     $global = geo_profil_global();
-    foreach ($global['vars'] as $nom => $v) if (geo_ecrire($lot, ZVAR_PREFIX.$nom, $v)) $bilan['variables']++;
-    $textes = geo_textes_globaux();
-    foreach ($textes as $cle => $v) if (geo_ecrire($lot, $cle, $v)) $bilan['ecrits']++;
+    $textes = $avecGlobal ? geo_textes_globaux() : [];
+    if ($avecGlobal) {
+        foreach ($global['vars'] as $nom => $v) if (geo_ecrire($lot, ZVAR_PREFIX.$nom, $v)) $bilan['variables']++;
+        foreach ($textes as $cle => $v) if (geo_ecrire($lot, $cle, $v)) $bilan['ecrits']++;
+    }
 
     // 2. Les autres textes globaux qui citent un autre secteur reviennent au
     //    texte d'origine, désormais écrit sans lieu ou avec des variables.
@@ -493,13 +497,13 @@ function geo_annuler(string $lot): int
         if (str_starts_with($cible, 'setting:')) {
             geo_ecrire_brut(substr($cible, 8), $old === null ? '' : (string)$old);
             $n++;
-        } elseif (preg_match('/^zone:(\d+):(meta_title|meta_description|hero_h1|hero_subtitle|intro)$/', $cible, $m)) {
+        } elseif (preg_match('/^zone:(\d+):(meta_title|meta_description|hero_h1|hero_subtitle|intro|delay)$/', $cible, $m)) {
             try { db_execute('UPDATE zones SET `'.$m[2].'` = ? WHERE id = ?', [$old, (int)$m[1]]); $n++; }
             catch (Throwable $e) {}
         }
     }
     try { db_execute('DELETE FROM geo_sauvegarde WHERE lot = ?', [$lot]); } catch (Throwable $e) {}
-    geo_ecrire_brut('geo_secteurs_bilan', '');
+    geo_ecrire_brut(str_starts_with($lot, 'coherence-') ? 'coherence_bilan' : 'geo_secteurs_bilan', '');
     if (function_exists('admin_inline_keys')) admin_inline_keys(true);
     if (function_exists('intervention_zones_flush')) intervention_zones_flush();
     return $n;

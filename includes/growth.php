@@ -53,7 +53,8 @@ function growth_defaults(): array
         'avail_days'         => '1,2,3,4,5,6',
         'avail_start'        => '08:00',
         'avail_end'          => '20:00',
-        'avail_open_text'    => 'Technicien disponible aujourd\'hui — intervention rapide',
+        // Le bandeau suit des horaires, pas la présence réelle d'un technicien : pas de « disponible aujourd'hui ».
+        'avail_open_text'    => 'Ligne ouverte — appelez-nous : disponibilité et délai confirmés au téléphone',
         'avail_closed_text'  => 'Urgence ? Laissez-nous un message ou appelez : nous vous rappelons dès que possible',
         // Avis Google
         'google_reviews_url' => '',
@@ -84,6 +85,7 @@ function growth_defaults(): array
         'booking_slots'      => "Matin (8h – 12h)\nAprès-midi (14h – 18h)",
         'booking_capacity'   => '2',
         'booking_days_ahead' => '14',
+        'booking_weekdays'   => '1,2,3,4,5,6',
     ];
 }
 
@@ -210,7 +212,9 @@ function whatsapp_number_problem(string $raw): string
 function whatsapp_url(): string
 {
     $d = whatsapp_digits(company_whatsapp());
-    if ($d === '') return '';
+    // Numéro incomplet (ex. 3367830376 : 8 chiffres après +33) : pas de bouton qui mène
+    // nulle part. Le numéro est signalé dans l'admin ; on ne devine jamais le chiffre manquant.
+    if ($d === '' || whatsapp_number_problem(company_whatsapp()) !== '' || strlen($d) < 11) return '';
     $msg = trim(growth_get('whatsapp_message'));
     return 'https://wa.me/'.$d.($msg !== '' ? '?text='.rawurlencode($msg) : '');
 }
@@ -338,7 +342,14 @@ function quote_first_name(string $full): string
    Le visiteur a saisi son nom et son téléphone mais n'a pas envoyé le formulaire.
    Désactivé par défaut ; une mention s'affiche sous le téléphone quand c'est actif.
 ═══════════════════════════════════════════════════ */
-function partial_enabled(): bool { return growth_on('partial_enabled'); }
+/**
+ * Retiré (novembre 2026) : envoyer le nom et le téléphone d'un visiteur avant qu'il
+ * clique sur « Envoyer » est une collecte qu'il n'a pas demandée. Plus aucun
+ * formulaire n'envoie de saisie en cours, et le serveur refuse ces envois, même si
+ * l'ancien réglage est encore coché ou qu'un vieux script les rejoue. Les saisies
+ * déjà enregistrées restent consultables dans l'admin (aucune purge sans décision).
+ */
+function partial_enabled(): bool { return false; }
 
 function partial_table(): void
 {
@@ -421,16 +432,60 @@ function booking_slots(): array
     return $out ?: ['matin' => 'Matin', 'apres-midi' => 'Après-midi'];
 }
 
-/** Jours proposés : à partir de demain, les jours ouvrés réglés dans le bandeau. */
+/**
+ * Jours des interventions planifiées (1 = lundi … 7 = dimanche). Réglage propre aux
+ * rendez-vous : le bandeau de disponibilité et les urgences 24h/24 n'en dépendent pas.
+ * Par défaut lundi-samedi, comme l'annonce la FAQ.
+ */
+function booking_weekdays(): array
+{
+    $d = array_values(array_unique(array_filter(array_map('intval', explode(',', growth_get('booking_weekdays'))), static fn(int $n): bool => $n >= 1 && $n <= 7)));
+    return $d ?: [1, 2, 3, 4, 5, 6];
+}
+
+/** Jours fériés en France métropolitaine pour une année (Y-m-d => nom). */
+function french_public_holidays(int $year): array
+{
+    // Dimanche de Pâques (algorithme grégorien anonyme) : pas besoin de l'extension calendar.
+    $a = $year % 19; $b = intdiv($year, 100); $c = $year % 100; $d = intdiv($b, 4); $e = $b % 4;
+    $f = intdiv($b + 8, 25); $g = intdiv($b - $f + 1, 3); $h = (19 * $a + $b - $d - $g + 15) % 30;
+    $i = intdiv($c, 4); $k = $c % 4; $l = (32 + 2 * $e + 2 * $i - $h - $k) % 7; $m = intdiv($a + 11 * $h + 22 * $l, 451);
+    $month = intdiv($h + $l - 7 * $m + 114, 31); $day = (($h + $l - 7 * $m + 114) % 31) + 1;
+    $easter = new DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $month, $day), new DateTimeZone('Europe/Paris'));
+    $out = [];
+    foreach (['01-01' => 'Jour de l\'an', '05-01' => 'Fête du Travail', '05-08' => 'Victoire 1945', '07-14' => 'Fête nationale',
+              '08-15' => 'Assomption', '11-01' => 'Toussaint', '11-11' => 'Armistice', '12-25' => 'Noël'] as $md => $name) {
+        $out[$year.'-'.$md] = $name;
+    }
+    $out[$easter->modify('+1 day')->format('Y-m-d')]  = 'Lundi de Pâques';
+    $out[$easter->modify('+39 days')->format('Y-m-d')] = 'Ascension';
+    $out[$easter->modify('+50 days')->format('Y-m-d')] = 'Lundi de Pentecôte';
+    return $out;
+}
+
+/** Libellé lisible des jours planifiés : « du lundi au samedi », « lundi, mercredi et vendredi ». */
+function booking_weekdays_label(): string
+{
+    $noms = [1 => 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+    $d = booking_weekdays(); sort($d);
+    if (count($d) >= 3 && $d === range($d[0], end($d))) return 'du '.$noms[$d[0]].' au '.$noms[end($d)];
+    $l = array_map(static fn(int $n): string => $noms[$n], $d);
+    return count($l) > 1 ? implode(', ', array_slice($l, 0, -1)).' et '.end($l) : (string)($l[0] ?? '');
+}
+
+/** Jours proposés : à partir de demain (heure de Paris), jours planifiés, hors jours fériés. */
 function booking_days(?DateTimeImmutable $today = null): array
 {
     $today = $today ?? new DateTimeImmutable('today', new DateTimeZone('Europe/Paris'));
-    $open  = array_map('intval', array_filter(explode(',', growth_get('avail_days')), 'strlen')) ?: [1, 2, 3, 4, 5];
+    $today = $today->setTime(0, 0);   // calcul par jour calendaire : le changement d'heure ne décale rien
+    $open  = booking_weekdays();
     $ahead = max(3, min(60, (int)growth_get('booking_days_ahead')));
     $out = [];
     for ($i = 1; $i <= $ahead; $i++) {
         $d = $today->modify('+'.$i.' day');
-        if (in_array((int)$d->format('N'), $open, true)) $out[] = $d->format('Y-m-d');
+        if (!in_array((int)$d->format('N'), $open, true)) continue;
+        if (isset(french_public_holidays((int)$d->format('Y'))[$d->format('Y-m-d')])) continue;
+        $out[] = $d->format('Y-m-d');
     }
     return $out;
 }
