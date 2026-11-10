@@ -3099,12 +3099,104 @@ function service_offer_cards(array $items): array
             $v = array_values($it);
             [$icon, $title, $text] = [trim((string)($v[0] ?? '')), trim((string)($v[1] ?? '')), trim((string)($v[2] ?? ''))];
         } else {
-            [$icon, $title, $text] = ['check', trim((string)$it), ''];
+            // Une phrase de l'ancienne liste (enregistrée telle quelle en sauvegardant l'admin)
+            // retrouve sa carte complète ; une phrase écrite à la main garde la coche.
+            $phrase = trim((string)$it);
+            [$icon, $title, $text] = service_offer_legacy()[$phrase] ?? ['check', $phrase, ''];
         }
         if ($title === '' && $text === '') continue;
         $out[] = ['icon' => isset(service_icons()[$icon]) ? $icon : 'check', 'title' => $title, 'text' => $text];
     }
     return $out;
+}
+
+/** Ligne d'admin au format d'avant (une phrase) convertie en carte [dessin, titre, texte]. */
+function service_offer_row_upgrade(string $phrase): array
+{
+    $phrase = trim($phrase);
+    return service_offer_legacy()[$phrase] ?? ['check', $phrase, ''];
+}
+
+/**
+ * Anciennes prestations (une phrase chacune, jusqu'en novembre 2026) => carte qui les remplace.
+ * L'admin enregistre toutes les listes d'une page dès qu'on la sauvegarde : le site garde donc
+ * parfois l'ancienne liste en base. Cette table lui rend ses dessins et ses textes.
+ */
+function service_offer_legacy(): array
+{
+    static $map = null;
+    return $map ??= [
+        'Dépannage et remise en service (urgence 24h/7j)' => ['urgence', 'Dépannage 24h/7j', 'Panne de courant ou disjoncteur qui saute : diagnostic et remise en service rapide, de jour comme de nuit.'],
+        'Remplacement et mise en conformité de tableaux électriques' => ['tableau', 'Tableau électrique', 'Remplacement et mise en conformité du tableau, des disjoncteurs et des différentiels.'],
+        'Ajout ou réparation de circuits, prises, lignes dédiées' => ['prise', 'Prises et circuits', 'Ajout ou réparation de prises, de circuits et de lignes dédiées.'],
+        'Installation et dépannage d\'éclairage intérieur et extérieur' => ['ampoule', 'Éclairage', 'Pose et dépannage de l\'éclairage intérieur et extérieur, LED et éclairage technique.'],
+        'Rénovation électrique complète (logement, commerce)' => ['renovation', 'Rénovation électrique', 'Remise à neuf complète de l\'installation d\'un logement ou d\'un commerce.'],
+        'Mise aux normes NF C 15-100 obligatoire' => ['conformite', 'Mise aux normes', 'Mise en conformité de votre installation selon la norme NF C 15-100.'],
+        'Câblage neuf pour constructions et extensions' => ['cablage', 'Câblage neuf', 'Câblage complet pour une construction, une extension ou une réfection.'],
+        'Contrôle et diagnostic de l\'installation existante' => ['diagnostic', 'Diagnostic', 'Contrôle de l\'installation existante, avec un compte rendu détaillé.'],
+        'Recherche et réparation de fuites visibles ou cachées' => ['fuite', 'Recherche de fuite', 'Fuite visible ou cachée : localisation précise, puis réparation.'],
+        'Dépannage et remplacement de robinetterie' => ['robinet', 'Robinetterie', 'Dépannage et remplacement de robinets et de mitigeurs.'],
+        'Débouchage de canalisations et WC' => ['debouchage', 'Débouchage', 'Canalisations, WC, évier : débouchage et remise en écoulement.'],
+        'Remplacement de WC, lavabo, baignoire, douche' => ['sanitaires', 'Sanitaires', 'Remplacement de WC, lavabo, baignoire ou douche.'],
+        'Réparation et remplacement de chauffe-eau' => ['chauffe-eau', 'Chauffe-eau', 'Diagnostic, réparation ou remplacement, avec mise en service.'],
+        'Entretien préventif annuel' => ['entretien', 'Entretien préventif', 'Une visite annuelle pour éviter les fuites et les pannes.'],
+        'Intervention sur réseaux d\'alimentation et d\'évacuation' => ['reseau', 'Réseaux', 'Tuyauteries d\'alimentation et d\'évacuation, raccordements.'],
+        'Mise en conformité des installations sanitaires' => ['conformite', 'Mise en conformité', 'Mise aux normes de vos installations sanitaires.'],
+        'Dépannage et remise en service de chaudières gaz, fioul, électrique' => ['chaudiere', 'Panne de chaudière', 'Gaz, fioul ou électrique : diagnostic et remise en service.'],
+        'Entretien annuel réglementaire de chaudière (obligatoire)' => ['entretien', 'Entretien annuel', 'L\'entretien réglementaire obligatoire, avec rapport d\'intervention.'],
+        'Dépannage et entretien de pompes à chaleur air/air et air/eau' => ['pac', 'Pompe à chaleur', 'Dépannage et entretien des PAC air/air et air/eau.'],
+        'Installation de PAC et chaudières neuves' => ['installation', 'Installation neuve', 'Pose d\'une chaudière ou d\'une pompe à chaleur neuve, mise en service.'],
+        'Diagnostic et optimisation de la consommation énergétique' => ['economie', 'Économies d\'énergie', 'Diagnostic et optimisation de votre consommation.'],
+        'Remplacement de corps de chauffe, brûleurs, circulateurs' => ['pieces', 'Pièces', 'Remplacement de corps de chauffe, brûleurs et circulateurs.'],
+        'Réglage thermostat, programmation, vannes thermostatiques' => ['radiateur', 'Régulation', 'Thermostat, programmation et vannes thermostatiques.'],
+        'Urgences hiver — astreinte renforcée en période froide' => ['froid', 'Urgence hiver', 'Astreinte renforcée pendant les périodes de grand froid.'],
+        'Dépannage de tout type de climatiseur (split, multi-split, gainable)' => ['clim', 'Panne de climatisation', 'Split, multi-split ou gainable : diagnostic et remise en service.'],
+        'Installation de climatisation pour particuliers et professionnels' => ['installation', 'Installation', 'Pose de climatisation pour les particuliers et les professionnels.'],
+        'Entretien saisonnier (nettoyage, vérification, réglages)' => ['nettoyage', 'Entretien saisonnier', 'Nettoyage, vérifications et réglages avant chaque saison.'],
+        'Recharge en fluide frigorigène' => ['fluide', 'Fluide frigorigène', 'Recharge du circuit en fluide frigorigène.'],
+        'Contrôle des performances et optimisation' => ['performance', 'Performances', 'Contrôle du rendement et optimisation des réglages.'],
+        'Systèmes gainables et centralisés' => ['batiment', 'Gainable et centralisé', 'Systèmes gainables et installations centralisées.'],
+        'VMC et ventilation mécanique' => ['ventilation', 'VMC et ventilation', 'Ventilation mécanique et qualité de l\'air intérieur.'],
+        'Étude et conseil avant installation' => ['conseil', 'Étude et conseil', 'Étude de votre besoin et conseil avant toute installation.'],
+        'Installation de VMC simple flux et double flux' => ['vmc', 'Installation de VMC', 'Simple flux ou double flux, adaptée à votre logement.'],
+        'Remplacement de moteur ou de caisson défaillant' => ['moteur', 'Moteur et caisson', 'Remplacement du moteur ou du caisson défaillant.'],
+        'Nettoyage et désinfection des bouches et gaines' => ['nettoyage', 'Nettoyage', 'Bouches et gaines nettoyées et désinfectées.'],
+        'Entretien annuel et contrôle des débits' => ['performance', 'Entretien et débits', 'Entretien annuel, mesure et réglage des débits.'],
+        'Diagnostic humidité, condensation et moisissures' => ['humidite', 'Humidité', 'Diagnostic de la condensation et des moisissures.'],
+        'Mise en conformité de la ventilation d\'un logement' => ['conformite', 'Mise en conformité', 'Une ventilation conforme pour votre logement.'],
+        'Ventilation de locaux professionnels et commerces' => ['commerce', 'Locaux professionnels', 'Ventilation des commerces, bureaux et restaurants.'],
+        'Conseil sur le choix du système adapté au bâti' => ['conseil', 'Conseil', 'Le système adapté à votre bâti, simple ou double flux.'],
+        'Dépannage de portail et portail de garage bloqué' => ['portail', 'Portail bloqué', 'Déblocage et remise en service de portails et portes de garage.'],
+        'Motorisation de portail battant ou coulissant' => ['motorisation', 'Motorisation', 'Motorisation de portail battant ou coulissant.'],
+        'Installation et remplacement de visiophone' => ['visiophone', 'Visiophone', 'Installation et remplacement de visiophones.'],
+        'Interphone individuel et collectif' => ['interphone', 'Interphone', 'Interphones individuels et collectifs.'],
+        'Programmation de télécommandes et badges' => ['telecommande', 'Télécommandes et badges', 'Programmation de télécommandes et de badges, copies.'],
+        'Remplacement de platine de rue et de combiné' => ['batiment', 'Platine de rue', 'Remplacement de la platine de rue et du combiné.'],
+        'Dépannage de digicode et de gâche électrique' => ['digicode', 'Digicode et gâche', 'Dépannage de digicode et de gâche électrique.'],
+        'Entretien et réglage des automatismes' => ['outil', 'Entretien', 'Réglage et entretien des automatismes.'],
+        'Dépannage et remplacement de volets roulants' => ['volet', 'Volets roulants', 'Dépannage et remplacement de volets roulants.'],
+        'Motorisation de volets et de stores existants' => ['motorisation', 'Motorisation', 'Motorisation de volets et de stores existants.'],
+        'Installation de stores et brise-soleil motorisés' => ['store', 'Stores et brise-soleil', 'Installation de stores et brise-soleil motorisés.'],
+        'Programmation de commandes et de scénarios domotiques' => ['domotique', 'Domotique', 'Programmation de commandes et de scénarios.'],
+        'Dépannage de lave-linge, lave-vaisselle et sèche-linge' => ['lave-linge', 'Électroménager', 'Dépannage de lave-linge, lave-vaisselle et sèche-linge.'],
+        'Raccordement et mise en service d\'électroménager' => ['cablage', 'Raccordement', 'Raccordement et mise en service de vos appareils.'],
+        'Remplacement de moteurs, cartes et télécommandes' => ['carte', 'Pièces électroniques', 'Remplacement de moteurs, cartes et télécommandes.'],
+        'Conseil sur les équipements connectés' => ['connecte', 'Équipements connectés', 'Conseil pour choisir et installer vos équipements connectés.'],
+    ];
+}
+
+/** Dessin qui représente un métier (filtres des réalisations). */
+function service_trade_icon(string $trade): string
+{
+    return ['electricite' => 'eclair', 'plomberie' => 'robinet', 'chauffage' => 'chaudiere', 'climatisation' => 'clim',
+            'vmc' => 'vmc', 'portail' => 'portail', 'automatisme' => 'volet'][$trade] ?? 'check';
+}
+
+/** Ajoute des paramètres à une adresse, qu'elle en ait déjà ou non. */
+function url_with_query(string $url, array $q): string
+{
+    $q = array_filter($q, static fn($v) => $v !== null && $v !== '');
+    return $q ? $url.(str_contains($url, '?') ? '&' : '?').http_build_query($q) : $url;
 }
 
 /** Marques affichées en bandeau sur une page métier (modifiables dans l'admin). */

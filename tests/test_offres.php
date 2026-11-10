@@ -40,10 +40,29 @@ foreach (service_trade_defaults() as $t => $d) {
     check("$t : 8 cartes, dessin + titre + texte court", $ok, true);
 }
 
-echo "\n3. Plus d'emoji dans les cartes propres à un métier\n";
+echo "\n3. Cartes propres à un métier\n";
 $idx = file_get_contents($R.'/index.php');
-check('volets, portails et chauffe-eau dessinés', [str_contains($idx, "['volet', setting("), str_contains($idx, "['portail', setting("), str_contains($idx, "['chauffe-eau', setting(")], [true, true, true]);
+check('électricité : cartes volets et portails retirées', [str_contains($idx, "svc_electricite_volets"), str_contains($idx, "svc_electricite_acces")], [false, false]);
+check('chauffage : carte chauffe-eau dessinée', str_contains($idx, "['chauffe-eau', setting("), true);
 check('la section « Nos interventions » a disparu', str_contains($idx, "svc_interv_"), false);
+
+echo "\n3b. Ancienne liste enregistrée par l'admin : elle retrouve dessins et textes\n";
+$DB['settings']['svc_electricite_offer_items'] = json_encode(['Dépannage et remise en service (urgence 24h/7j)', 'Mise aux normes NF C 15-100 obligatoire', 'Ma prestation à moi'], JSON_UNESCAPED_UNICODE);
+settings_cache(true);
+$cards = service_offer_cards(service_template('electricite')['offer_items']);
+check('phrase d\'origine → carte complète', $cards[0]['icon'].' | '.$cards[0]['title'].' | '.($cards[0]['text'] !== '' ? 'texte' : 'vide'), 'urgence | Dépannage 24h/7j | texte');
+check('deuxième phrase reconnue', $cards[1]['title'], 'Mise aux normes');
+check('phrase écrite à la main gardée, avec la coche', $cards[2], ['icon'=>'check','title'=>'Ma prestation à moi','text'=>'']);
+check('les 56 phrases d\'origine sont reconnues', count(service_offer_legacy()), 56);
+check('l\'admin affiche la ligne convertie', service_offer_row_upgrade('Débouchage de canalisations et WC')[1], 'Débouchage');
+unset($DB['settings']['svc_electricite_offer_items']); settings_cache(true);
+
+echo "\n3c. Réalisations filtrées par métier\n";
+check('adresse sans paramètre', url_with_query('/index.php?route=realisations', ['metier' => 'electricite']), '/index.php?route=realisations&metier=electricite');
+check('adresse propre', url_with_query('/jura/realisations', ['metier' => 'plomberie']), '/jura/realisations?metier=plomberie');
+check('paramètre vide ignoré', url_with_query('/realisations', ['metier' => '']), '/realisations');
+foreach (array_keys(service_trade_defaults()) as $t) check("$t : un dessin de métier", service_trade_icon($t) !== 'check' && isset(service_icons()[service_trade_icon($t)]), true);
+check('le bouton de la page métier mène au filtre', str_contains($idx, 'url_with_query(route_url(\'realisations\'), [\'metier\' => $sk])'), true);
 
 echo "\n4. Bandeau des marques\n";
 check('chauffage : des marques par défaut', count(service_template('chauffage')['brands']) >= 10, true);

@@ -1029,7 +1029,15 @@ if ($route === 'quote') {
 
 /* ════ RÉALISATIONS ════ */
 if ($route === 'realisations') {
-    $reals = visible_realisations(1000);
+    $realsAll = visible_realisations(1000);
+    // Filtres par métier : seuls les métiers qui ont au moins une réalisation publiée.
+    $realTrades = [];
+    foreach ($realsAll as $r) foreach (realisation_trades((string)($r['service_type'] ?? '')) as $t) $realTrades[$t] = ($realTrades[$t] ?? 0) + 1;
+    $realTrades = array_intersect_key(array_merge(array_fill_keys(array_keys(service_trade_defaults()), 0), $realTrades), $realTrades);
+    $realFilter = (string)($_GET['metier'] ?? '');
+    if (!isset(service_trade_defaults()[$realFilter])) $realFilter = '';
+    $reals = $realFilter === '' ? $realsAll
+           : array_values(array_filter($realsAll, static fn(array $r): bool => in_array($realFilter, realisation_trades((string)($r['service_type'] ?? '')), true)));
     $meta  = ['title'=>setting('reals_meta_title','Réalisations | '.company_name()),'description'=>setting('reals_meta_description','Nos chantiers et interventions.'),'canonical'=>route_url('realisations')];
     render_head($meta); render_header(route_url('realisations'));
 ?>
@@ -1038,7 +1046,20 @@ if ($route === 'realisations') {
   <p class="ph-lead"><?= e(setting('reals_page_lead','Des interventions propres et documentées {en_region}.')) ?></p>
 </div></section>
 <section class="sec sec-navy"><div class="wrap">
-  <?php if (empty($reals)): ?>
+  <?php if (count($realTrades) > 1 || $realFilter !== ''): ?>
+  <nav class="rf" aria-label="Filtrer par métier">
+    <a class="rf-chip<?= $realFilter === '' ? ' is-on' : '' ?>" href="<?= e(route_url('realisations')) ?>"<?= $realFilter === '' ? ' aria-current="page"' : '' ?>>Toutes <span class="rf-n"><?= count($realsAll) ?></span></a>
+    <?php foreach ($realTrades as $_t => $_n): ?>
+    <a class="rf-chip<?= $realFilter === $_t ? ' is-on' : '' ?>" href="<?= e(url_with_query(route_url('realisations'), ['metier' => $_t])) ?>"<?= $realFilter === $_t ? ' aria-current="page"' : '' ?>><img src="<?= e(service_icon_url(service_trade_icon($_t))) ?>" alt="" width="20" height="20"><?= e(service_template($_t)['label']) ?> <span class="rf-n"><?= (int)$_n ?></span></a>
+    <?php endforeach; unset($_t, $_n); ?>
+  </nav>
+  <?php endif; ?>
+  <?php if (empty($reals) && $realFilter !== ''): ?>
+    <div style="text-align:center;padding:3rem 0;color:var(--t2);">
+      <p>Pas encore de réalisation publiée en <?= e(mb_strtolower(service_template($realFilter)['label'], 'UTF-8')) ?>.</p>
+      <a class="btn btn-ghost-p" href="<?= e(route_url('realisations')) ?>" style="margin-top:1rem;display:inline-flex;">Voir toutes les réalisations</a>
+    </div>
+  <?php elseif (empty($reals)): ?>
     <div style="text-align:center;padding:4rem 0;color:var(--t2);">
       <div style="font-size:3rem;margin-bottom:1rem;">📷</div>
       <p><?= e(setting('reals_empty','Les réalisations seront publiées prochainement.')) ?></p>
@@ -1253,18 +1274,12 @@ if ($tpl !== null || $page) {
   </div>
   <?php endif; ?>
   <?php
-  // Blocs propres à un métier : prestations recherchées sur Google (chauffe-eau, volets)
+  // Bloc propre à un métier : prestation recherchée sur Google (chauffe-eau).
   // et filtre des coupures réseau, qui relèvent d'Enedis et non d'un électricien.
   $svcExtras = [
       'chauffage' => [
           ['chauffe-eau', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
                  setting('svc_chauffage_ecs_text', 'Plus d\'eau chaude ? Nous dépannons et remplaçons les chauffe-eau électriques, les ballons d\'eau chaude et la production d\'eau chaude des chaudières : résistance, thermostat, groupe de sécurité, fuite du ballon. Remplacement complet si l\'appareil est hors d\'usage, avec mise en service le jour même quand c\'est possible.')],
-      ],
-      'electricite' => [
-          ['volet', setting('svc_electricite_volets_title', 'Volets roulants électriques'),
-                 setting('svc_electricite_volets_text', 'Volet roulant bloqué, moteur qui ne répond plus, interrupteur ou télécommande en panne : nous dépannons et motorisons vos volets roulants électriques, et remplaçons le moteur quand il est hors service.')],
-          ['portail', setting('svc_electricite_acces_title', 'Portails électriques et visiophones'),
-                 setting('svc_electricite_acces_text', 'Portail électrique qui ne s\'ouvre plus, visiophone ou interphone muet : diagnostic, réparation, remplacement et installation neuve.')],
       ],
   ][$sk] ?? [];
   ?>
@@ -1324,7 +1339,7 @@ if ($tpl !== null || $page) {
     <?php endforeach; ?>
   </div>
   <div style="text-align:center;margin-top:2rem;">
-    <a class="btn btn-ghost-p" href="<?= e(route_url('realisations')) ?>"><?= e(setting('reals_btn','Voir toutes nos réalisations')) ?> →</a>
+    <a class="btn btn-ghost-p" href="<?= e(url_with_query(route_url('realisations'), ['metier' => $sk])) ?>"><?= e(setting('reals_btn','Voir toutes nos réalisations')) ?> →</a>
   </div>
 </div></section>
 <?php endif; ?>

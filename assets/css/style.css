@@ -1427,8 +1427,8 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
    la hauteur du logo (--lh), réglée pour tenir à côté du bouton d'appel. */
 .brand-emae{--lh:48px;position:relative;display:block;line-height:0;padding-right:calc(var(--lh)*.2);}
 .brand-mark{display:block;height:var(--lh);width:auto;}
-.brand-tag{position:absolute;left:41.5%;top:60.5%;white-space:nowrap;
-  font-family:var(--font-b);font-size:calc(var(--lh)*.188);font-weight:500;line-height:1.08;letter-spacing:.01em;color:#e3e8f4;}
+.brand-tag{position:absolute;left:42%;top:63%;white-space:nowrap;
+  font-family:var(--font-b);font-size:calc(var(--lh)*.15);font-weight:400;line-height:1.1;letter-spacing:.03em;color:#cfd7ea;}
 .header-call{white-space:nowrap;}
 @media(max-width:400px){
   .nav-wrap{padding:0 1rem;gap:.6rem;}
@@ -1496,3 +1496,16 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
   .brands-list{flex-wrap:wrap;justify-content:center;row-gap:.6rem;padding:0 1rem;}
   .brands-list[aria-hidden]{display:none;}
 }
+
+/* ── Réalisations : filtres par métier (dessins des métiers) ── */
+.rf{display:flex;gap:.5rem;overflow-x:auto;scrollbar-width:none;margin:0 -1.25rem 1.75rem;padding:0 1.25rem .2rem;}
+.rf::-webkit-scrollbar{display:none;}
+.rf-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:.45rem;padding:.5rem .9rem;border-radius:999px;
+  border:1px solid var(--line);background:var(--card);color:var(--t1);font-size:.84rem;font-weight:500;white-space:nowrap;
+  text-decoration:none;transition:border-color .2s,background .2s;}
+.rf-chip img{width:20px;height:20px;}
+.rf-chip:hover{border-color:rgba(240,123,29,.35);}
+.rf-chip.is-on{background:rgba(240,123,29,.14);border-color:rgba(240,123,29,.55);color:#fff;}
+.rf-n{font-size:.72rem;color:var(--t2);font-weight:600;}
+.rf-chip.is-on .rf-n{color:var(--p);}
+@media(min-width:640px){ .rf{flex-wrap:wrap;overflow:visible;margin:0 0 2rem;padding:0;} }

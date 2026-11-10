@@ -619,7 +619,7 @@ function admin_service_pages(): array
                     'fields' => [
                         ['key'=>$p.'offer_title','label'=>'Titre de la section','type'=>'text','default'=>$d['offer_title']],
                         ['key'=>$p.'offer_items','label'=>'Prestations','type'=>'list','default'=>$d['offer_items'],
-                         'string_col'=>'title',
+                         'string_col'=>'title', 'row_upgrade'=>'service_offer_row_upgrade',
                          'columns'=>[
                             ['k'=>'icon','label'=>'Dessin','w'=>'190px','type'=>'select','options'=>service_icons()],
                             ['k'=>'title','label'=>'Titre'],

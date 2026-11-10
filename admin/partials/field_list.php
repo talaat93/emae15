@@ -32,7 +32,9 @@ $lOwn   = admin_list_stored($f) !== null;
 
   <div class="fl__rows">
     <?php foreach ($lRows as $i => $row):
-        if ($lMulti && !is_array($row)) {
+        if ($lMulti && !is_array($row) && !empty($f['row_upgrade']) && is_callable($f['row_upgrade'])) {
+            $vals = array_values(($f['row_upgrade'])((string)$row));   // ancien format converti
+        } elseif ($lMulti && !is_array($row)) {
             // Ancien format (une phrase par ligne) : la phrase va dans la colonne prévue.
             $vals = array_fill(0, count($lCols), '');
             foreach ($lCols as $ci => $c) if ($c['k'] === ($f['string_col'] ?? $lCols[0]['k'])) $vals[$ci] = (string)$row;
