@@ -7,6 +7,9 @@ $services = [
     'plomberie'     => ['label' => 'Plomberie',          'icon' => '💧'],
     'chauffage'     => ['label' => 'Chauffage & PAC',    'icon' => '🔥'],
     'climatisation' => ['label' => 'Climatisation & CVC','icon' => '❄️'],
+    'vmc'           => ['label' => 'VMC & Ventilation',  'icon' => '🌬️'],
+    'portail'       => ['label' => 'Portail & Visiophone','icon' => '🚪'],
+    'automatisme'   => ['label' => 'Automatismes & Électroménager','icon' => '🤖'],
 ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -38,8 +41,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
 
 <?php foreach ($services as $sk => $svc):
-    $current = setting('svc_'.$sk.'_hero_image', '');
+    $own     = setting('svc_'.$sk.'_hero_image', '');
+    $current = service_hero_image($sk); // sinon la photo fournie avec le site
     $hasImg  = $current !== '' && file_exists(__DIR__.'/../'.ltrim($current, '/'));
+    $isOwn   = $own !== '';
 ?>
 <section class="admin-panel">
   <div class="admin-panel__head">
@@ -55,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <span style="color:#fff;font-size:.8rem;font-weight:600;letter-spacing:.05em;opacity:.8;">Aperçu avec overlay</span>
         </div>
       </div>
-      <div style="margin-top:.5rem;font-size:.78rem;color:var(--t2,#7B92CC);">Image actuelle : <?= e(basename($current)) ?></div>
+      <div style="margin-top:.5rem;font-size:.78rem;color:var(--t2,#7B92CC);"><?= $isOwn ? 'Image actuelle : '.e(basename($current)) : 'Photo fournie avec le site — envoyez une image pour la remplacer' ?></div>
     </div>
     <?php else: ?>
     <div style="margin-bottom:1rem;padding:1.25rem;background:rgba(255,255,255,.03);border:1px dashed rgba(255,255,255,.12);border-radius:12px;text-align:center;color:rgba(255,255,255,.3);font-size:.85rem;">
@@ -68,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <span>Nouvelle image (JPG, PNG, WebP)</span>
         <input type="file" name="hero_<?= e($sk) ?>" accept=".jpg,.jpeg,.png,.webp">
       </label>
-      <?php if ($hasImg): ?>
+      <?php if ($hasImg && $isOwn): ?>
       <label class="admin-field" style="justify-content:flex-end;padding-top:1.5rem;">
         <label style="display:flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.85rem;color:#f87171;">
           <input type="checkbox" name="clear_<?= e($sk) ?>" value="1">

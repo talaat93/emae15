@@ -1879,11 +1879,11 @@ function service_cards_v14(): array
         ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
          'tags'=>['Clim','CVC','Installation'], 'placeholder_icon'=>'❄️'],
         // Ces titres sont aussi ceux du formulaire de devis : les garder identiques évite les doublons.
-        ['title'=>'VMC & Ventilation',    'image'=>'','link'=>'vmc',          'badge'=>'Qualité de l\'air','desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
+        ['title'=>'VMC & Ventilation',    'image'=>'assets/img/services/vmc.jpg','link'=>'vmc',          'badge'=>'Qualité de l\'air','desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
          'tags'=>['VMC','Entretien','Humidité'], 'placeholder_icon'=>'🌬️'],
-        ['title'=>'Portail & Visiophone', 'image'=>'','link'=>'portail',      'badge'=>'Portail bloqué','desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
+        ['title'=>'Portail & Visiophone', 'image'=>'assets/img/services/portail.jpg','link'=>'portail',      'badge'=>'Portail bloqué','desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
          'tags'=>['Portail','Visiophone','Interphone'], 'placeholder_icon'=>'🚪'],
-        ['title'=>'Automatismes & Électroménager','image'=>'','link'=>'automatisme','badge'=>'Volets & domotique','desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
+        ['title'=>'Automatismes & Électroménager','image'=>'assets/img/services/electromenager.jpg','link'=>'automatisme','badge'=>'Volets & domotique','desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
          'tags'=>['Volets','Domotique','Électroménager'], 'placeholder_icon'=>'🤖'],
     ];
     $cards = get_json_setting('home_service_cards_v14', $default);
@@ -1893,7 +1893,8 @@ function service_cards_v14(): array
         $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
         $out[] = [
             'title' => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
-            'image' => trim((string)($c['image'] ?? '')),
+            // Sans image choisie dans l'admin : la photo fournie avec le site (VMC, portail, électroménager).
+            'image' => trim((string)($c['image'] ?? '')) ?: $fallback['image'],
             'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
             'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
@@ -1902,6 +1903,21 @@ function service_cards_v14(): array
         ];
     }
     return $out;
+}
+
+/**
+ * Photo de fond d'une page métier : celle choisie dans l'admin (Images hero services),
+ * sinon la photo fournie avec le site pour les métiers qui en ont une.
+ */
+function service_hero_image(string $trade): string
+{
+    $img = trim((string)setting('svc_'.$trade.'_hero_image', ''));
+    if ($img !== '') return $img;
+    return [
+        'vmc'         => 'assets/img/services/vmc.jpg',
+        'portail'     => 'assets/img/services/visiophone.jpg',
+        'automatisme' => 'assets/img/services/electromenager.jpg',
+    ][$trade] ?? '';
 }
 
 /* ═══════════════════════════════════════════════════

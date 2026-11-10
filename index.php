@@ -1194,7 +1194,7 @@ if ($tpl !== null || $page) {
         $meta['canonical'] = route_url($sk);
         $cards = service_cards_v14();
         render_head($meta); render_header(route_url($route));
-        $heroImg = setting('svc_'.$sk.'_hero_image', '');
+        $heroImg = service_hero_image($sk);
         $hasHeroImg = $heroImg !== '' && file_exists(__DIR__.'/'.ltrim($heroImg,'/'));
 ?>
 <section class="page-hero<?= $hasHeroImg ? ' svc-hero-img' : '' ?>"<?= $hasHeroImg ? ' style="background-image:url('.e(asset_url($heroImg)).');background-size:cover;background-position:center;"' : '' ?>>
