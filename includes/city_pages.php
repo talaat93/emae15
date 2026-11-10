@@ -130,15 +130,15 @@ function render_city_page(array $c): void
   <h2 class="section-title">Dépannage et installation</h2>
   <div class="city-grid">
     <?php foreach ($metiers as [$route, $icon, $label, $points]): ?>
-    <a class="city-card" href="<?= e(route_url($route)) ?>">
+    <a class="city-card" href="<?= e(url_for('intervention/'.$c['slug'].'/'.city_trade_slug($route))) ?>">
       <img src="<?= e(asset_url('assets/img/icons/'.$icon)) ?>" alt="" width="44" height="44" loading="lazy">
       <h3><?= e($label) ?> <?= e($c['a']) ?></h3>
       <ul><?php foreach ($points as $p): ?><li><?= e($p) ?></li><?php endforeach; ?></ul>
-      <span class="city-card-more">Voir le détail →</span>
+      <span class="city-card-more"><?= e(city_trades()[city_trade_slug($route)][1]) ?> <?= e($c['a']) ?> →</span>
     </a>
     <?php endforeach; ?>
   </div>
-  <p class="section-lead" style="margin-top:1.25rem;">Aussi : <a href="<?= e(route_url('climatisation')) ?>">climatisation</a>, <a href="<?= e(route_url('vmc')) ?>">VMC</a>, <a href="<?= e(route_url('portail')) ?>">portail et visiophone</a>, <a href="<?= e(route_url('automatisme')) ?>">volets roulants et électroménager</a>.</p>
+  <p class="section-lead" style="margin-top:1.25rem;">Aussi : <a href="<?= e(url_for('intervention/'.$c['slug'].'/climatisation')) ?>">climatisation <?= e($c['a']) ?></a>, <a href="<?= e(route_url('vmc')) ?>">VMC</a>, <a href="<?= e(route_url('portail')) ?>">portail et visiophone</a>, <a href="<?= e(route_url('automatisme')) ?>">volets roulants et électroménager</a>.</p>
 </div></section>
 
 <section class="sec sec-navy"><div class="wrap" style="max-width:960px;">

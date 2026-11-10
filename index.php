@@ -22,13 +22,16 @@ if ($_zs0 !== '' && !in_array($_zs0, ['admin','tech','dispatcher','api','assets'
     unset($_zobj);
 }
 // Pages par ville : /intervention/ (liste) et /intervention/{ville} (includes/city_pages.php).
-if ($_zs0 === 'intervention' && $currentZone === null && count($_zsegs) <= 2) {
+if ($_zs0 === 'intervention' && $currentZone === null && count($_zsegs) <= 3) {
     $_cslug = $_zsegs[1] ?? '';
-    if ($_cslug === '' || city_page($_cslug) !== null) {
+    $_tslug = $_zsegs[2] ?? '';
+    if (($_cslug === '' || city_page($_cslug) !== null) && ($_tslug === '' || isset(city_trades()[$_tslug]))) {
         set_zone_context(null);
         require_once __DIR__ . '/includes/stats.php';
-        stats_track_view('intervention'.($_cslug !== '' ? '/'.$_cslug : ''), '');
-        if ($_cslug === '') render_city_index(); else render_city_page(city_page($_cslug));
+        stats_track_view(trim('intervention/'.$_cslug.'/'.$_tslug, '/'), '');
+        if ($_cslug === '') render_city_index();
+        elseif ($_tslug === '') render_city_page(city_page($_cslug));
+        else render_city_trade_page(city_page($_cslug), $_tslug);
         exit;
     }
 }
@@ -800,6 +803,17 @@ if ($route === 'landing') {
     $p_dept   = strtolower(trim((string)($_GET['dept']   ?? '')));
     $p_metier = strtolower(trim((string)($_GET['metier'] ?? '')));
     $p_ville  = trim((string)($_GET['ville'] ?? ''));
+
+    /* Ancienne page d'annonce d'une ville qui a sa page métier propre (/intervention/dole/electricien) :
+       redirection permanente, en gardant les paramètres de campagne (gclid, utm…). */
+    $_cp = $p_ville !== '' ? city_page_by_name($p_ville) : null;
+    $_ts = city_trade_slug(['plombier'=>'plomberie','electricien'=>'electricite','depannage-chauffage'=>'chauffage'][$p_metier] ?? $p_metier);
+    if ($_cp && $_ts !== '' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+        $_keep = array_diff_key($_GET, array_flip(['route', 'dept', 'metier', 'ville']));
+        header('Location: '.absolute_url(url_for('intervention/'.$_cp['slug'].'/'.$_ts)).($_keep ? '?'.http_build_query($_keep) : ''), true, 301);
+        exit;
+    }
+    unset($_cp, $_ts);
 
     /* Valider dept contre la whitelist (zone principale par défaut) */
     if (!isset($landing_depts[$p_dept])) $p_dept = 'doubs';

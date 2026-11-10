@@ -43,6 +43,9 @@ foreach (intervention_zones_listed() as $_z) $add(url_for($_z['slug'].'/'), 'wee
 // Pages par ville (/intervention/…).
 $add(url_for('intervention/'), 'monthly', '0.7');
 foreach (array_keys(city_pages()) as $_cs) $add(url_for('intervention/'.$_cs), 'monthly', '0.8');
+// Pages métier × ville : seulement celles qui ont un contenu propre (les autres sont en noindex).
+foreach (array_keys(city_pages()) as $_cs) foreach (city_trades() as $_ts => [$_tr])
+    if (city_trade_reals(city_page($_cs), $_tr)) $add(url_for('intervention/'.$_cs.'/'.$_ts), 'monthly', '0.7');
 
 // Pages CMS : les anciennes pages métier (« Électricité »…) redirigent vers la page métier
 // (index.php) : elles ne sont pas listées.
@@ -67,6 +70,7 @@ $metiers = ['electricite','plomberie','chauffage','climatisation'];
 foreach ($landing as $dept => $villes) {
     foreach ($villes as $ville) {
         foreach ($metiers as $m) {
+            if (city_page_by_name($ville) !== null) continue;   // redirigée vers /intervention/{ville}/{métier}
             $add(route_url('landing').'&dept='.$dept.'&metier='.$m.'&ville='.rawurlencode($ville), 'monthly', '0.6');
         }
     }
