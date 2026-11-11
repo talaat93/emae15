@@ -1561,3 +1561,19 @@ h3.step-h{margin:0;font-size:inherit;}
 .city-card h3{margin:0;font-size:1.1rem;color:#fff;}
 .city-card ul{margin:0;padding-left:1.1rem;color:var(--t2);font-size:.9rem;line-height:1.55;}
 .city-card-more{margin-top:auto;color:var(--p);font-weight:700;font-size:.85rem;}
+
+/* ── Carte des zones (accueil) : Côte-d'Or, Jura, Doubs ── */
+.zones-grid.zones-grid--one{grid-template-columns:1fr;}
+.zone-card--map{display:grid;grid-template-columns:minmax(0,1fr);gap:1.5rem;align-items:center;}
+@media (min-width:820px){.zone-card--map{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}}
+.zmap{margin:0;}
+.zmap svg{display:block;width:100%;height:auto;max-height:460px;}
+.zmap-dep path{stroke:#fff;stroke-width:1.5;stroke-linejoin:round;transition:fill .2s;}
+.zmap-d21 path{fill:#FCE3CD;} .zmap-d39 path{fill:#F9C9A0;} .zmap-d25 path{fill:#F6B07A;}
+.zmap-dep:hover path,.zmap-dep:focus-visible path{fill:#F7A35F;}
+.zmap-dlab{font:800 15px var(--font-h);fill:var(--navy);pointer-events:none;}
+.zmap-code{font-weight:700;fill:var(--p2);}
+.zmap-city circle{fill:var(--navy);stroke:#fff;stroke-width:1.5;transition:fill .2s;}
+.zmap-city:hover circle,.zmap-city:focus-visible circle{fill:var(--p);}
+.zmap-clab{font:600 11px var(--font-b);fill:var(--navy);paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;}
+.zmap figcaption{margin-top:.4rem;text-align:center;font-size:.82rem;color:#455a7a;}

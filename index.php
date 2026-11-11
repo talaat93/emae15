@@ -499,8 +499,9 @@ if ($route === '' || $route === 'home') {
     <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em>en <?= e($_reg) ?></em></h2>
     <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead', 'Nous intervenons {en_region}.'), 'Nous intervenons {en_region}.')).' '.intervention_terms_text()) ?></p>
     <div class="zones-grid zones-grid--one">
-      <div class="zone-card">
-        <a href="<?= e(route_url('zones')) ?>" style="text-decoration:none;color:inherit;">
+      <div class="zone-card zone-card--map">
+        <?= render_zone_map() ?>
+        <a href="<?= e(route_url('zones')) ?>" class="zone-card-txt" style="text-decoration:none;color:inherit;">
           <div class="zone-name"><?= e($_reg) ?></div>
           <?php if ($_depts): ?><p class="zone-text"><?= e(implode(' · ', array_values(array_unique($_depts)))) ?></p><?php endif; ?>
           <?php if ($_villes): ?>

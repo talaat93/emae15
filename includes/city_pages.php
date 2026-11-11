@@ -11,8 +11,9 @@ declare(strict_types=1);
  * review_summary) ; une seule entreprise dans les données structurées (Service rattaché à
  * l'entité #entreprise, pas de fausse agence par ville).
  *
- * Ajouter une ville : une ligne dans city_pages(). Pas plus d'une dizaine : des pages presque
- * identiques en grand nombre sont mal vues par Google.
+ * Ajouter une ville : une ligne dans city_pages() (et sa position dans zone_map_data() pour
+ * la carte de l'accueil). Rester autour d'une douzaine : des pages presque identiques en grand
+ * nombre sont mal vues par Google.
  */
 function city_pages(): array
 {
@@ -27,6 +28,8 @@ function city_pages(): array
         'tavaux'          => ['Tavaux', '39500', '39', ['Damparis', 'Abergement-la-Ronce', 'Saint-Aubin', 'Choisey', 'Gevry', 'Molay', 'Aumur', 'Champdivers']],
         'besancon'        => ['Besançon', '25000', '25', ['École-Valentin', 'Châtillon-le-Duc', 'Miserey-Salines', 'Thise', 'Chalezeule', 'Beure', 'Franois', 'Serre-les-Sapins']],
         'saint-vit'       => ['Saint-Vit', '25410', '25', ['Byans-sur-Doubs', 'Osselle-Routelle', 'Roset-Fluans', 'Villars-Saint-Georges', 'Dannemarie-sur-Crète', 'Boussières', 'Torpes', 'Velesmes-Essarts']],
+        'pontarlier'      => ['Pontarlier', '25300', '25', ['Arçon', 'Houtaud', 'Dommartin', 'Vuillecin', 'Granges-Narboz', 'Sainte-Colombe', 'La Cluse-et-Mijoux', 'Les Verrières-de-Joux']],
+        'montbeliard'     => ['Montbéliard', '25200', '25', ['Audincourt', 'Valentigney', 'Bethoncourt', 'Grand-Charmont', 'Sochaux', 'Exincourt', 'Courcelles-lès-Montbéliard', 'Hérimoncourt']],
     ];
 }
 
@@ -45,7 +48,8 @@ function city_page(string $slug): ?array
 function render_city_index(): void
 {
     $meta = ['title' => 'Nos villes d\'intervention — Côte-d\'Or, Jura, Doubs | '.company_name(),
-             'description' => 'Électricien, plombier et chauffagiste en Côte-d\'Or, dans le Jura et le Doubs : Dijon, Quetigny, Genlis, Beaune, Auxonne, Dole, Lons-le-Saunier, Tavaux, Besançon, Saint-Vit et leurs environs.',
+             'description' => 'Électricien, plombier et chauffagiste en Côte-d\'Or (21), dans le Jura (39) et le Doubs (25) : '
+                              .implode(', ', array_column(city_pages(), 0)).' et leurs environs.',
              'canonical' => url_for('intervention/')];
     render_head($meta); render_header(route_url('zones'));
     $parDep = [];
@@ -74,8 +78,8 @@ function render_city_page(array $c): void
 {
     $nom = $c['nom'];
     $meta = [
-        'title'       => 'Électricien, plombier, chauffagiste '.$c['a'].' ('.$c['cp'].') — Dépannage | '.company_name(),
-        'description' => 'Dépannage et installation en électricité, plomberie et chauffage '.$c['a'].' et ses environs ('.$c['dep'].'). Urgences 7j/7, prix annoncé avant déplacement, devis gratuit.',
+        'title'       => 'Dépannage Urgence Plomberie & Électricité '.$c['a'].' ('.$c['dep_code'].') | '.company_name(),
+        'description' => 'Plombier, électricien, chauffagiste '.$c['a'].' ('.$c['cp'].') et environs, '.$c['dep'].' ('.$c['dep_code'].') : dépannage urgent 7j/7, installation. Prix annoncé avant déplacement, devis gratuit.',
         'canonical'   => $c['url'],
     ];
     render_head($meta);
@@ -108,7 +112,7 @@ function render_city_page(array $c): void
 <section class="page-hero"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
     <div class="ph-eyebrow">// <?= e($c['dep']) ?> (<?= e($c['dep_code']) ?>) — urgences 7j/7</div>
-    <h1 class="ph-h1">Électricien, plombier, chauffagiste <em><?= e($c['a']) ?></em></h1>
+    <h1 class="ph-h1">Dépannage urgence plomberie, électricité, chauffage <em><?= e($c['a']) ?> (<?= e($c['dep_code']) ?>)</em></h1>
     <p class="ph-lead">Panne de courant, fuite d'eau, chaudière en panne : nous intervenons <?= e($c['a']) ?> (<?= e($c['cp']) ?>) et dans les communes voisines. Prix annoncé avant déplacement, devis gratuit.</p>
     <div class="btn-row" style="margin-top:1.5rem;">
       <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
