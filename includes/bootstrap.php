@@ -33,6 +33,7 @@ require_once __DIR__ . '/growth.php';
 require_once __DIR__ . '/coherence.php';
 require_once __DIR__ . '/city_pages.php';
 require_once __DIR__ . '/city_trade_pages.php';
+require_once __DIR__ . '/city_trade_content.php';
 require_once __DIR__ . '/zone_map.php';
 require_once __DIR__ . '/content_pages.php';
 require_once __DIR__ . '/automations.php';
