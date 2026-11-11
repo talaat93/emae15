@@ -1969,7 +1969,8 @@ function service_cards_settings(): array
             'image' => trim((string)($c['image'] ?? '')),
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
             'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
-            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            // Une description sans aucune lettre (ex. « . » saisi pour vider le champ) : le texte par défaut.
+            'desc'  => preg_match('/\p{L}/u', (string)($c['desc'] ?? '')) ? trim((string)$c['desc']) : $fallback['desc'],
         ];
     }
     return $out;
@@ -2084,7 +2085,8 @@ function service_cards_v14(): array
             'image' => trim((string)($c['image'] ?? '')) ?: $fallback['image'],
             'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
-            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            // Une description sans aucune lettre (ex. « . » saisi pour vider le champ) : le texte par défaut.
+            'desc'  => preg_match('/\p{L}/u', (string)($c['desc'] ?? '')) ? trim((string)$c['desc']) : $fallback['desc'],
             'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
             'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')) ?: $fallback['placeholder_icon'],
         ];
