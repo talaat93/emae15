@@ -153,7 +153,9 @@ check('horaires : phrase unique', faq_answer_fix('Quels sont vos horaires ?', 'L
 echo "\n8. Avis : une note seulement avec sa source\n";
 check('rien de renseigné : aucun chiffre', review_summary(), null);
 set('google_reviews_url', 'https://g.page/r/exemple/review'); set('google_rating', '4.7'); set('google_review_count', '40'); set('google_rating_updated_at', '2026-11-09 08:00:00');
-check('fiche Google : note avec date', review_summary(), ['rating' => 4.7, 'count' => 40, 'url' => 'https://g.page/r/exemple/review', 'updated' => '09/11/2026']);
+$_rs = review_summary();
+check('fiche Google : note avec date', $_rs === null ? null : array_intersect_key($_rs, array_flip(['rating', 'count', 'url', 'updated', 'label'])),
+      ['rating' => 4.7, 'count' => 40, 'url' => 'https://g.page/r/exemple/review', 'updated' => '09/11/2026', 'label' => '40 avis Google']);
 
 echo "\n".($fail ? "ÉCHECS : $fail" : "TOUS LES TESTS PASSENT ($pass assertions)")."\n";
 exit($fail ? 1 : 0);

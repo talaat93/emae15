@@ -462,9 +462,35 @@ function trust_band_items(string $trade = ''): array
         $b[] = ['shield-check', 'RC professionnelle', 'Attestation en cours de validité', ''];
     }
     if (($rs = review_summary()) !== null) {
-        $b[] = ['star', number_format($rs['rating'], 1, ',', '').'/5', $rs['count'].' avis Google', $rs['url']];
+        $b[] = ['star', number_format($rs['rating'], 1, ',', '').'/5', $rs['label'], $rs['url']];
     }
     return $b;
+}
+
+/**
+ * Carte d'un avis (liste de reviews_merged) : auteur, date, note, texte, badge de source
+ * (« Google » ou « Avis client EMAE »). Un avis Google renvoie au profil de son auteur.
+ * $full : page Avis (texte complet et provenance) ; sinon extrait (accueil).
+ */
+function render_review_card(array $rv, bool $full = true): string
+{
+    $stars  = max(1, min(5, (int)$rv['rating']));
+    $txt    = trim((string)$rv['text']);
+    if (!$full && mb_strlen($txt, 'UTF-8') > 220) $txt = rtrim(mb_substr($txt, 0, 210, 'UTF-8')).'…';
+    $google = $rv['source'] === 'google';
+    $name   = e($rv['author'] !== '' ? $rv['author'] : 'Client');
+    if ($google && preg_match('#^https://#', (string)$rv['url'])) $name = '<a href="'.e($rv['url']).'" target="_blank" rel="noopener nofollow">'.$name.'</a>';
+    $meta = array_values(array_filter([trim((string)($rv['service'] ?? '')), trim((string)($rv['city'] ?? '')) !== '' ? '📍 '.trim((string)$rv['city']) : ''], 'strlen'));
+    return '<article class="review-card">'
+         . '<div class="rv-head"><div class="rv-avatar" aria-hidden="true">'.e(mb_strtoupper(mb_substr($rv['author'] ?: '?', 0, 1, 'UTF-8'), 'UTF-8')).'</div>'
+         . '<div class="rv-who"><div class="rv-name">'.$name.'</div>'.date_tag($rv['date'], true, 'rv-date').'</div>'
+         . '<div class="rv-stars" role="img" aria-label="'.$stars.' sur 5">'.str_repeat('★', $stars).'<span class="rv-stars-off">'.str_repeat('★', 5 - $stars).'</span></div></div>'
+         . ($txt !== '' ? '<p class="rv-body">'.nl2br(e($txt)).'</p>' : '')
+         . '<div class="rv-foot">'
+         . ($google ? '<span class="rv-src rv-src--google"><span class="rv-src-g" aria-hidden="true">G</span>Google</span>'
+                    : '<span class="rv-src rv-src--site">Avis client EMAE</span>')
+         . ($meta ? '<span class="rv-meta">'.e(implode(' · ', $meta)).'</span>' : '')
+         . '</div></article>';
 }
 
 function render_trust_band(string $trade = ''): string

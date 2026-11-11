@@ -41,8 +41,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (trim((string)($_POST['google_places_api_key'] ?? '')) !== '') set_integration_secret('google_places_api_key', trim((string)$_POST['google_places_api_key']));
     if (!empty($_POST['google_places_api_key_clear'])) set_integration_secret('google_places_api_key', '');
     if ($act === 'google') {
-        $r = google_rating_refresh();
-        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Réglages enregistrés. Note Google mise à jour : '.$r['rating'].'/5, '.$r['count'].' avis.' : 'Réglages enregistrés, mais la note n\'a pas pu être lue : '.$r['error']);
+        $r = google_reviews_refresh();
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Réglages enregistrés. Avis Google relevés : '.$r['rating'].'/5, '.$r['total'].' avis.' : 'Réglages enregistrés, mais les avis n\'ont pas pu être relevés : '.$r['error']);
         redirect_to('admin/growth.php#google');
     }
     flash('success', 'Réglages enregistrés.');
@@ -103,14 +103,14 @@ $smsOk = sms_configured();
       <label class="admin-field"><span>Nombre d'avis</span><input type="number" name="google_review_count" value="<?= e($g('google_review_count')) ?>" min="0"></label>
     </div>
     <details style="margin-top:.5rem;"><summary style="cursor:pointer;font-weight:600;">Mise à jour automatique de la note (facultatif)</summary>
-      <p style="font-size:.85rem;color:#555;line-height:1.6;">Avec une clé Google Places API et l'identifiant de votre fiche (« Place ID »), la note et le nombre d'avis se mettent à jour une fois par jour. Sans clé, gardez la saisie manuelle ci-dessus.</p>
+      <p style="font-size:.85rem;color:#555;line-height:1.6;">Avec une clé Google Places API et l'identifiant de votre fiche (« Place ID »), la note, le nombre d'avis et 5 avis (choisis par Google) se mettent à jour une fois par jour et s'affichent sur la page Avis. Pour <strong>tous</strong> les avis : <a href="<?= e(url_for('admin/google.php')) ?>">connexion Google (API Business Profile)</a>. Sans clé, gardez la saisie manuelle ci-dessus.</p>
       <div class="admin-form-grid admin-form-grid--2">
         <label class="admin-field"><span>Place ID</span><input type="text" name="google_place_id" value="<?= e($g('google_place_id')) ?>" placeholder="ChIJ…"></label>
         <label class="admin-field"><span>Clé API Google Places <?= integration_secret_configured('google_places_api_key') ? '— <b style="color:#15803d;">configurée</b>' : '— non configurée' ?></span><input type="password" name="google_places_api_key" value="" autocomplete="new-password" placeholder="Laisser vide pour ne pas changer"></label>
       </div>
       <?php if (integration_secret_configured('google_places_api_key')): ?><label class="check-row"><input type="checkbox" name="google_places_api_key_clear" value="1"> Supprimer la clé</label><?php endif; ?>
       <?php if (global_setting('google_rating_updated_at', '') !== ''): ?><p style="font-size:.82rem;color:#555;">Dernière mise à jour : <?= e(date('d/m/Y H:i', strtotime(global_setting('google_rating_updated_at', '')))) ?></p><?php endif; ?>
-      <button class="admin-btn admin-btn--secondary" type="submit" name="act" value="google" formnovalidate>🔄 Mettre à jour la note maintenant</button>
+      <button class="admin-btn admin-btn--secondary" type="submit" name="act" value="google" formnovalidate>🔄 Relever les avis maintenant</button>
     </details>
   </div>
 </section>

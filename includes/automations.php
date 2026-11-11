@@ -59,7 +59,7 @@ function automations_run(string $origin = 'page', bool $force = false): array
         'images'    => 'automation_images',
         'agent'     => 'agent_run',          // agent relation client (désactivé tant qu'il n'est pas mis en marche)
     ] as $name => $fn) {
-        try { $out[$name] = $fn(); }
+        try { $out[$name] = $name === 'google' ? $fn($origin) : $fn(); }
         catch (Throwable $e) { $out[$name] = 'erreur : '.$e->getMessage(); error_log('[EMAE auto] '.$name.' : '.$e->getMessage()); }
     }
     growth_save('automations_last_run', date('Y-m-d H:i:s').' ('.$origin.')');
@@ -223,12 +223,18 @@ function automation_images(): string
     return $done ? $done.' photo(s) réduite(s)' : 'rien';
 }
 
-/* ── 2. Note Google, une fois par jour ── */
-function automation_google_daily(): string
+/* ── 2. Avis et note Google, une fois par jour ──
+   Par la tâche cron (cron/automations.php). Après une visite seulement si aucune tâche cron n'a
+   tourné depuis 2 jours (cron non programmé) : la relève part alors après l'envoi de la page. */
+function automation_google_daily(string $origin = 'cron'): string
 {
-    if (integration_secret('google_places_api_key') === '' || trim(growth_get('google_place_id')) === '') return 'non configuré';
-    $last = (string)global_setting('google_rating_updated_at', '');
-    if ($last !== '' && strtotime($last) > time() - 86400) return 'déjà fait aujourd\'hui';
-    $r = google_rating_refresh();
-    return $r['ok'] ? 'note mise à jour' : 'échec : '.$r['error'];
+    $gbp    = google_gbp_location() !== '' && google_oauth_connected();
+    $places = integration_secret('google_places_api_key') !== '' && trim(growth_get('google_place_id')) !== '';
+    if (!$gbp && !$places) return 'non configuré';
+    if ($origin === 'cron') growth_save('google_cron_seen_at', date('Y-m-d H:i:s'));
+    elseif ($origin === 'page' && strtotime(growth_get('google_cron_seen_at') ?: '2000-01-01') > time() - 2 * 86400) return 'attend la tâche cron';
+    $last = (string)growth_get('google_reviews_updated_at');
+    if ($last !== '' && strtotime($last) > time() - 86400 + 600) return 'déjà fait aujourd\'hui';
+    $r = google_reviews_refresh();
+    return $r['ok'] ? $r['count'].' avis relevés ('.$r['source'].')' : 'échec : '.$r['error'];
 }

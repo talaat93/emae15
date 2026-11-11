@@ -491,17 +491,33 @@ function legal_info(): array
 }
 
 /**
- * Note et nombre d'avis publiables : uniquement ceux de la fiche Google, avec son lien,
- * et la date de mise à jour. Sinon null : aucun chiffre affiché (ni « avis vérifiés »).
- * @return array{rating:float,count:int,url:string,updated:string}|null
+ * Compteur d'avis : note et nombre réels, avis Google (note et total de la fiche, relevés chaque
+ * jour, ou saisis dans l'admin) + avis clients publiés sur le site (provenance notée).
+ * Moyenne pondérée par le nombre d'avis. null s'il n'y a aucun avis : aucun chiffre affiché.
+ * url : la page Avis du site dès qu'elle montre des avis du site, sinon la fiche Google.
+ * @return array{rating:float,count:int,google_count:int,site_count:int,url:string,google_url:string,updated:string,label:string}|null
  */
 function review_summary(): ?array
 {
-    if (!function_exists('google_rating')) return null;
-    $g = google_rating();
-    if ($g === null) return null;
+    $g    = function_exists('google_rating') ? google_rating() : null;
+    $site = all_published_reviews();
+    $gc   = (int)($g['count'] ?? 0);
+    $sc   = count($site);
+    $tot  = $gc + $sc;
+    if ($tot === 0) return null;
+    $sum  = (float)($g['rating'] ?? 0) * $gc;
+    foreach ($site as $r) $sum += max(1, min(5, (int)$r['rating']));
     $u = trim(global_setting('google_rating_updated_at', ''));
-    return $g + ['updated' => $u !== '' && strtotime($u) ? date('d/m/Y', strtotime($u)) : ''];
+    return [
+        'rating'       => round($sum / $tot, 1),
+        'count'        => $tot,
+        'google_count' => $gc,
+        'site_count'   => $sc,
+        'url'          => $sc > 0 ? route_url('avis') : (string)$g['url'],
+        'google_url'   => (string)($g['url'] ?? ''),
+        'updated'      => $u !== '' && strtotime($u) ? date('d/m/Y', strtotime($u)) : '',
+        'label'        => $tot.' avis'.($sc === 0 ? ' Google' : ($gc === 0 ? ' clients' : ' (Google et clients EMAE)')),
+    ];
 }
 
 /**

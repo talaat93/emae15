@@ -1637,3 +1637,27 @@ h3.step-h{margin:0;font-size:inherit;}
 /* Dates des avis et des réalisations */
 .rv-date{display:block;font-size:.72rem;color:var(--t2);margin-top:.1rem;}
 .real-date{white-space:nowrap;}
+
+/* Avis : carte commune (render_review_card), badge de source, résumé de la page Avis */
+.review-card .rv-head{margin-bottom:.75rem;}
+.rv-who{min-width:0;flex:1;}
+.rv-name a{color:inherit;text-decoration:none;}
+.rv-name a:hover{text-decoration:underline;}
+.review-card .rv-stars{margin:0 0 0 auto;color:#C0942B;font-size:.95rem;letter-spacing:.05em;white-space:nowrap;}
+.rv-stars-off{color:rgba(255,255,255,.18);}
+.review-card .rv-body{color:var(--t1);font-size:.88rem;line-height:1.65;margin:0 0 .9rem;}
+.rv-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .7rem;margin-top:auto;}
+.rv-src{display:inline-flex;align-items:center;gap:.35rem;font-size:.7rem;font-weight:700;letter-spacing:.03em;padding:.22rem .6rem;border-radius:999px;}
+.rv-src--google{background:#fff;color:#16243F;}
+.rv-src-g{font:800 .8rem/1 Arial,sans-serif;background:conic-gradient(from -45deg,#ea4335 0 25%,#4285f4 0 50%,#34a853 0 75%,#fbbc05 0);-webkit-background-clip:text;background-clip:text;color:transparent;}
+.rv-src--site{background:rgba(192,148,43,.14);color:#E8B547;border:1px solid rgba(192,148,43,.45);}
+.rv-meta{font-size:.74rem;color:var(--t2);}
+.review-card{display:flex;flex-direction:column;}
+.rv-summary{display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;}
+.rv-summary-n{text-align:center;}
+.rv-summary-n strong{display:block;font-family:var(--font-h);font-size:3rem;font-weight:700;color:#C0942B;line-height:1;}
+.rv-summary-n span{font-size:.75rem;color:var(--t2);}
+.rv-summary-t{font-size:.95rem;color:#fff;font-weight:700;}
+.rv-summary-d{font-size:.8rem;color:var(--t2);margin-top:.15rem;}
+.rv-summary-a{display:inline-flex;font-size:.85rem;color:#E8B547;margin-top:.4rem;font-weight:600;}
+.review-card::after{display:none;}   /* guillemet décoratif : il passait sous les étoiles */

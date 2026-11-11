@@ -53,6 +53,8 @@ function admin_screens(): array
             'seo.php'          => ['🔍 SEO & Google Ads'],
             'chatbot.php'      => ['🤖 Chatbot IA'],
             'sms.php'          => ['📱 Notifications SMS'],
+            'google.php'       => ['🔗 Google : avis et contacts'],
+            'google.php'       => ['🔗 Google : avis et contacts'],
             'profile.php'      => ['👤 Mon profil', true],        // toujours accessible
             'mail_test.php'    => ['📧 Test email'],
         ],
@@ -72,6 +74,8 @@ function admin_hidden_screens(): array
 {
     return [
         // Zones : tout part désormais de zones.php
+        'google_oauth.php'         => ['Connexion Google',           'google.php'],
+        'google_oauth.php'         => ['Connexion Google',           'google.php'],
         'zones_manager.php'        => ['Zones géographiques',        'zones.php'],
         'zone_edit.php'            => ['Réglages d\'une zone',        'zones.php'],
         'zones_diag.php'           => ['Diagnostic des zones',        'zones.php'],

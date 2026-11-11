@@ -149,14 +149,16 @@ function google_rating(): ?array
 
 function render_google_badge(): string
 {
-    $g = google_rating();
+    // Même compteur que partout : avis Google + avis clients du site (review_summary).
+    $g = review_summary();
     if ($g === null) return '';
     $full  = (int)round($g['rating']);
     $stars = str_repeat('★', $full).str_repeat('☆', 5 - $full);
-    return '<a class="g-badge" href="'.e($g['url']).'" target="_blank" rel="noopener">'
-         . '<span class="g-badge-g" aria-hidden="true">G</span>'
+    $ext   = $g['site_count'] === 0;   // lien vers Google : nouvel onglet
+    return '<a class="g-badge" href="'.e($g['url']).'"'.($ext ? ' target="_blank" rel="noopener"' : '').'>'
+         . ($g['google_count'] > 0 ? '<span class="g-badge-g" aria-hidden="true">G</span>' : '')
          . '<span class="g-badge-stars" aria-hidden="true">'.$stars.'</span>'
-         . '<span class="g-badge-txt"><strong>'.e(number_format($g['rating'], 1, ',', '')).'/5</strong> · '.e((string)$g['count']).' avis Google</span></a>';
+         . '<span class="g-badge-txt"><strong>'.e(number_format($g['rating'], 1, ',', '')).'/5</strong> · '.e($g['label']).'</span></a>';
 }
 
 /**

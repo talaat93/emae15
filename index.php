@@ -144,7 +144,7 @@ if ($route === '' || $route === 'home') {
     $banner = hero_banner_settings();
     // Sur une page de zone, les chantiers du secteur passent devant.
     $reals  = $currentZone ? realisations_local(3) : visible_realisations(3);
-    $revs   = visible_reviews(3);
+    $revs   = reviews_merged(3);   // avis Google (cache) et avis du site, les plus récents
     $meta   = seo_defaults('home');
 
     $btn1url = setting('home_button1_url','quote');
@@ -444,11 +444,11 @@ if ($route === '' || $route === 'home') {
         <h2 class="section-title"><?= e(setting('reviews_title','Ce qu\'ils disent')) ?> <em><?= e(setting('reviews_title_hl','de nous')) ?></em></h2>
       </div>
       <?php $_rs = review_summary(); if ($_rs): ?>
-      <a class="reviews-score" href="<?= e($_rs['url']) ?>" target="_blank" rel="noopener">
+      <a class="reviews-score" href="<?= e($_rs['url']) ?>"<?= $_rs['site_count'] === 0 ? ' target="_blank" rel="noopener"' : '' ?>>
         <div>
           <span class="rs-stars" aria-hidden="true">★★★★★</span>
           <span class="rs-num"><?= e(number_format($_rs['rating'], 1, ',', '')) ?>/5</span>
-          <span class="rs-info"><?= e((string)$_rs['count']) ?> avis Google<?= $_rs['updated'] !== '' ? ' — au '.e($_rs['updated']) : '' ?></span>
+          <span class="rs-info"><?= e($_rs['label']) ?><?= $_rs['updated'] !== '' && $_rs['google_count'] > 0 ? ' — au '.e($_rs['updated']) : '' ?></span>
         </div>
       </a>
       <?php elseif (($_gp = google_profile_url()) !== ''): ?>
@@ -456,24 +456,7 @@ if ($route === '' || $route === 'home') {
       <?php endif; unset($_rs, $_gp); ?>
     </div>
     <div class="reviews-grid">
-      <?php foreach ($revs as $rev):
-        $init = mb_strtoupper(mb_substr($rev['author_name'],0,1,'UTF-8'),'UTF-8');
-      ?>
-      <a class="review-card" href="<?= e(route_url('avis')) ?>" aria-label="Lire tous les avis clients">
-        <div class="rv-stars"><?= str_repeat('★',(int)$rev['rating']) ?></div>
-        <p class="rv-text">"<?= e($rev['content']) ?>"</p>
-        <div class="rv-author">
-          <div class="rv-avatar"><?= e($init) ?></div>
-          <div>
-            <span class="rv-name"><?= e($rev['author_name']) ?></span>
-            <?= date_tag($rev['review_date'] ?? '', true, 'rv-date') ?>
-            <?php if (trim((string)($rev['service_type']??''))!==''): ?>
-            <span class="rv-svc"><?= e($rev['service_type']) ?><?php if(trim((string)($rev['city']??''))!==''): ?> — <?= e($rev['city']) ?><?php endif; ?></span>
-            <?php endif; ?>
-          </div>
-        </div>
-      </a>
-      <?php endforeach; ?>
+      <?php foreach ($revs as $rev) echo render_review_card($rev, false); ?>
     </div>
   </div>
 </section>
@@ -620,10 +603,13 @@ if ($route === 'zones') {
 <?php render_footer(); exit; }
 
 /* ════ AVIS CLIENTS ════ */
+// Une seule liste : avis Google (cache relevé chaque jour, aucun appel à Google ici) et avis
+// saisis dans l'admin, du plus récent au plus ancien, chacun avec sa date et sa source.
 if ($route === 'avis') {
-    $allReviews  = all_published_reviews();
-    $rs          = review_summary();      // note Google sourcée (lien + date), sinon aucun chiffre
+    $allReviews  = reviews_merged();
+    $rs          = review_summary();      // compteur : avis Google + avis du site, note moyenne réelle
     $gmbUrl      = google_profile_url();
+    $gReviewUrl  = (string)(google_rating()['url'] ?? '');
     $meta = [
         'title'       => setting('avis_meta_title', 'Avis clients | '.company_name()),
         'description' => claim_clean(setting('avis_meta_desc', 'Témoignages de clients de '.company_name().' sur nos interventions en électricité, plomberie, chauffage et climatisation.'),
@@ -638,61 +624,40 @@ if ($route === 'avis') {
     <h1 class="ph-h1"><?= e(setting('avis_title','Ce que disent')) ?> <em><?= e(setting('avis_title_hl','nos clients')) ?></em></h1>
     <p class="ph-lead"><?= e(claim_clean(setting('avis_lead','Les témoignages de nos clients.'), 'Les témoignages de nos clients.')) ?></p>
     <?php if ($rs || $gmbUrl !== ''): ?>
-    <div style="display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;">
+    <div class="rv-summary">
       <?php if ($rs): ?>
-      <div style="text-align:center;">
-        <div style="font-family:var(--font-h);font-size:3rem;font-weight:700;color:var(--p);line-height:1;"><?= e(number_format($rs['rating'], 1, ',', '')) ?></div>
-        <div style="font-size:.75rem;color:var(--t2);margin-top:.2rem;">sur 5</div>
-      </div>
+      <div class="rv-summary-n"><strong><?= e(number_format($rs['rating'], 1, ',', '')) ?></strong><span>sur 5</span></div>
       <?php endif; ?>
       <div>
         <?php if ($rs): ?>
-        <div style="font-size:.85rem;color:var(--t1);font-weight:600;"><?= e((string)$rs['count']) ?> avis sur notre fiche Google<?= $rs['updated'] !== '' ? ' (relevé du '.e($rs['updated']).')' : '' ?></div>
+        <div class="rv-summary-t"><?= e($rs['label']) ?></div>
+        <div class="rv-summary-d">
+          <?php if ($rs['google_count'] > 0): ?><?= e((string)$rs['google_count']) ?> sur notre fiche Google<?= $rs['updated'] !== '' ? ' (relevé du '.e($rs['updated']).')' : '' ?><?php endif; ?>
+          <?php if ($rs['google_count'] > 0 && $rs['site_count'] > 0): ?> · <?php endif; ?>
+          <?php if ($rs['site_count'] > 0): ?><?= e((string)$rs['site_count']) ?> recueilli<?= $rs['site_count'] > 1 ? 's' : '' ?> par EMAE<?php endif; ?>
+        </div>
         <?php endif; ?>
-        <a href="<?= e($rs['url'] ?? $gmbUrl) ?>" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:.35rem;font-size:.85rem;color:var(--p);margin-top:.4rem;font-weight:600;">Voir les avis sur Google →</a>
+        <?php if (($gReviewUrl ?: $gmbUrl) !== ''): ?>
+        <a class="rv-summary-a" href="<?= e($gmbUrl ?: $gReviewUrl) ?>" target="_blank" rel="noopener noreferrer">Voir les avis sur Google →</a>
+        <?php endif; ?>
       </div>
     </div>
     <?php endif; ?>
-
   </div>
 </section>
 
 <section class="sec sec-navy">
   <div class="wrap">
     <?php if (empty($allReviews)): ?>
-      <p style="text-align:center;color:var(--t2);padding:3rem 0;">Aucun avis pour le moment.</p>
+      <p style="text-align:center;color:var(--t2);padding:3rem 0;">Aucun avis rédigé pour le moment<?= $rs ? ' : la note ci-dessus vient de notre fiche Google' : '' ?>.</p>
     <?php else: ?>
     <div class="reviews-grid" style="margin-top:1rem;">
-      <?php foreach ($allReviews as $rv):
-        $stars = max(1,min(5,(int)($rv['rating'] ?? 5)));
-        $starsHtml = str_repeat('★',$stars).str_repeat('☆',5-$stars);
-      ?>
-      <div class="review-card">
-        <div class="rv-head">
-          <div class="rv-avatar"><?= mb_strtoupper(mb_substr($rv['author_name']??'?',0,1,'UTF-8'),'UTF-8') ?></div>
-          <div>
-            <div class="rv-name"><?= e($rv['author_name'] ?? '') ?></div>
-            <?= date_tag($rv['review_date'] ?? '', true, 'rv-date') ?>
-            <?php if (trim($rv['service_type']??'') !== ''): ?>
-            <div class="rv-svc"><?= e($rv['service_type']) ?></div>
-            <?php endif; ?>
-          </div>
-          <div class="rv-stars" style="margin-left:auto;color:#f59e0b;font-size:1rem;"><?= $starsHtml ?></div>
-        </div>
-        <?php if (trim($rv['content']??'') !== ''): ?>
-        <p class="rv-body"><?= e($rv['content']) ?></p>
-        <?php endif; ?>
-        <?php if (trim($rv['city']??'') !== ''): ?>
-        <div style="font-size:.75rem;color:var(--t2);margin-top:.75rem;">📍 <?= e($rv['city']) ?></div>
-        <?php endif; ?>
-        <div style="font-size:.72rem;color:var(--t2);margin-top:.35rem;">Provenance : <?= e((string)($rv['source_note'] ?? '')) ?></div>
-      </div>
-      <?php endforeach; ?>
+      <?php foreach ($allReviews as $rv) echo render_review_card($rv, true); ?>
     </div>
     <?php endif; ?>
-    <?php if ($gmbUrl !== ''): ?>
+    <?php if (($gReviewUrl ?: $gmbUrl) !== ''): ?>
     <div style="text-align:center;margin-top:3rem;">
-      <a class="btn btn-p btn-lg" href="<?= e($gmbUrl) ?>" target="_blank" rel="noopener noreferrer">⭐ Laisser un avis sur Google</a>
+      <a class="btn btn-p btn-lg" href="<?= e($gReviewUrl ?: $gmbUrl) ?>" target="_blank" rel="noopener noreferrer">⭐ Laisser un avis sur Google</a>
     </div>
     <?php endif; ?>
   </div>
