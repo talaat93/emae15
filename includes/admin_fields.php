@@ -49,15 +49,13 @@ function admin_page_catalog(): array
                 ],
                 [
                     'id'    => 'trust',
-                    'label' => 'Les 4 garanties',
-                    'seen'  => 'La bande de réassurance juste sous le bandeau',
+                    'label' => 'Bandeau de réassurance',
+                    'seen'  => 'Le bandeau à icônes sous le haut de page (accueil, pages service et ville). « Prix annoncé », l’assurance et la note Google s’y ajoutent d’eux-mêmes, depuis les mentions légales et la fiche Google.',
                     'fields' => [
-                        ['key'=>'trust_1_title','label'=>'Garantie 1 — titre','type'=>'text','default'=>'Intervention rapide'],
+                        ['key'=>'trust_1_title','label'=>'Garantie 1 — titre','type'=>'text','default'=>'Urgences 24h/24'],
                         ['key'=>'trust_1_sub','label'=>'Garantie 1 — détail','type'=>'text','default'=>'Délai confirmé au téléphone'],
                         ['key'=>'trust_2_title','label'=>'Garantie 2 — titre','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'trust_2_sub','label'=>'Garantie 2 — détail','type'=>'text','default'=>'Sans engagement'],
-                        ['key'=>'trust_4_title','label'=>'Garantie 4 — titre','type'=>'text','default'=>'Certifiés'],
-                        ['key'=>'trust_4_sub','label'=>'Garantie 4 — détail','type'=>'text','default'=>'Artisans qualifiés'],
                     ],
                 ],
                 [

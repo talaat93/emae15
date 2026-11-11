@@ -221,35 +221,18 @@ if ($route === '' || $route === 'home') {
       </div>
       <?= render_google_badge() ?>
 
-      <div class="hero-trust">
-        <?php
-        // Note : seulement celle de la fiche Google (lien + date), jamais un chiffre saisi sans source.
-        $_rs = review_summary();
-        $_trust3 = $_rs ? ['⭐', number_format($_rs['rating'], 1, ',', '').'/5', $_rs['count'].' avis Google'] : ['📋', 'Prix annoncé', 'avant déplacement'];
-        foreach ([
-          ['⚡', claim_clean(setting('trust_1_title','Urgences 24h/24'), 'Urgences 24h/24'), claim_clean(setting('trust_1_sub','Délai confirmé au téléphone'), 'Délai confirmé au téléphone')],
-          ['🆓', claim_clean(setting('trust_2_title','Devis gratuit'), 'Devis gratuit'),      claim_clean(setting('trust_2_sub','Sans engagement'), 'Sans engagement')],
-          $_trust3,
-          ['🔒', claim_clean(setting('trust_4_title','Artisans qualifiés'), 'Artisans qualifiés'), claim_clean(setting('trust_4_sub','Électricité, plomberie, chauffage'), 'Électricité, plomberie, chauffage')],
-        ] as [$ico,$t,$s]): ?>
-        <div class="trust-pill">
-          <span class="trust-pill-ico"><?= $ico ?></span>
-          <span class="trust-pill-txt"><strong><?= e($t) ?></strong><span><?= e($s) ?></span></span>
-        </div>
-        <?php endforeach; unset($_rs, $_trust3); ?>
-      </div>
     </div>
 
     <div class="hero-form">
       <div class="hero-card">
         <div class="hero-card-tag"><?= e(claim_clean(setting('home_quote_eyebrow', 'Rappel gratuit'), 'Rappel gratuit')) ?></div>
         <h2><?= e(setting('home_quote_title','Être rappelé')) ?></h2>
-        <?= render_trust_badges() ?>
         <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
     </div>
   </div>
 </section>
+<?= render_trust_band() ?>
 
 
 <!-- NOS SERVICES -->
@@ -1352,12 +1335,12 @@ if ($tpl !== null || $page) {
     <div class="hero-card">
       <div class="hero-card-tag"><?= e(claim_clean(setting('svc_quote_eyebrow','Rappel gratuit'), 'Rappel gratuit')) ?></div>
       <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
-      <?= render_trust_badges($sk) ?>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
   </div>
   </div>
 </section>
+<?= render_trust_band($sk) ?>
 
 <?php $svcBrands = array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen'));
       if ($svcBrands && $tpl['brands_on']): ?>

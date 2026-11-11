@@ -13,6 +13,11 @@ function icon_svg(string $name): string
         'clock' => '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 7v5l3.5 2"/>',
         'pin'   => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3" fill="none" stroke="currentColor" stroke-width="2"/>',
         'bolt'  => '<path fill="currentColor" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+        'file-check' => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M14 2v4a2 2 0 0 0 2 2h4"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 15 2 2 4-4"/>',
+        'euro'  => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 10h12M4 14h9"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 12c0 4.4 3.5 8 7.8 8 2 0 3.8-.8 5.2-2"/>',
+        'shield-check' => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 12 2 2 4-4"/>',
+        'star'  => '<path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+        'calendar' => '<rect x="3" y="4" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M16 2v4M8 2v4M3 10h18"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="m9 16 2 2 4-4"/>',
         'lock'  => '<rect x="4" y="11" width="16" height="10" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M8 11V7a4 4 0 0 1 8 0v4"/>',
     ];
     if (!isset($paths[$name])) return '';
@@ -431,33 +436,45 @@ function render_footer(): void
 }
 
 /**
- * Badges de réassurance, posés au-dessus des formulaires de rappel. Seuls les engagements
- * documentés s'affichent : « Assurance décennale » et « RC professionnelle » n'apparaissent
- * que si l'assurance est renseignée (Identité & coordonnées → Mentions légales), et la note
- * Google seulement depuis la fiche (review_summary).
+ * Bandeau de réassurance, sous le haut de page (accueil, pages service et ville).
+ * Seuls les engagements documentés s'affichent : l'assurance n'apparaît que pendant la
+ * validité de l'attestation et pour un métier déclaré à l'assureur (Identité & coordonnées →
+ * Mentions légales), la note seulement depuis la fiche Google (review_summary).
+ * $trade : métier de la page ('' = page générale).
+ * @return list<array{0:string,1:string,2:string,3:string}> [icône, titre, précision, lien]
  */
-/** $trade : métier de la page ('' = page générale) ; les badges d'assurance ne s'affichent que pour un métier couvert. */
-function render_trust_badges(string $trade = ''): string
+function trust_band_items(string $trade = ''): array
 {
     $b = [];
-    if (preg_match('/7\s*j?\s*\/\s*7|7j\/7|24\s*h?\s*\/\s*24/u', company_hours())) $b[] = ['🕐', 'Urgences 7j/7'];
-    $b[] = ['🆓', 'Devis gratuit'];
-    $b[] = ['📋', 'Prix annoncé avant déplacement'];
+    if (preg_match('/7\s*j?\s*\/\s*7|7j\/7|24\s*h?\s*\/\s*24/u', company_hours())) {
+        $b[] = ['clock', claim_clean(setting('trust_1_title', 'Urgences 24h/24'), 'Urgences 24h/24'),
+                claim_clean(setting('trust_1_sub', 'Délai confirmé au téléphone'), 'Délai confirmé au téléphone'), ''];
+    }
+    $b[] = ['file-check', claim_clean(setting('trust_2_title', 'Devis gratuit'), 'Devis gratuit'),
+            claim_clean(setting('trust_2_sub', 'Sans engagement'), 'Sans engagement'), ''];
+    $b[] = ['euro', 'Prix annoncé', 'avant tout déplacement', ''];
     $L = legal_info();
-    // Assurance : seulement pendant la validité de l'attestation (date de fin réglable dans l'admin).
     $ass = ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin']) ? mb_strtolower($L['assurance'], 'UTF-8') : '';
     if ($trade !== '' && !in_array($trade, $L['assurance_metiers'], true)) $ass = '';   // métier non déclaré à l'assureur (ex. plomberie)
-    $sur = $trade === '' ? ' (électricité, génie climatique)' : '';
-    if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) $b[] = ['🛡️', 'Assurance décennale'.$sur];
-    if (preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $ass)) $b[] = ['🛡️', 'RC professionnelle'];
-    $out = '<ul class="trust-badges" aria-label="Nos engagements">';
-    foreach ($b as [$i, $t]) $out .= '<li><span aria-hidden="true">'.$i.'</span> '.e($t).'</li>';
-    $out .= '</ul>';
-    if (($rs = review_summary()) !== null) {
-        $out = '<a class="trust-rating" href="'.e($rs['url']).'" target="_blank" rel="noopener"><span aria-hidden="true">★</span> <strong>'
-             .e(number_format($rs['rating'], 1, ',', '')).'/5</strong> · '.e((string)$rs['count']).' avis Google</a>'.$out;
+    if (str_contains($ass, 'décennale') || str_contains($ass, 'decennale')) {
+        $b[] = ['shield-check', 'Assurance décennale', $trade === '' ? 'Électricité, génie climatique' : 'Attestation en cours de validité', ''];
+    } elseif (preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $ass)) {
+        $b[] = ['shield-check', 'RC professionnelle', 'Attestation en cours de validité', ''];
     }
-    return $out;
+    if (($rs = review_summary()) !== null) {
+        $b[] = ['star', number_format($rs['rating'], 1, ',', '').'/5', $rs['count'].' avis Google', $rs['url']];
+    }
+    return $b;
+}
+
+function render_trust_band(string $trade = ''): string
+{
+    $o = '<section class="tband" aria-label="Nos engagements"><ul class="wrap tband-list">';
+    foreach (trust_band_items($trade) as [$ico, $t, $s, $url]) {
+        $in = '<span class="tband-ico">'.icon_svg($ico).'</span><span class="tband-txt"><strong>'.e($t).'</strong><span>'.e($s).'</span></span>';
+        $o .= '<li>'.($url !== '' ? '<a href="'.e($url).'" target="_blank" rel="noopener">'.$in.'</a>' : $in).'</li>';
+    }
+    return $o.'</ul></section>';
 }
 
 /**

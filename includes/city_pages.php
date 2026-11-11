@@ -123,11 +123,11 @@ function render_city_page(array $c): void
     <div class="hero-card">
       <div class="hero-card-tag">Rappel gratuit</div>
       <h2>Être rappelé</h2>
-      <?= render_trust_badges() ?>
       <?php render_quote_form($cards, 'ville_'.$c['slug'], 'rappel'); ?>
     </div>
   </div>
 </div></section>
+<?= render_trust_band() ?>
 
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label">Nos métiers <?= e($c['a']) ?></div>

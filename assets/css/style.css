@@ -1597,3 +1597,18 @@ h3.step-h{margin:0;font-size:inherit;}
 .ct-prix li:nth-child(odd){background:rgba(255,255,255,.03);}
 .ct-prix strong{white-space:nowrap;color:#fff;}
 @media (max-width:520px){.ct-prix li{flex-direction:column;gap:.15rem;}}
+
+/* ─── BANDEAU DE RÉASSURANCE (sous le haut de page) : charte marine #16243F / or #C0942B ─── */
+.tband{background:#16243F;border-top:1px solid rgba(192,148,43,.35);border-bottom:1px solid rgba(192,148,43,.35);padding:1.1rem 0;}
+.tband-list{list-style:none;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1rem;}
+.tband-list li,.tband-list a{display:flex;align-items:center;gap:.7rem;min-width:0;color:inherit;text-decoration:none;}
+.tband-list a:hover .tband-txt strong{color:#C0942B;}
+.tband-ico{flex:0 0 2.5rem;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;border:1.5px solid #C0942B;color:#C0942B;font-size:1.2rem;background:rgba(192,148,43,.08);}
+.tband-ico svg{vertical-align:0 !important;}
+.tband-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0;}
+.tband-txt strong{color:#fff;font-size:.9rem;font-weight:700;transition:color .2s;}
+.tband-txt span{color:#b9c3dc;font-size:.76rem;}
+@media(min-width:900px){
+  .tband{padding:1.35rem 0;}
+  .tband-list{display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem 1.5rem;}
+}
