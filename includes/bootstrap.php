@@ -932,6 +932,22 @@ if (!file_exists($_mf42)) {
     unset($_me, $_lot, $_get, $_set, $_why, $_r, $_k, $_v, $_n, $_nv, $_retirer);
 }
 unset($_mf42);
+// Auto-migration v15.43 (11/11/2026) : fiche Google validée, lien fourni par le propriétaire
+// (share.google/bcbkgvlzCNZO7OL7g → fiche « Emae », kgmid /g/11z_dyx41_). Adresse stable de
+// la fiche, utilisée en sameAs ; écrite seulement si aucun lien n'est déjà réglé dans l'admin.
+$_mf43 = __DIR__.'/../storage/.mig_v15_fiche_google';
+if (!file_exists($_mf43)) {
+    @file_put_contents($_mf43, date('c'));
+    try {
+        if (trim(global_setting('google_mybusiness_url', '')) === '') {
+            geo_sauvegarde_table();
+            geo_sauvegarder('proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2)), 'setting:google_mybusiness_url', null);
+            geo_ecrire_brut('google_mybusiness_url', 'https://www.google.com/search?kgmid=/g/11z_dyx41_');
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.43 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf43);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
