@@ -36,6 +36,7 @@ require_once __DIR__ . '/coherence.php';
 require_once __DIR__ . '/city_pages.php';
 require_once __DIR__ . '/city_trade_pages.php';
 require_once __DIR__ . '/city_trade_content.php';
+require_once __DIR__ . '/city_texts.php';
 require_once __DIR__ . '/zone_map.php';
 require_once __DIR__ . '/content_pages.php';
 require_once __DIR__ . '/automations.php';
@@ -1024,6 +1025,17 @@ if (!file_exists($_mf47)) {
     unset($_me);
 }
 unset($_mf47);
+// Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
+// d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
+if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {
+    try {
+        $_n = city_texts_seed_missing();
+        db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', ['city_texts_seed_v', (string)CITY_TEXTS_SEED_V]);
+        settings_cache(true);
+        if ($_n > 0) error_log('[EMAE] textes des pages ville : '.$_n.' page(s) créée(s) en base');
+    } catch (Throwable $_me) { error_log('Textes des pages ville : '.$_me->getMessage()); }
+    unset($_n, $_me);
+}
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

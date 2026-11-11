@@ -25,6 +25,7 @@ function admin_screens(): array
         'Le site' => [
             'page_content.php' => ['📝 Textes des pages'],
             'zones.php'        => ['🗺️ Zones d\'intervention'],
+            'city_texts.php'   => ['🏙️ Textes des pages ville'],
             'site_identity.php'=> ['🏢 Identité & coordonnées'],
             'appearance.php'   => ['🎨 Couleurs & polices'],
             'header_menu.php'  => ['🧭 Header & menu'],

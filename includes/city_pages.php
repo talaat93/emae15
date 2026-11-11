@@ -77,11 +77,14 @@ function render_city_index(): void
 function render_city_page(array $c): void
 {
     $nom = $c['nom'];
+    $txt = city_text($c['slug']) ?? [];   // texte propre à la ville (admin → Textes des pages ville)
     $meta = [
-        'title'       => 'Dépannage Urgence Plomberie & Électricité '.$c['a'].' ('.$c['dep_code'].') | '.company_name(),
-        'description' => 'Plombier, électricien, chauffagiste '.$c['a'].' ('.$c['cp'].') et environs, '.$c['dep'].' ('.$c['dep_code'].') : dépannage urgent 7j/7, installation. Prix annoncé avant déplacement, devis gratuit.',
+        'title'       => trim((string)($txt['title'] ?? '')) ?: 'Dépannage Urgence Plomberie & Électricité '.$c['a'].' ('.$c['dep_code'].') | '.company_name(),
+        'description' => claim_clean((string)($txt['meta'] ?? ''), '') ?: 'Plombier, électricien, chauffagiste '.$c['a'].' ('.$c['cp'].') et environs, '.$c['dep'].' ('.$c['dep_code'].') : dépannage urgent 7j/7, installation. Prix annoncé avant déplacement, devis gratuit.',
         'canonical'   => $c['url'],
     ];
+    $local = array_values(array_filter((array)($txt['local'] ?? []), static fn($l) => !claim_unsupported(implode(' ', (array)$l))));
+    $trajet = city_travel_label($c['slug']);
     render_head($meta);
     // Données structurées : un Service de l'entreprise unique (#entreprise) pour cette ville.
     $origin = rtrim(absolute_url('/'), '/');
@@ -101,18 +104,24 @@ function render_city_page(array $c): void
         ['electricite', 'eclair.png',  'Électricité', ['Panne de courant, disjoncteur qui saute', 'Tableau électrique et mise aux normes', 'Court-circuit, prise qui chauffe']],
         ['chauffage',   'flamme.png',  'Chauffage',   ['Dépannage de chaudière gaz ou fioul', 'Entretien annuel', 'Pompe à chaleur et radiateurs']],
     ];
-    $faq = [
+    $faq = [];
+    foreach ((array)($txt['faq'] ?? []) as [$q, $a]) if (!claim_unsupported($q.' '.$a)) $faq[] = [(string)$q, (string)$a];
+    $faq = array_merge($faq, [
         ['Intervenez-vous '.$c['a'].' ?', 'Oui, '.$c['a'].' et dans les communes voisines : '.geo_enumerer(array_slice($c['voisines'], 0, 6)).'. Votre adresse n\'est pas citée ? Appelez-nous pour vérifier.'],
-        ['Combien de temps pour intervenir '.$c['a'].' ?', intervention_terms_text().' En cas d\'urgence, appelez le '.company_phone().'.'],
+        ['Combien de temps pour intervenir '.$c['a'].' ?', ($trajet !== '' ? 'Le temps de trajet estimé jusqu\'à '.$nom.' est de '.$trajet.', selon la distance et hors circulation. ' : '').'Le délai réel dépend des interventions en cours : nous vous le confirmons au téléphone avant de partir. En cas d\'urgence, appelez le '.company_phone().'.'],
         ['Combien coûte un dépannage ?', tarifs_enabled() ? 'Le déplacement, le diagnostic et la main-d\'œuvre sont affichés sur notre page Tarifs. Le prix vous est annoncé avant tout déplacement ; les travaux font l\'objet d\'un devis gratuit.' : 'Le prix vous est annoncé avant tout déplacement ; les travaux font l\'objet d\'un devis gratuit.'],
         ['Vos devis sont-ils payants ?', 'Non, le devis est gratuit et sans engagement. Rien n\'est fait sans votre accord.'],
-    ];
+    ]);
     $reals = array_values(array_filter(realisations_local(3, $nom, $c['voisines']), static fn(array $r): bool => $r['local'] > 0));
     ?>
 <section class="page-hero"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
     <div class="ph-eyebrow">// <?= e($c['dep']) ?> (<?= e($c['dep_code']) ?>) — urgences 7j/7</div>
+    <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>
+    <h1 class="ph-h1"><?= e((string)$txt['h1']) ?></h1>
+    <?php else: ?>
     <h1 class="ph-h1">Dépannage urgence plomberie, électricité, chauffage <em><?= e($c['a']) ?> (<?= e($c['dep_code']) ?>)</em></h1>
+    <?php endif; ?>
     <p class="ph-lead">Panne de courant, fuite d'eau, chaudière en panne : nous intervenons <?= e($c['a']) ?> (<?= e($c['cp']) ?>) et dans les communes voisines. Prix annoncé avant déplacement, devis gratuit.</p>
     <div class="btn-row" style="margin-top:1.5rem;">
       <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
@@ -128,6 +137,12 @@ function render_city_page(array $c): void
   </div>
 </div></section>
 <?= render_trust_band() ?>
+
+<?php if ($txt && claim_clean((string)($txt['intro'] ?? ''), '') !== ''): ?>
+<section class="sec sec-card"><div class="wrap" style="max-width:860px;">
+  <p class="section-lead" style="margin:0;"><?= e((string)$txt['intro']) ?></p>
+</div></section>
+<?php endif; ?>
 
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label">Nos métiers <?= e($c['a']) ?></div>
@@ -149,7 +164,8 @@ function render_city_page(array $c): void
   <div class="prox-grid"><div>
   <div class="svc-label">Proximité</div>
   <h2 class="section-title"><?= e($nom) ?> <em>et ses environs</em></h2>
-  <p class="section-lead">Nos techniciens partent de notre base de Dole et interviennent <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
+  <p class="section-lead"><?= city_near_base($c['slug']) ? 'Nos techniciens partent de notre base de Dole et interviennent' : 'Nos techniciens interviennent' ?> <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
+  <?= render_city_travel($c) ?>
   <div class="zone-chips" style="margin-top:1rem;">
     <span class="zone-chip" style="font-weight:700;">📍 <?= e($nom) ?> (<?= e($c['cp']) ?>)</span>
     <?php foreach ($c['voisines'] as $v): ?><span class="zone-chip"><?= e($v) ?></span><?php endforeach; ?>
@@ -158,6 +174,16 @@ function render_city_page(array $c): void
   <?= render_zone_map(['depts' => [$c['dep_code']], 'focus' => $c['slug']]) ?>
   </div>
 </div></section>
+
+<?php if ($local): ?>
+<section class="sec sec-card"><div class="wrap">
+  <div class="svc-label">EMAE <?= e($c['a']) ?></div>
+  <h2 class="section-title">Ce que nous savons <em>de <?= e($nom) ?></em></h2>
+  <div class="assur-grid">
+    <?php foreach ($local as [$lt, $lx]): ?><div class="assur-card"><h3><?= e((string)$lt) ?></h3><p><?= e((string)$lx) ?></p></div><?php endforeach; ?>
+  </div>
+</div></section>
+<?php endif; ?>
 
 <?php if ($reals): ?>
 <section class="sec sec-card"><div class="wrap">

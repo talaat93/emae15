@@ -99,7 +99,7 @@ function render_city_trade_page(array $c, string $tslug): void
     $titre = city_trade_title($c, $tslug);
     $txt   = city_trade_content($c['slug'], $tslug) ?? [];
     $meta = [
-        'title'       => $titre.' ('.$c['dep_code'].') – Dépannage 7j/7 | '.company_name(),
+        'title'       => trim((string)($txt['title'] ?? '')) ?: $titre.' ('.$c['dep_code'].') – Dépannage 7j/7 | '.company_name(),
         'description' => claim_clean((string)($txt['meta'] ?? ''), '') ?: (($clim ? 'Dépannage, entretien et installation de climatisation' : $pro.' pour vos dépannages et travaux')
                          .' '.$c['a'].' et ses environs ('.$c['dep'].'). Prix annoncé avant déplacement, devis gratuit, urgences 7j/7.'),
         'canonical'   => url_for('intervention/'.$c['slug'].'/'.$tslug),
@@ -124,7 +124,12 @@ function render_city_trade_page(array $c, string $tslug): void
     if ($txt) {
         // Page rédigée : prix (depuis la page Tarifs), délai, questions propres au métier et à la ville, assurance.
         $faq[] = ['Combien coûte '.($clim ? 'un dépannage de climatisation' : 'l\'intervention d\'un '.$metier).' '.$c['a'].' ?', city_trade_price_answer()];
-        $faq[] = ['Pouvez-vous venir aujourd\'hui '.$c['a'].' ?', 'Les urgences sont prises 24h/24 et 7j/7. Le délai dépend des interventions en cours : nous vous le confirmons au téléphone avant de partir, pour que vous ne restiez pas à attendre sans savoir.'];
+        // Entretien de chaudière : prix de la page Tarifs (fourchette), jamais recopié ici.
+        if ($trade === 'chauffage' && ($_pe = tarif_price('chauffage', 'Entretien annuel de chaudière')) !== '')
+            $faq[] = ['Combien coûte l\'entretien annuel d\'une chaudière '.$c['a'].' ?', $_pe.', selon l\'appareil (gaz, fioul, condensation…) et son accès. Le prix exact vous est annoncé avant le rendez-vous, que vous pouvez prendre en ligne.'];
+        $_tr = city_travel_label($c['slug']);
+        $faq[] = ['Pouvez-vous venir aujourd\'hui '.$c['a'].' ?', 'Les urgences sont prises 24h/24 et 7j/7.'.($_tr !== '' ? ' Le temps de trajet estimé jusqu\'à '.$nom.' est de '.$_tr.', selon la distance et hors circulation.' : '').' Le délai réel dépend des interventions en cours : nous vous le confirmons au téléphone avant de partir, pour que vous ne restiez pas à attendre sans savoir.'];
+        unset($_pe, $_tr);
         foreach ((array)($txt['faq'] ?? []) as [$q, $a]) if (!claim_unsupported($q.' '.$a)) $faq[] = [(string)$q, (string)$a];
         $L = legal_info();
         if (in_array($trade, $L['assurance_metiers'], true) && ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin']))
@@ -141,7 +146,11 @@ function render_city_trade_page(array $c, string $tslug): void
 <section class="page-hero"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
     <div class="ph-eyebrow">// <?= e($tpl['label']) ?> — <?= e($nom) ?> (<?= e($c['cp']) ?>)</div>
+    <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>
+    <h1 class="ph-h1"><?= e((string)$txt['h1']) ?></h1>
+    <?php else: ?>
     <h1 class="ph-h1"><?= e($pro) ?> <em><?= e($c['a']) ?> (<?= e($c['dep_code']) ?>)</em></h1>
+    <?php endif; ?>
     <?php if ($txt): ?>
     <p class="ph-lead"><?= e($clim ? 'Dépannage, entretien et installation' : 'Dépannage et installation') ?> <?= e($c['a']) ?> et dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
     <?php else: ?>
@@ -229,7 +238,8 @@ function render_city_trade_page(array $c, string $tslug): void
   <div class="prox-grid"><div>
   <div class="svc-label">Proximité</div>
   <h2 class="section-title"><?= e($nom) ?> <em>et ses environs</em></h2>
-  <p class="section-lead">Notre <?= e($metier) ?> part de notre base de Dole et intervient <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
+  <p class="section-lead">Notre <?= e($metier) ?> <?= city_near_base($c['slug']) ? 'part de notre base de Dole et intervient' : 'intervient' ?> <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
+  <?= render_city_travel($c) ?>
   <div class="zone-chips" style="margin-top:1rem;">
     <span class="zone-chip" style="font-weight:700;">📍 <?= e($nom) ?> (<?= e($c['cp']) ?>)</span>
     <?php foreach ($c['voisines'] as $v): ?><span class="zone-chip"><?= e($v) ?></span><?php endforeach; ?>
