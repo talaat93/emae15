@@ -948,6 +948,24 @@ if (!file_exists($_mf43)) {
     unset($_me);
 }
 unset($_mf43);
+// Auto-migration v15.44 (11/11/2026) : lien « Demander des avis » et note de la fiche Google,
+// relevés par le propriétaire sur sa fiche (capture du 11/11/2026 : 5,0 ★, 1 avis).
+$_mf44 = __DIR__.'/../storage/.mig_v15_avis_google';
+if (!file_exists($_mf44)) {
+    @file_put_contents($_mf44, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+        foreach (['google_reviews_url' => 'https://g.page/r/CUSbX6hewFclEBM/review', 'google_rating' => '5',
+                  'google_review_count' => '1', 'google_rating_updated_at' => '2026-11-11 03:35:00'] as $_k => $_v) {
+            $_r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', [$_k]);
+            geo_sauvegarder($_lot, 'setting:'.$_k, $_r ? (string)$_r['setting_value'] : null);
+            geo_ecrire_brut($_k, $_v);
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.44 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_k, $_v, $_r);
+}
+unset($_mf44);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();
