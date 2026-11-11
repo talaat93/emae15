@@ -333,6 +333,62 @@ if ($route === '' || $route === 'home') {
   </div>
 </section>
 
+<!-- ZONES -->
+<section class="zones-section">
+  <div class="wrap">
+    <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
+    <?php if ($currentZone): ?>
+    <h2 class="section-title">Villes couvertes <em>en <?= e($currentZone['name']) ?></em></h2>
+    <p class="section-lead">Nos techniciens interviennent dans les villes de la zone <?= e($currentZone['name']) ?>. <?= e(intervention_terms_text()) ?></p>
+    <div class="zones-grid">
+      <div class="zone-card">
+        <div class="zone-name"><?= e($currentZone['name']) ?></div>
+        <div class="zone-chips">
+          <?php foreach (zone_cities($currentZone) as $_zc): ?><span class="zone-chip"><?= e($_zc) ?></span><?php endforeach; ?>
+        </div>
+      </div>
+    </div>
+    <?php else: ?>
+    <?php
+    // Accueil du site global : une seule carte régionale (choix du propriétaire, 10/11/2026) qui
+    // regroupe les départements desservis ; les pages /jura/, /doubs/, /cote-d-or/ restent en ligne.
+    $_reg = trim(setting('home_zone_region', 'Bourgogne-Franche-Comté'));
+    $_listed = intervention_zones_listed();
+    $_depts = []; foreach ($_listed as $_az) foreach ($_az['depts'] as $_d) $_depts[] = $_d;
+    // Villes prises à tour de rôle dans chaque zone : Dijon, Besançon et Dole d'abord.
+    $_villes = [];
+    for ($_i = 0; $_i < 5; $_i++) foreach ($_listed as $_az) if (isset($_az['cities'][$_i]) && !in_array($_az['cities'][$_i], $_villes, true)) $_villes[] = $_az['cities'][$_i];
+    usort($_villes, static fn($a, $b) => (int)!in_array($a, ['Dijon', 'Besançon', 'Dole'], true) <=> (int)!in_array($b, ['Dijon', 'Besançon', 'Dole'], true));
+    unset($_i); ?>
+    <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em>en <?= e($_reg) ?></em></h2>
+    <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead', 'Nous intervenons {en_region}.'), 'Nous intervenons {en_region}.')).' '.intervention_terms_text()) ?></p>
+    <div class="zones-grid zones-grid--one">
+      <div class="zone-card zone-card--map">
+        <?= render_zone_map() ?>
+        <a href="<?= e(route_url('zones')) ?>" class="zone-card-txt" style="text-decoration:none;color:inherit;">
+          <div class="zone-name"><?= e($_reg) ?></div>
+          <?php if ($_depts): ?><p class="zone-text"><?= e(implode(' · ', array_values(array_unique($_depts)))) ?></p><?php endif; ?>
+          <?php if ($_villes): ?>
+          <div class="zone-chips" style="margin-top:.5rem;">
+            <?php foreach ($_villes as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
+          </div>
+          <?php endif; ?>
+        </a>
+      </div>
+    </div>
+    <?php unset($_reg, $_listed, $_depts, $_villes, $_az, $_d, $_c); ?>
+    <?php endif; ?>
+    <?php if (!$currentZone): ?>
+    <div class="px-chips" style="justify-content:center;margin-top:1.5rem;">
+      <?php foreach (array_keys(city_pages()) as $_cs): $_cp = city_page($_cs); ?><a class="px-chip" href="<?= e($_cp['url']) ?>">📍 <?= e($_cp['nom']) ?></a><?php endforeach; unset($_cs, $_cp); ?>
+    </div>
+    <?php endif; ?>
+    <div style="text-align:center;margin-top:2.5rem;">
+      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>
+    </div>
+  </div>
+</section>
+
 <?= render_assurance_block() ?>
 
 <!-- STATS -->
@@ -467,62 +523,6 @@ if ($route === '' || $route === 'home') {
       <div class="hero-card-tag"><?= e(setting('qs_form_label','Votre demande')) ?></div>
       <h2 style="font-family:var(--font-h);font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:1.35rem;"><?= e(setting('qs_form_title','Décrivez votre besoin')) ?></h2>
       <?php render_quote_form($cards, 'home_section'); ?>
-    </div>
-  </div>
-</section>
-
-<!-- ZONES -->
-<section class="zones-section">
-  <div class="wrap">
-    <div class="svc-label"><?= e(setting('zones_label','Zone d\'intervention')) ?></div>
-    <?php if ($currentZone): ?>
-    <h2 class="section-title">Villes couvertes <em>en <?= e($currentZone['name']) ?></em></h2>
-    <p class="section-lead">Nos techniciens interviennent dans les villes de la zone <?= e($currentZone['name']) ?>. <?= e(intervention_terms_text()) ?></p>
-    <div class="zones-grid">
-      <div class="zone-card">
-        <div class="zone-name"><?= e($currentZone['name']) ?></div>
-        <div class="zone-chips">
-          <?php foreach (zone_cities($currentZone) as $_zc): ?><span class="zone-chip"><?= e($_zc) ?></span><?php endforeach; ?>
-        </div>
-      </div>
-    </div>
-    <?php else: ?>
-    <?php
-    // Accueil du site global : une seule carte régionale (choix du propriétaire, 10/11/2026) qui
-    // regroupe les départements desservis ; les pages /jura/, /doubs/, /cote-d-or/ restent en ligne.
-    $_reg = trim(setting('home_zone_region', 'Bourgogne-Franche-Comté'));
-    $_listed = intervention_zones_listed();
-    $_depts = []; foreach ($_listed as $_az) foreach ($_az['depts'] as $_d) $_depts[] = $_d;
-    // Villes prises à tour de rôle dans chaque zone : Dijon, Besançon et Dole d'abord.
-    $_villes = [];
-    for ($_i = 0; $_i < 5; $_i++) foreach ($_listed as $_az) if (isset($_az['cities'][$_i]) && !in_array($_az['cities'][$_i], $_villes, true)) $_villes[] = $_az['cities'][$_i];
-    usort($_villes, static fn($a, $b) => (int)!in_array($a, ['Dijon', 'Besançon', 'Dole'], true) <=> (int)!in_array($b, ['Dijon', 'Besançon', 'Dole'], true));
-    unset($_i); ?>
-    <h2 class="section-title"><?= e(claim_clean(setting('zones_title','Nos zones d\'intervention'), 'Nos zones d\'intervention')) ?> <em>en <?= e($_reg) ?></em></h2>
-    <p class="section-lead"><?= e(geo_replace(claim_clean(setting('zones_lead', 'Nous intervenons {en_region}.'), 'Nous intervenons {en_region}.')).' '.intervention_terms_text()) ?></p>
-    <div class="zones-grid zones-grid--one">
-      <div class="zone-card zone-card--map">
-        <?= render_zone_map() ?>
-        <a href="<?= e(route_url('zones')) ?>" class="zone-card-txt" style="text-decoration:none;color:inherit;">
-          <div class="zone-name"><?= e($_reg) ?></div>
-          <?php if ($_depts): ?><p class="zone-text"><?= e(implode(' · ', array_values(array_unique($_depts)))) ?></p><?php endif; ?>
-          <?php if ($_villes): ?>
-          <div class="zone-chips" style="margin-top:.5rem;">
-            <?php foreach ($_villes as $_c): ?><span class="zone-chip"><?= e($_c) ?></span><?php endforeach; ?>
-          </div>
-          <?php endif; ?>
-        </a>
-      </div>
-    </div>
-    <?php unset($_reg, $_listed, $_depts, $_villes, $_az, $_d, $_c); ?>
-    <?php endif; ?>
-    <?php if (!$currentZone): ?>
-    <div class="px-chips" style="justify-content:center;margin-top:1.5rem;">
-      <?php foreach (array_keys(city_pages()) as $_cs): $_cp = city_page($_cs); ?><a class="px-chip" href="<?= e($_cp['url']) ?>">📍 <?= e($_cp['nom']) ?></a><?php endforeach; unset($_cs, $_cp); ?>
-    </div>
-    <?php endif; ?>
-    <div style="text-align:center;margin-top:2.5rem;">
-      <a class="btn btn-p" href="<?= e(route_url('contact')) ?>"><?= e(setting('zones_btn','Demander une intervention')) ?> →</a>
     </div>
   </div>
 </section>
