@@ -123,6 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['form_type'] ?? '') === 'qu
     $qData=['full_name'=>$fn,'phone'=>$ph,'email'=>$em,'city'=>$ci,'address'=>$ad,'postal_code'=>$pc,'service_type'=>$sv,'message'=>$mg,'urgency'=>$ur,'source'=>$so,
             'quote_id'=>$qId,'request_type'=>$qType,'photos'=>$qPhotos['files'],'photos_refused'=>$qPhotos['refused'],'slot_label'=>$bLabel];
     send_quote_notification($qData);
+    google_contacts_queue((int)$qId);   // contact Google créé après l'envoi de la page (si activé)
     if (trim($em) !== '') send_quote_confirmation_to_client($qData);
     quote_after_submit_messages($qData);
     partial_delete((string)($_POST['partial_token'] ?? ''));

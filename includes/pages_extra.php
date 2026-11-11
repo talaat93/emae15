@@ -307,6 +307,7 @@ function render_page_suite_appel(): void
         if (!rate_limit_passed('suite_appel', 8)) { flash('error', 'Merci de patienter quelques secondes.'); redirect_to($self); }
         $res = agent_followup_submit(['t' => $link ? $token : ''] + $_POST, $_FILES);
         if ($res['ok']) {
+            google_contacts_queue((int)$res['quote_id']);
             $_SESSION['suite_appel_ok'] = 1;
             flash('success', 'Merci, vos informations sont bien arrivées. Nous préparons votre intervention et revenons vers vous rapidement.');
             if (!empty($res['refused'])) flash('error', 'Certaines photos n\'ont pas pu être jointes (JPG, PNG ou WebP, '.QUOTE_PHOTO_MAX_MB.' Mo maximum). Le reste est bien parti.');

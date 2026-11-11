@@ -31,6 +31,7 @@ require_once __DIR__ . '/client360.php';
 require_once __DIR__ . '/finance.php';
 require_once __DIR__ . '/growth.php';
 require_once __DIR__ . '/google_api.php';
+require_once __DIR__ . '/google_contacts.php';
 require_once __DIR__ . '/coherence.php';
 require_once __DIR__ . '/city_pages.php';
 require_once __DIR__ . '/city_trade_pages.php';
@@ -1014,6 +1015,15 @@ if (!file_exists($_mf46)) {
     unset($_me, $_r, $_m);
 }
 unset($_mf46);
+// Auto-migration v15.47 (11/11/2026) : suivi de la création des contacts Google (includes/google_contacts.php).
+$_mf47 = __DIR__.'/../storage/.mig_v15_google_contacts';
+if (!file_exists($_mf47)) {
+    @file_put_contents($_mf47, date('c'));
+    try { db_execute('ALTER TABLE quotes ADD COLUMN google_contact VARCHAR(120) NULL'); } catch (Throwable $_me) {}
+    try { db_execute('CREATE INDEX idx_quotes_google_contact ON quotes (google_contact)'); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf47);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

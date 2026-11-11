@@ -56,6 +56,7 @@ function automations_run(string $origin = 'page', bool $force = false): array
         'photos'    => 'automation_purge_photos',
         'menage'    => 'automation_housekeeping',
         'google'    => 'automation_google_daily',
+        'contacts'  => 'google_contacts_process',  // contacts Google des demandes (reprise des échecs)
         'images'    => 'automation_images',
         'agent'     => 'agent_run',          // agent relation client (désactivé tant qu'il n'est pas mis en marche)
     ] as $name => $fn) {

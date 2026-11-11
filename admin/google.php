@@ -46,6 +46,13 @@ $src     = growth_get('google_reviews_source');
 $upd     = growth_get('google_reviews_updated_at');
 $err     = growth_get('google_reviews_error');
 $cronAt  = growth_get('google_cron_seen_at');
+$ct = ['pending' => 0, 'ok' => 0, 'err' => 0];
+try {
+    foreach (db_fetch_all("SELECT google_contact AS g, COUNT(*) AS n FROM quotes WHERE google_contact IS NOT NULL GROUP BY google_contact") as $_r) {
+        $k = $_r['g'] === 'pending' ? 'pending' : (str_starts_with((string)$_r['g'], 'people/') ? 'ok' : 'err');
+        $ct[$k] += (int)$_r['n'];
+    }
+} catch (Throwable $e) {}
 $ok = static fn(bool $b): string => $b ? '<b style="color:#15803d;">✔ oui</b>' : '<b style="color:#b45309;">✘ non</b>';
 ?>
 <div class="admin-page-toolbar"><h1>🔗 Google : avis et contacts</h1></div>
@@ -128,6 +135,20 @@ $ok = static fn(bool $b): string => $b ? '<b style="color:#15803d;">✔ oui</b>'
       <?php endforeach; ?>
     </tbody></table>
     <?php endif; ?>
+  </div>
+</section>
+<section class="admin-panel">
+  <div class="admin-panel__head"><h2>5. Google Contacts</h2>
+    <p>Chaque demande reçue par le site (rappel, devis, rendez-vous, suite d'appel) crée un contact dans le carnet Google du compte connecté : nom, téléphone, e-mail, adresse, et une note avec la prestation et la date. Si le client existe déjà (même téléphone ou même e-mail), la demande est ajoutée à la note de sa fiche : pas de doublon.</p>
+    <p style="font-size:.85rem;color:#b45309;">Pensez à l'indiquer dans votre politique de confidentialité : les coordonnées des clients sont aussi enregistrées dans Google Contacts (Google Ireland, sous-traitant).</p></div>
+  <div class="admin-panel__body">
+    <form method="post"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="act" value="contacts">
+      <label class="check-row"><input type="checkbox" name="google_contacts_enabled" value="1" <?= growth_get('google_contacts_enabled') === '1' ? 'checked' : '' ?><?= google_oauth_connected() ? '' : ' disabled' ?>> Créer automatiquement un contact Google pour chaque nouvelle demande</label>
+      <?php if (!google_oauth_connected()): ?><p style="color:#b45309;font-size:.85rem;">Connectez d'abord le compte Google (étape 2).</p><?php endif; ?>
+      <button class="admin-btn admin-btn--primary" type="submit"<?= google_oauth_connected() ? '' : ' disabled' ?>>Enregistrer</button>
+    </form>
+    <p style="font-size:.85rem;margin-top:.75rem;">Contacts créés ou mis à jour : <strong><?= (int)$ct['ok'] ?></strong> · en attente : <strong><?= (int)$ct['pending'] ?></strong> · en échec : <strong><?= (int)$ct['err'] ?></strong><?= $ct['err'] ? ' (détail dans le journal des intégrations ; 3 essais automatiques)' : '' ?></p>
+    <p style="font-size:.82rem;color:#555;">Seules les demandes reçues après l'activation sont envoyées.</p>
   </div>
 </section>
 <?php require __DIR__ . '/partials/footer.php'; ?>
