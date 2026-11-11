@@ -93,7 +93,7 @@ echo "\n8. Quels formulaires sont des rappels\n";
 $src = (string)file_get_contents($R.'/index.php');
 check('encart de l\'accueil', str_contains($src, "render_quote_form(\$cards, 'hero', 'rappel')"), true);
 check('encart des pages métier', str_contains($src, "render_quote_form(\$cards, 'service_'.\$sk, 'rappel')"), true);
-check('page devis', str_contains($src, "render_quote_form(\$cards,'quote_page')"), true);
+check('page devis', str_contains($src, "render_quote_form(\$cards, 'quote_page', 'devis'"), true);
 
 echo "\n9. Photos avant / après d'une réalisation\n";
 $media = static function (array $r): string { ob_start(); render_realisation_media($r); return (string)ob_get_clean(); };

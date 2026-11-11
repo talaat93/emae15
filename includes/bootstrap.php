@@ -967,6 +967,35 @@ if (!file_exists($_mf44)) {
     unset($_me, $_lot, $_k, $_v, $_r);
 }
 unset($_mf44);
+// Auto-migration v15.45 (11/11/2026) : fourchette « Entretien annuel de chaudière » donnée par le
+// propriétaire (109 € à 239 € TTC). Seulement si la ligne est vide : un prix saisi dans l'admin reste.
+$_mf45 = __DIR__.'/../storage/.mig_v15_entretien_chaudiere';
+if (!file_exists($_mf45)) {
+    @file_put_contents($_mf45, date('c'));
+    try {
+        $_r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', ['tarifs_chauffage']);
+        $_rows = $_r ? json_decode((string)$_r['setting_value'], true) : null;
+        if (is_array($_rows) && $_rows !== []) {
+            $_chg = false;
+            foreach ($_rows as $_i => $_row) {
+                $_row = array_pad(array_values((array)$_row), 3, '');
+                if (text_ascii_lower(trim((string)$_row[0])) === 'entretien annuel de chaudiere' && trim((string)$_row[1]) === '') {
+                    $_rows[$_i] = [$_row[0], '109 € à 239 € TTC', trim((string)$_row[2]) !== '' ? $_row[2] : ENTRETIEN_CHAUDIERE_PRECISION];
+                    $_chg = true;
+                }
+            }
+            if ($_chg) {
+                geo_sauvegarde_table();
+                $_lot = 'proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+                geo_sauvegarder($_lot, 'setting:tarifs_chauffage', (string)$_r['setting_value']);
+                geo_ecrire_brut('tarifs_chauffage', json_encode(array_values($_rows), JSON_UNESCAPED_UNICODE));
+            }
+        }
+        // Sans grille enregistrée, les lignes par défaut (tarifs_default_rows) portent déjà la fourchette.
+    } catch (Throwable $_me) { error_log('Migration v15.45 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_r, $_rows, $_chg, $_i, $_row);
+}
+unset($_mf45);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

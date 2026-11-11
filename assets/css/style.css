@@ -1612,3 +1612,12 @@ h3.step-h{margin:0;font-size:inherit;}
   .tband{padding:1.35rem 0;}
   .tband-list{display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem 1.5rem;}
 }
+
+/* ─── ENCART « PRIX + PRENDRE RDV ENTRETIEN » (pages chauffage) ─── */
+.rdv-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 1.5rem;margin-top:1.75rem;padding:1.1rem 1.25rem;background:#16243F;border:1px solid rgba(192,148,43,.45);border-radius:var(--r3);}
+.rdv-cta-txt{display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1 1 260px;}
+.rdv-cta-l{color:#b9c3dc;font-size:.82rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
+.rdv-cta-p{color:#C0942B;font-family:var(--font-h);font-size:1.45rem;font-weight:800;line-height:1.15;}
+.rdv-cta-n{color:#b9c3dc;font-size:.8rem;line-height:1.4;}
+.rdv-cta-btn{flex:0 0 auto;display:inline-flex;align-items:center;gap:.5rem;}
+@media(max-width:560px){.rdv-cta-btn{width:100%;justify-content:center;}}

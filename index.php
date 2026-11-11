@@ -1095,7 +1095,10 @@ if ($route === 'quote') {
   <div class="qs-card">
     <div class="hero-card-tag">📋 Formulaire de devis</div>
     <h2 style="font-family:var(--font-h);font-size:1.5rem;font-weight:800;color:#fff;margin-bottom:1.35rem;"><?= e(setting('quote_form_title','Décrivez votre besoin')) ?></h2>
-    <?php render_quote_form($cards,'quote_page'); ?>
+    <?php
+    // Bouton « Prendre RDV entretien » quand la page Rendez-vous est fermée : prestation pré-remplie.
+    $_rp = rdv_prestations()[(string)($_GET['prestation'] ?? '')] ?? null;
+    render_quote_form($cards, 'quote_page', 'devis', $_rp ? ['trade' => $_rp['trade'], 'message' => $_rp['label']] : []); unset($_rp); ?>
   </div>
 </div></section>
 <?php render_footer(); exit; }
@@ -1412,6 +1415,7 @@ if ($tpl !== null || $page) {
     </div>
     <?php endif; ?>
   </div>
+  <?php if ($sk === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
 </div></section>
 
 <?php $_signs = array_values(array_filter(array_map(static fn($s) => trim(is_array($s) ? (string)($s['v'] ?? reset($s)) : (string)$s), (array)$tpl['signs']), 'strlen')); if ($_signs): ?>

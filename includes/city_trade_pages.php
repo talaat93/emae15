@@ -176,6 +176,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <ul class="ct-prix">
     <?php foreach ($prix as [$l, $p]): ?><li><span><?= e($l) ?></span><strong><?= e($p) ?></strong></li><?php endforeach; ?>
   </ul>
+  <?php if ($trade === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
   <p class="section-lead" style="margin-top:1rem;font-size:.92rem;">Main-d'œuvre comptée à la demi-heure. Pièces et travaux : devis gratuit et écrit, rien n'est fait sans votre accord. <a href="<?= e(route_url('tarifs')) ?>">Détail des tarifs →</a></p>
 </div></section>
 <?php endif; ?>

@@ -707,6 +707,8 @@ function tarifs_default_rows(): array
         'automatisme'   => ['Dépannage de volet roulant','Motorisation de volet ou de store','Dépannage d\'électroménager'],
     ];
     $out = array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
+    // Fourchette donnée par le propriétaire (11/11/2026).
+    $out['chauffage'][1] = ['Entretien annuel de chaudière', '109 € à 239 € TTC', ENTRETIEN_CHAUDIERE_PRECISION];
     $out['base'] = [
         ['Déplacement — intervention programmée, du lundi au samedi', '52,80 € TTC', '44 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Déplacement — urgence, du lundi au samedi', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
@@ -721,6 +723,51 @@ function tarifs_default_rows(): array
         ['Pièces et travaux', 'Sur devis gratuit', 'Devis écrit remis avant les travaux.'],
     ];
     return $out;
+}
+
+const ENTRETIEN_CHAUDIERE_PRECISION = 'Selon l\'appareil (gaz, fioul, condensation…) et son accès. Le prix exact vous est annoncé avant le rendez-vous.';
+
+/**
+ * Prestations qu'un bouton « Prendre RDV » peut présélectionner : clé d'adresse →
+ * [libellé de la ligne Tarifs, métier, mot cherché dans les motifs de la page Rendez-vous].
+ */
+function rdv_prestations(): array
+{
+    return ['entretien-chaudiere' => ['label' => 'Entretien annuel de chaudière', 'trade' => 'chauffage', 'motif' => 'chaudiere']];
+}
+
+/** Prix d'une ligne de la page Tarifs ('' si la ligne est vide ou la page Tarifs non publiée). */
+function tarif_price(string $trade, string $label): string
+{
+    if (!tarifs_enabled()) return '';
+    $rows = json_decode(setting_plain('tarifs_'.$trade), true);
+    if (!is_array($rows) || $rows === []) $rows = tarifs_default_rows()[$trade] ?? [];
+    $want = text_ascii_lower($label);
+    foreach ($rows as $r) {
+        [$l, $p] = array_pad(array_values((array)$r), 2, '');
+        if (text_ascii_lower(trim((string)$l)) === $want) return trim((string)$p);
+    }
+    return '';
+}
+
+/** Adresse du bouton : page Rendez-vous si elle est ouverte, sinon formulaire de devis, prestation choisie. */
+function rdv_prestation_url(string $key): string
+{
+    return booking_enabled()
+        ? url_with_query(route_url('rendez-vous'), ['prestation' => $key])
+        : url_with_query(route_url('quote'), ['prestation' => $key]);
+}
+
+/** Encart « prix + Prendre RDV entretien » (pages chauffage). Le prix suit la page Tarifs. */
+function render_rdv_prestation_cta(string $key = 'entretien-chaudiere'): string
+{
+    $p = rdv_prestations()[$key] ?? null;
+    if ($p === null) return '';
+    $prix = tarif_price($p['trade'], $p['label']);
+    return '<div class="rdv-cta"><div class="rdv-cta-txt"><span class="rdv-cta-l">'.e($p['label']).'</span>'
+         . '<strong class="rdv-cta-p">'.e($prix !== '' ? $prix : setting('tarifs_quote_label', 'Sur devis')).'</strong>'
+         . ($prix !== '' ? '<span class="rdv-cta-n">'.e(ENTRETIEN_CHAUDIERE_PRECISION).'</span>' : '').'</div>'
+         . '<a class="btn btn-p rdv-cta-btn" href="'.e(rdv_prestation_url($key)).'">'.icon_svg('calendar').' Prendre RDV entretien</a></div>';
 }
 
 /** Grilles à afficher, une par métier, avec les lignes propres à la zone si elle en a. */

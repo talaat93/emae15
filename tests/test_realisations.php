@@ -45,7 +45,8 @@ echo "\n3. Une grille de prix par métier du site, sans prix inventé\n";
 check('mêmes métiers que le site (plus la grille de base)', array_values(array_diff(array_keys(tarifs_default_rows()), ['base'])), array_keys(service_trade_defaults()));
 $prix = [];
 foreach (tarifs_default_rows() as $_t => $rows) if ($_t !== 'base') foreach ($rows as $r) if ($r[1] !== '') $prix[] = $r[0];
-check('aucun prix prérempli par métier (seule la grille de base reprend Pennylane)', $prix, []);
+// Seule exception : la fourchette donnée par le propriétaire (11/11/2026).
+check('aucun prix prérempli par métier (sauf ceux donnés par le propriétaire)', $prix, ['Entretien annuel de chaudière']);
 check('grille de base : prix TTC repris de Pennylane', tarifs_default_rows()['base'][0][1], '52,80 € TTC');
 
 echo "\n4. La page publique ne montre que les chantiers visibles\n";

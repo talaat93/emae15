@@ -230,7 +230,10 @@ function render_page_rdv(): void
     </div>
     <h2 class="px-form-title" style="margin-top:1.5rem;">2. Votre demande</h2>
     <div class="f-field"><span class="f-label">Motif *</span><select class="f-input" name="booking_reason" required>
-      <?php foreach (cp_lines('rdv_reasons', $d['rdv_reasons']) as $r): ?><option><?= e($r) ?></option><?php endforeach; ?>
+      <?php // Arrivée par un bouton « Prendre RDV entretien » : le motif correspondant est déjà choisi.
+      $_motif = (string)(rdv_prestations()[(string)($_GET['prestation'] ?? '')]['motif'] ?? ''); $_pris = false;
+      foreach (cp_lines('rdv_reasons', $d['rdv_reasons']) as $r):
+          $_sel = !$_pris && $_motif !== '' && str_contains(text_ascii_lower($r), $_motif); $_pris = $_pris || $_sel; ?><option<?= $_sel ? ' selected' : '' ?>><?= e($r) ?></option><?php endforeach; unset($_motif, $_pris, $_sel); ?>
     </select></div>
     <div class="f-row">
       <div class="f-field"><span class="f-label">Nom complet *</span><input class="f-input" type="text" name="full_name" required></div>
