@@ -519,6 +519,9 @@ function claim_unsupported(string $t): bool
         '/\b\d[.,]\d\s*(\/\s*5|sur\s*5|★|étoiles?)/iu',                         // 4,6/5
         '/\bavis\s+(clients?\s+)?v[ée]rifi/iu',                                   // « avis vérifiés »
         '/\b\d{3,}\s*\+|\bplus de\s+\d{2,}\s*(interventions|clients|avis|chantiers)/iu', // 1000+, plus de 120 avis
+        '/\+\s*(de\s+)?\d{2,}[\s\d]*(techniciens?|interventions?|clients?|avis|chantiers?|artisans?)/iu', // + de 20 techniciens, +1500 interventions
+        '/\b\d{2,}[\s\d]*(interventions?|chantiers?)\s*\/\s*an\b/iu',             // 1500 interventions / an
+        '/\b(plus de|une [ée]quipe de)\s+\d{2,}\s*(techniciens?|artisans?)/iu',     // plus de 20 techniciens
         '/(moins\s+d[\'’e ]\s*|sous\s+|en\s+|<\s*|inf[ée]rieur\s+[àa]\s+)(une?\s+|1\s*|2\s*|3\s*|\d+\s*)(h\b|heures?\b)/iu', // délai d'arrivée en heures
         '/\b(certifi[ée]e?s?|RGE|Qualifelec|Qualibat|QualiPAC|Qualigaz)\b/u',
         '/\b(rappel|d[ée]lai|intervention|r[ée]ponse)[^.!?]{0,40}\bgaranti/iu',

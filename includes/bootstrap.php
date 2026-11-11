@@ -874,6 +874,64 @@ if (!file_exists($_mf41)) {
     unset($_me, $_lot, $_r, $_z);
 }
 unset($_mf41);
+// Auto-migration v15.42 (11/11/2026) : textes de l'accueil rendus locaux et vérifiables.
+// - haut de page et « Pourquoi nous choisir » réécrits (Dole, 21/39/25, prix avant déplacement) ;
+// - arguments chiffrés sans preuve retirés (« + de 20 techniciens », « +1500 interventions / an ») :
+//   le texte par défaut reprend la place ;
+// - doublon « 24/7 Disponibilités » remplacé par « 3 Départements » ; « Dôle » → « Dole » ;
+//   accents de « Dépannage » et « Réalisations ».
+// Valeurs d'avant sauvegardées dans geo_sauvegarde (lot « credibilite-… », geo_annuler()).
+$_mf42 = __DIR__.'/../storage/.mig_v15_credibilite';
+if (!file_exists($_mf42)) {
+    @file_put_contents($_mf42, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'credibilite-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+        $_get = static function (string $k): ?string { $r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', [$k]); return $r ? (string)$r['setting_value'] : null; };
+        $_set = static function (string $k, string $v) use ($_lot, $_get): void {
+            $old = $_get($k);
+            if ($old === $v) return;
+            geo_sauvegarder($_lot, 'setting:'.$k, $old);
+            geo_ecrire_brut($k, $v);
+        };
+        $_set('home_title', 'Électricien, plombier, chauffagiste');
+        $_set('home_title_hl', 'en Côte-d\'Or, Jura et Doubs');
+        $_set('home_lead', 'Dépannage et installation à Dole, Dijon, Besançon, Lons-le-Saunier et dans les villages autour. Nous partons de Dole : disponibilité, délai et prix du déplacement confirmés au téléphone avant de venir. Devis gratuit.');
+        $_why = json_decode((string)$_get('why_us_settings'), true);
+        $_why = is_array($_why) ? $_why : [];
+        $_why['title'] = 'Un dépanneur local, basé à Dole';
+        $_why['lead']  = 'Électricité, plomberie, chauffage, climatisation : un seul numéro pour Dole, Dijon, Besançon, Lons-le-Saunier et les villages autour. Avant de partir, nous vous disons ce que nous allons faire et combien coûte le déplacement.';
+        $_why['items'] = [
+            ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Basés à Dole',                   'text'=>'Nous partons de Dole vers le Jura, la Côte-d\'Or et le Doubs : de Beaune à Pontarlier, de Dijon à Lons-le-Saunier. Pour un village, appelez : nous vous disons tout de suite si nous venons.'],
+            ['icon_type'=>'emoji','icon'=>'📋','icon_img'=>'','title'=>'Le prix avant le déplacement',    'text'=>'Déplacement, diagnostic et taux horaire sont publiés sur notre page Tarifs. Pour les travaux, devis gratuit : rien n\'est fait sans votre accord.'],
+            ['icon_type'=>'emoji','icon'=>'📞','icon_img'=>'','title'=>'Une vraie personne au téléphone', 'text'=>'Vous décrivez la panne, nous posons les bonnes questions et confirmons disponibilité et délai avant de partir. Vous préférez être rappelé ? Laissez simplement votre numéro.'],
+            ['icon_type'=>'emoji','icon'=>'🔥','icon_img'=>'','title'=>'Chauffage et pompes à chaleur',   'text'=>'Les hivers sont longs dans le Jura et le Doubs : chaudières gaz et fioul, pompes à chaleur, radiateurs. Nous dépannons, entretenons et remplaçons, avec un devis clair.'],
+            ['icon_type'=>'emoji','icon'=>'🛠️','icon_img'=>'','title'=>'Une panne, plusieurs métiers',    'text'=>'Une fuite qui a touché le tableau électrique, une pompe à chaleur qui fait disjoncter : nous traitons l\'ensemble, sans vous renvoyer d\'un artisan à l\'autre.'],
+            ['icon_type'=>'emoji','icon'=>'🧾','icon_img'=>'','title'=>'Facture détaillée',               'text'=>'Déplacement, pièces et main-d\'œuvre (comptée à la demi-heure) détaillés sur la facture, remise en fin d\'intervention.'],
+        ];
+        $_set('why_us_settings', (string)json_encode($_why, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // Arguments chiffrés sans preuve et doublon 24/7 : réglage retiré, le texte par défaut reprend la place.
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key REGEXP '^(z:[^:]+:)?(trust_[1-4]_(title|sub)|stat_[1-4]_(number|label))$'") as $_r) {
+            $_k = (string)$_r['setting_key']; $_v = (string)$_r['setting_value'];
+            $_retirer = claim_unsupported($_v) || preg_match('/techniciens|interventions\s*\/\s*an/iu', $_v);
+            if (!$_retirer && preg_match('/stat_4_label$/', $_k) && preg_match('/disponibilit/iu', $_v)) {
+                $_retirer = true;
+                $_n = str_replace('label', 'number', $_k);
+                if (($_nv = $_get($_n)) !== null) { geo_sauvegarder($_lot, 'setting:'.$_n, $_nv); geo_ecrire_brut($_n, ''); }
+            }
+            if ($_retirer) { geo_sauvegarder($_lot, 'setting:'.$_k, $_v); geo_ecrire_brut($_k, ''); }
+        }
+        // Orthographe : « Dôle » (la ville s'écrit Dole), accents manquants.
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_value LIKE '%Dôle%' OR setting_value LIKE '%Depannage%' OR setting_value = 'Realisations'") as $_r) {
+            $_v = (string)$_r['setting_value'];
+            $_nv = $_v === 'Realisations' ? 'Réalisations' : str_replace(['Dôle', 'Depannage'], ['Dole', 'Dépannage'], $_v);
+            if ($_nv !== $_v) { geo_sauvegarder($_lot, 'setting:'.$_r['setting_key'], $_v); geo_ecrire_brut((string)$_r['setting_key'], $_nv); }
+        }
+        settings_cache(true);
+    } catch (Throwable $_me) { error_log('Migration v15.42 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_get, $_set, $_why, $_r, $_k, $_v, $_n, $_nv, $_retirer);
+}
+unset($_mf42);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

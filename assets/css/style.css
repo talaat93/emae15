@@ -1577,3 +1577,15 @@ h3.step-h{margin:0;font-size:inherit;}
 .zmap-city:hover circle,.zmap-city:focus-visible circle{fill:var(--p);}
 .zmap-clab{font:600 11px var(--font-b);fill:var(--navy);paint-order:stroke;stroke:#fff;stroke-width:3px;stroke-linejoin:round;}
 .zmap figcaption{margin-top:.4rem;text-align:center;font-size:.82rem;color:#455a7a;}
+
+/* ── Bloc « Nos assurances et engagements » (accueil) ── */
+.assur-grid{display:grid;gap:1rem;margin-top:1.75rem;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));}
+.assur-card{background:var(--card);border:1px solid rgba(255,255,255,.1);border-radius:var(--r3);padding:1.5rem;color:var(--t1);}
+.assur-ico{font-size:1.6rem;line-height:1;margin-bottom:.6rem;}
+.assur-card h3{margin:0 0 .6rem;font-family:var(--font-h);font-size:1.1rem;color:#fff;}
+.assur-card ul{margin:0;padding-left:1.1rem;line-height:1.6;}
+.assur-card li{margin:.2rem 0;}
+.assur-card p{margin:.4rem 0 0;color:var(--t2);line-height:1.55;}
+.assur-card .assur-small{font-size:.82rem;}
+.assur-link{display:inline-block;margin-top:.9rem;color:var(--p);font-weight:700;text-decoration:none;}
+.assur-link:hover,.assur-link:focus-visible{text-decoration:underline;}

@@ -333,6 +333,8 @@ if ($route === '' || $route === 'home') {
   </div>
 </section>
 
+<?= render_assurance_block() ?>
+
 <!-- STATS -->
 <?php $_stats = array_values(array_filter($banner['stats'], static fn(array $s): bool => trim((string)$s['number']) !== '' && !claim_unsupported($s['number'].' '.$s['label']) && !preg_match('/\d\s*\+|<|\d[.,]\d|note|interventions\s*\/\s*an/iu', $s['number'].' '.$s['label']))); if ($_stats): ?>
 <div class="stats-band">

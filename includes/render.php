@@ -460,6 +460,46 @@ function render_trust_badges(string $trade = ''): string
     return $out;
 }
 
+/**
+ * Bloc « Nos assurances et engagements » (accueil). Tout vient des mentions légales réglées
+ * dans l'admin (legal_info) : la carte Assurance disparaît d'elle-même à la fin de validité
+ * de l'attestation, et les activités affichées sont celles de l'attestation, pas plus.
+ */
+function render_assurance_block(): string
+{
+    $L = legal_info();
+    $ass = trim($L['assurance']);
+    $valide = $ass !== '' && ($L['assurance_fin'] === '' || date('Y-m-d') <= $L['assurance_fin']);
+    $low = mb_strtolower($ass, 'UTF-8');
+    $types = array_values(array_filter([
+        preg_match('/responsabilit[ée] civile|\brc\s*pro/u', $low) ? 'Responsabilité civile professionnelle' : '',
+        preg_match('/d[ée]cennale/u', $low) ? 'Garantie décennale' : '',
+    ]));
+    $engagements = [
+        'Prix du déplacement et du diagnostic annoncé avant de partir',
+        'Devis gratuit et écrit avant tous travaux : rien n\'est fait sans votre accord',
+        'Main-d\'œuvre comptée à la demi-heure, pas à l\'heure entamée',
+        'Facture détaillée (déplacement, pièces, main-d\'œuvre) remise en fin d\'intervention',
+    ];
+    $id = array_filter([$L['denomination'], $L['forme'], $L['siren'] !== '' ? 'SIREN '.$L['siren'] : '', $L['rcs']]);
+    $o = '<section class="sec sec-navy assur-sec"><div class="wrap">'
+       . '<div class="svc-label">Transparence</div><h2 class="section-title">Nos assurances et <em>engagements</em></h2>'
+       . '<div class="assur-grid">';
+    if ($valide && $types) {
+        $o .= '<div class="assur-card"><div class="assur-ico" aria-hidden="true">🛡️</div><h3>Assurés pour nos travaux</h3><ul>';
+        foreach ($types as $t) $o .= '<li>'.e($t).'</li>';
+        $o .= '</ul><p class="assur-small">'.e($ass).'</p><p class="assur-small">Attestation envoyée sur simple demande.</p></div>';
+    }
+    $o .= '<div class="assur-card"><div class="assur-ico" aria-hidden="true">📋</div><h3>Nos engagements</h3><ul>';
+    foreach ($engagements as $t) $o .= '<li>'.e($t).'</li>';
+    $o .= '</ul>'.(tarifs_enabled() ? '<a class="assur-link" href="'.e(route_url('tarifs')).'">Voir nos tarifs →</a>' : '').'</div>';
+    $o .= '<div class="assur-card"><div class="assur-ico" aria-hidden="true">🏢</div><h3>Qui intervient</h3>'
+        . '<p>'.e(implode(' · ', $id)).'</p>'
+        . ($L['base'] !== '' ? '<p>Base d\'intervention : '.e($L['base']).'</p>' : '')
+        . '<a class="assur-link" href="'.e(route_url('mentions-legales')).'">Mentions légales →</a></div>';
+    return $o.'</div></div></section>';
+}
+
 /* ── FORMULAIRE RÉUTILISABLE ── */
 /** Champ d'envoi de photos, commun à tous les formulaires de demande (voir assets/js/site.js). */
 function render_quote_photo_field(): void
