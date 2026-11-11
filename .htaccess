@@ -3,6 +3,10 @@ Options +FollowSymLinks
 
 RewriteEngine On
 
+# ── Fichiers de vérification Google Search Console : servis sans redirection,
+#    quelle que soit l'adresse déclarée (avec ou sans www, http ou https) ──
+RewriteRule ^google[0-9a-f]+\.html$ - [L]
+
 # ── Forcer HTTPS ──
 RewriteCond %{HTTPS} off
 RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
