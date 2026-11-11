@@ -770,6 +770,41 @@ function render_rdv_prestation_cta(string $key = 'entretien-chaudiere'): string
          . '<a class="btn btn-p rdv-cta-btn" href="'.e(rdv_prestation_url($key)).'">'.icon_svg('calendar').' Prendre RDV entretien</a></div>';
 }
 
+/** Ligne « 📍 Ville · date du chantier » d'une carte de réalisation ('' si ni l'une ni l'autre). */
+function realisation_meta(array $r): string
+{
+    $city = trim((string)($r['city'] ?? ''));
+    $date = date_tag($r['done_at'] ?? '', true, 'real-date');
+    if ($city === '' && $date === '') return '';
+    return '<div class="real-city">'.($city !== '' ? '📍 '.e($city) : '').($city !== '' && $date !== '' ? ' · ' : '').$date.'</div>';
+}
+
+/** Date saisie dans un champ <input type="date"> : 'AAAA-MM-JJ' valide, sinon null. */
+function date_input_value($raw): ?string
+{
+    $v = trim((string)$raw);
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) return null;
+    return $v;
+}
+
+/** « 12 mars 2026 » (ou « mars 2026 » avec $jour = false) ; '' si la date est vide ou invalide. */
+function date_fr($ymd, bool $jour = true): string
+{
+    $t = is_string($ymd) && trim($ymd) !== '' ? strtotime($ymd) : false;
+    if (!$t) return '';
+    $mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][(int)date('n', $t) - 1];
+    $j = (int)date('j', $t);
+    return ($jour ? $j.($j === 1 ? 'er' : '').' ' : '').$mois.' '.date('Y', $t);
+}
+
+/** Balise <time> avec la date en français ('' sans date). */
+function date_tag($ymd, bool $jour = true, string $class = ''): string
+{
+    $txt = date_fr($ymd, $jour);
+    if ($txt === '') return '';
+    return '<time datetime="'.e(date('Y-m-d', (int)strtotime((string)$ymd))).'"'.($class !== '' ? ' class="'.e($class).'"' : '').'>'.e($txt).'</time>';
+}
+
 /** Grilles à afficher, une par métier, avec les lignes propres à la zone si elle en a. */
 function tarifs_groups(): array
 {

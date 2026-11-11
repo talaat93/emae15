@@ -10,6 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $city    = trim((string)($_POST['city'] ?? ''));
     $source  = mb_substr(trim((string)($_POST['source_note'] ?? '')), 0, 190);
     $zid     = ((int)($_POST['zone_id'] ?? 0)) ?: null;
+    $rdate   = date_input_value($_POST['review_date'] ?? '');
     if (($_POST['action'] ?? '') === 'setzone') {
         db_execute('UPDATE reviews SET zone_id = ? WHERE id = ?', [$zid, (int)($_POST['id'] ?? 0)]);
         flash('success','Zone de l\'avis mise à jour.');
@@ -22,14 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error','Nom et texte obligatoires.');
             redirect_to('admin/reviews.php?edit='.$id);
         }
-        db_execute('UPDATE reviews SET author_name=?, rating=?, content=?, service_type=?, city=?, zone_id=?, source_note=? WHERE id=?',
-            [$author,$rating,$content,$service,$city,$zid,$source,$id]);
+        db_execute('UPDATE reviews SET author_name=?, rating=?, content=?, service_type=?, city=?, zone_id=?, source_note=?, review_date=? WHERE id=?',
+            [$author,$rating,$content,$service,$city,$zid,$source,$rdate,$id]);
         flash('success','Avis modifié.');
         redirect_to('admin/reviews.php');
     }
     if ($author !== '' && $content !== '') {
-        db_execute('INSERT INTO reviews (author_name,rating,content,service_type,city,is_visible,sort_order,zone_id,source_note) VALUES (?,?,?,?,?,1,?,?,?)',
-            [$author,$rating,$content,$service,$city,(int)time(),$zid,$source]);
+        db_execute('INSERT INTO reviews (author_name,rating,content,service_type,city,is_visible,sort_order,zone_id,source_note,review_date) VALUES (?,?,?,?,?,1,?,?,?,?)',
+            [$author,$rating,$content,$service,$city,(int)time(),$zid,$source,$rdate]);
         flash('success','Avis ajouté.');
     } else { flash('error','Nom et texte obligatoires.'); }
     redirect_to('admin/reviews.php');
@@ -56,7 +57,8 @@ $editService = (string)($edit['service_type'] ?? '');
 <label class="admin-field"><span>Auteur *</span><input type="text" name="author_name" required value="<?= e((string)($edit['author_name'] ?? '')) ?>" placeholder="Nadia B."></label>
 <label class="admin-field"><span>Note /5</span><input type="number" name="rating" min="1" max="5" value="<?= (int)($edit['rating'] ?? 5) ?>"></label>
 <label class="admin-field"><span>Service</span><select name="service_type"><option value="">Général</option><?php foreach(array_unique(array_merge(service_type_options(), $editService !== '' ? [$editService] : [])) as $s): ?><option value="<?= e($s) ?>" <?= $s === $editService ? 'selected' : '' ?>><?= e($s) ?></option><?php endforeach; ?></select></label>
-<label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Paris, Meaux…"></label>
+<label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Dole, Dijon…"></label>
+<label class="admin-field"><span>Date de l'avis (affichée sur le site)</span><input type="date" name="review_date" max="<?= e(date('Y-m-d')) ?>" value="<?= e((string)($edit['review_date'] ?? '')) ?>"></label>
 <label class="admin-field" style="grid-column:1/-1"><span>Provenance (obligatoire pour la publication)</span><input type="text" name="source_note" maxlength="190" value="<?= e((string)($edit['source_note'] ?? '')) ?>" placeholder="Ex : avis Google du 12/03/2026 — ou — message reçu par SMS le 04/05/2026"></label>
 <label class="admin-field" style="grid-column:1/-1"><span>Zone d'affichage</span><?= zone_select_field('zone_id', $edit ? (int)($edit['zone_id'] ?? 0) : zone_ctx_id()) ?></label>
 <label class="admin-field" style="grid-column:1/-1"><span>Texte de l'avis *</span><textarea name="content" rows="4" required placeholder="Intervention rapide, très professionnel…"><?= e((string)($edit['content'] ?? '')) ?></textarea></label>
@@ -67,13 +69,14 @@ $editService = (string)($edit['service_type'] ?? '');
 </form></div></section>
 
 <section class="admin-panel"><div class="admin-panel__head"><h2>Liste des avis (<?= e((string)count($reviews)) ?>)</h2></div><div class="admin-panel__body admin-table-wrap">
-<table class="admin-table"><thead><tr><th>Auteur</th><th>Note</th><th>Service</th><th>Ville</th><th>Zone</th><th>Texte</th><th>Provenance</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
+<table class="admin-table"><thead><tr><th>Auteur</th><th>Note</th><th>Service</th><th>Ville</th><th>Date</th><th>Zone</th><th>Texte</th><th>Provenance</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
 <?php foreach($reviews as $r): ?>
 <tr>
 <td style="font-weight:700"><?= e($r['author_name']) ?></td>
 <td><?= str_repeat('★',(int)$r['rating']) ?></td>
 <td><?= e((string)($r['service_type']??'')) ?></td>
 <td><?= e((string)($r['city']??'')) ?></td>
+<td style="font-size:.82rem;white-space:nowrap;"><?= date_fr($r['review_date'] ?? '') !== '' ? e(date_fr($r['review_date'])) : '<span style="color:#b45309;">à saisir</span>' ?></td>
 <td><form method="post" style="margin:0;"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="setzone"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><?= zone_select_field('zone_id', (int)($r['zone_id'] ?? 0), 'onchange="this.form.submit()" style="font-size:.8rem;padding:.25rem;"') ?></form></td>
 <td style="max-width:260px;font-size:.88rem;color:#5b6b92;"><?= e(mb_substr($r['content'],0,80,'UTF-8')).(mb_strlen($r['content'],'UTF-8')>80?'…':'') ?></td>
 <td style="font-size:.82rem;"><?= trim((string)($r['source_note'] ?? '')) !== '' ? e((string)$r['source_note']) : '<span style="color:#b45309;font-weight:600;">⏳ à renseigner — non publié</span>' ?></td>

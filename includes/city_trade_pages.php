@@ -242,7 +242,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <div class="reals-grid" style="margin-top:1.75rem;">
     <?php foreach ($reals as $r): ?>
     <div class="real-card"><?php render_realisation_media($r); ?>
-      <div class="real-body"><h3 class="real-h"><?= e($r['title']) ?></h3><?php if (trim((string)($r['city'] ?? '')) !== ''): ?><div class="real-city">📍 <?= e($r['city']) ?></div><?php endif; ?></div>
+      <div class="real-body"><h3 class="real-h"><?= e($r['title']) ?></h3><?= realisation_meta($r) ?></div>
     </div>
     <?php endforeach; ?>
   </div>

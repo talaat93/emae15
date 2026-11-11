@@ -422,7 +422,7 @@ if ($route === '' || $route === 'home') {
         <div class="real-body">
           <?php if (trim((string)($r['service_type']??''))!==''): ?><div class="real-svc"><?= e($r['service_type']) ?></div><?php endif; ?>
           <div class="real-h"><?= e($r['title']) ?></div>
-          <?php if (trim((string)($r['city']??''))!==''): ?><div class="real-city">📍 <?= e($r['city']) ?></div><?php endif; ?>
+          <?= realisation_meta($r) ?>
         </div>
       </div>
       <?php endforeach; ?>
@@ -466,6 +466,7 @@ if ($route === '' || $route === 'home') {
           <div class="rv-avatar"><?= e($init) ?></div>
           <div>
             <span class="rv-name"><?= e($rev['author_name']) ?></span>
+            <?= date_tag($rev['review_date'] ?? '', true, 'rv-date') ?>
             <?php if (trim((string)($rev['service_type']??''))!==''): ?>
             <span class="rv-svc"><?= e($rev['service_type']) ?><?php if(trim((string)($rev['city']??''))!==''): ?> — <?= e($rev['city']) ?><?php endif; ?></span>
             <?php endif; ?>
@@ -662,6 +663,7 @@ if ($route === 'avis') {
           <div class="rv-avatar"><?= mb_strtoupper(mb_substr($rv['author_name']??'?',0,1,'UTF-8'),'UTF-8') ?></div>
           <div>
             <div class="rv-name"><?= e($rv['author_name'] ?? '') ?></div>
+            <?= date_tag($rv['review_date'] ?? '', true, 'rv-date') ?>
             <?php if (trim($rv['service_type']??'') !== ''): ?>
             <div class="rv-svc"><?= e($rv['service_type']) ?></div>
             <?php endif; ?>
@@ -929,7 +931,7 @@ if ($route === 'landing') {
         <div class="real-body">
           <?php if (trim((string)($r['service_type']??''))!==''): ?><div class="real-svc"><?= e($r['service_type']) ?></div><?php endif; ?>
           <div class="real-h"><?= e($r['title']) ?></div>
-          <?php if (trim((string)($r['city']??''))!==''): ?><div class="real-city">📍 <?= e($r['city']) ?></div><?php endif; ?>
+          <?= realisation_meta($r) ?>
         </div>
       </div>
       <?php endforeach; ?>
@@ -1150,7 +1152,7 @@ if ($route === 'realisations') {
           <?php if(trim((string)($r['service_type']??''))!==''):?><div class="real-svc"><?=e($r['service_type'])?></div><?php endif;?>
           <div class="real-h"><?=e($r['title'])?></div>
           <?php if(trim((string)($r['description']??''))!==''):?><p style="font-size:.8rem;color:var(--t2);margin:.25rem 0 0;font-weight:300;"><?=e($r['description'])?></p><?php endif;?>
-          <?php if(trim((string)($r['city']??''))!==''):?><div class="real-city">📍 <?=e($r['city'])?></div><?php endif;?>
+          <?= realisation_meta($r) ?>
         </div>
       </div>
       <?php endforeach; ?>
@@ -1446,7 +1448,7 @@ if ($tpl !== null || $page) {
       <div class="real-body">
         <div class="real-h"><?=e($r['title'])?></div>
         <?php if(trim((string)($r['description']??''))!==''):?><p style="font-size:.8rem;color:var(--t2);margin:.25rem 0 0;font-weight:300;"><?=e($r['description'])?></p><?php endif;?>
-        <?php if(trim((string)($r['city']??''))!==''):?><div class="real-city">📍 <?=e($r['city'])?></div><?php endif;?>
+        <?= realisation_meta($r) ?>
       </div>
     </div>
     <?php endforeach; ?>

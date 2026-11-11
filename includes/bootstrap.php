@@ -996,6 +996,23 @@ if (!file_exists($_mf45)) {
     unset($_me, $_lot, $_r, $_rows, $_chg, $_i, $_row);
 }
 unset($_mf45);
+// Auto-migration v15.46 (11/11/2026) : date de l'avis et date du chantier, saisies dans l'admin.
+// Un avis dont la provenance donne une date (« avis Google du 12/03/2026 ») la reçoit d'office.
+$_mf46 = __DIR__.'/../storage/.mig_v15_dates';
+if (!file_exists($_mf46)) {
+    @file_put_contents($_mf46, date('c'));
+    try { db_execute('ALTER TABLE reviews ADD COLUMN review_date DATE NULL'); } catch (Throwable $_me) {}
+    try { db_execute('ALTER TABLE realisations ADD COLUMN done_at DATE NULL'); } catch (Throwable $_me) {}
+    try {
+        foreach (db_fetch_all("SELECT id, source_note FROM reviews WHERE review_date IS NULL AND COALESCE(source_note, '') <> ''") as $_r) {
+            if (preg_match('#\b(\d{1,2})/(\d{1,2})/(\d{4})\b#', (string)$_r['source_note'], $_m) && checkdate((int)$_m[2], (int)$_m[1], (int)$_m[3])) {
+                db_execute('UPDATE reviews SET review_date = ? WHERE id = ?', [sprintf('%04d-%02d-%02d', $_m[3], $_m[2], $_m[1]), (int)$_r['id']]);
+            }
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.46 : '.$_me->getMessage()); }
+    unset($_me, $_r, $_m);
+}
+unset($_mf46);
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

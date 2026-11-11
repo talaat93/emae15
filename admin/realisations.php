@@ -12,10 +12,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $service     = trim((string)($_POST['service_type'] ?? ''));
         $city        = trim((string)($_POST['city']    ?? ''));
         $zid         = (int)($_POST['zone_id'] ?? 0) ?: null;
+        $doneAt      = date_input_value($_POST['done_at'] ?? '');
         if ($title !== '') {
             $image = upload_image_field('image', 'realisations');
-            db_execute('INSERT INTO realisations (title, description, service_type, city, image_path, is_visible, sort_order, zone_id) VALUES (?,?,?,?,?,1,?,?)',
-                [$title, $desc, $service, $city, $image ?? '', (int)time(), $zid]);
+            db_execute('INSERT INTO realisations (title, description, service_type, city, image_path, is_visible, sort_order, zone_id, done_at) VALUES (?,?,?,?,?,1,?,?,?)',
+                [$title, $desc, $service, $city, $image ?? '', (int)time(), $zid, $doneAt]);
             $newId  = db_last_id();
             $before = upload_image_field('before_image', 'realisations');
             if ($before !== null) db_execute('UPDATE realisations SET before_image_path = ? WHERE id = ?', [$before, $newId]);
@@ -38,12 +39,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('error', 'Le titre est obligatoire.');
             redirect_to('admin/realisations.php?edit='.$id);
         }
-        db_execute('UPDATE realisations SET title = ?, description = ?, service_type = ?, city = ?, zone_id = ? WHERE id = ?', [
+        db_execute('UPDATE realisations SET title = ?, description = ?, service_type = ?, city = ?, zone_id = ?, done_at = ? WHERE id = ?', [
             $title,
             trim((string)($_POST['description'] ?? '')),
             trim((string)($_POST['service_type'] ?? '')),
             trim((string)($_POST['city'] ?? '')),
             ((int)($_POST['zone_id'] ?? 0)) ?: null,
+            date_input_value($_POST['done_at'] ?? ''),
             $id,
         ]);
         $image = upload_image_field('image', 'realisations');
@@ -140,7 +142,8 @@ $editService = (string)($edit['service_type'] ?? '');
         <?php if ($edit): ?><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><?php endif; ?>
         <div class="admin-form-grid admin-form-grid--2">
           <label class="admin-field"><span>Titre *</span><input type="text" name="title" required value="<?= e((string)($edit['title'] ?? '')) ?>" placeholder="Ex : Remplacement tableau électrique Paris 15e"></label>
-          <label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Ex : Meaux, Paris, Toulouse"></label>
+          <label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Ex : Dole, Besançon, Beaune"></label>
+          <label class="admin-field"><span>Date du chantier (affichée sur le site)</span><input type="date" name="done_at" max="<?= e(date('Y-m-d')) ?>" value="<?= e((string)($edit['done_at'] ?? '')) ?>"></label>
         </div>
         <div class="admin-form-grid admin-form-grid--2">
           <label class="admin-field"><span>Type de service</span>
@@ -181,7 +184,7 @@ $editService = (string)($edit['service_type'] ?? '');
         <p style="color:#7b8aa8;padding:1rem 0;">Aucune réalisation pour le moment. Ajoutez vos premières photos de chantiers !</p>
       <?php else: ?>
         <table class="admin-table">
-          <thead><tr><th>Photo</th><th>Titre</th><th>Service</th><th>Ville</th><th>Zone</th><th>Visible</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Photo</th><th>Titre</th><th>Service</th><th>Ville</th><th>Date</th><th>Zone</th><th>Visible</th><th>Actions</th></tr></thead>
           <tbody>
             <?php foreach ($reals as $r): ?>
               <tr>
@@ -212,6 +215,7 @@ $editService = (string)($edit['service_type'] ?? '');
                   <?php if (realisation_trades($curService) === []): ?><small style="color:#b45309;display:block;margin-top:.2rem;">Sur aucune page métier</small><?php endif; ?>
                 </td>
                 <td><?= e((string)($r['city']??'')) ?></td>
+                <td style="font-size:.82rem;white-space:nowrap;"><?= date_fr($r['done_at'] ?? '') !== '' ? e(date_fr($r['done_at'])) : '<span style="color:#b45309;">à saisir</span>' ?></td>
                 <td>
                   <form method="post" style="margin:0;">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">

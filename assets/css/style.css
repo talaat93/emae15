@@ -1621,3 +1621,7 @@ h3.step-h{margin:0;font-size:inherit;}
 .rdv-cta-n{color:#b9c3dc;font-size:.8rem;line-height:1.4;}
 .rdv-cta-btn{flex:0 0 auto;display:inline-flex;align-items:center;gap:.5rem;}
 @media(max-width:560px){.rdv-cta-btn{width:100%;justify-content:center;}}
+
+/* Dates des avis et des réalisations */
+.rv-date{display:block;font-size:.72rem;color:var(--t2);margin-top:.1rem;}
+.real-date{white-space:nowrap;}

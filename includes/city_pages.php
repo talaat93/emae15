@@ -165,7 +165,7 @@ function render_city_page(array $c): void
       <div class="real-body">
         <?php if (trim((string)($r['service_type'] ?? '')) !== ''): ?><div class="real-svc"><?= e($r['service_type']) ?></div><?php endif; ?>
         <h3 class="real-h"><?= e($r['title']) ?></h3>
-        <?php if (trim((string)($r['city'] ?? '')) !== ''): ?><div class="real-city">📍 <?= e($r['city']) ?></div><?php endif; ?>
+        <?= realisation_meta($r) ?>
       </div>
     </div>
     <?php endforeach; ?>
