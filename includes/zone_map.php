@@ -58,32 +58,85 @@ function zone_map_dept_url(string $code, string $name): string
     return route_url('zones');
 }
 
-function render_zone_map(): string
+/** Position du nom de chaque ville par rapport à son point : [dx, dy, ancrage] (évite les chevauchements). */
+function zone_map_label_pos(string $slug): array
 {
-    $m = zone_map_data();
-    // Villes nommées sur la carte ; les autres ont un point avec infobulle (pas de chevauchement).
-    $nommees = ['dijon', 'beaune', 'dole', 'lons-le-saunier', 'besancon', 'pontarlier', 'montbeliard'];
-    $o = '<figure class="zmap"><svg viewBox="0 0 '.$m['w'].' '.$m['h'].'" role="img" aria-labelledby="zmap-t" xmlns="http://www.w3.org/2000/svg">'
-       . '<title id="zmap-t">Carte de nos zones d\'intervention : Côte-d\'Or (21), Jura (39) et Doubs (25)</title>';
-    foreach (zone_map_departements() as $code => [$name, $lx, $ly]) {
-        $code = (string)$code;   // PHP convertit la clé '21' en entier
-        if (!isset($m['deps'][$code])) continue;
+    return [
+        'dijon'       => [-7, 4, 'end'],
+        'quetigny'    => [6, -4, 'start'],
+        'auxonne'     => [-5, 13, 'end'],
+        'tavaux'      => [0, 14, 'middle'],
+        'saint-vit'   => [0, 14, 'middle'],
+        'montbeliard' => [-7, 4, 'end'],
+    ][$slug] ?? [7, 4, 'start'];
+}
+
+/** Rectangle englobant d'un tracé SVG (commandes M/L absolues de zone_map_data). */
+function zone_map_bbox(string $d): array
+{
+    preg_match_all('/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/', $d, $m);
+    $xs = array_map('floatval', $m[1]); $ys = array_map('floatval', $m[2]);
+    return [min($xs), min($ys), max($xs), max($ys)];
+}
+
+/**
+ * Carte des zones : un seul composant pour tout le site (SVG en ligne, sans appel extérieur).
+ * Options :
+ *  - 'depts'   : départements à montrer (['21','39','25'] par défaut) ; un seul = vue zoomée ;
+ *  - 'focus'   : ville mise en évidence (slug de city_pages) ;
+ *  - 'caption' : légende (null = légende par défaut, '' = aucune).
+ * Chaque département renvoie à sa page de zone, chaque ville à sa page /intervention/{ville}.
+ */
+function render_zone_map(array $opt = []): string
+{
+    static $n = 0; $n++;
+    $m     = zone_map_data();
+    $depts = array_values(array_intersect(array_map('strval', $opt['depts'] ?? ['21', '39', '25']), array_map('strval', array_keys($m['deps']))));
+    if ($depts === []) return '';
+    $focus = (string)($opt['focus'] ?? '');
+    // Cadrage : toute la carte, ou le département seul avec une marge.
+    if (count($depts) === 3) { $vb = [0, 0, (float)$m['w'], (float)$m['h']]; }
+    else {
+        $bb = [INF, INF, -INF, -INF];
+        foreach ($depts as $d) { $b = zone_map_bbox($m['deps'][$d]); $bb = [min($bb[0], $b[0]), min($bb[1], $b[1]), max($bb[2], $b[2]), max($bb[3], $b[3])]; }
+        $pad = 14; $vb = [$bb[0] - $pad, $bb[1] - $pad, $bb[2] - $bb[0] + 2 * $pad, $bb[3] - $bb[1] + 2 * $pad];
+    }
+    // Échelle des textes et des points en unités de carte : la vue d'un département, zoomée et
+    // affichée plus petite, garde des noms lisibles.
+    $k = round(max($vb[2], $vb[3]) / (count($depts) === 1 ? 290 : 400), 3);
+    $noms = []; foreach ($depts as $d) $noms[] = (zone_map_departements()[$d][0] ?? $d).' ('.$d.')';
+    $fc = $focus !== '' ? city_page($focus) : null;
+    $titre = $fc ? 'Carte : '.$fc['nom'].' ('.$fc['cp'].') dans le département '.implode(', ', $noms)
+                 : 'Carte de nos zones d\'intervention : '.implode(', ', $noms);
+    $o = '<figure class="zmap'.(count($depts) === 1 ? ' zmap--dep' : '').'"><svg viewBox="'.implode(' ', $vb).'" role="img" aria-labelledby="zmap-t'.$n.'" style="--k:'.$k.'" xmlns="http://www.w3.org/2000/svg">'
+       . '<title id="zmap-t'.$n.'">'.e($titre).'</title>';
+    foreach ($depts as $code) {
+        [$name, $lx, $ly] = zone_map_departements()[$code] ?? [$code, 0, 0];
         $o .= '<a href="'.e(zone_map_dept_url($code, $name)).'" class="zmap-dep zmap-d'.$code.'">'
             . '<title>'.e($name.' ('.$code.')').'</title><path d="'.$m['deps'][$code].'"/>'
-            . '<text x="'.$lx.'" y="'.$ly.'" class="zmap-dlab">'.e($name).' <tspan class="zmap-code">'.$code.'</tspan></text></a>';
+            . (count($depts) > 1 ? '<text x="'.$lx.'" y="'.$ly.'" class="zmap-dlab">'.e($name).' <tspan class="zmap-code">'.$code.'</tspan></text>' : '')
+            . '</a>';
     }
-    foreach (city_pages() as $slug => $_) {
-        if (!isset($m['cities'][$slug])) continue;
-        $c = city_page($slug); [$x, $y] = $m['cities'][$slug];
-        $o .= '<a href="'.e($c['url']).'" class="zmap-city"><title>'.e($c['nom'].' ('.$c['cp'].')').'</title>'
-            . '<circle cx="'.$x.'" cy="'.$y.'" r="'.($slug === 'dole' ? 5.5 : 4).'"/>';
-        if (in_array($slug, $nommees, true)) {
-            // Libellé à gauche : Dijon (Quetigny juste à droite) et Montbéliard (bord est).
-            $droite = !in_array($slug, ['dijon', 'montbeliard'], true);
-            $o .= '<text x="'.($droite ? $x + 7 : $x - 7).'" y="'.($y + 4).'"'.($droite ? '' : ' text-anchor="end"').' class="zmap-clab">'.e($c['nom']).'</text>';
-        }
-        $o .= '</a>';
+    // Ville mise en évidence dessinée en dernier (au-dessus des autres).
+    $villes = array_keys(city_pages());
+    if ($focus !== '' && in_array($focus, $villes, true)) $villes = array_merge(array_diff($villes, [$focus]), [$focus]);
+    foreach ($villes as $slug) {
+        $c = city_page($slug);
+        if (!isset($m['cities'][$slug]) || !in_array((string)$c['dep_code'], $depts, true)) continue;
+        [$x, $y] = $m['cities'][$slug];
+        [$dx, $dy, $anc] = zone_map_label_pos($slug);
+        $on = $slug === $focus;
+        $o .= '<a href="'.e($c['url']).'" class="zmap-city'.($on ? ' is-focus' : '').'"'.($on ? ' aria-current="page"' : '').'><title>'.e($c['nom'].' ('.$c['cp'].')').'</title>'
+            . ($on ? '<circle class="zmap-halo" cx="'.$x.'" cy="'.$y.'" r="'.round(13 * $k, 2).'"/>' : '')
+            . '<circle cx="'.$x.'" cy="'.$y.'" r="'.round(($on ? 6.5 : ($slug === 'dole' ? 5 : 4.2)) * $k, 2).'"/>'
+            . '<text x="'.round($x + $dx * $k, 2).'" y="'.round($y + $dy * $k, 2).'"'.($anc !== 'start' ? ' text-anchor="'.$anc.'"' : '').' class="zmap-clab">'.e($c['nom']).'</text></a>';
     }
-    $o .= '</svg><figcaption>Base à Dole · '.count(array_intersect_key(city_pages(), $m['cities'])).' villes principales et leurs communes voisines</figcaption></figure>';
-    return $o;
+    $o .= '</svg>';
+    $cap = $opt['caption'] ?? null;
+    if ($cap === null) {
+        $nb = 0; foreach (city_pages() as $s => $cc) if (isset($m['cities'][$s]) && in_array((string)$cc[2], $depts, true)) $nb++;
+        $cap = $fc ? 'Cliquez sur une ville pour voir sa page.' : $nb.' villes principales et leurs communes voisines · cliquez sur une ville';
+    }
+    if ($cap !== '') $o .= '<figcaption>'.e($cap).'</figcaption>';
+    return $o.'</figure>';
 }

@@ -551,6 +551,15 @@ if ($route === 'zones') {
   </div>
 </section>
 
+<section class="sec sec-navy" style="padding:3rem 0 0;">
+  <div class="wrap" style="max-width:860px;">
+    <div class="svc-label">Carte</div>
+    <h2 class="section-title">Côte-d'Or, Jura et <em>Doubs</em></h2>
+    <p class="section-lead" style="margin-bottom:1.5rem;">Cliquez sur une ville pour voir sa page : métiers, prix, communes voisines. Cliquez sur un département pour sa page de zone.</p>
+    <?= render_zone_map() ?>
+  </div>
+</section>
+
 <section class="sec sec-navy" style="padding:4rem 0;">
   <div class="wrap">
     <div class="svc-label"><?= e(setting('zp_regions_label','Nos régions')) ?></div>

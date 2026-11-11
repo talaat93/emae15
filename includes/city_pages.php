@@ -146,12 +146,16 @@ function render_city_page(array $c): void
 </div></section>
 
 <section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
+  <div class="prox-grid"><div>
   <div class="svc-label">Proximité</div>
   <h2 class="section-title"><?= e($nom) ?> <em>et ses environs</em></h2>
   <p class="section-lead">Nos techniciens partent de notre base de Dole et interviennent <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
   <div class="zone-chips" style="margin-top:1rem;">
     <span class="zone-chip" style="font-weight:700;">📍 <?= e($nom) ?> (<?= e($c['cp']) ?>)</span>
     <?php foreach ($c['voisines'] as $v): ?><span class="zone-chip"><?= e($v) ?></span><?php endforeach; ?>
+  </div>
+  </div>
+  <?= render_zone_map(['depts' => [$c['dep_code']], 'focus' => $c['slug']]) ?>
   </div>
 </div></section>
 
