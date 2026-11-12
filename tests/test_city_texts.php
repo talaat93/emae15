@@ -61,7 +61,9 @@ foreach (['tavaux' => '39', 'besancon' => '25', 'beaune' => '21'] as $v => $dep)
     check("$v : département", city_page($v)['dep_code'], $dep);
 }
 check('Tavaux chauffagiste rédigée (indexable)', city_trade_indexable(city_page('tavaux'), 'chauffagiste'), true);
-check('Tavaux électricien pas encore rédigée (noindex)', city_trade_indexable(city_page('tavaux'), 'electricien'), false);
+$_manque = [];
+foreach (array_keys(city_pages()) as $_v) { if (city_text($_v) === null) $_manque[] = $_v; foreach (array_keys(city_trades()) as $_m) if (city_text($_v, $_m) === null) $_manque[] = "$_v/$_m"; }
+check('les 60 pages sont rédigées', $_manque, []);
 
 echo "\n3. Temps de trajet estimé depuis Dole\n";
 check('Tavaux : moins de 30 min', city_travel_label('tavaux'), 'moins de 30 min');

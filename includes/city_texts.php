@@ -11,7 +11,7 @@ declare(strict_types=1);
 ═══════════════════════════════════════════════════ */
 
 /** Version des textes d'origine : à augmenter quand on en ajoute (les pages absentes sont alors créées). */
-const CITY_TEXTS_SEED_V = 2;
+const CITY_TEXTS_SEED_V = 3;
 
 function city_texts_table(): void
 {
