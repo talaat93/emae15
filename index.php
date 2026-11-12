@@ -1583,10 +1583,14 @@ if ($route === 'mentions-legales' || $route === 'mentions_legales') {
   <h2>Propriété intellectuelle</h2>
   <p>L'ensemble de ce site relève de la législation française et internationale sur le droit d'auteur et la propriété intellectuelle. Tous les droits de reproduction sont réservés, y compris pour les documents téléchargeables et les représentations iconographiques et photographiques.</p>
 
-  <h2>Données personnelles</h2>
+  <h2 id="donnees-personnelles">Données personnelles</h2>
   <p>Les informations recueillies via les formulaires de ce site sont enregistrées dans un fichier informatisé par <?= e(company_name()) ?> pour permettre la gestion des demandes d'intervention. Conformément au règlement général sur la protection des données (RGPD) et à la loi Informatique et Libertés, vous disposez d'un droit d'accès, de rectification et de suppression des données vous concernant. Pour exercer ce droit, contactez-nous à : <a href="mailto:<?= e(company_email()) ?>"><?= e(company_email()) ?></a>.</p>
   <?php $_keep = (int)growth_get('quote_photos_keep_months'); ?>
   <p>Les photos jointes à une demande servent uniquement à préparer l'intervention<?= $_keep > 0 ? ' et sont supprimées automatiquement '.$_keep.' mois après la demande' : '' ?>. Votre numéro de téléphone peut être utilisé pour vous envoyer des SMS liés à votre demande : accusé de réception, suivi de l'intervention, rappel d'entretien si vous avez un contrat, et une demande d'avis après l'intervention. Il n'est pas utilisé pour de la prospection commerciale. Rien n'est transmis tant que vous n'avez pas cliqué sur le bouton d'envoi d'un formulaire.<?= payments_enabled() ? ' Si vous réglez une facture par le lien de paiement que nous vous envoyons, le paiement est traité par Stripe : aucune donnée de carte bancaire n\'est conservée par '.e(company_name()).'.' : '' ?></p>
+  <?php if (function_exists('google_contacts_enabled') && google_contacts_enabled()): ?>
+  <p>Pour faciliter le suivi de votre demande, votre nom, vos coordonnées et l'objet de votre demande sont aussi enregistrés dans le carnet d'adresses Google Contacts du compte de <?= e(company_name()) ?> (service fourni par Google Ireland Limited, sous-traitant). Ils ne sont ni vendus ni utilisés pour de la prospection ; vous pouvez en demander la suppression à la même adresse.</p>
+  <?php endif; ?>
+  <p>Les avis Google affichés sur ce site sont relevés une fois par jour depuis notre fiche Google, avec le nom public choisi par leur auteur ; un avis supprimé sur Google disparaît du site.</p>
   <p>Vous pouvez aussi vous inscrire gratuitement sur la liste d'opposition au démarchage téléphonique Bloctel (www.bloctel.gouv.fr).</p>
 
   <h2 id="cookies">Cookies</h2>
