@@ -126,7 +126,7 @@ function render_city_trade_page(array $c, string $tslug): void
         $faq[] = ['Combien coûte '.($clim ? 'un dépannage de climatisation' : 'l\'intervention d\'un '.$metier).' '.$c['a'].' ?', city_trade_price_answer()];
         // Entretien de chaudière : prix de la page Tarifs (fourchette), jamais recopié ici.
         if ($trade === 'chauffage' && ($_pe = tarif_price('chauffage', 'Entretien annuel de chaudière')) !== '')
-            $faq[] = ['Combien coûte l\'entretien annuel d\'une chaudière '.$c['a'].' ?', $_pe.', selon l\'appareil (gaz, fioul, condensation…) et son accès. Le prix exact vous est annoncé avant le rendez-vous, que vous pouvez prendre en ligne.'];
+            $faq[] = ['Combien coûte l\'entretien annuel d\'une chaudière '.$c['a'].' ?', $_pe.', hors déplacement, selon l\'appareil (gaz, fioul, condensation…) et son accès. Le prix exact, déplacement compris, vous est annoncé avant le rendez-vous, que vous pouvez prendre en ligne.'];
         $_tr = city_travel_label($c['slug']);
         $faq[] = ['Pouvez-vous venir aujourd\'hui '.$c['a'].' ?', 'Les urgences sont prises 24h/24 et 7j/7.'.($_tr !== '' ? ' Le temps de trajet estimé jusqu\'à '.$nom.' est de '.$_tr.', selon la distance et hors circulation.' : '').' Le délai réel dépend des interventions en cours : nous vous le confirmons au téléphone avant de partir, pour que vous ne restiez pas à attendre sans savoir.'];
         unset($_pe, $_tr);

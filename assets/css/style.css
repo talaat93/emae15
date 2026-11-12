@@ -1566,25 +1566,25 @@ h3.step-h{margin:0;font-size:inherit;}
 .zones-grid.zones-grid--one{grid-template-columns:1fr;}
 .zone-card--map{display:grid;grid-template-columns:minmax(0,1fr);gap:1.5rem;align-items:center;}
 @media (min-width:820px){.zone-card--map{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);}}
-/* Carte des zones (includes/zone_map.php) : départements marine, villes or (charte #16243F / #C0942B) */
-.zmap{margin:0;background:#16243F;border:1px solid rgba(192,148,43,.35);border-radius:var(--r3);padding:.75rem;}
+/* Carte des zones (includes/zone_map.php) : départements marine, villes orange (accent du logo) */
+.zmap{margin:0;background:#16243F;border:1px solid rgba(240,123,29,.35);border-radius:var(--r3);padding:.75rem;}
 .zmap svg{display:block;width:100%;height:auto;max-height:460px;overflow:visible;}
 .zmap--dep svg{max-height:380px;}
-.zmap-dep path{stroke:#C0942B;stroke-width:calc(1.3px * var(--k,1));stroke-linejoin:round;transition:fill .2s;}
+.zmap-dep path{stroke:#F07B1D;stroke-width:calc(1.3px * var(--k,1));stroke-linejoin:round;transition:fill .2s;}
 .zmap-d21 path{fill:#22365E;} .zmap-d39 path{fill:#2B4472;} .zmap-d25 path{fill:#1E3159;}
 .zmap-dep:hover path,.zmap-dep:focus-visible path{fill:#34507F;}
 .zmap-dlab{font:800 14px var(--font-h);fill:rgba(255,255,255,.55);text-transform:uppercase;letter-spacing:.06em;pointer-events:none;}
-.zmap-code{font-weight:700;fill:#C0942B;}
+.zmap-code{font-weight:700;fill:#F07B1D;}
 .zmap-city{cursor:pointer;}
-.zmap-city circle{fill:#C0942B;stroke:#16243F;stroke-width:calc(1.6px * var(--k,1));transition:fill .2s,r .2s;}
+.zmap-city circle{fill:#F07B1D;stroke:#16243F;stroke-width:calc(1.6px * var(--k,1));transition:fill .2s,r .2s;}
 .zmap-city:hover circle,.zmap-city:focus-visible circle{fill:#fff;}
-.zmap-city.is-focus circle{fill:#E8B547;stroke:#fff;stroke-width:calc(2px * var(--k,1));}
+.zmap-city.is-focus circle{fill:#F7A35F;stroke:#fff;stroke-width:calc(2px * var(--k,1));}
 .zmap-city.is-focus .zmap-halo{fill:rgba(232,181,71,.28);stroke:none;animation:zmap-pulse 2.2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
 @keyframes zmap-pulse{0%,100%{opacity:.9;transform:scale(1);}50%{opacity:.35;transform:scale(1.35);}}
 @media (prefers-reduced-motion:reduce){.zmap-city.is-focus .zmap-halo{animation:none;}}
 .zmap-clab{font:600 calc(11px * var(--k,1)) var(--font-b);fill:#fff;paint-order:stroke;stroke:#16243F;stroke-width:calc(3px * var(--k,1));stroke-linejoin:round;}
-.zmap-city.is-focus .zmap-clab{font-weight:800;font-size:calc(13px * var(--k,1));fill:#E8B547;}
-.zmap-city:hover .zmap-clab{fill:#E8B547;}
+.zmap-city.is-focus .zmap-clab{font-weight:800;font-size:calc(13px * var(--k,1));fill:#F7A35F;}
+.zmap-city:hover .zmap-clab{fill:#F7A35F;}
 .zmap figcaption{margin-top:.5rem;text-align:center;font-size:.8rem;color:#b9c3dc;}
 /* Section « Proximité » : texte + carte du département */
 .prox-grid{display:grid;gap:1.5rem;align-items:center;}
@@ -1610,12 +1610,12 @@ h3.step-h{margin:0;font-size:inherit;}
 .ct-prix strong{white-space:nowrap;color:#fff;}
 @media (max-width:520px){.ct-prix li{flex-direction:column;gap:.15rem;}}
 
-/* ─── BANDEAU DE RÉASSURANCE (sous le haut de page) : charte marine #16243F / or #C0942B ─── */
-.tband{background:#16243F;border-top:1px solid rgba(192,148,43,.35);border-bottom:1px solid rgba(192,148,43,.35);padding:1.1rem 0;}
+/* ─── BANDEAU DE RÉASSURANCE (sous le haut de page) : marine #16243F, accent orange du logo ─── */
+.tband{background:#16243F;border-top:1px solid rgba(240,123,29,.35);border-bottom:1px solid rgba(240,123,29,.35);padding:1.1rem 0;}
 .tband-list{list-style:none;margin:0 auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.9rem 1rem;}
 .tband-list li,.tband-list a{display:flex;align-items:center;gap:.7rem;min-width:0;color:inherit;text-decoration:none;}
-.tband-list a:hover .tband-txt strong{color:#C0942B;}
-.tband-ico{flex:0 0 2.5rem;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;border:1.5px solid #C0942B;color:#C0942B;font-size:1.2rem;background:rgba(192,148,43,.08);}
+.tband-list a:hover .tband-txt strong{color:#F07B1D;}
+.tband-ico{flex:0 0 2.5rem;width:2.5rem;height:2.5rem;border-radius:50%;display:grid;place-items:center;border:1.5px solid #F07B1D;color:#F07B1D;font-size:1.2rem;background:rgba(240,123,29,.08);}
 .tband-ico svg{vertical-align:0 !important;}
 .tband-txt{display:flex;flex-direction:column;line-height:1.25;min-width:0;}
 .tband-txt strong{color:#fff;font-size:.9rem;font-weight:700;transition:color .2s;}
@@ -1626,10 +1626,10 @@ h3.step-h{margin:0;font-size:inherit;}
 }
 
 /* ─── ENCART « PRIX + PRENDRE RDV ENTRETIEN » (pages chauffage) ─── */
-.rdv-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 1.5rem;margin-top:1.75rem;padding:1.1rem 1.25rem;background:#16243F;border:1px solid rgba(192,148,43,.45);border-radius:var(--r3);}
+.rdv-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1rem 1.5rem;margin-top:1.75rem;padding:1.1rem 1.25rem;background:#16243F;border:1px solid rgba(240,123,29,.45);border-radius:var(--r3);}
 .rdv-cta-txt{display:flex;flex-direction:column;gap:.15rem;min-width:0;flex:1 1 260px;}
 .rdv-cta-l{color:#b9c3dc;font-size:.82rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;}
-.rdv-cta-p{color:#C0942B;font-family:var(--font-h);font-size:1.45rem;font-weight:800;line-height:1.15;}
+.rdv-cta-p{color:#F07B1D;font-family:var(--font-h);font-size:1.45rem;font-weight:800;line-height:1.15;}
 .rdv-cta-n{color:#b9c3dc;font-size:.8rem;line-height:1.4;}
 .rdv-cta-btn{flex:0 0 auto;display:inline-flex;align-items:center;gap:.5rem;}
 @media(max-width:560px){.rdv-cta-btn{width:100%;justify-content:center;}}
@@ -1643,27 +1643,27 @@ h3.step-h{margin:0;font-size:inherit;}
 .rv-who{min-width:0;flex:1;}
 .rv-name a{color:inherit;text-decoration:none;}
 .rv-name a:hover{text-decoration:underline;}
-.review-card .rv-stars{margin:0 0 0 auto;color:#C0942B;font-size:.95rem;letter-spacing:.05em;white-space:nowrap;}
+.review-card .rv-stars{margin:0 0 0 auto;color:#F07B1D;font-size:.95rem;letter-spacing:.05em;white-space:nowrap;}
 .rv-stars-off{color:rgba(255,255,255,.18);}
 .review-card .rv-body{color:var(--t1);font-size:.88rem;line-height:1.65;margin:0 0 .9rem;}
 .rv-foot{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .7rem;margin-top:auto;}
 .rv-src{display:inline-flex;align-items:center;gap:.35rem;font-size:.7rem;font-weight:700;letter-spacing:.03em;padding:.22rem .6rem;border-radius:999px;}
 .rv-src--google{background:#fff;color:#16243F;}
 .rv-src-g{font:800 .8rem/1 Arial,sans-serif;background:conic-gradient(from -45deg,#ea4335 0 25%,#4285f4 0 50%,#34a853 0 75%,#fbbc05 0);-webkit-background-clip:text;background-clip:text;color:transparent;}
-.rv-src--site{background:rgba(192,148,43,.14);color:#E8B547;border:1px solid rgba(192,148,43,.45);}
+.rv-src--site{background:rgba(240,123,29,.14);color:#F7A35F;border:1px solid rgba(240,123,29,.45);}
 .rv-meta{font-size:.74rem;color:var(--t2);}
 .review-card{display:flex;flex-direction:column;}
 .rv-summary{display:inline-flex;align-items:center;gap:1.25rem;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:var(--r4);padding:1rem 1.75rem;margin-top:1.5rem;flex-wrap:wrap;}
 .rv-summary-n{text-align:center;}
-.rv-summary-n strong{display:block;font-family:var(--font-h);font-size:3rem;font-weight:700;color:#C0942B;line-height:1;}
+.rv-summary-n strong{display:block;font-family:var(--font-h);font-size:3rem;font-weight:700;color:#F07B1D;line-height:1;}
 .rv-summary-n span{font-size:.75rem;color:var(--t2);}
 .rv-summary-t{font-size:.95rem;color:#fff;font-weight:700;}
 .rv-summary-d{font-size:.8rem;color:var(--t2);margin-top:.15rem;}
-.rv-summary-a{display:inline-flex;font-size:.85rem;color:#E8B547;margin-top:.4rem;font-weight:600;}
+.rv-summary-a{display:inline-flex;font-size:.85rem;color:#F7A35F;margin-top:.4rem;font-weight:600;}
 .review-card::after{display:none;}   /* guillemet décoratif : il passait sous les étoiles */
 
 /* Temps de trajet estimé (pages ville et métier × ville) */
-.city-travel{display:flex;gap:.8rem;align-items:flex-start;margin-top:1.1rem;padding:.9rem 1rem;background:rgba(192,148,43,.08);border:1px solid rgba(192,148,43,.4);border-radius:var(--r2);}
-.city-travel > svg{color:#C0942B;font-size:1.35rem;margin-top:.1rem;}
+.city-travel{display:flex;gap:.8rem;align-items:flex-start;margin-top:1.1rem;padding:.9rem 1rem;background:rgba(240,123,29,.08);border:1px solid rgba(240,123,29,.4);border-radius:var(--r2);}
+.city-travel > svg{color:#F07B1D;font-size:1.35rem;margin-top:.1rem;}
 .city-travel strong{display:block;color:#fff;font-size:.95rem;}
 .city-travel span{display:block;color:var(--t2);font-size:.8rem;line-height:1.5;margin-top:.2rem;}

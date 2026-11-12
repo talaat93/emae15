@@ -741,7 +741,7 @@ function tarifs_default_rows(): array
     return $out;
 }
 
-const ENTRETIEN_CHAUDIERE_PRECISION = 'Selon l\'appareil (gaz, fioul, condensation…) et son accès. Le prix exact vous est annoncé avant le rendez-vous.';
+const ENTRETIEN_CHAUDIERE_PRECISION = 'Déplacement en plus (voir la page Tarifs). Selon l\'appareil (gaz, fioul, condensation…) et son accès ; le prix exact vous est annoncé avant le rendez-vous.';
 
 /**
  * Prestations qu'un bouton « Prendre RDV » peut présélectionner : clé d'adresse →
