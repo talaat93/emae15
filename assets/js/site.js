@@ -67,27 +67,21 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  /* Tracking Google Ads — fire all conversion labels */
-  function gads_fire(labels){
-    if(typeof gtag==='undefined'||!window._gAdsId||!labels||!labels.length)return;
-    labels.forEach(function(lbl){
-      gtag('event','conversion',{'send_to':window._gAdsId+'/'+lbl});
-    });
-  }
-
-  /* Appels téléphoniques */
+  /* Mesure Google : seulement après accord (window.emaeAdsOk / emaeStatsOk posés par
+     consent_head_script). Chaque action a son événement :
+     - clic sur un numéro : conversion « appel » (libellés réglés dans l'admin) + événement phone_click ;
+       un clic n'est pas la preuve d'un appel abouti ;
+     - clic WhatsApp : événement whatsapp_click seulement (pas de conversion Ads) ;
+     - demande envoyée : conversion « demande » envoyée par le serveur une fois la demande
+       enregistrée (render_head), jamais au clic sur Envoyer. */
+  var telSeen=false;
   document.querySelectorAll('a[href^="tel:"]').forEach(function(l){
     l.addEventListener('click',function(){
-      gads_fire(window._gAdsCv||[]);
-      if(typeof gtag!=='undefined') gtag('event','phone_call',{'event_category':'contact'});
-    });
-  });
-
-  /* Formulaires — la conversion Google Ads « Demande de devis » est envoyée
-     par render_head() une fois l'envoi enregistré, pas ici. */
-  document.querySelectorAll('form').forEach(function(f){
-    f.addEventListener('submit',function(){
-      if(typeof gtag!=='undefined') gtag('event','generate_lead',{'event_category':'lead','event_label':'form_submit'});
+      if(typeof gtag==='undefined'||telSeen)return;
+      telSeen=true; /* une fois par page */
+      var T=window.emaeTags||{};
+      if(window.emaeAdsOk&&T.ads&&T.call)T.call.forEach(function(lbl){gtag('event','conversion',{'send_to':T.ads+'/'+lbl});});
+      if(window.emaeStatsOk)gtag('event','phone_click',{'event_category':'contact'});
     });
   });
 
@@ -164,8 +158,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var waBtn = document.querySelector('.wa-btn');
   if (waBtn) {
     waBtn.addEventListener('click', function () {
-      if (typeof gtag !== 'undefined') gtag('event', 'whatsapp_click', {'event_category': 'contact'});
-      gads_fire(window._gAdsCv || []);
+      if (typeof gtag !== 'undefined' && window.emaeStatsOk) gtag('event', 'whatsapp_click', {'event_category': 'contact'});
     });
   }
 
@@ -209,3 +202,130 @@ document.addEventListener('DOMContentLoaded', function () {
     targets.forEach(function (el) { observer.observe(el); });
   })();
 });
+
+/* Photos des formulaires de demande : on ajoute les photos une à une (prises à
+   l'appareil, par exemple), on peut en retirer, et elles sont allégées avant
+   l'envoi pour passer même avec une connexion mobile. Si le navigateur ne sait
+   pas faire, le champ reste un envoi de fichiers ordinaire. */
+document.addEventListener('DOMContentLoaded', function () {
+  var MAX_SIDE = 1600, THUMB = 144;
+  var canEdit = false;
+  try { canEdit = typeof DataTransfer === 'function' && !!new DataTransfer().items; } catch (e) {}
+
+  function decode(file) {
+    return new Promise(function (ok, ko) {
+      var r = new FileReader();
+      r.onerror = ko;
+      r.onload = function () {
+        var i = new Image();
+        i.onload = function () { ok(i); };
+        i.onerror = ko;
+        i.src = r.result;
+      };
+      r.readAsDataURL(file);
+    });
+  }
+  function draw(img, side) {
+    var k = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
+    var c = document.createElement('canvas');
+    c.width = Math.round(img.naturalWidth * k);
+    c.height = Math.round(img.naturalHeight * k);
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+  function prepare(file) {
+    return decode(file).then(function (img) {
+      var thumb = draw(img, THUMB).toDataURL('image/jpeg', .7);
+      return new Promise(function (ok) {
+        draw(img, MAX_SIDE).toBlob(function (blob) {
+          var name = (file.name || 'photo').replace(/\.[^.]+$/, '') + '.jpg';
+          // Un format que le serveur refuse (HEIC…) est toujours converti, même si le JPEG pèse plus.
+          var usual = /^image\/(jpeg|png|webp)$/.test(file.type);
+          var out = blob && (blob.size < file.size || !usual) ? new File([blob], name, {type: 'image/jpeg'}) : file;
+          ok({file: out, thumb: thumb});
+        }, 'image/jpeg', .82);
+      });
+    });
+  }
+
+  document.querySelectorAll('[data-quote-photos]').forEach(function (box) {
+    var input = box.querySelector('input[type=file]');
+    var list  = box.querySelector('.f-photo-list');
+    var msg   = box.querySelector('.f-photo-msg');
+    var form  = box.closest('form');
+    var max   = parseInt(box.getAttribute('data-max'), 10) || 3;
+    var items = [], busy = 0;
+    var submit = form ? form.querySelector('[type=submit]') : null;
+    var label  = submit ? submit.textContent : '';
+
+    function say(t) { msg.textContent = t; msg.hidden = !t; }
+    function sync() {
+      if (canEdit) {
+        var dt = new DataTransfer();
+        items.forEach(function (it) { dt.items.add(it.file); });
+        input.files = dt.files;
+      }
+      list.textContent = '';
+      items.forEach(function (it, n) {
+        var d = document.createElement('div'); d.className = 'f-photo-item';
+        var i = document.createElement('img'); i.src = it.thumb; i.alt = 'Photo ' + (n + 1);
+        d.appendChild(i);
+        if (canEdit) {
+          var x = document.createElement('button');
+          x.type = 'button'; x.className = 'f-photo-del'; x.textContent = '✕';
+          x.setAttribute('aria-label', 'Retirer la photo ' + (n + 1));
+          x.addEventListener('click', function () { items.splice(n, 1); say(''); sync(); });
+          d.appendChild(x);
+        }
+        list.appendChild(d);
+      });
+    }
+    function lock() { if (submit) submit.disabled = busy > 0; }
+
+    input.addEventListener('change', function () {
+      var picked = Array.prototype.slice.call(input.files || []);
+      if (!canEdit) items = [];
+      var room = max - items.length - busy;
+      say(picked.length > room ? 'Vous pouvez envoyer ' + max + ' photos au maximum.' : '');
+      picked = picked.slice(0, Math.max(0, room));
+      if (canEdit) sync();   // en attendant : seules les photos déjà prêtes restent dans le champ
+      picked.forEach(function (file) {
+        busy++; lock();
+        prepare(file).then(function (it) { items.push(it); }, function () {
+          if (canEdit) say('Cette photo n\'a pas pu être lue. Formats acceptés : JPG, PNG ou WebP.');
+        }).then(function () { busy--; lock(); sync(); });
+      });
+    });
+
+    if (form && submit) {
+      form.addEventListener('submit', function () { submit.disabled = true; submit.textContent = 'Envoi en cours…'; });
+      window.addEventListener('pageshow', function () { submit.disabled = busy > 0; submit.textContent = label; });
+    }
+  });
+});
+
+/* Aucune donnée de formulaire ne part avant le clic sur le bouton d'envoi
+   (l'ancien envoi en tâche de fond des saisies non terminées a été retiré). */
+
+/* Pages métier : flèches des prestations défilantes */
+(function () {
+  document.querySelectorAll('[data-ofr]').forEach(function (box) {
+    var sc = box.querySelector('.ofr-scroller');
+    var prev = box.querySelector('[data-ofr-prev]'), next = box.querySelector('[data-ofr-next]');
+    if (!sc || !prev || !next) return;
+    function step() {
+      var card = sc.querySelector('.ofr-card');
+      return card ? card.getBoundingClientRect().width + parseFloat(getComputedStyle(sc).columnGap || 0) : sc.clientWidth * 0.8;
+    }
+    function update() {
+      var max = sc.scrollWidth - sc.clientWidth - 2;
+      prev.disabled = sc.scrollLeft <= 2;
+      next.disabled = sc.scrollLeft >= max;
+    }
+    prev.addEventListener('click', function () { sc.scrollBy({ left: -step(), behavior: 'smooth' }); });
+    next.addEventListener('click', function () { sc.scrollBy({ left: step(), behavior: 'smooth' }); });
+    sc.addEventListener('scroll', function () { window.requestAnimationFrame(update); }, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+})();

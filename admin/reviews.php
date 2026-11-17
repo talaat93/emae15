@@ -8,15 +8,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $content = trim((string)($_POST['content'] ?? ''));
     $service = trim((string)($_POST['service_type'] ?? ''));
     $city    = trim((string)($_POST['city'] ?? ''));
+    $source  = mb_substr(trim((string)($_POST['source_note'] ?? '')), 0, 190);
     $zid     = ((int)($_POST['zone_id'] ?? 0)) ?: null;
+    $rdate   = date_input_value($_POST['review_date'] ?? '');
     if (($_POST['action'] ?? '') === 'setzone') {
         db_execute('UPDATE reviews SET zone_id = ? WHERE id = ?', [$zid, (int)($_POST['id'] ?? 0)]);
         flash('success','Zone de l\'avis mise à jour.');
         redirect_to('admin/reviews.php');
     }
+    // Modification d'un avis existant
+    if (($_POST['action'] ?? '') === 'edit') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($author === '' || $content === '') {
+            flash('error','Nom et texte obligatoires.');
+            redirect_to('admin/reviews.php?edit='.$id);
+        }
+        db_execute('UPDATE reviews SET author_name=?, rating=?, content=?, service_type=?, city=?, zone_id=?, source_note=?, review_date=? WHERE id=?',
+            [$author,$rating,$content,$service,$city,$zid,$source,$rdate,$id]);
+        flash('success','Avis modifié.');
+        redirect_to('admin/reviews.php');
+    }
     if ($author !== '' && $content !== '') {
-        db_execute('INSERT INTO reviews (author_name,rating,content,service_type,city,is_visible,sort_order,zone_id) VALUES (?,?,?,?,?,1,?,?)',
-            [$author,$rating,$content,$service,$city,(int)time(),$zid]);
+        db_execute('INSERT INTO reviews (author_name,rating,content,service_type,city,is_visible,sort_order,zone_id,source_note,review_date) VALUES (?,?,?,?,?,1,?,?,?,?)',
+            [$author,$rating,$content,$service,$city,(int)time(),$zid,$source,$rdate]);
         flash('success','Avis ajouté.');
     } else { flash('error','Nom et texte obligatoires.'); }
     redirect_to('admin/reviews.php');
@@ -31,32 +45,44 @@ if (isset($_GET['delete'])) {
     flash('success','Avis supprimé.'); redirect_to('admin/reviews.php');
 }
 $reviews = db_fetch_all('SELECT * FROM reviews WHERE 1=1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC');
+// Le même formulaire sert à ajouter et, avec ?edit=ID, à modifier.
+$edit = isset($_GET['edit']) ? db_fetch('SELECT * FROM reviews WHERE id=?',[(int)$_GET['edit']]) : null;
+$editService = (string)($edit['service_type'] ?? '');
 ?>
-<div class="admin-page-toolbar"><div><div class="admin-breadcrumb">Contenus</div><h1 class="admin-page-title">Avis clients</h1><p class="admin-page-subtitle">Les avis visibles s'affichent sur l'accueil. Ajoutez les avis Google ou clients satisfaits.</p></div></div>
+<div class="admin-page-toolbar"><div><div class="admin-breadcrumb">Contenus</div><h1 class="admin-page-title">Avis clients</h1><p class="admin-page-subtitle">Un avis s'affiche sur le site quand il est visible <strong>et</strong> que sa provenance est notée (où et quand le client l'a donné). Sans provenance, il reste en attente : n'inventez jamais un avis, un nom ou une date.</p></div></div>
 <div class="admin-stack">
-<section class="admin-panel"><div class="admin-panel__head"><h2>Ajouter un avis</h2></div><div class="admin-panel__body">
-<form method="post" class="admin-form-grid admin-form-grid--2"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
-<label class="admin-field"><span>Auteur *</span><input type="text" name="author_name" required placeholder="Nadia B."></label>
-<label class="admin-field"><span>Note /5</span><input type="number" name="rating" min="1" max="5" value="5"></label>
-<label class="admin-field"><span>Service</span><select name="service_type"><option value="">Général</option><?php foreach(['Électricité','Plomberie','Chauffage','Climatisation','CVC','Maintenance'] as $s): ?><option><?= e($s) ?></option><?php endforeach; ?></select></label>
-<label class="admin-field"><span>Ville</span><input type="text" name="city" placeholder="Paris, Meaux…"></label>
-<label class="admin-field" style="grid-column:1/-1"><span>Zone d'affichage</span><?= zone_select_field('zone_id', zone_ctx_id()) ?></label>
-<label class="admin-field" style="grid-column:1/-1"><span>Texte de l'avis *</span><textarea name="content" rows="4" required placeholder="Intervention rapide, très professionnel…"></textarea></label>
-<div class="admin-savebar" style="grid-column:1/-1;justify-content:flex-start"><button class="admin-btn admin-btn--primary" type="submit">Ajouter</button></div>
+<section class="admin-panel"><div class="admin-panel__head"><h2><?= $edit ? 'Modifier l\'avis de '.e($edit['author_name']) : 'Ajouter un avis' ?></h2></div><div class="admin-panel__body">
+<form method="post" action="<?= e(url_for('admin/reviews.php')) ?>" class="admin-form-grid admin-form-grid--2"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+<?php if ($edit): ?><input type="hidden" name="action" value="edit"><input type="hidden" name="id" value="<?= (int)$edit['id'] ?>"><?php endif; ?>
+<label class="admin-field"><span>Auteur *</span><input type="text" name="author_name" required value="<?= e((string)($edit['author_name'] ?? '')) ?>" placeholder="Nadia B."></label>
+<label class="admin-field"><span>Note /5</span><input type="number" name="rating" min="1" max="5" value="<?= (int)($edit['rating'] ?? 5) ?>"></label>
+<label class="admin-field"><span>Service</span><select name="service_type"><option value="">Général</option><?php foreach(array_unique(array_merge(service_type_options(), $editService !== '' ? [$editService] : [])) as $s): ?><option value="<?= e($s) ?>" <?= $s === $editService ? 'selected' : '' ?>><?= e($s) ?></option><?php endforeach; ?></select></label>
+<label class="admin-field"><span>Ville</span><input type="text" name="city" value="<?= e((string)($edit['city'] ?? '')) ?>" placeholder="Dole, Dijon…"></label>
+<label class="admin-field"><span>Date de l'avis (affichée sur le site)</span><input type="date" name="review_date" max="<?= e(date('Y-m-d')) ?>" value="<?= e((string)($edit['review_date'] ?? '')) ?>"></label>
+<label class="admin-field" style="grid-column:1/-1"><span>Provenance (obligatoire pour la publication)</span><input type="text" name="source_note" maxlength="190" value="<?= e((string)($edit['source_note'] ?? '')) ?>" placeholder="Ex : avis Google du 12/03/2026 — ou — message reçu par SMS le 04/05/2026"></label>
+<label class="admin-field" style="grid-column:1/-1"><span>Zone d'affichage</span><?= zone_select_field('zone_id', $edit ? (int)($edit['zone_id'] ?? 0) : zone_ctx_id()) ?></label>
+<label class="admin-field" style="grid-column:1/-1"><span>Texte de l'avis *</span><textarea name="content" rows="4" required placeholder="Intervention rapide, très professionnel…"><?= e((string)($edit['content'] ?? '')) ?></textarea></label>
+<div class="admin-savebar" style="grid-column:1/-1;justify-content:flex-start">
+<button class="admin-btn admin-btn--primary" type="submit"><?= $edit ? 'Enregistrer' : 'Ajouter' ?></button>
+<?php if ($edit): ?><a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/reviews.php')) ?>">Annuler</a><?php endif; ?>
+</div>
 </form></div></section>
 
 <section class="admin-panel"><div class="admin-panel__head"><h2>Liste des avis (<?= e((string)count($reviews)) ?>)</h2></div><div class="admin-panel__body admin-table-wrap">
-<table class="admin-table"><thead><tr><th>Auteur</th><th>Note</th><th>Service</th><th>Ville</th><th>Zone</th><th>Texte</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
+<table class="admin-table"><thead><tr><th>Auteur</th><th>Note</th><th>Service</th><th>Ville</th><th>Date</th><th>Zone</th><th>Texte</th><th>Provenance</th><th>Visible</th><th>Actions</th></tr></thead><tbody>
 <?php foreach($reviews as $r): ?>
 <tr>
 <td style="font-weight:700"><?= e($r['author_name']) ?></td>
 <td><?= str_repeat('★',(int)$r['rating']) ?></td>
 <td><?= e((string)($r['service_type']??'')) ?></td>
 <td><?= e((string)($r['city']??'')) ?></td>
+<td style="font-size:.82rem;white-space:nowrap;"><?= date_fr($r['review_date'] ?? '') !== '' ? e(date_fr($r['review_date'])) : '<span style="color:#b45309;">à saisir</span>' ?></td>
 <td><form method="post" style="margin:0;"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="setzone"><input type="hidden" name="id" value="<?= (int)$r['id'] ?>"><?= zone_select_field('zone_id', (int)($r['zone_id'] ?? 0), 'onchange="this.form.submit()" style="font-size:.8rem;padding:.25rem;"') ?></form></td>
 <td style="max-width:260px;font-size:.88rem;color:#5b6b92;"><?= e(mb_substr($r['content'],0,80,'UTF-8')).(mb_strlen($r['content'],'UTF-8')>80?'…':'') ?></td>
+<td style="font-size:.82rem;"><?= trim((string)($r['source_note'] ?? '')) !== '' ? e((string)$r['source_note']) : '<span style="color:#b45309;font-weight:600;">⏳ à renseigner — non publié</span>' ?></td>
 <td><?= (int)$r['is_visible']===1?'<span style="color:#16a34a;font-weight:700;">✓</span>':'<span style="color:#dc2626;">✗</span>' ?></td>
 <td><div style="display:flex;gap:.4rem;">
+<a class="admin-btn admin-btn--primary" href="<?= e(url_for('admin/reviews.php?edit='.(int)$r['id'])) ?>" style="min-height:36px;padding:0 .75rem;font-size:.82rem;">Modifier</a>
 <a class="admin-btn admin-btn--secondary" href="<?= e(url_for('admin/reviews.php?toggle='.(int)$r['id'])) ?>" style="min-height:36px;padding:0 .75rem;font-size:.82rem;"><?= (int)$r['is_visible']===1?'Masquer':'Afficher' ?></a>
 <a class="admin-btn" href="<?= e(url_for('admin/reviews.php?delete='.(int)$r['id'])) ?>" onclick="return confirm('Supprimer ?')" style="min-height:36px;padding:0 .75rem;font-size:.82rem;background:#fff0f0;color:#dc2626;border:1px solid #fecaca;">×</a>
 </div></td>

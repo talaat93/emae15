@@ -26,7 +26,7 @@ function check(string $l, mixed $g, mixed $w): void { global $pass,$fail;
 
 // Tout le code qui rend le site public.
 $public = '';
-foreach (['index.php','includes/render.php','includes/helpers.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
+foreach (['index.php','includes/render.php','includes/helpers.php','includes/content_pages.php','includes/pages_extra.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
 
 echo "\n1. Aucun champ fantôme sur l'ensemble du site\n";
 $ghosts = [];
@@ -42,7 +42,15 @@ foreach (admin_page_catalog() as $pid => $page) {
             $trade = substr($pid, 7);
             $suf   = substr($f['key'], strlen('svc_'.$trade.'_'));
             if (!array_key_exists($suf, service_template($trade) ?? [])) $ghosts[] = $pid.'/'.$f['key'];
-        } elseif (!str_contains($public, "setting('".$f['key']."'")) {
+        } elseif (str_starts_with($f['key'], 'tarifs_') && array_key_exists(substr($f['key'], 7), tarifs_default_rows())) {
+            // grille de prix : clé construite à l'exécution par tarifs_groups()
+            if (!str_contains($public, 'setting_plain(\'tarifs_\'.$trade)')) $ghosts[] = $pid.'/'.$f['key'];
+        } elseif (preg_match('/^panne_(.+)_(h1|lead|checks|never|alert|call|meta_title|meta_desc)$/', $f['key'], $pm)) {
+            // pages panne : clé construite à l'exécution par panne_page(), qui doit connaître la page
+            if (!isset(panne_defaults()[str_replace('_', '-', $pm[1])]) || !str_contains($public, "cp_text(\$k.'".$pm[2]."'") && !str_contains($public, "cp_lines(\$k.'".$pm[2]."'")) $ghosts[] = $pid.'/'.$f['key'];
+        } elseif (!str_contains($public, "setting('".$f['key']."'") && !str_contains($public, "cp_text('".$f['key']."'")
+                  && !str_contains($public, "cp_lines('".$f['key']."'") && !str_contains($public, "global_setting('".$f['key']."'")
+                  && !str_contains($public, "setting_plain('".$f['key']."'")) {
             $ghosts[] = $pid.'/'.$f['key'];
         }
     }
@@ -89,7 +97,7 @@ foreach (admin_page_catalog() as $pid=>$page) {
             if (isset($seen[$f['key']])) $dupes[] = $f['key'];
             $seen[$f['key']] = true;
             if (trim((string)($f['label'] ?? ''))==='') $bad[] = $f['key'].': sans intitulé';
-            if (!in_array($f['type'] ?? '', ['text','textarea','list'], true)) $bad[] = $f['key'].': type invalide';
+            if (!in_array($f['type'] ?? '', ['text','textarea','list','toggle'], true)) $bad[] = $f['key'].': type invalide';
         }
     }
 }
@@ -149,17 +157,19 @@ check('  → ordre du formulaire', admin_list_rows($fb), ['B','A','C']);
 admin_list_save($fb, []);
 check('liste vidée → retour à l\'origine', admin_list_rows($fb), ['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation']);
 
-echo "\n10. Listes à plusieurs colonnes\n";
-$fi = admin_catalog_fields('metier_chauffage')['svc_chauffage_interv'];
+echo "\n10. Listes à plusieurs colonnes (prestations : dessin, titre, texte)\n";
+$fi = admin_catalog_fields('metier_chauffage')['svc_chauffage_offer_items'];
 check('3 colonnes déclarées', count(admin_list_columns($fi)), 3);
-admin_list_save($fi, [0=>['icon'=>'🔥','title'=>'Panne','text'=>'Diagnostic.'],
-                      1=>['icon'=>'','title'=>'','text'=>'']]);
-check('ligne vide écartée',   count(admin_list_rows($fi)), 1);
-check('colonnes dans l\'ordre', admin_list_rows($fi)[0], ['🔥','Panne','Diagnostic.']);
-check('le site reçoit la même chose', service_template('chauffage')['interv'][0], ['🔥','Panne','Diagnostic.']);
+check('le dessin se choisit dans une liste', admin_list_columns($fi)[0]['type'], 'select');
+admin_list_save($fi, [0=>['icon'=>'flamme','title'=>'Panne','text'=>'Diagnostic.'],
+                      1=>['icon'=>'chaudiere','title'=>'','text'=>'']]);
+check('ligne sans texte écartée, même avec un dessin choisi', count(admin_list_rows($fi)), 1);
+check('colonnes dans l\'ordre', admin_list_rows($fi)[0], ['flamme','Panne','Diagnostic.']);
+check('le site reçoit la même chose', service_offer_cards(service_template('chauffage')['offer_items'])[0],
+      ['icon'=>'flamme','title'=>'Panne','text'=>'Diagnostic.']);
 
 echo "\n11. Les listes ne sont pas éditables sur la page\n";
-check('liste écartée de l\'édition en place', isset(admin_inline_keys()['svc_chauffage_interv']), false);
+check('liste écartée de l\'édition en place', isset(admin_inline_keys()['svc_chauffage_offer_items']), false);
 check('mais trouvable par la recherche', str_contains(admin_field_shown($fi), 'Diagnostic.'), true);
 
 echo "\n".($fail===0 ? "TOUS LES TESTS PASSENT ($pass)" : "$fail ÉCHEC(S) sur ".($pass+$fail))."\n";

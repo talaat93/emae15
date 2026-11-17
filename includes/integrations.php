@@ -138,7 +138,8 @@ function integration_redact(mixed $value, string $key = ''): mixed
     static $known = null;
     if ($known === null) {
         $known = [];
-        foreach (['pennylane_api_key', 'claude_api_key', 'yousign_api_key', 'yousign_webhook_secret'] as $n) {
+        foreach (['pennylane_api_key', 'claude_api_key', 'yousign_api_key', 'yousign_webhook_secret',
+                  'telegram_bot_token', 'telegram_webhook_secret', 'agent_pass_domaine', 'agent_pass_gmail'] as $n) {
             $cfg = app_config()['secrets'][$n] ?? null;
             if (is_string($cfg) && strlen(trim($cfg)) >= 8) $known[] = trim($cfg);
             $row = integration_settings_rows()[$n] ?? null;

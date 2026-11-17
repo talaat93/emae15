@@ -16,4 +16,6 @@ $r = pennylane_sync_run('cron');
 echo date('Y-m-d H:i:s').' '.($r['ok'] ? 'OK' : 'ERREUR').' — '.$r['message'].PHP_EOL;
 // Même tâche : devis en attente de signature relus chez Yousign (au cas où un webhook serait perdu).
 try { $n = devis_refresh_pending(); if ($n) echo 'Yousign : '.$n.' devis relu(s).'.PHP_EOL; } catch (Throwable $e) { echo 'Yousign : '.$e->getMessage().PHP_EOL; }
+// Même tâche : alertes, demandes d'avis, rappels d'entretien, ménage (includes/automations.php).
+try { foreach (automations_run('cron') as $t => $res) echo 'Auto '.$t.' : '.(is_string($res) ? $res : json_encode($res)).PHP_EOL; } catch (Throwable $e) { echo 'Auto : '.$e->getMessage().PHP_EOL; }
 exit($r['ok'] ? 0 : 1);

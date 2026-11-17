@@ -445,8 +445,181 @@ function company_address(): string { return setting('company_address', '{region}
 function company_siret(): string { return setting('company_siret', ''); }
 function company_slogan(): string { return setting('company_slogan', 'Dépannage & installation multitechnique'); }
 function company_whatsapp(): string { return setting('company_whatsapp', ''); }
+/* ── Informations publiées qui doivent rester identiques partout ──
+   Réglages globaux (jamais par zone), modifiables dans Identité & coordonnées. */
+
+/** Délai de rappel annoncé (« 5 minutes », décision du propriétaire du 8 novembre 2026). Vide = aucun chiffre publié. */
+function callback_delay(): string
+{
+    // Réglage absent : la valeur décidée ; réglage vidé dans l'admin : aucun chiffre.
+    $c = settings_cache();
+    return array_key_exists('callback_delay', $c) ? trim((string)$c['callback_delay']) : '5 minutes';
+}
+
+/** « Rappel sous 5 minutes », ou « Rappel rapide » si aucun délai n'est publié. */
+function callback_promise_short(): string { $d = callback_delay(); return $d !== '' ? 'Rappel sous '.$d : 'Rappel rapide'; }
+
+/** Phrase unique sur la disponibilité et le délai d'arrivée : aucun délai chiffré sans donnée réelle. */
+function intervention_terms_text(): string
+{
+    $v = trim(global_setting('intervention_terms_text', ''));
+    return $v !== '' ? $v : 'Disponibilité, délai estimé et conditions d\'intervention confirmés par téléphone avant déplacement.';
+}
+
+/** Identité légale (mentions légales, données structurées). Valeurs vérifiées à l'Annuaire des entreprises le 10/11/2026. */
+function legal_info(): array
+{
+    $g = static fn(string $k, string $d = ''): string => trim(global_setting($k, $d));
+    return [
+        'denomination' => $g('ml_denomination', 'Entreprise Multi-technique Avancée (EMAE)'),
+        'forme'        => $g('ml_forme', 'SARL à associé unique'),
+        'capital'      => $g('ml_capital', '1 000 €'),
+        'siege'        => $g('ml_siege', '60 rue François Ier, 75008 Paris (domiciliation LegalPlace)'),
+        'siren'        => $g('ml_siren', '102 802 600'),
+        'rcs'          => $g('ml_rcs', 'RCS Paris'),   // Kbis du 20/04/2026
+        'tva'          => $g('ml_tva'),          // numéro de TVA intracommunautaire, s'il existe
+        'directeur'    => $g('ml_directeur'),    // personne physique (nom et prénom)
+        'base'         => $g('ml_base', 'Dole (Jura)'),
+        'mediateur'    => $g('ml_mediateur'),    // nom et site du médiateur de la consommation
+        // Attestation APRIL / ERGO du 04/05/2026 fournie par le propriétaire (10/11/2026).
+        'assurance'    => $g('ml_assurance', 'Responsabilité civile professionnelle et responsabilité décennale obligatoire : ERGO (contrat souscrit par l\'intermédiaire d\'APRIL), contrat n° 26036641771, attestation valable du 30/04/2026 au 31/12/2026. Activités couvertes : électricité et télécommunications (alarmes comprises), installations thermiques de génie climatique (chauffage, climatisation, pompes à chaleur).'),
+        'assurance_fin'=> $g('ml_assurance_fin', '2026-12-31'),
+        // Métiers du site couverts par l'attestation (5.5 électricité, 5.2 génie climatique) : badges d'assurance seulement sur ceux-là.
+        'assurance_metiers' => array_values(array_filter(array_map('trim', explode(',', $g('ml_assurance_metiers', 'electricite,chauffage,climatisation,vmc'))))),
+        'updated_at'   => $g('ml_updated_at'),
+    ];
+}
+
+/**
+ * Compteur d'avis : note et nombre réels, avis Google (note et total de la fiche, relevés chaque
+ * jour, ou saisis dans l'admin) + avis clients publiés sur le site (provenance notée).
+ * Moyenne pondérée par le nombre d'avis. null s'il n'y a aucun avis : aucun chiffre affiché.
+ * url : la page Avis du site dès qu'elle montre des avis du site, sinon la fiche Google.
+ * @return array{rating:float,count:int,google_count:int,site_count:int,url:string,google_url:string,updated:string,label:string}|null
+ */
+function review_summary(): ?array
+{
+    $g    = function_exists('google_rating') ? google_rating() : null;
+    $site = all_published_reviews();
+    $gc   = (int)($g['count'] ?? 0);
+    $sc   = count($site);
+    $tot  = $gc + $sc;
+    if ($tot === 0) return null;
+    $sum  = (float)($g['rating'] ?? 0) * $gc;
+    foreach ($site as $r) $sum += max(1, min(5, (int)$r['rating']));
+    $u = trim(global_setting('google_rating_updated_at', ''));
+    return [
+        'rating'       => round($sum / $tot, 1),
+        'count'        => $tot,
+        'google_count' => $gc,
+        'site_count'   => $sc,
+        'url'          => $sc > 0 ? route_url('avis') : (string)$g['url'],
+        'google_url'   => (string)($g['url'] ?? ''),
+        'updated'      => $u !== '' && strtotime($u) ? date('d/m/Y', strtotime($u)) : '',
+        'label'        => $tot.' avis'.($sc === 0 ? ' Google' : ($gc === 0 ? ' clients' : ' (Google et clients EMAE)')),
+    ];
+}
+
+/**
+ * Une affirmation commerciale non documentée ? (note ou nombre d'avis sans source,
+ * « 1000+ interventions », délai d'arrivée chiffré, « garanti », certification, « technicien
+ * disponible »). Le délai de rappel réglé (callback_delay) reste permis quand le texte parle
+ * de rappel ou de réponse. Sert de filet de sécurité à l'affichage : un ancien réglage
+ * resté en base ne republie pas une promesse retirée.
+ */
+function claim_unsupported(string $t): bool
+{
+    $t = html_entity_decode(strip_tags($t), ENT_QUOTES, 'UTF-8');
+    if (trim($t) === '') return false;
+    $rx = [
+        '/\b\d[.,]\d\s*(\/\s*5|sur\s*5|★|étoiles?)/iu',                         // 4,6/5
+        '/\bavis\s+(clients?\s+)?v[ée]rifi/iu',                                   // « avis vérifiés »
+        '/\b\d{3,}\s*\+|\bplus de\s+\d{2,}\s*(interventions|clients|avis|chantiers)/iu', // 1000+, plus de 120 avis
+        '/\+\s*(de\s+)?\d{2,}[\s\d]*(techniciens?|interventions?|clients?|avis|chantiers?|artisans?)/iu', // + de 20 techniciens, +1500 interventions
+        '/\b\d{2,}[\s\d]*(interventions?|chantiers?)\s*\/\s*an\b/iu',             // 1500 interventions / an
+        '/\b(plus de|une [ée]quipe de)\s+\d{2,}\s*(techniciens?|artisans?)/iu',     // plus de 20 techniciens
+        '/(moins\s+d[\'’e ]\s*|sous\s+|en\s+|<\s*|inf[ée]rieur\s+[àa]\s+)(une?\s+|1\s*|2\s*|3\s*|\d+\s*)(h\b|heures?\b)/iu', // délai d'arrivée en heures
+        '/\b(certifi[ée]e?s?|RGE|Qualifelec|Qualibat|QualiPAC|Qualigaz)\b/u',
+        '/\b(rappel|d[ée]lai|intervention|r[ée]ponse)[^.!?]{0,40}\bgaranti/iu',
+        '/technicien\s+disponible/iu',
+        '/[ée]quipes?\s+r[ée]parties/iu',
+    ];
+    foreach ($rx as $r) if (preg_match($r, $t)) return true;
+    // Minutes : seulement le délai de rappel réglé, dans une phrase sur le rappel ou la réponse.
+    if (preg_match_all('/(\d+)\s*(min\b|mins\b|minutes?\b)/iu', $t, $m)) {
+        $ok = (int)callback_delay() > 0 && preg_match('/rappel|rappelons|r[ée]pon/iu', $t);
+        foreach ($m[1] as $n) if (!$ok || (int)$n !== (int)callback_delay()) return true;
+    }
+    return false;
+}
+
+/** Le texte, ou le texte de repli si le premier contient une promesse non documentée. */
+function claim_clean(string $text, ?string $fallback = null): string
+{
+    return claim_unsupported($text) ? ($fallback ?? intervention_terms_text()) : $text;
+}
+
+/** Horaires publiés, distincts selon le type de demande (réglable dans Identité & coordonnées). */
+function hours_text(): string
+{
+    $v = trim(global_setting('hours_text', ''));
+    if ($v !== '') return $v;
+    return 'Urgences : 24h/24 et 7j/7. Interventions planifiées : créneaux '.(function_exists('booking_weekdays_label') ? booking_weekdays_label() : 'du lundi au samedi')
+         .', confirmés par téléphone.';
+}
+
+/**
+ * Réponse de FAQ cohérente avec le reste du site :
+ * - zones : un texte qui cite un autre secteur que celui de la page est remplacé par le secteur réel ;
+ * - horaires : la phrase unique hours_text() ;
+ * - délai : pas de délai chiffré sans donnée réelle.
+ */
+function faq_answer_fix(string $q, string $a): string
+{
+    $qn = function_exists('text_ascii_lower') ? text_ascii_lower($q) : mb_strtolower($q);
+    $profil = function_exists('geo_profil_global') ? (zone_context() ? (geo_profil_zone(zone_context()) ?? geo_profil_global()) : geo_profil_global()) : null;
+    if (preg_match('/zone|secteur|departement|ou intervenez|quelles villes/', $qn) && $profil
+        && geo_hors_secteur($a, $profil)['etrangers']) {
+        return geo_replace('Nous intervenons {en_region}, notamment autour de {ville}. Contactez-nous pour vérifier que votre adresse est dans notre secteur.');
+    }
+    if (preg_match('/horaire/', $qn)) return hours_text();
+    if (preg_match('/delai/', $qn) && claim_unsupported($a)) {
+        return intervention_terms_text().' En cas d\'urgence, appelez le '.company_phone().'.';
+    }
+    return claim_clean($a);
+}
+
+/**
+ * Texte libre d'une page (saisi dans l'admin) sans les ressources tierces qu'un copier-coller
+ * y a laissées : feuille Google Fonts, scripts externes. Elles transmettraient l'adresse IP du
+ * visiteur à un tiers avant tout consentement. Le texte enregistré n'est pas modifié.
+ */
+function page_html_without_third_party(string $html): string
+{
+    return (string)preg_replace([
+        '#<link\b[^>]*\bhref=["\']?https?://[^"\'>]*(fonts\.googleapis|fonts\.gstatic|googletagmanager|google-analytics|doubleclick)[^>]*>#i',
+        '#<script\b[^>]*\bsrc=["\']?https?://[^>]*>\s*</script>#i',
+    ], '', $html);
+}
+
+/** Lien vers la fiche Google publique (avis), s'il est renseigné. */
+function google_profile_url(): string
+{
+    foreach ([global_setting('google_mybusiness_url', ''), function_exists('growth_get') ? growth_get('google_reviews_url') : ''] as $u) {
+        $u = trim((string)$u);
+        if (preg_match('#^https://#i', $u)) return $u;
+    }
+    return '';
+}
+
 function site_logo_path(): string { return setting('site_logo', 'storage/uploads/logos/logo-emae-default.svg'); }
 function site_logo_url(): string { return asset_url(site_logo_path()); }
+/** Le logo choisi est-il le logo EMAE d'origine ? Un autre logo envoyé dans l'admin s'affiche tel quel. */
+function site_logo_is_emae(string $logo): bool
+{
+    return in_array(basename($logo), ['20260412174717-7d1ee290.png', '20260408005456-a088045a.png',
+        '20260407130649-bf10931c.png', 'logo-emae.png', 'logo-emae-default.svg'], true);
+}
 function site_logo_width(): string { return css_value(setting('site_logo_width', '180'), '180px'); }
 function site_logo_height(): string { return css_value(setting('site_logo_height', 'auto'), 'auto'); }
 function site_logo_position(): string { $p = setting('site_logo_position', 'left'); return in_array($p, ['left','center','right']) ? $p : 'left'; }
@@ -456,42 +629,47 @@ function site_logo_position(): string { $p = setting('site_logo_position', 'left
 ═══════════════════════════════════════════════════ */
 
 
+/**
+ * Une seule entité pour tout le site (même @id sur chaque page, zones comprises).
+ * - pas d'adresse postale : le siège parisien n'accueille pas de public et la base de
+ *   Dole n'a pas d'adresse confirmée ; areaServed décrit le secteur couvert ;
+ * - pas de note (aggregateRating) : des avis sur sa propre entreprise ne donnent pas
+ *   droit aux étoiles dans Google, et aucune note sourcée n'est enregistrée ;
+ * - sameAs : seulement la fiche Google publique, si elle est renseignée.
+ */
 function schema_local_business(): string
 {
-    $addr = company_address();
-    $wa   = company_whatsapp();
+    $origin = rtrim(absolute_url('/'), '/');
+    $legal  = legal_info();
+    $tel    = preg_replace('/^tel:/i', '', company_phone_link());
+    // Secteur réel : départements du site global, ou de la zone affichée (déduits de ses codes postaux).
+    $profil = function_exists('geo_profil_global') ? (zone_context() && function_exists('geo_profil_zone') ? (geo_profil_zone(zone_context()) ?? geo_profil_global()) : geo_profil_global()) : null;
+    $areas  = $profil ? array_values(array_map(static fn(string $c): string => geo_departements()[$c][0], $profil['codes'])) : [];
     $data = [
         '@context'    => 'https://schema.org',
         '@type'       => 'ElectricalContractor',
+        '@id'         => $origin.'/#entreprise',
         'name'        => company_name(),
-        'telephone'   => company_phone(),
+        'legalName'   => $legal['denomination'],
+        'url'         => $origin.'/',
+        'telephone'   => preg_match('/^\+?\d{9,15}$/', (string)$tel) ? $tel : company_phone(),
         'email'       => company_email(),
         'description' => setting('company_description', 'Entreprise multitechnique — dépannage, installation, entretien en électricité, plomberie, chauffage et climatisation.'),
-        'areaServed'  => array_map('trim', explode(',', company_regions())),
-        'openingHoursSpecification' => [[
-            '@type'     => 'OpeningHoursSpecification',
-            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
-            'opens'     => '00:00',
-            'closes'    => '23:59',
-        ]],
-        'url'        => site_base_url() !== '' ? site_base_url() : route_url(''),
-        'priceRange' => '€€',
+        'areaServed'  => array_map(static fn(string $a): array => ['@type' => 'AdministrativeArea', 'name' => $a], $areas),
     ];
-    if ($addr !== '') {
-        $data['address'] = ['@type'=>'PostalAddress','streetAddress'=>$addr,'addressCountry'=>'FR'];
+    // Urgences 24h/24 et 7j/7 : publié seulement si les horaires affichés le disent.
+    if (preg_match('/24\s*h?\s*\/\s*24|24\/7/u', company_hours())) {
+        $data['openingHoursSpecification'] = [[
+            '@type' => 'OpeningHoursSpecification',
+            'dayOfWeek' => ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'],
+            'opens' => '00:00', 'closes' => '23:59',
+        ]];
     }
-    if (company_siret() !== '') {
-        $data['identifier'] = ['@type'=>'PropertyValue','name'=>'SIRET','value'=>company_siret()];
-    }
-    $rv = setting('schema_rating_value', '');
-    $rc = setting('schema_review_count', '');
-    if ($rv !== '' && $rc !== '') {
-        $data['aggregateRating'] = ['@type'=>'AggregateRating','ratingValue'=>(float)$rv,'reviewCount'=>(int)$rc,'bestRating'=>5,'worstRating'=>1];
-    }
-    if ($wa !== '') {
-        $data['sameAs'] = ['https://wa.me/'.preg_replace('/[^0-9]/', '', $wa)];
-    }
-    return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    $siret = preg_replace('/\D/', '', company_siret());
+    if (strlen((string)$siret) === 14) $data['identifier'] = ['@type' => 'PropertyValue', 'propertyID' => 'SIRET', 'value' => $siret];
+    if (($g = google_profile_url()) !== '') $data['sameAs'] = [$g];
+    if (($logo = site_logo_path()) !== '' && file_exists(__DIR__.'/../'.$logo)) $data['logo'] = absolute_url(asset_url($logo));
+    return json_encode($data, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_HEX_TAG);
 }
 
 /* ═══════════════════════════════════════════════════
@@ -505,9 +683,159 @@ function nav_items(): array
         ['label'=>setting('nav_zones','Nos zones'),        'url'=>route_url('zones')],
         ['label'=>setting('nav_avis','Avis clients'),      'url'=>route_url('avis')],
         ['label'=>setting('nav_realisations','Réalisations'), 'url'=>route_url('realisations')],
+        ...(tarifs_enabled() ? [['label'=>setting('nav_tarifs','Tarifs'), 'url'=>route_url('tarifs')]] : []),
         ['label'=>setting('nav_faq','FAQ'),                'url'=>route_url('faq')],
         ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact')],
     ];
+}
+
+/* ═══════════════════════════════════════════════════
+   TARIFS
+═══════════════════════════════════════════════════ */
+
+/**
+ * La page Tarifs est-elle publiée ? Réglage unique pour tout le site : on lit
+ * la valeur globale, pour qu'une copie « Dupliquer depuis Global » faite
+ * dans une zone ne fige pas l'état de la page dans cette zone.
+ */
+function tarifs_enabled(): bool
+{
+    return global_setting('tarifs_enabled', '0') === '1';
+}
+
+/**
+ * Lignes d'origine de chaque grille : [prestation, prix, précision].
+ * Aucun prix n'est prérempli : un prix vide s'affiche « Sur devis ».
+ */
+function tarifs_default_rows(): array
+{
+    $rows = [
+        // Lignes exigées pour un dépannage (arrêté du 24 janvier 2017) : déplacement, taux horaire TTC
+        // et son décompte, majorations avec leurs horaires. Vides = « Sur devis » tant que le prix
+        // n'est pas validé : aucun montant n'est inventé.
+        'base'          => [],   // lignes chiffrées ci-dessous (tarifs habituels EMAE dans Pennylane, HT)
+        'electricite'   => ['Dépannage électrique','Remplacement de tableau électrique','Ajout de prise ou de circuit','Mise aux normes NF C 15-100','Rénovation électrique complète'],
+        'plomberie'     => ['Recherche et réparation de fuite','Débouchage de canalisation','Remplacement de robinetterie','Remplacement de chauffe-eau','Entretien préventif annuel'],
+        'chauffage'     => ['Dépannage de chaudière','Entretien annuel de chaudière','Entretien de pompe à chaleur','Installation de chaudière ou de pompe à chaleur'],
+        'climatisation' => ['Dépannage de climatiseur','Entretien saisonnier','Recharge en fluide frigorigène','Installation de climatisation'],
+        'vmc'           => ['Dépannage de VMC','Nettoyage des bouches et des gaines','Entretien annuel et contrôle des débits','Installation de VMC simple ou double flux'],
+        'portail'       => ['Dépannage de portail bloqué','Motorisation de portail','Installation de visiophone','Dépannage d\'interphone ou de digicode'],
+        'automatisme'   => ['Dépannage de volet roulant','Motorisation de volet ou de store','Dépannage d\'électroménager'],
+    ];
+    $out = array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
+    // Fourchette donnée par le propriétaire (11/11/2026).
+    $out['chauffage'][1] = ['Entretien annuel de chaudière', '109 € à 239 € TTC', ENTRETIEN_CHAUDIERE_PRECISION];
+    $out['base'] = [
+        ['Déplacement — intervention programmée, du lundi au samedi', '52,80 € TTC', '44 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — urgence, du lundi au samedi', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — dimanche ou jour férié, programmé', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — dimanche ou jour férié, urgence', '100,80 € TTC', '84 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Déplacement — nuit (22 h - 8 h), urgence', '124,80 € TTC', '104 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Diagnostic', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — intervention programmée, du lundi au samedi', '70,80 €/h TTC', '59 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — urgence du lundi au samedi, ou dimanche et jour férié programmé', '88,80 €/h TTC', '74 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — dimanche ou jour férié, urgence', '106,80 €/h TTC', '89 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Main-d\'œuvre — nuit (22 h - 8 h), urgence', '130,80 €/h TTC', '109 €/h HT, décompte par demi-heure. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
+        ['Pièces et travaux', 'Sur devis gratuit', 'Devis écrit remis avant les travaux.'],
+    ];
+    return $out;
+}
+
+const ENTRETIEN_CHAUDIERE_PRECISION = 'Déplacement en plus (voir la page Tarifs). Selon l\'appareil (gaz, fioul, condensation…) et son accès ; le prix exact vous est annoncé avant le rendez-vous.';
+
+/**
+ * Prestations qu'un bouton « Prendre RDV » peut présélectionner : clé d'adresse →
+ * [libellé de la ligne Tarifs, métier, mot cherché dans les motifs de la page Rendez-vous].
+ */
+function rdv_prestations(): array
+{
+    return ['entretien-chaudiere' => ['label' => 'Entretien annuel de chaudière', 'trade' => 'chauffage', 'motif' => 'chaudiere']];
+}
+
+/** Prix d'une ligne de la page Tarifs ('' si la ligne est vide ou la page Tarifs non publiée). */
+function tarif_price(string $trade, string $label): string
+{
+    if (!tarifs_enabled()) return '';
+    $rows = json_decode(setting_plain('tarifs_'.$trade), true);
+    if (!is_array($rows) || $rows === []) $rows = tarifs_default_rows()[$trade] ?? [];
+    $want = text_ascii_lower($label);
+    foreach ($rows as $r) {
+        [$l, $p] = array_pad(array_values((array)$r), 2, '');
+        if (text_ascii_lower(trim((string)$l)) === $want) return trim((string)$p);
+    }
+    return '';
+}
+
+/** Adresse du bouton : page Rendez-vous si elle est ouverte, sinon formulaire de devis, prestation choisie. */
+function rdv_prestation_url(string $key): string
+{
+    return booking_enabled()
+        ? url_with_query(route_url('rendez-vous'), ['prestation' => $key])
+        : url_with_query(route_url('quote'), ['prestation' => $key]);
+}
+
+/** Encart « prix + Prendre RDV entretien » (pages chauffage). Le prix suit la page Tarifs. */
+function render_rdv_prestation_cta(string $key = 'entretien-chaudiere'): string
+{
+    $p = rdv_prestations()[$key] ?? null;
+    if ($p === null) return '';
+    $prix = tarif_price($p['trade'], $p['label']);
+    return '<div class="rdv-cta"><div class="rdv-cta-txt"><span class="rdv-cta-l">'.e($p['label']).'</span>'
+         . '<strong class="rdv-cta-p">'.e($prix !== '' ? $prix : setting('tarifs_quote_label', 'Sur devis')).'</strong>'
+         . ($prix !== '' ? '<span class="rdv-cta-n">'.e(ENTRETIEN_CHAUDIERE_PRECISION).'</span>' : '').'</div>'
+         . '<a class="btn btn-p rdv-cta-btn" href="'.e(rdv_prestation_url($key)).'">'.icon_svg('calendar').' Prendre RDV entretien</a></div>';
+}
+
+/** Ligne « 📍 Ville · date du chantier » d'une carte de réalisation ('' si ni l'une ni l'autre). */
+function realisation_meta(array $r): string
+{
+    $city = trim((string)($r['city'] ?? ''));
+    $date = date_tag($r['done_at'] ?? '', true, 'real-date');
+    if ($city === '' && $date === '') return '';
+    return '<div class="real-city">'.($city !== '' ? '📍 '.e($city) : '').($city !== '' && $date !== '' ? ' · ' : '').$date.'</div>';
+}
+
+/** Date saisie dans un champ <input type="date"> : 'AAAA-MM-JJ' valide, sinon null. */
+function date_input_value($raw): ?string
+{
+    $v = trim((string)$raw);
+    if (!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $v, $m) || !checkdate((int)$m[2], (int)$m[3], (int)$m[1])) return null;
+    return $v;
+}
+
+/** « 12 mars 2026 » (ou « mars 2026 » avec $jour = false) ; '' si la date est vide ou invalide. */
+function date_fr($ymd, bool $jour = true): string
+{
+    $t = is_string($ymd) && trim($ymd) !== '' ? strtotime($ymd) : false;
+    if (!$t) return '';
+    $mois = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'][(int)date('n', $t) - 1];
+    $j = (int)date('j', $t);
+    return ($jour ? $j.($j === 1 ? 'er' : '').' ' : '').$mois.' '.date('Y', $t);
+}
+
+/** Balise <time> avec la date en français ('' sans date). */
+function date_tag($ymd, bool $jour = true, string $class = ''): string
+{
+    $txt = date_fr($ymd, $jour);
+    if ($txt === '') return '';
+    return '<time datetime="'.e(date('Y-m-d', (int)strtotime((string)$ymd))).'"'.($class !== '' ? ' class="'.e($class).'"' : '').'>'.e($txt).'</time>';
+}
+
+/** Grilles à afficher, une par métier, avec les lignes propres à la zone si elle en a. */
+function tarifs_groups(): array
+{
+    $defaults = tarifs_default_rows();
+    $trades   = service_trade_defaults();
+    $out = [];
+    foreach (array_keys($defaults) as $trade) {
+        $rows = json_decode(setting_plain('tarifs_'.$trade), true);
+        $out[] = [
+            'label' => $trade === 'base' ? 'Déplacement et main-d\'œuvre' : service_template($trade)['label'],
+            'icon'  => $trade === 'base' ? '🧾' : $trades[$trade]['icon_svc'],
+            'rows'  => (is_array($rows) && $rows !== []) ? $rows : $defaults[$trade],
+        ];
+    }
+    return $out;
 }
 
 function seo_defaults(string $route = 'home', ?array $page = null): array
@@ -533,28 +861,202 @@ function quote_form_options(): array
         'mail_to'        => setting('form_email_to',        company_email()),
     ];
 }
+/* ═══════════════════════════════════════════════════
+   DEMANDES DU SITE : RAPPEL OU DEVIS, PHOTOS DU CLIENT
+   Les photos montrent l'intérieur des logements : elles restent dans un dossier
+   fermé au public et ne s'ouvrent que par admin/quote_photo.php, une fois connecté.
+═══════════════════════════════════════════════════ */
+const QUOTE_PHOTOS_MAX    = 3;
+const QUOTE_PHOTO_MAX_MB  = 10;
+const QUOTE_MAIL_ATTACH_MAX_MB = 10;
+
+/** rappel, devis, rdv (rendez-vous en ligne) ou entretien (contrat d'entretien) ; tout le reste = devis. */
+function quote_request_type(string $raw): string { return in_array($raw, ['rappel', 'rdv', 'entretien'], true) ? $raw : 'devis'; }
+
+/** Présentation de chaque type : expéditeur du mail, couleur, bandeau, début d'objet, étiquette. */
+function quote_type_info(string $type): array
+{
+    return [
+        'rappel'    => ['Rappel',      '#F07B1D', '📞 DEMANDE DE RAPPEL — le client attend votre appel', '📞 À RAPPELER — ', '📞 Rappel',      '#fff3e0', '#b84700'],
+        'rdv'       => ['Rendez-vous', '#0F766E', '📅 DEMANDE DE RENDEZ-VOUS — créneau à confirmer au client', '📅 RENDEZ-VOUS — ', '📅 Rendez-vous', '#e6f6f4', '#0f5e57'],
+        'entretien' => ['Entretien',   '#7C3AED', '🔧 DEMANDE DE CONTRAT D\'ENTRETIEN', '🔧 ENTRETIEN — ', '🔧 Entretien',   '#f1eafe', '#5b21b6'],
+        'devis'     => ['Devis',       '#1D4ED8', '📋 DEMANDE DE DEVIS', '📋 DEVIS — ', '📋 Devis',      '#e8f0ff', '#1a3baa'],
+    ][quote_request_type($type)];
+}
+
+/** Dossier privé des photos, créé fermé au public. */
+function quote_photo_dir(): string
+{
+    $dir = __DIR__.'/../storage/uploads/demandes';
+    if (!is_dir($dir)) @mkdir($dir, 0775, true);
+    if (!is_file($dir.'/.htaccess')) @file_put_contents($dir.'/.htaccess', "Require all denied\n");
+    // Témoin sans donnée : permet de vérifier depuis l'extérieur que le dossier est bien fermé.
+    if (!is_file($dir.'/ferme.txt')) @file_put_contents($dir.'/ferme.txt', "Ce dossier doit rester inaccessible depuis le web.\n");
+    return $dir;
+}
+
+/** Extension à donner au fichier, ou null si ce n'est pas une vraie image acceptée. */
+function quote_photo_ext(string $path): ?string
+{
+    $mime = @mime_content_type($path) ?: '';
+    $ext  = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'][$mime] ?? null;
+    return ($ext !== null && @getimagesize($path) !== false) ? $ext : null;
+}
+
+/** Range les photos envoyées ($_FILES['photos']). Retour : noms enregistrés, nombre de refus. */
+function quote_store_photos(array $f): array
+{
+    $out = ['files' => [], 'refused' => 0];
+    if (!is_array($f['name'] ?? null)) return $out;
+    foreach (array_keys($f['name']) as $i) {
+        $err = (int)($f['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+        if ($err === UPLOAD_ERR_NO_FILE) continue;
+        $tmp = (string)($f['tmp_name'][$i] ?? '');
+        $ext = ($err === UPLOAD_ERR_OK
+                && count($out['files']) < QUOTE_PHOTOS_MAX
+                && (int)($f['size'][$i] ?? 0) <= QUOTE_PHOTO_MAX_MB * 1048576
+                && is_uploaded_file($tmp)) ? quote_photo_ext($tmp) : null;
+        $name = $ext !== null ? bin2hex(random_bytes(16)).'.'.$ext : '';
+        if ($ext !== null && move_uploaded_file($tmp, quote_photo_dir().'/'.$name)) $out['files'][] = $name;
+        else $out['refused']++;
+    }
+    return $out;
+}
+
+/** Noms des photos d'une demande (rien d'autre qu'un nom généré par le site n'est accepté). */
+function quote_client_photos(array $q): array
+{
+    $list = json_decode((string)($q['client_photos'] ?? ''), true);
+    if (!is_array($list)) return [];
+    return array_values(array_filter($list, static fn($n): bool => is_string($n) && preg_match('/^[a-f0-9]{32}\.(jpg|png|webp)$/', $n) === 1));
+}
+
+function quote_delete_photos(array $q): void
+{
+    foreach (quote_client_photos($q) as $name) @unlink(__DIR__.'/../storage/uploads/demandes/'.$name);
+}
+
+/** Photos du client pour une intervention créée à partir d'une demande du site. */
+function intervention_client_photos_html(array $iv): string
+{
+    if (empty($iv['quote_id'])) return '';
+    try { $q = db_fetch('SELECT id, client_photos FROM quotes WHERE id = ?', [(int)$iv['quote_id']]); }
+    catch (Throwable $e) { return ''; }
+    return $q ? quote_photos_html($q) : '';
+}
+
+/** Vignettes cliquables des photos du client (admin, dispatcher et technicien). */
+function quote_photos_html(array $q): string
+{
+    $html = '';
+    foreach (quote_client_photos($q) as $n => $_) {
+        $url = e(url_for('admin/quote_photo.php?id='.(int)$q['id'].'&n='.$n));
+        $html .= '<a href="'.$url.'" target="_blank" rel="noopener" style="display:block;width:110px;height:110px;border-radius:8px;overflow:hidden;background:#f0f4ff;">'
+               . '<img src="'.$url.'" alt="Photo envoyée par le client" loading="lazy" style="width:100%;height:100%;object-fit:cover;"></a>';
+    }
+    return $html === '' ? '' : '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'.$html.'</div>';
+}
+
+/** Étiquette Rappel / Devis ; rien pour les demandes antérieures, dont le type est inconnu. */
+function quote_type_badge(array $q): string
+{
+    $t = (string)($q['request_type'] ?? '');
+    if (!in_array($t, ['rappel', 'devis', 'rdv', 'entretien'], true)) return '';
+    $i = quote_type_info($t);
+    $slot = $t === 'rdv' && !empty($q['preferred_date']) ? '<br><small style="color:#0f5e57;">'.e(booking_day_label((string)$q['preferred_date']).(isset(booking_slots()[(string)($q['preferred_slot'] ?? '')]) ? ' — '.booking_slots()[(string)$q['preferred_slot']] : '')).'</small>' : '';
+    return '<span style="display:inline-block;padding:.15rem .55rem;border-radius:6px;background:'.$i[5].';color:'.$i[6].';font-weight:700;font-size:.78rem;white-space:nowrap;">'.$i[4].'</span>'.$slot;
+}
+
+/**
+ * Enveloppe du message : un simple HTML sans pièce jointe, sinon du multipart.
+ * $files : [nom affiché => chemin]. Retour : [en-têtes de contenu, corps].
+ */
+function quote_mail_message(string $html, array $files): array
+{
+    if ($files === []) return ["Content-Type: text/html; charset=UTF-8\r\n", $html];
+    $b = 'emae-'.bin2hex(random_bytes(12));
+    $body = "--$b\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n\r\n"
+          . chunk_split(base64_encode($html))."\r\n";
+    foreach ($files as $name => $path) {
+        $mime = ['jpg' => 'image/jpeg', 'png' => 'image/png', 'webp' => 'image/webp'][pathinfo($name, PATHINFO_EXTENSION)] ?? 'application/octet-stream';
+        $body .= "--$b\r\nContent-Type: $mime; name=\"$name\"\r\nContent-Transfer-Encoding: base64\r\n"
+               . "Content-Disposition: attachment; filename=\"$name\"\r\n\r\n"
+               . chunk_split(base64_encode((string)file_get_contents($path)))."\r\n";
+    }
+    return ["Content-Type: multipart/mixed; boundary=\"$b\"\r\n", $body."--$b--\r\n"];
+}
+
 function send_quote_notification(array $data): bool
 {
     $to = setting('form_email_to', company_email());
     if (trim($to) === '') return false;
+    $m  = quote_notification_compose($data);
+    $ok = mail($to, $m['subject'], $m['body'], $m['headers']);
+    // Un mail refusé à cause de ses pièces jointes ne doit pas faire perdre la demande.
+    if (!$ok && $m['attached'] > 0) {
+        $m  = quote_notification_compose($data, false);
+        $ok = mail($to, $m['subject'], $m['body'], $m['headers']);
+    }
+    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.company_email());
+    return $ok;
+}
 
-    $name       = trim($data['full_name']    ?? '');
-    $phone      = trim($data['phone']        ?? '');
-    $email      = trim($data['email']        ?? '');
-    $city       = trim($data['city']         ?? '');
-    $address    = trim($data['address']      ?? '');
-    $postalCode = trim($data['postal_code']  ?? '');
-    $service    = trim($data['service_type'] ?? '');
+/** Prépare le mail reçu par l'entreprise. Retour : subject, body, headers, html, attached. */
+function quote_notification_compose(array $data, bool $attach = true): array
+{
+    $to = setting('form_email_to', company_email());
+    $esc = static fn(string $v): string => htmlspecialchars(trim($v), ENT_QUOTES, 'UTF-8');
+    $rawName    = trim($data['full_name']    ?? '');
+    $rawEmail   = trim($data['email']        ?? '');
+    $name       = $esc($data['full_name']    ?? '');
+    $phone      = $esc($data['phone']        ?? '');
+    $email      = filter_var($rawEmail, FILTER_VALIDATE_EMAIL) ? $esc($rawEmail) : '';
+    $city       = $esc($data['city']         ?? '');
+    $address    = $esc($data['address']      ?? '');
+    $postalCode = $esc($data['postal_code']  ?? '');
+    $service    = $esc($data['service_type'] ?? '');
     $message    = trim($data['message']      ?? '');
-    $urgency    = trim($data['urgency']      ?? 'Normale');
-    $source     = trim($data['source']       ?? '');
+    $rawUrgency = trim($data['urgency']      ?? 'Normale');
+    $urgency    = $esc($rawUrgency);
+    $source     = $esc($data['source']       ?? '');
     $site    = company_name();
     $now     = date('d/m/Y à H:i');
+    $quoteId = (int)($data['quote_id'] ?? 0);
+
+    // Le type se lit partout : nom de l'expéditeur et objet dans la liste des mails, bandeau dans le mail.
+    [$typeSender, $typeColor, $typeBanner, $subjectStart] = quote_type_info((string)($data['request_type'] ?? ''));
+    $subjectTxt = $subjectStart.str_replace(["\r", "\n"], ' ', $rawName).' ('.str_replace(["\r", "\n"], ' ', $rawUrgency).')';
+    if (trim((string)($data['slot_label'] ?? '')) !== '') {
+        $typeBanner .= '<br><span style="font-size:15px;font-weight:400;">Créneau souhaité : <strong>'.$esc((string)$data['slot_label']).'</strong></span>';
+    }
+
+    // Photos : jointes au mail tant que le total reste raisonnable, sinon à voir sur la fiche.
+    $attachments = [];
+    $tooHeavy = 0;
+    $weight = 0;
+    $photos = array_values(array_filter((array)($data['photos'] ?? []), 'is_string'));
+    foreach ($photos as $i => $file) {
+        $path = __DIR__.'/../storage/uploads/demandes/'.basename($file);
+        $size = is_file($path) ? (int)filesize($path) : 0;
+        if ($attach && $size > 0 && $weight + $size <= QUOTE_MAIL_ATTACH_MAX_MB * 1048576) {
+            $weight += $size;
+            $attachments['photo-'.($i + 1).'.'.pathinfo($file, PATHINFO_EXTENSION)] = $path;
+        } else {
+            $tooHeavy++;
+        }
+    }
+    $photoLines = [];
+    if ($attachments !== []) $photoLines[] = count($attachments) > 1 ? '📷 <strong>'.count($attachments).' photos jointes</strong> à ce mail.' : '📷 <strong>1 photo jointe</strong> à ce mail.';
+    if ($tooHeavy > 0)       $photoLines[] = '📷 '.($tooHeavy > 1 ? $tooHeavy.' photos à voir' : '1 photo à voir').' sur la fiche de la demande.';
+    $refused = (int)($data['photos_refused'] ?? 0);
+    if ($refused > 0)        $photoLines[] = '⚠️ '.($refused > 1 ? $refused.' photos refusées' : '1 photo refusée').' (format ou taille), à redemander au client si besoin.';
+    $photoBlock = $photoLines === [] ? '' : '<tr><td style="padding:0 36px 24px;"><div style="background:#f8faff;border:1px solid #dde5f3;border-radius:6px;padding:12px 16px;font-size:14px;color:#222;line-height:1.7;">'.implode('<br>', $photoLines).'</div></td></tr>';
+    $adminLink = site_base_url().($quoteId > 0 ? '/admin/dossier.php?id='.$quoteId : '/admin/quotes.php');
 
     $urgencyColor = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#c0392b' : '#1a7ab5';
     $urgencyBg    = ($urgency === 'Urgente' || $urgency === 'Urgence') ? '#fdf2f2' : '#f0f7ff';
 
-    $subject = '=?UTF-8?B?'.base64_encode('🔔 Nouvelle demande — '.$name.' ('.$urgency.')').'?=';
+    $subject = '=?UTF-8?B?'.base64_encode($subjectTxt).'?=';
 
     $html = '<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head><body style="margin:0;padding:0;background:#f4f6fb;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6fb;padding:32px 0;">
@@ -562,8 +1064,8 @@ function send_quote_notification(array $data): bool
 <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.08);">
   <tr><td style="background:#061029;padding:28px 36px;">
     <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;">'.$site.'</p>
-    <p style="margin:6px 0 0;font-size:13px;color:#F07B1D;font-weight:600;text-transform:uppercase;letter-spacing:.08em;">Nouvelle demande de devis</p>
   </td></tr>
+  <tr><td style="background:'.$typeColor.';padding:16px 36px;font-size:17px;font-weight:700;color:#ffffff;">'.$typeBanner.'</td></tr>
   <tr><td style="padding:20px 36px 0;">
     <span style="display:inline-block;background:'.$urgencyBg.';color:'.$urgencyColor.';border:1px solid '.$urgencyColor.';border-radius:6px;padding:6px 14px;font-size:13px;font-weight:700;">⚡ Urgence : '.$urgency.'</span>
     <span style="display:inline-block;margin-left:10px;color:#888;font-size:13px;">'.$now.'</span>
@@ -577,7 +1079,7 @@ function send_quote_notification(array $data): bool
       </tr>
       <tr style="background:#fff;">
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">📞 Téléphone</td>
-        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/\s+/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
+        <td style="padding:12px 18px;font-size:14px;font-weight:700;color:#F07B1D;border-bottom:1px solid #eef0f7;"><a href="tel:'.preg_replace('/[^0-9+]/','',$phone).'" style="color:#F07B1D;text-decoration:none;">'.$phone.'</a></td>
       </tr>
       '.($email !== '' ? '<tr>
         <td style="padding:12px 18px;font-size:13px;color:#555;border-bottom:1px solid #eef0f7;">✉️ Email</td>
@@ -601,8 +1103,9 @@ function send_quote_notification(array $data): bool
     <p style="margin:0 0 10px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#3d5a99;">💬 Message du client</p>
     <div style="background:#f8faff;border-left:4px solid #F07B1D;border-radius:6px;padding:16px 18px;font-size:14px;color:#222;line-height:1.7;">'.nl2br(htmlspecialchars($message, ENT_QUOTES)).'</div>
   </td></tr>
+  '.$photoBlock.'
   <tr><td style="padding:0 36px 32px;text-align:center;">
-    <a href="'.site_base_url().'/admin/quotes.php" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir dans l\'admin →</a>
+    <a href="'.$adminLink.'" style="display:inline-block;background:#061029;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:8px;font-size:14px;font-weight:700;">Voir la fiche dans l\'admin →</a>
   </td></tr>
   <tr><td style="background:#f0f2f8;padding:16px 36px;text-align:center;">
     <p style="margin:0;font-size:12px;color:#888;">Email automatique — '.$site.' · Ne pas répondre</p>
@@ -611,19 +1114,20 @@ function send_quote_notification(array $data): bool
 </td></tr></table>
 </body></html>';
 
-    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — Notification').'?=';
+    $fromName  = '=?UTF-8?B?'.base64_encode($site.' — '.$typeSender).'?=';
     $fromEmail = company_email();
-    $replyTo   = $email !== '' ? $email : $to;
+    // Adresse validée plus haut : une adresse piégée ne peut pas ajouter d'en-tête au mail.
+    $replyTo   = $email !== '' ? $rawEmail : $to;
 
+    [$contentHeader, $body] = quote_mail_message($html, $attachments);
     $headers  = "MIME-Version: 1.0\r\n";
-    $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $headers .= $contentHeader;
     $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+    $headers .= "X-EMAE-Source: site\r\n";   // l'agent relation client ignore les mails envoyés par le site
 
-    $ok = mail($to, $subject, $html, $headers);
-    if (!$ok) error_log('[EMAE] send_quote_notification failed — to='.$to.' from='.$fromEmail);
-    return $ok;
+    return ['subject' => $subject, 'subject_text' => $subjectTxt, 'body' => $body, 'headers' => $headers, 'html' => $html, 'attached' => count($attachments)];
 }
 
 function send_quote_confirmation_to_client(array $data): bool
@@ -703,6 +1207,7 @@ function send_quote_confirmation_to_client(array $data): bool
     $headers .= "From: {$fromName} <{$fromEmail}>\r\n";
     $headers .= "Reply-To: {$replyTo}\r\n";
     $headers .= "X-Mailer: PHP/".PHP_VERSION."\r\n";
+    $headers .= "X-EMAE-Source: site\r\n";   // l'agent relation client ignore les mails envoyés par le site
 
     $ok = mail($email, $subject, $html, $headers);
     if (!$ok) error_log('[EMAE] send_quote_confirmation_to_client failed — to='.$email.' from='.$fromEmail);
@@ -1033,12 +1538,68 @@ function webp_variant_path(string $path): ?string
  */
 function picture_html(string $path, string $alt, array $attrs = []): string
 {
+    // Une photo de 4 Mo affichée sur une carte de 400 px : on sert une copie réduite.
+    $small = image_resized_variant($path, (int)($attrs['data-max'] ?? 1200));
+    unset($attrs['data-max']);
+    if ($small !== null) {
+        $path = $small['src'];
+        $attrs += ['width' => $small['w'], 'height' => $small['h']];   // réserve la place : la page ne « saute » plus
+    }
     $attrStr = '';
     foreach ($attrs as $k => $v) { $attrStr .= ' ' . e($k) . '="' . e((string)$v) . '"'; }
     $img = '<img src="' . e(asset_url($path)) . '" alt="' . e($alt) . '"' . $attrStr . '>';
-    $webp = webp_variant_path($path);
+    $webp = $small['webp'] ?? webp_variant_path($path);
     if ($webp === null) return $img;
     return '<picture><source srcset="' . e(asset_url($webp)) . '" type="image/webp">' . $img . '</picture>';
+}
+
+/**
+ * Copie réduite d'une image envoyée sur le site (largeur maximale $maxW), créée à la
+ * première demande puis réutilisée : « photo.jpg » → « photo-w1200.jpg » et
+ * « photo-w1200.webp ». Retour : ['src', 'webp' (ou null), 'w', 'h'], ou null quand
+ * l'image est déjà légère, n'est pas un JPEG/PNG du site, ou que le serveur ne sait
+ * pas réduire les images (l'original est alors affiché, comme avant).
+ */
+function image_resized_variant(string $path, int $maxW = 1200): ?array
+{
+    $rel = ltrim($path, '/');
+    if ($maxW < 64 || !preg_match('#^storage/uploads/[A-Za-z0-9_/.-]+\.(jpe?g|png)$#i', $rel) || str_contains($rel, '..')) return null;
+    $src = __DIR__.'/../'.$rel;
+    if (!is_file($src)) return null;
+    $ext  = strtolower(pathinfo($rel, PATHINFO_EXTENSION)) === 'png' ? 'png' : 'jpg';
+    $base = preg_replace('/\.[a-z]+$/i', '', $rel).'-w'.$maxW;
+    $out  = $base.'.'.$ext;
+    $webp = $base.'.webp';
+    $skip = __DIR__.'/../'.$base.'.skip';
+    if (is_file(__DIR__.'/../'.$out)) {
+        $s = @getimagesize(__DIR__.'/../'.$out);
+        return $s ? ['src' => $out, 'webp' => is_file(__DIR__.'/../'.$webp) ? $webp : null, 'w' => $s[0], 'h' => $s[1]] : null;
+    }
+    if (is_file($skip) || !function_exists('imagecreatetruecolor')) return null;
+    $info = @getimagesize($src);
+    // Déjà légère et pas trop large : rien à faire (et on ne recommence pas à chaque visite).
+    if (!$info || ($info[0] <= $maxW && filesize($src) < 200 * 1024) || $info[0] * $info[1] > 40_000_000) { @touch($skip); return null; }
+    try {
+        @ini_set('memory_limit', '256M');
+        $im = $ext === 'png' ? @imagecreatefrompng($src) : @imagecreatefromjpeg($src);
+        if (!$im) { @touch($skip); return null; }
+        // Photos de téléphone : la rotation est dans les métadonnées, pas dans les pixels.
+        if ($ext === 'jpg' && function_exists('exif_read_data')) {
+            $o = (int)((@exif_read_data($src)['Orientation'] ?? 1));
+            $rot = [3 => 180, 6 => -90, 8 => 90][$o] ?? 0;
+            if ($rot !== 0 && ($r = imagerotate($im, $rot, 0)) !== false) { imagedestroy($im); $im = $r; }
+        }
+        $w = imagesx($im); $h = imagesy($im);
+        $nw = min($maxW, $w); $nh = max(1, (int)round($h * $nw / $w));
+        $dst = imagecreatetruecolor($nw, $nh);
+        if ($ext === 'png') { imagealphablending($dst, false); imagesavealpha($dst, true); }
+        imagecopyresampled($dst, $im, 0, 0, 0, 0, $nw, $nh, $w, $h);
+        $ok = $ext === 'png' ? imagepng($dst, __DIR__.'/../'.$out, 8) : imagejpeg($dst, __DIR__.'/../'.$out, 80);
+        if ($ok && function_exists('imagewebp')) @imagewebp($dst, __DIR__.'/../'.$webp, 80);
+        imagedestroy($im); imagedestroy($dst);
+        if (!$ok) { @touch($skip); return null; }
+        return ['src' => $out, 'webp' => is_file(__DIR__.'/../'.$webp) ? $webp : null, 'w' => $nw, 'h' => $nh];
+    } catch (Throwable $e) { @touch($skip); return null; }
 }
 
 /* ═══════════════════════════════════════════════════
@@ -1064,7 +1625,7 @@ function hero_settings(): array
         'button1_url'   => setting('home_button1_url',   'quote'),
         'button2_label' => setting('home_button2_label', 'Appeler maintenant'),
         'button2_url'   => setting('home_button2_url',   ''),
-        'quote_eyebrow' => setting('home_quote_eyebrow', 'Rappel gratuit sous 30 min'),
+        'quote_eyebrow' => setting('home_quote_eyebrow', 'Rappel gratuit sous 5 min'),
         'quote_title'   => setting('home_quote_title',   'Obtenir un rappel rapide'),
         'quote_service_label'      => setting('home_quote_service_label',      'Service'),
         'quote_city_label'         => setting('home_quote_city_label',         'Ville'),
@@ -1072,13 +1633,13 @@ function hero_settings(): array
         'quote_button_label'       => setting('home_quote_button_label',       'Être rappelé gratuitement'),
         'quote_meta'               => setting('home_quote_meta',               '✓ Gratuit  ✓ Rapide  ✓ Sans engagement'),
         'trust_1_icon'  => setting('home_trust_1_icon',  '⚡'),
-        'trust_1_label' => setting('home_trust_1_label', 'Intervention < 2h'),
+        'trust_1_label' => setting('home_trust_1_label', 'Urgences 24h/24'),
         'trust_2_icon'  => setting('home_trust_2_icon',  '🆓'),
         'trust_2_label' => setting('home_trust_2_label', 'Devis gratuit'),
         'trust_3_icon'  => setting('home_trust_3_icon',  '⭐'),
-        'trust_3_label' => setting('home_trust_3_label', '4.9/5 — 120+ avis'),
+        'trust_3_label' => setting('home_trust_3_label', 'Prix annoncé avant déplacement'),
         'trust_4_icon'  => setting('home_trust_4_icon',  '🔒'),
-        'trust_4_label' => setting('home_trust_4_label', 'Artisans certifiés'),
+        'trust_4_label' => setting('home_trust_4_label', 'Artisans qualifiés'),
     ];
 }
 
@@ -1108,10 +1669,10 @@ function hero_banner_settings(): array
         'button2_url'   => setting('home_banner_button2_url',   'quote'),
         'logo_path'     => setting('home_banner_logo_path',     ''),
         'stats'         => [
-            ['number'=>setting('stat_1_number','500+'),  'label'=>setting('stat_1_label','Interventions/an')],
-            ['number'=>setting('stat_2_number','4.9/5'), 'label'=>setting('stat_2_label','Note client')],
-            ['number'=>setting('stat_3_number','< 2h'),  'label'=>setting('stat_3_label','Délai urgence')],
-            ['number'=>setting('stat_4_number','24/7'),  'label'=>setting('stat_4_label','Disponibilité')],
+            ['number'=>setting('stat_1_number','24/7'),  'label'=>setting('stat_1_label','Urgences')],
+            ['number'=>setting('stat_2_number','0 €'), 'label'=>setting('stat_2_label','Devis')],
+            ['number'=>setting('stat_3_number','7'),  'label'=>setting('stat_3_label','Métiers')],
+            ['number'=>setting('stat_4_number','3'),  'label'=>setting('stat_4_label','Départements')],
         ],
     ];
 }
@@ -1192,7 +1753,7 @@ function faq_page_settings(): array
         'hero_title'   => 'Toutes vos questions sur nos services',
         'hero_lead'    => 'Retrouvez les réponses aux questions les plus posées. Pour tout autre besoin, appelez-nous directement.',
         'cta_title'    => 'Vous ne trouvez pas votre réponse ?',
-        'cta_lead'     => 'Contactez-nous directement. Nous répondons sous 30 minutes en heures ouvrées.',
+        'cta_lead'     => 'Contactez-nous directement. Nous répondons sous 5 minutes, 24h/24.',
         'cta_button'   => 'Nous contacter',
         'cta_url'      => 'contact',
         'groups'       => [
@@ -1231,9 +1792,9 @@ function contact_page_settings(): array
     return [
         'hero_eyebrow'  => setting('contact_hero_eyebrow',  'Contactez-nous'),
         'hero_title'    => setting('contact_hero_title',    'Parlez-nous de votre besoin'),
-        'hero_lead'     => setting('contact_hero_lead',     'Devis gratuit, réponse sous 30 min, intervention rapide. Disponible 24h/24.'),
+        'hero_lead'     => setting('contact_hero_lead',     'Devis gratuit, réponse sous 5 min, intervention rapide. Disponible 24h/24.'),
         'form_title'    => setting('contact_form_title',    'Envoyer une demande'),
-        'form_subtitle' => setting('contact_form_subtitle', 'Un technicien vous recontacte sous 30 minutes.'),
+        'form_subtitle' => setting('contact_form_subtitle', 'Un technicien vous recontacte sous 5 minutes.'),
         'info_title'    => setting('contact_info_title',    'Nos coordonnées'),
         'urgency_title' => setting('contact_urgency_title', 'Urgence ? Appelez directement'),
         'urgency_text'  => setting('contact_urgency_text',  'Pour toute panne bloquante, nous intervenons en priorité 24h/24.'),
@@ -1252,7 +1813,7 @@ function zones_page_settings(bool $brut = false): array
         'eyebrow'  => 'Zones d\'intervention',
         'title'    => 'Nous intervenons',
         'title_hl' => '{en_region}',
-        'lead'     => 'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.',
+        'lead'     => 'Électricité, plomberie, chauffage et climatisation dans nos zones. Disponibilité, délai estimé et conditions d\'intervention confirmés par téléphone avant déplacement.',
         'regions'  => [
             [
                 'name'  => 'Île-de-France',
@@ -1260,7 +1821,7 @@ function zones_page_settings(bool $brut = false): array
                 'color' => '#1a7ab5',
                 'depts' => ['Paris (75)','Hauts-de-Seine (92)','Seine-Saint-Denis (93)','Val-de-Marne (94)','Seine-et-Marne (77)','Yvelines (78)','Essonne (91)','Val-d\'Oise (95)'],
                 'cities'=> ['Paris','Boulogne-Billancourt','Saint-Denis','Montreuil','Argenteuil','Créteil','Versailles','Nanterre','Colombes','Saint-Maur-des-Fossés','Champigny-sur-Marne','Meaux','Évry','Cergy'],
-                'delay' => 'Moins de 2h en urgence',
+                'delay' => '',
             ],
             [
                 'name'  => 'Occitanie',
@@ -1291,9 +1852,14 @@ function zones_page_settings(bool $brut = false): array
     return $out;
 }
 
+/**
+ * Témoignages publiés : visibles ET dont la provenance est notée (source_note : « avis Google
+ * du 12/03/2026 », « message reçu par SMS »…). Sans provenance, un témoignage reste en attente
+ * dans l'admin : on ne publie pas un avis dont on ne peut pas dire d'où il vient.
+ */
 function all_published_reviews(): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
+    try { return db_fetch_all("SELECT * FROM reviews WHERE is_visible = 1 AND COALESCE(source_note, '') <> ''".zone_rows_where().' ORDER BY sort_order ASC, id DESC'); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1305,6 +1871,56 @@ function visible_realisations(int $limit = 6): array
     try {
         return db_fetch_all('SELECT * FROM realisations WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT '.max(1,(int)$limit));
     } catch (Throwable $e) { return []; }
+}
+
+/**
+ * Réalisations, celles faites près du visiteur d'abord : même ville, puis villes
+ * du secteur (la zone en cours, ou la liste donnée). Les autres suivent.
+ * Chaque ligne reçoit 'local' : 2 = même ville, 1 = même secteur, 0 = ailleurs.
+ */
+function realisations_local(int $limit, string $city = '', array $areaCities = []): array
+{
+    $norm = static fn(string $s): string => trim((string)preg_replace('/[^a-z0-9]+/', ' ', function_exists('text_ascii_lower') ? text_ascii_lower($s) : strtolower($s)));
+    if ($areaCities === [] && zone_ctx_slug() !== '' && function_exists('intervention_zones')) {
+        foreach (intervention_zones() as $z) if ($z['slug'] === zone_ctx_slug()) $areaCities = $z['cities'];
+    }
+    $c    = $norm($city);
+    $area = array_map($norm, $areaCities);
+    $rows = array_map(static function (array $r) use ($norm, $c, $area): array {
+        $rc = $norm((string)($r['city'] ?? ''));
+        $r['local'] = $rc === '' ? 0 : (($c !== '' && $rc === $c) ? 2 : (in_array($rc, $area, true) ? 1 : 0));
+        return $r;
+    }, visible_realisations(1000));
+    usort($rows, static fn(array $a, array $b): int => $b['local'] <=> $a['local']);   // tri stable : l'ordre choisi dans l'admin est gardé
+    return array_slice($rows, 0, max(1, $limit));
+}
+
+/** Types de service proposés dans l'admin pour une réalisation ou un avis. */
+function service_type_options(): array
+{
+    return ['Électricité','Plomberie','Chauffage','Climatisation','Chauffage & Climatisation','CVC','PAC','VMC & Ventilation','Portail & Visiophone','Automatismes & Électroménager','Maintenance','Dépannage'];
+}
+
+/** Métiers auxquels se rattache un type de service. « Chauffage & Climatisation » en donne deux. */
+function realisation_trades(string $serviceType): array
+{
+    $motifs = [
+        'electricite'   => '/[ée]lectri/iu',
+        'plomberie'     => '/plomb/iu',
+        'chauffage'     => '/chauff|chaudi|\bpac\b|pompe/iu',
+        'climatisation' => '/clim|\bcvc\b/iu',
+        'vmc'           => '/ventil|\bvmc\b/iu',
+        'portail'       => '/portail|visiophone|interphone|digicode/iu',
+        'automatisme'   => '/automatism|\bvolets?\b|\bstores?\b|domotique|[ée]lectrom[ée]nager/iu',
+    ];
+    return array_keys(array_filter($motifs, static fn(string $m): bool => preg_match($m, $serviceType) === 1));
+}
+
+/** Les réalisations publiées d'un métier, pour sa page service. */
+function realisations_for_trade(string $trade, int $limit = 6): array
+{
+    $rows = array_filter(visible_realisations(1000), static fn(array $r): bool => in_array($trade, realisation_trades((string)($r['service_type'] ?? '')), true));
+    return array_slice(array_values($rows), 0, $limit);
 }
 
 function all_realisations(): array
@@ -1336,7 +1952,7 @@ function all_pages(): array
 
 function visible_reviews(int $limit = 6): array
 {
-    try { return db_fetch_all('SELECT * FROM reviews WHERE is_visible = 1'.zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
+    try { return db_fetch_all("SELECT * FROM reviews WHERE is_visible = 1 AND COALESCE(source_note, '') <> ''".zone_rows_where().' ORDER BY sort_order ASC, id DESC LIMIT ' . max(1, (int)$limit)); }
     catch (Throwable $e) { return []; }
 }
 
@@ -1414,10 +2030,10 @@ function why_section_settings(): array
     $defaultItems = [
         ['icon_type'=>'emoji','icon_emoji'=>'⚡','icon_image'=>'','title'=>'Réponse immédiate 24h/24','text'=>'Nous décrochons toujours. Délai moyen inférieur à 2h pour les urgences.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📋','icon_image'=>'','title'=>'Devis clair avant intervention','text'=>'Le prix est annoncé avant toute action. Zéro surprise sur la facture finale.'],
-        ['icon_type'=>'emoji','icon_emoji'=>'🔒','icon_image'=>'','title'=>'Techniciens qualifiés','text'=>'Nos artisans sont formés, certifiés et expérimentés sur l\'ensemble de nos métiers.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'🔒','icon_image'=>'','title'=>'Techniciens qualifiés','text'=>'Nos artisans sont formés et expérimentés sur l\'ensemble de nos métiers.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📍','icon_image'=>'','title'=>'Présence locale','text'=>'Des techniciens installés dans votre secteur, qui en connaissent le bâti et ses spécificités.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🛠️','icon_image'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur.'],
-        ['icon_type'=>'emoji','icon_emoji'=>'⭐','icon_image'=>'','title'=>'Clients satisfaits','text'=>'Plus de 120 avis vérifiés, une note de 4.9/5. La confiance se construit chantier après chantier.'],
+        ['icon_type'=>'emoji','icon_emoji'=>'💬','icon_image'=>'','title'=>'Prix annoncé','text'=>'Le prix est annoncé avant tout déplacement : aucune visite facturée sans votre accord.'],
         ['icon_type'=>'emoji','icon_emoji'=>'🏗️','icon_image'=>'','title'=>'Particuliers & professionnels','text'=>'Logements, commerces, bureaux, copropriétés — nous adaptons notre organisation à votre contexte.'],
         ['icon_type'=>'emoji','icon_emoji'=>'📞','icon_image'=>'','title'=>'Disponible 24h/7j','text'=>'L\'urgence n\'attend pas. Notre astreinte est active en permanence pour les situations bloquantes.'],
     ];
@@ -1451,7 +2067,8 @@ function service_cards_settings(): array
             'image' => trim((string)($c['image'] ?? '')),
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
             'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
-            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            // Une description sans aucune lettre (ex. « . » saisi pour vider le champ) : le texte par défaut.
+            'desc'  => preg_match('/\p{L}/u', (string)($c['desc'] ?? '')) ? trim((string)$c['desc']) : $fallback['desc'],
         ];
     }
     return $out;
@@ -1515,12 +2132,12 @@ function why_us_settings(): array
         'title'   => 'EMAE, votre expert multitechnique de confiance',
         'lead'    => 'Des artisans qualifiés, des délais respectés, des devis clairs. Chaque intervention est réalisée avec rigueur et professionnalisme.',
         'items'   => [
-            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Intervention rapide',    'text'=>'Moins de 2h en urgence. Astreinte 24h/24, 7j/7 pour toutes les pannes bloquantes.'],
+            ['icon_type'=>'emoji','icon'=>'⚡','icon_img'=>'','title'=>'Urgences 24h/24',        'text'=>'Astreinte 24h/24 et 7j/7 pour les pannes bloquantes. Disponibilité et délai confirmés par téléphone avant déplacement.'],
             ['icon_type'=>'emoji','icon'=>'📋','icon_img'=>'','title'=>'Devis gratuit et clair', 'text'=>'Le prix est annoncé avant toute intervention. Aucune surprise sur la facture finale. Devis sans engagement.'],
-            ['icon_type'=>'emoji','icon'=>'🔒','icon_img'=>'','title'=>'Artisans certifiés',     'text'=>'Nos techniciens sont formés, qualifiés et assurés pour l\'ensemble de nos métiers techniques.'],
+            ['icon_type'=>'emoji','icon'=>'🔒','icon_img'=>'','title'=>'Artisans qualifiés',     'text'=>'Nos techniciens sont formés et qualifiés pour l\'ensemble de nos métiers techniques.'],
             ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Présence locale',        'text'=>'Des techniciens installés dans votre secteur, qui interviennent rapidement sur site.'],
             ['icon_type'=>'emoji','icon'=>'🛠️','icon_img'=>'','title'=>'Tous types d\'interventions','text'=>'Urgence, installation, entretien préventif, mise aux normes — un seul interlocuteur pour tous vos besoins.'],
-            ['icon_type'=>'emoji','icon'=>'⭐','icon_img'=>'','title'=>'Clients satisfaits',     'text'=>'Plus de 120 avis vérifiés, note de 4.9/5. La confiance se construit chantier après chantier.'],
+            ['icon_type'=>'emoji','icon'=>'🧾','icon_img'=>'','title'=>'Facture détaillée',      'text'=>'Diagnostic, travaux et pièces détaillés sur la facture, remise en fin d\'intervention.'],
             ['icon_type'=>'emoji','icon'=>'🏗️','icon_img'=>'','title'=>'Particuliers & pros',   'text'=>'Logements, commerces, bureaux, copropriétés — organisation adaptée à chaque contexte.'],
             ['icon_type'=>'emoji','icon'=>'📞','icon_img'=>'','title'=>'Disponible 24h/7j',      'text'=>'Notre astreinte est active en permanence pour les situations d\'urgence qui n\'attendent pas.'],
         ],
@@ -1540,13 +2157,20 @@ function service_cards_v14(): array
 {
     $default = [
         ['title'=>'Électricité',          'image'=>'','link'=>'electricite',  'badge'=>'Urgence 24h/7j', 'desc'=>'Dépannage, installation, mise aux normes, rénovation électrique.',
-         'tags'=>['Dépannage','Installation','Mise aux normes']],
+         'tags'=>['Dépannage','Installation','Mise aux normes'], 'placeholder_icon'=>'⚡'],
         ['title'=>'Plomberie',            'image'=>'','link'=>'plomberie',    'badge'=>'Fuite & urgence','desc'=>'Fuite d\'eau, sanitaires, débouchage, entretien réseau.',
-         'tags'=>['Fuite','Sanitaires','Entretien']],
+         'tags'=>['Fuite','Sanitaires','Entretien'], 'placeholder_icon'=>'💧'],
         ['title'=>'Chauffage & PAC',      'image'=>'','link'=>'chauffage',    'badge'=>'Chaudière & PAC','desc'=>'Chaudière gaz/fioul, pompe à chaleur, entretien, dépannage.',
-         'tags'=>['Chaudière','PAC','Entretien annuel']],
+         'tags'=>['Chaudière','PAC','Entretien annuel'], 'placeholder_icon'=>'🔥'],
         ['title'=>'Climatisation CVC',    'image'=>'','link'=>'climatisation','badge'=>'CVC & clim',    'desc'=>'Installation, dépannage et entretien de climatisation.',
-         'tags'=>['Clim','CVC','Installation']],
+         'tags'=>['Clim','CVC','Installation'], 'placeholder_icon'=>'❄️'],
+        // Ces titres sont aussi ceux du formulaire de devis : les garder identiques évite les doublons.
+        ['title'=>'VMC & Ventilation',    'image'=>'assets/img/services/vmc.jpg','link'=>'vmc',          'badge'=>'Qualité de l\'air','desc'=>'Installation, dépannage et entretien de VMC simple et double flux.',
+         'tags'=>['VMC','Entretien','Humidité'], 'placeholder_icon'=>'🌬️'],
+        ['title'=>'Portail & Visiophone', 'image'=>'assets/img/services/portail.jpg','link'=>'portail',      'badge'=>'Portail bloqué','desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès.',
+         'tags'=>['Portail','Visiophone','Interphone'], 'placeholder_icon'=>'🚪'],
+        ['title'=>'Automatismes & Électroménager','image'=>'assets/img/services/electromenager.jpg','link'=>'automatisme','badge'=>'Volets & domotique','desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager.',
+         'tags'=>['Volets','Domotique','Électroménager'], 'placeholder_icon'=>'🤖'],
     ];
     $cards = get_json_setting('home_service_cards_v14', $default);
     if (!$cards) return $default;
@@ -1555,14 +2179,32 @@ function service_cards_v14(): array
         $c = is_array($cards[$i] ?? null) ? $cards[$i] : [];
         $out[] = [
             'title' => trim((string)($c['title'] ?? '')) ?: $fallback['title'],
-            'image' => trim((string)($c['image'] ?? '')),
+            // Sans image choisie dans l'admin : la photo fournie avec le site (VMC, portail, électroménager).
+            'image' => trim((string)($c['image'] ?? '')) ?: $fallback['image'],
             'link'  => trim((string)($c['link']  ?? '')) ?: $fallback['link'],
             'badge' => trim((string)($c['badge'] ?? '')) ?: $fallback['badge'],
-            'desc'  => trim((string)($c['desc']  ?? '')) ?: $fallback['desc'],
+            // Une description sans aucune lettre (ex. « . » saisi pour vider le champ) : le texte par défaut.
+            'desc'  => preg_match('/\p{L}/u', (string)($c['desc'] ?? '')) ? trim((string)$c['desc']) : $fallback['desc'],
             'tags'  => is_array($c['tags'] ?? null) ? $c['tags'] : $fallback['tags'],
+            'placeholder_icon' => trim((string)($c['placeholder_icon'] ?? '')) ?: $fallback['placeholder_icon'],
         ];
     }
     return $out;
+}
+
+/**
+ * Photo de fond d'une page métier : celle choisie dans l'admin (Images hero services),
+ * sinon la photo fournie avec le site pour les métiers qui en ont une.
+ */
+function service_hero_image(string $trade): string
+{
+    $img = trim((string)setting('svc_'.$trade.'_hero_image', ''));
+    if ($img !== '') return $img;
+    return [
+        'vmc'         => 'assets/img/services/vmc.jpg',
+        'portail'     => 'assets/img/services/visiophone.jpg',
+        'automatisme' => 'assets/img/services/electromenager.jpg',
+    ][$trade] ?? '';
 }
 
 /* ═══════════════════════════════════════════════════
@@ -2436,17 +3078,33 @@ function service_trade_defaults(): array
         'desc'=>'Dépannage, installation, mise aux normes et rénovation électrique {en_region}.',
         'badges'=>['Dépannage urgent','Tableau électrique','Mise aux normes NF C 15-100','Rénovation'],
         'offer_title'=>'Ce que nous proposons en électricité',
-        'offer_items'=>['Dépannage et remise en service (urgence 24h/7j)','Remplacement et mise en conformité de tableaux électriques','Ajout ou réparation de circuits, prises, lignes dédiées','Installation et dépannage d\'éclairage intérieur et extérieur','Rénovation électrique complète (logement, commerce)','Mise aux normes NF C 15-100 obligatoire','Câblage neuf pour constructions et extensions','Contrôle et diagnostic de l\'installation existante'],
-        'interv'=>[['⚡','Panne électrique','Diagnostic et remise en service rapide.'],['🧰','Tableau électrique','Remplacement et sécurisation.'],['🔌','Prises & circuits','Ajout, réparation, remplacement.'],['💡','Éclairage','LED, intérieur, extérieur, technique.'],['🏗️','Installation neuve','Câblage neuf ou réfection.'],['✅','Mise aux normes','NF C 15-100.'],['🔄','Rénovation','Modernisation de l\'installation.'],['🚨','Urgence 24h/7j','Astreinte permanente.']],
-        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','En urgence, nous intervenons en moins de 2h. Le délai est confirmé au téléphone selon votre secteur.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
+        'offer_items'=>[
+          ['urgence', 'Dépannage 24h/7j', 'Panne de courant ou disjoncteur qui saute : diagnostic et remise en service rapide, de jour comme de nuit.'],
+          ['tableau', 'Tableau électrique', 'Remplacement et mise en conformité du tableau, des disjoncteurs et des différentiels.'],
+          ['prise', 'Prises et circuits', 'Ajout ou réparation de prises, de circuits et de lignes dédiées.'],
+          ['ampoule', 'Éclairage', 'Pose et dépannage de l\'éclairage intérieur et extérieur, LED et éclairage technique.'],
+          ['renovation', 'Rénovation électrique', 'Remise à neuf complète de l\'installation d\'un logement ou d\'un commerce.'],
+          ['conformite', 'Mise aux normes', 'Mise en conformité de votre installation selon la norme NF C 15-100.'],
+          ['cablage', 'Câblage neuf', 'Câblage complet pour une construction, une extension ou une réfection.'],
+          ['diagnostic', 'Diagnostic', 'Contrôle de l\'installation existante, avec un compte rendu détaillé.'],
+        ],
+        'faq'=>[['Quel est le délai d\'intervention pour une urgence ?',setting('faq_elec_1_a','Le délai dépend de votre secteur et de nos interventions en cours : il vous est confirmé au téléphone, avant tout déplacement.')],['Faites-vous les mises aux normes NF C 15-100 ?',setting('faq_elec_2_a','Oui, nous réalisons la mise en conformité complète selon les normes en vigueur.')],['Intervenez-vous sur les bâtiments professionnels ?',setting('faq_elec_3_a','Oui, logements, commerces, bureaux et bâtiments techniques.')],['Le devis est-il gratuit ?',setting('faq_elec_4_a','Oui, devis gratuit et sans engagement avant toute intervention.')]],
       ],
       'plomberie' => [
         'label'=>'Plomberie','icon_svc'=>'💧',
         'desc'=>'Dépannage fuite, réparation sanitaire et entretien réseau {en_region}.',
         'badges'=>['Fuite urgente','Débouchage','Sanitaires','Entretien réseau'],
         'offer_title'=>'Ce que nous proposons en plomberie',
-        'offer_items'=>['Recherche et réparation de fuites visibles ou cachées','Dépannage et remplacement de robinetterie','Débouchage de canalisations et WC','Remplacement de WC, lavabo, baignoire, douche','Réparation et remplacement de chauffe-eau','Entretien préventif annuel','Intervention sur réseaux d\'alimentation et d\'évacuation','Mise en conformité des installations sanitaires'],
-        'interv'=>[['💧','Recherche de fuite','Localisation précise et réparation.'],['🚿','Sanitaires','WC, robinetterie, évacuations.'],['🧯','Urgence plomberie','Mise en sécurité immédiate.'],['🔩','Réseaux','Tuyauteries, alimentations, raccordements.'],['🛁','Équipements','Baignoire, douche, évier, robinet.'],['🌡️','Chauffe-eau','Diagnostic, remplacement, mise en service.'],['🧼','Entretien','Maintenance courante préventive.'],['📋','Rapport','Compte rendu détaillé systématique.']],
+        'offer_items'=>[
+          ['fuite', 'Recherche de fuite', 'Fuite visible ou cachée : localisation précise, puis réparation.'],
+          ['robinet', 'Robinetterie', 'Dépannage et remplacement de robinets et de mitigeurs.'],
+          ['debouchage', 'Débouchage', 'Canalisations, WC, évier : débouchage et remise en écoulement.'],
+          ['sanitaires', 'Sanitaires', 'Remplacement de WC, lavabo, baignoire ou douche.'],
+          ['chauffe-eau', 'Chauffe-eau', 'Diagnostic, réparation ou remplacement, avec mise en service.'],
+          ['entretien', 'Entretien préventif', 'Une visite annuelle pour éviter les fuites et les pannes.'],
+          ['reseau', 'Réseaux', 'Tuyauteries d\'alimentation et d\'évacuation, raccordements.'],
+          ['conformite', 'Mise en conformité', 'Mise aux normes de vos installations sanitaires.'],
+        ],
         'faq'=>[['Intervenez-vous en urgence pour une fuite ?',setting('faq_plomb_1_a','Oui, disponible '.company_hours().'. Appelez-nous pour une intervention immédiate.')],['Faites-vous le remplacement de chauffe-eau ?',setting('faq_plomb_2_a','Oui, diagnostic, remplacement et mise en service de tous types de chauffe-eau.')],['Proposez-vous un contrat d\'entretien ?',setting('faq_plomb_3_a','Oui, contrats de maintenance préventive annuels disponibles.')],['Que faire en cas de fuite importante ?',setting('faq_plomb_4_a','Coupez l\'arrivée d\'eau principale et appelez-nous immédiatement.')]],
       ],
       'chauffage' => [
@@ -2454,8 +3112,16 @@ function service_trade_defaults(): array
         'desc'=>'Dépannage chaudière gaz/fioul/électrique, pompe à chaleur, entretien {en_region}.',
         'badges'=>['Panne chaudière','Pompe à chaleur','Chaudière gaz/fioul','Entretien annuel'],
         'offer_title'=>'Ce que nous proposons en chauffage',
-        'offer_items'=>['Dépannage et remise en service de chaudières gaz, fioul, électrique','Entretien annuel réglementaire de chaudière (obligatoire)','Dépannage et entretien de pompes à chaleur air/air et air/eau','Installation de PAC et chaudières neuves','Diagnostic et optimisation de la consommation énergétique','Remplacement de corps de chauffe, brûleurs, circulateurs','Réglage thermostat, programmation, vannes thermostatiques','Urgences hiver — astreinte renforcée en période froide'],
-        'interv'=>[['🔥','Panne chaudière','Gaz, fioul, électrique.'],['♨️','Pompe à chaleur','Air/air et air/eau.'],['🌡️','Régulation','Thermostats, sondes, programmation.'],['🛠️','Optimisation','Amélioration performances et confort.'],['🏗️','Installation','Chaudière ou PAC neuve.'],['📊','Entretien annuel','Contrat réglementaire.'],['🚨','Urgence hiver','Astreinte renforcée.'],['📋','Rapport','Compte rendu et recommandations.']],
+        'offer_items'=>[
+          ['chaudiere', 'Panne de chaudière', 'Gaz, fioul ou électrique : diagnostic et remise en service.'],
+          ['entretien', 'Entretien annuel', 'L\'entretien réglementaire obligatoire, avec rapport d\'intervention.'],
+          ['pac', 'Pompe à chaleur', 'Dépannage et entretien des PAC air/air et air/eau.'],
+          ['installation', 'Installation neuve', 'Pose d\'une chaudière ou d\'une pompe à chaleur neuve, mise en service.'],
+          ['economie', 'Économies d\'énergie', 'Diagnostic et optimisation de votre consommation.'],
+          ['pieces', 'Pièces', 'Remplacement de corps de chauffe, brûleurs et circulateurs.'],
+          ['radiateur', 'Régulation', 'Thermostat, programmation et vannes thermostatiques.'],
+          ['froid', 'Urgence hiver', 'Astreinte renforcée pendant les périodes de grand froid.'],
+        ],
         'faq'=>[['Intervenez-vous sur les chaudières gaz et fioul ?',setting('faq_chauf_1_a','Oui, sur tous types de chaudières : gaz, fioul, électrique et condensation.')],['Proposez-vous l\'installation de pompe à chaleur ?',setting('faq_chauf_2_a','Oui, PAC air/air, air/eau — installation, entretien et dépannage.')],['Faites-vous l\'entretien annuel de chaudière ?',setting('faq_chauf_3_a','Oui, contrat d\'entretien annuel réglementaire avec rapport d\'intervention.')],['Mon chauffage tombe en panne en hiver, que faire ?',setting('faq_chauf_4_a','Appelez-nous immédiatement — priorité absolue aux urgences de chauffage en hiver.')]],
       ],
       'climatisation' => [
@@ -2463,8 +3129,16 @@ function service_trade_defaults(): array
         'desc'=>'Installation, dépannage et entretien de climatisation et CVC {en_region}.',
         'badges'=>['Clim en panne','CVC','Installation split','Entretien saisonnier'],
         'offer_title'=>'Ce que nous proposons en climatisation',
-        'offer_items'=>['Dépannage de tout type de climatiseur (split, multi-split, gainable)','Installation de climatisation pour particuliers et professionnels','Entretien saisonnier (nettoyage, vérification, réglages)','Recharge en fluide frigorigène','Contrôle des performances et optimisation','Systèmes gainables et centralisés','VMC et ventilation mécanique','Étude et conseil avant installation'],
-        'interv'=>[['❄️','Panne climatisation','Diagnostic et remise en service.'],['🌬️','Qualité air','Contrôle du soufflage et diffusion.'],['🧼','Entretien saisonnier','Nettoyage et réglages.'],['🏗️','Installation','Splits, multi-splits, gainables.'],['📈','Performances','Contrôle et optimisation.'],['💨','VMC','Ventilation mécanique.'],['🚨','Urgence','Prise en charge prioritaire.'],['📋','Rapport','Compte rendu systématique.']],
+        'offer_items'=>[
+          ['clim', 'Panne de climatisation', 'Split, multi-split ou gainable : diagnostic et remise en service.'],
+          ['installation', 'Installation', 'Pose de climatisation pour les particuliers et les professionnels.'],
+          ['nettoyage', 'Entretien saisonnier', 'Nettoyage, vérifications et réglages avant chaque saison.'],
+          ['fluide', 'Fluide frigorigène', 'Recharge du circuit en fluide frigorigène.'],
+          ['performance', 'Performances', 'Contrôle du rendement et optimisation des réglages.'],
+          ['batiment', 'Gainable et centralisé', 'Systèmes gainables et installations centralisées.'],
+          ['ventilation', 'VMC et ventilation', 'Ventilation mécanique et qualité de l\'air intérieur.'],
+          ['conseil', 'Étude et conseil', 'Étude de votre besoin et conseil avant toute installation.'],
+        ],
         'faq'=>[['Intervenez-vous sur tous types de climatiseurs ?',setting('faq_clim_1_a','Oui, splits, multi-splits, gainables et systèmes CVC.')],['Proposez-vous l\'installation de climatisation ?',setting('faq_clim_2_a','Oui, fourniture, pose et mise en service avec conseil adapté.')],['Quand faire l\'entretien de sa climatisation ?',setting('faq_clim_3_a','Idéalement avant chaque saison (printemps et automne) pour garantir les performances.')],['Intervenez-vous pour les entreprises ?',setting('faq_clim_4_a','Oui, commerces, bureaux, restaurants — intervention compatible avec votre exploitation.')]],
       ],
       'vmc' => [
@@ -2472,8 +3146,16 @@ function service_trade_defaults(): array
         'desc'=>'Installation, dépannage et entretien de VMC simple et double flux {en_region}.',
         'badges'=>['VMC simple flux','VMC double flux','Entretien annuel','Qualité de l\'air'],
         'offer_title'=>'Ce que nous proposons en ventilation',
-        'offer_items'=>['Installation de VMC simple flux et double flux','Remplacement de moteur ou de caisson défaillant','Nettoyage et désinfection des bouches et gaines','Entretien annuel et contrôle des débits','Diagnostic humidité, condensation et moisissures','Mise en conformité de la ventilation d\'un logement','Ventilation de locaux professionnels et commerces','Conseil sur le choix du système adapté au bâti'],
-        'interv'=>[['🌬️','Panne de VMC','Diagnostic et remise en service.'],['🔧','Moteur & caisson','Remplacement des pièces défaillantes.'],['🧼','Nettoyage','Bouches, gaines et filtres.'],['💧','Humidité','Traitement des causes de condensation.'],['🏗️','Installation neuve','Simple ou double flux.'],['📊','Contrôle des débits','Mesure et réglage.'],['🏢','Locaux pros','Commerces, bureaux, restauration.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'offer_items'=>[
+          ['vmc', 'Installation de VMC', 'Simple flux ou double flux, adaptée à votre logement.'],
+          ['moteur', 'Moteur et caisson', 'Remplacement du moteur ou du caisson défaillant.'],
+          ['nettoyage', 'Nettoyage', 'Bouches et gaines nettoyées et désinfectées.'],
+          ['performance', 'Entretien et débits', 'Entretien annuel, mesure et réglage des débits.'],
+          ['humidite', 'Humidité', 'Diagnostic de la condensation et des moisissures.'],
+          ['conformite', 'Mise en conformité', 'Une ventilation conforme pour votre logement.'],
+          ['commerce', 'Locaux professionnels', 'Ventilation des commerces, bureaux et restaurants.'],
+          ['conseil', 'Conseil', 'Le système adapté à votre bâti, simple ou double flux.'],
+        ],
         'faq'=>[['Faut-il entretenir sa VMC ?',setting('faq_vmc_1_a','Oui, un nettoyage annuel des bouches et un contrôle des débits garantissent son efficacité et la qualité de l\'air.')],['Simple ou double flux ?',setting('faq_vmc_2_a','Le double flux récupère la chaleur de l\'air extrait et convient aux logements bien isolés. Nous vous conseillons selon votre bâti.')],['Ma VMC est bruyante, est-ce grave ?',setting('faq_vmc_3_a','Souvent un encrassement ou un moteur en fin de vie. Un diagnostic permet de trancher rapidement.')],['Intervenez-vous en copropriété ?',setting('faq_vmc_4_a','Oui, sur les VMC individuelles comme sur les installations collectives.')]],
       ],
       'portail' => [
@@ -2481,9 +3163,16 @@ function service_trade_defaults(): array
         'desc'=>'Motorisation de portail, visiophone, interphone et contrôle d\'accès {en_region}.',
         'badges'=>['Portail bloqué','Motorisation','Visiophone','Interphone'],
         'offer_title'=>'Ce que nous proposons en contrôle d\'accès',
-        'offer_items'=>['Dépannage de portail et portail de garage bloqué','Motorisation de portail battant ou coulissant','Installation et remplacement de visiophone','Interphone individuel et collectif','Programmation de télécommandes et badges','Remplacement de platine de rue et de combiné','Dépannage de digicode et de gâche électrique','Entretien et réglage des automatismes']
-        ,
-        'interv'=>[['🚪','Portail bloqué','Déblocage et remise en service.'],['⚙️','Motorisation','Battant, coulissant, garage.'],['📹','Visiophone','Installation et remplacement.'],['🔔','Interphone','Individuel ou collectif.'],['🎛️','Télécommandes','Programmation et copies.'],['🔢','Digicode','Dépannage et changement de code.'],['🔌','Gâche électrique','Remplacement et câblage.'],['🛠️','Entretien','Réglage et graissage.']],
+        'offer_items'=>[
+          ['portail', 'Portail bloqué', 'Déblocage et remise en service de portails et portes de garage.'],
+          ['motorisation', 'Motorisation', 'Motorisation de portail battant ou coulissant.'],
+          ['visiophone', 'Visiophone', 'Installation et remplacement de visiophones.'],
+          ['interphone', 'Interphone', 'Interphones individuels et collectifs.'],
+          ['telecommande', 'Télécommandes et badges', 'Programmation de télécommandes et de badges, copies.'],
+          ['batiment', 'Platine de rue', 'Remplacement de la platine de rue et du combiné.'],
+          ['digicode', 'Digicode et gâche', 'Dépannage de digicode et de gâche électrique.'],
+          ['outil', 'Entretien', 'Réglage et entretien des automatismes.'],
+        ],
         'faq'=>[['Mon portail ne s\'ouvre plus, que faire ?',setting('faq_portail_1_a','Coupez l\'alimentation et appelez-nous. La panne vient souvent de la motorisation, des photocellules ou de la carte électronique.')],['Peut-on motoriser un portail existant ?',setting('faq_portail_2_a','Oui dans la plupart des cas, après vérification de l\'état des piliers et du portail.')],['Installez-vous des visiophones connectés ?',setting('faq_portail_3_a','Oui, y compris les modèles avec renvoi d\'appel sur téléphone.')],['Intervenez-vous en copropriété ?',setting('faq_portail_4_a','Oui, sur les interphones et portails collectifs, en coordination avec le syndic.')]],
       ],
       'automatisme' => [
@@ -2491,11 +3180,63 @@ function service_trade_defaults(): array
         'desc'=>'Volets roulants, stores, domotique et dépannage du gros électroménager {en_region}.',
         'badges'=>['Volet roulant','Store motorisé','Domotique','Électroménager'],
         'offer_title'=>'Ce que nous proposons en automatismes',
-        'offer_items'=>['Dépannage et remplacement de volets roulants','Motorisation de volets et de stores existants','Installation de stores et brise-soleil motorisés','Programmation de commandes et de scénarios domotiques','Dépannage de lave-linge, lave-vaisselle et sèche-linge','Raccordement et mise en service d\'électroménager','Remplacement de moteurs, cartes et télécommandes','Conseil sur les équipements connectés']
-        ,
-        'interv'=>[['🪟','Volet bloqué','Déblocage et réparation.'],['⚙️','Motorisation','Volets, stores, pergolas.'],['📱','Domotique','Commandes et scénarios.'],['🔌','Raccordement','Mise en service d\'appareils.'],['🧺','Lave-linge','Diagnostic et réparation.'],['🍽️','Lave-vaisselle','Fuites, vidange, résistance.'],['🎛️','Télécommandes','Programmation et remplacement.'],['📋','Rapport','Compte rendu d\'intervention.']],
+        'offer_items'=>[
+          ['volet', 'Volets roulants', 'Dépannage et remplacement de volets roulants.'],
+          ['motorisation', 'Motorisation', 'Motorisation de volets et de stores existants.'],
+          ['store', 'Stores et brise-soleil', 'Installation de stores et brise-soleil motorisés.'],
+          ['domotique', 'Domotique', 'Programmation de commandes et de scénarios.'],
+          ['lave-linge', 'Électroménager', 'Dépannage de lave-linge, lave-vaisselle et sèche-linge.'],
+          ['cablage', 'Raccordement', 'Raccordement et mise en service de vos appareils.'],
+          ['carte', 'Pièces électroniques', 'Remplacement de moteurs, cartes et télécommandes.'],
+          ['connecte', 'Équipements connectés', 'Conseil pour choisir et installer vos équipements connectés.'],
+        ],
         'faq'=>[['Réparez-vous les volets roulants électriques ?',setting('faq_auto_1_a','Oui : moteur, lame, tablier, coffre et commande. Le diagnostic précise ce qui doit être remplacé.')],['Peut-on motoriser des volets manuels ?',setting('faq_auto_2_a','Oui dans la plupart des cas, sans changer le tablier ni le coffre.')],['Intervenez-vous sur l\'électroménager ?',setting('faq_auto_3_a','Oui, sur le gros électroménager : lave-linge, lave-vaisselle, sèche-linge, four et plaques.')],['Faut-il remplacer ou réparer ?',setting('faq_auto_4_a','Nous annonçons le coût de la réparation avant d\'intervenir : vous décidez en connaissance de cause.')]],
       ],
+    ];
+}
+
+/**
+ * Signes d'alerte de chaque métier (« Quand nous appeler ? ») : symptômes que le client
+ * reconnaît lui-même, sans promesse de délai. Modifiables par métier dans Contenu du site.
+ */
+function service_alert_signs(): array
+{
+    return [
+        'electricite'   => ['Le disjoncteur ou l\'interrupteur différentiel saute à répétition',
+                            'Odeur de brûlé ou de plastique chaud près d\'une prise ou du tableau',
+                            'Une prise ou un interrupteur chauffe, noircit ou grésille',
+                            'Les lumières vacillent ou baissent quand un appareil démarre',
+                            'Plus de courant dans une partie du logement seulement',
+                            'Petite décharge en touchant un appareil ou un robinet : ne touchez plus à rien et coupez le courant au disjoncteur général'],
+        'plomberie'     => ['Fuite visible, tache d\'humidité au plafond ou sur un mur',
+                            'Le compteur d\'eau tourne alors que tous les robinets sont fermés',
+                            'Évier, douche ou WC qui s\'évacue lentement ou déborde',
+                            'Mauvaises odeurs qui remontent des canalisations',
+                            'Eau marron ou trouble au robinet',
+                            'Plus d\'eau chaude, ou chauffe-eau qui goutte en continu'],
+        'chauffage'     => ['Radiateurs froids ou tièdes alors que le chauffage est allumé',
+                            'Chaudière en sécurité ou code d\'erreur affiché',
+                            'Pression de la chaudière qui baisse souvent',
+                            'Bruits inhabituels : claquements, sifflements, gargouillis',
+                            'Plus d\'eau chaude au robinet',
+                            'Odeur de gaz : sortez, n\'actionnez aucun interrupteur et appelez Urgence Sécurité Gaz au 0 800 47 33 33'],
+        'climatisation' => ['Le climatiseur souffle de l\'air tiède',
+                            'De l\'eau coule de l\'unité intérieure',
+                            'Bruit ou vibration anormale',
+                            'Mauvaise odeur à la mise en marche',
+                            'L\'appareil s\'arrête tout seul ou affiche un code d\'erreur'],
+        'vmc'           => ['Les bouches n\'aspirent plus : une feuille de papier n\'y tient pas',
+                            'Buée persistante, moisissures ou odeurs dans la salle de bains',
+                            'Bruit anormal du caisson de ventilation',
+                            'Le moteur ne tourne plus'],
+        'portail'       => ['Le portail ne réagit plus à la télécommande',
+                            'Le portail s\'arrête ou repart en sens inverse',
+                            'Visiophone sans image ou sans son',
+                            'Gâche électrique ou digicode qui n\'ouvre plus'],
+        'automatisme'   => ['Volet roulant bloqué ou qui descend de travers',
+                            'Le moteur du volet grogne sans faire bouger le tablier',
+                            'Télécommande ou interrupteur sans effet',
+                            'Lave-linge ou lave-vaisselle qui ne vidange plus ou affiche un code d\'erreur'],
     ];
 }
 
@@ -2576,7 +3317,8 @@ function service_trade_patterns(): array
  */
 function service_detect_trade(string $contexte): ?string
 {
-    $contexte = mb_strtolower($contexte, 'UTF-8');
+    // Sans accents : « Électricité » (ancienne page en base) est bien la page Électricité.
+    $contexte = function_exists('text_ascii_lower') ? text_ascii_lower(rawurldecode($contexte)) : mb_strtolower($contexte, 'UTF-8');
     $trouve = null; $longueur = 0;
     foreach (service_trade_patterns() as $trade => $motifs) {
         foreach ($motifs as $m) {
@@ -2593,7 +3335,7 @@ function service_page_slug(string $trade): string
     $needles = service_trade_patterns()[$trade] ?? [$trade];
     try {
         foreach (db_fetch_all('SELECT slug, title FROM pages') as $p) {
-            $ctx = mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');
+            $ctx = function_exists('text_ascii_lower') ? text_ascii_lower(($p['slug'] ?? '').' '.($p['title'] ?? '')) : mb_strtolower(($p['slug'] ?? '').' '.($p['title'] ?? ''), 'UTF-8');
             foreach ($needles as $n) if (str_contains($ctx, $n)) return (string)$p['slug'];
         }
     } catch (Throwable $e) { /* table absente */ }
@@ -2601,6 +3343,206 @@ function service_page_slug(string $trade): string
 }
 
 /** Textes effectifs d'un métier : personnalisés si définis, d'origine sinon. */
+/**
+ * Dessins des prestations (assets/img/icons/<clé>.png) : trait orange, fond transparent.
+ * Clé => libellé affiché dans l'admin. Ajouter un dessin : déposer le PNG et l'inscrire ici.
+ */
+function service_icons(): array
+{
+    return [
+        'eclair' => 'Éclair (dépannage électrique)',
+        'prise' => 'Prise',
+        'ampoule' => 'Ampoule (éclairage)',
+        'tableau' => 'Tableau électrique',
+        'cablage' => 'Câblage, raccordement',
+        'renovation' => 'Maison électrique (rénovation)',
+        'conformite' => 'Bouclier (mise aux normes)',
+        'diagnostic' => 'Loupe (diagnostic)',
+        'urgence' => '24h/24 (urgence)',
+        'fuite' => 'Goutte et loupe (fuite)',
+        'robinet' => 'Robinet',
+        'debouchage' => 'Ventouse (débouchage)',
+        'sanitaires' => 'Baignoire (sanitaires)',
+        'chauffe-eau' => 'Chauffe-eau',
+        'reseau' => 'Tuyau (réseaux)',
+        'entretien' => 'Calendrier (entretien)',
+        'chaudiere' => 'Chaudière',
+        'radiateur' => 'Radiateur',
+        'pac' => 'Pompe à chaleur',
+        'flamme' => 'Flamme',
+        'thermometre' => 'Thermomètre',
+        'economie' => 'Maison verte (économies)',
+        'pieces' => 'Engrenage (pièces)',
+        'froid' => 'Flocon (urgence hiver, froid)',
+        'clim' => 'Climatiseur',
+        'nettoyage' => 'Pulvérisateur (nettoyage)',
+        'fluide' => 'Thermomètre froid (fluide)',
+        'performance' => 'Jauge (performances, débits)',
+        'batiment' => 'Immeubles',
+        'commerce' => 'Commerce',
+        'ventilation' => 'Air (ventilation)',
+        'vmc' => 'Bouche de VMC',
+        'moteur' => 'Ventilateur (moteur)',
+        'humidite' => 'Gouttes (humidité)',
+        'conseil' => 'Bulle (conseil)',
+        'installation' => 'Outils (installation)',
+        'outil' => 'Clé (réparation)',
+        'portail' => 'Portail',
+        'motorisation' => 'Automatisme (motorisation)',
+        'visiophone' => 'Visiophone',
+        'interphone' => 'Sonnette (interphone)',
+        'telecommande' => 'Télécommande',
+        'digicode' => 'Digicode',
+        'gache' => 'Cadenas (gâche, serrure)',
+        'volet' => 'Volet roulant',
+        'store' => 'Store',
+        'domotique' => 'Maison connectée',
+        'lave-linge' => 'Lave-linge',
+        'lave-vaisselle' => 'Lave-vaisselle',
+        'carte' => 'Carte électronique',
+        'connecte' => 'Wi-Fi (connecté)',
+        'check' => 'Coche (par défaut)',
+    ];
+}
+
+function service_icon_url(string $key): string
+{
+    $key = isset(service_icons()[$key]) ? $key : 'check';
+    return asset_url('assets/img/icons/'.$key.'.png');
+}
+
+/**
+ * Prestations d'un métier, sous forme de cartes : dessin, titre, texte court.
+ * Accepte aussi l'ancien format (une phrase par prestation) d'une liste déjà
+ * enregistrée dans l'admin : la phrase devient le titre, avec la coche par défaut.
+ */
+function service_offer_cards(array $items): array
+{
+    $out = [];
+    foreach ($items as $it) {
+        if (is_array($it)) {
+            $v = array_values($it);
+            [$icon, $title, $text] = [trim((string)($v[0] ?? '')), trim((string)($v[1] ?? '')), trim((string)($v[2] ?? ''))];
+        } else {
+            // Une phrase de l'ancienne liste (enregistrée telle quelle en sauvegardant l'admin)
+            // retrouve sa carte complète ; une phrase écrite à la main garde la coche.
+            $phrase = trim((string)$it);
+            [$icon, $title, $text] = service_offer_legacy()[$phrase] ?? ['check', $phrase, ''];
+        }
+        if ($title === '' && $text === '') continue;
+        $out[] = ['icon' => isset(service_icons()[$icon]) ? $icon : 'check', 'title' => $title, 'text' => $text];
+    }
+    return $out;
+}
+
+/** Ligne d'admin au format d'avant (une phrase) convertie en carte [dessin, titre, texte]. */
+function service_offer_row_upgrade(string $phrase): array
+{
+    $phrase = trim($phrase);
+    return service_offer_legacy()[$phrase] ?? ['check', $phrase, ''];
+}
+
+/**
+ * Anciennes prestations (une phrase chacune, jusqu'en novembre 2026) => carte qui les remplace.
+ * L'admin enregistre toutes les listes d'une page dès qu'on la sauvegarde : le site garde donc
+ * parfois l'ancienne liste en base. Cette table lui rend ses dessins et ses textes.
+ */
+function service_offer_legacy(): array
+{
+    static $map = null;
+    return $map ??= [
+        'Dépannage et remise en service (urgence 24h/7j)' => ['urgence', 'Dépannage 24h/7j', 'Panne de courant ou disjoncteur qui saute : diagnostic et remise en service rapide, de jour comme de nuit.'],
+        'Remplacement et mise en conformité de tableaux électriques' => ['tableau', 'Tableau électrique', 'Remplacement et mise en conformité du tableau, des disjoncteurs et des différentiels.'],
+        'Ajout ou réparation de circuits, prises, lignes dédiées' => ['prise', 'Prises et circuits', 'Ajout ou réparation de prises, de circuits et de lignes dédiées.'],
+        'Installation et dépannage d\'éclairage intérieur et extérieur' => ['ampoule', 'Éclairage', 'Pose et dépannage de l\'éclairage intérieur et extérieur, LED et éclairage technique.'],
+        'Rénovation électrique complète (logement, commerce)' => ['renovation', 'Rénovation électrique', 'Remise à neuf complète de l\'installation d\'un logement ou d\'un commerce.'],
+        'Mise aux normes NF C 15-100 obligatoire' => ['conformite', 'Mise aux normes', 'Mise en conformité de votre installation selon la norme NF C 15-100.'],
+        'Câblage neuf pour constructions et extensions' => ['cablage', 'Câblage neuf', 'Câblage complet pour une construction, une extension ou une réfection.'],
+        'Contrôle et diagnostic de l\'installation existante' => ['diagnostic', 'Diagnostic', 'Contrôle de l\'installation existante, avec un compte rendu détaillé.'],
+        'Recherche et réparation de fuites visibles ou cachées' => ['fuite', 'Recherche de fuite', 'Fuite visible ou cachée : localisation précise, puis réparation.'],
+        'Dépannage et remplacement de robinetterie' => ['robinet', 'Robinetterie', 'Dépannage et remplacement de robinets et de mitigeurs.'],
+        'Débouchage de canalisations et WC' => ['debouchage', 'Débouchage', 'Canalisations, WC, évier : débouchage et remise en écoulement.'],
+        'Remplacement de WC, lavabo, baignoire, douche' => ['sanitaires', 'Sanitaires', 'Remplacement de WC, lavabo, baignoire ou douche.'],
+        'Réparation et remplacement de chauffe-eau' => ['chauffe-eau', 'Chauffe-eau', 'Diagnostic, réparation ou remplacement, avec mise en service.'],
+        'Entretien préventif annuel' => ['entretien', 'Entretien préventif', 'Une visite annuelle pour éviter les fuites et les pannes.'],
+        'Intervention sur réseaux d\'alimentation et d\'évacuation' => ['reseau', 'Réseaux', 'Tuyauteries d\'alimentation et d\'évacuation, raccordements.'],
+        'Mise en conformité des installations sanitaires' => ['conformite', 'Mise en conformité', 'Mise aux normes de vos installations sanitaires.'],
+        'Dépannage et remise en service de chaudières gaz, fioul, électrique' => ['chaudiere', 'Panne de chaudière', 'Gaz, fioul ou électrique : diagnostic et remise en service.'],
+        'Entretien annuel réglementaire de chaudière (obligatoire)' => ['entretien', 'Entretien annuel', 'L\'entretien réglementaire obligatoire, avec rapport d\'intervention.'],
+        'Dépannage et entretien de pompes à chaleur air/air et air/eau' => ['pac', 'Pompe à chaleur', 'Dépannage et entretien des PAC air/air et air/eau.'],
+        'Installation de PAC et chaudières neuves' => ['installation', 'Installation neuve', 'Pose d\'une chaudière ou d\'une pompe à chaleur neuve, mise en service.'],
+        'Diagnostic et optimisation de la consommation énergétique' => ['economie', 'Économies d\'énergie', 'Diagnostic et optimisation de votre consommation.'],
+        'Remplacement de corps de chauffe, brûleurs, circulateurs' => ['pieces', 'Pièces', 'Remplacement de corps de chauffe, brûleurs et circulateurs.'],
+        'Réglage thermostat, programmation, vannes thermostatiques' => ['radiateur', 'Régulation', 'Thermostat, programmation et vannes thermostatiques.'],
+        'Urgences hiver — astreinte renforcée en période froide' => ['froid', 'Urgence hiver', 'Astreinte renforcée pendant les périodes de grand froid.'],
+        'Dépannage de tout type de climatiseur (split, multi-split, gainable)' => ['clim', 'Panne de climatisation', 'Split, multi-split ou gainable : diagnostic et remise en service.'],
+        'Installation de climatisation pour particuliers et professionnels' => ['installation', 'Installation', 'Pose de climatisation pour les particuliers et les professionnels.'],
+        'Entretien saisonnier (nettoyage, vérification, réglages)' => ['nettoyage', 'Entretien saisonnier', 'Nettoyage, vérifications et réglages avant chaque saison.'],
+        'Recharge en fluide frigorigène' => ['fluide', 'Fluide frigorigène', 'Recharge du circuit en fluide frigorigène.'],
+        'Contrôle des performances et optimisation' => ['performance', 'Performances', 'Contrôle du rendement et optimisation des réglages.'],
+        'Systèmes gainables et centralisés' => ['batiment', 'Gainable et centralisé', 'Systèmes gainables et installations centralisées.'],
+        'VMC et ventilation mécanique' => ['ventilation', 'VMC et ventilation', 'Ventilation mécanique et qualité de l\'air intérieur.'],
+        'Étude et conseil avant installation' => ['conseil', 'Étude et conseil', 'Étude de votre besoin et conseil avant toute installation.'],
+        'Installation de VMC simple flux et double flux' => ['vmc', 'Installation de VMC', 'Simple flux ou double flux, adaptée à votre logement.'],
+        'Remplacement de moteur ou de caisson défaillant' => ['moteur', 'Moteur et caisson', 'Remplacement du moteur ou du caisson défaillant.'],
+        'Nettoyage et désinfection des bouches et gaines' => ['nettoyage', 'Nettoyage', 'Bouches et gaines nettoyées et désinfectées.'],
+        'Entretien annuel et contrôle des débits' => ['performance', 'Entretien et débits', 'Entretien annuel, mesure et réglage des débits.'],
+        'Diagnostic humidité, condensation et moisissures' => ['humidite', 'Humidité', 'Diagnostic de la condensation et des moisissures.'],
+        'Mise en conformité de la ventilation d\'un logement' => ['conformite', 'Mise en conformité', 'Une ventilation conforme pour votre logement.'],
+        'Ventilation de locaux professionnels et commerces' => ['commerce', 'Locaux professionnels', 'Ventilation des commerces, bureaux et restaurants.'],
+        'Conseil sur le choix du système adapté au bâti' => ['conseil', 'Conseil', 'Le système adapté à votre bâti, simple ou double flux.'],
+        'Dépannage de portail et portail de garage bloqué' => ['portail', 'Portail bloqué', 'Déblocage et remise en service de portails et portes de garage.'],
+        'Motorisation de portail battant ou coulissant' => ['motorisation', 'Motorisation', 'Motorisation de portail battant ou coulissant.'],
+        'Installation et remplacement de visiophone' => ['visiophone', 'Visiophone', 'Installation et remplacement de visiophones.'],
+        'Interphone individuel et collectif' => ['interphone', 'Interphone', 'Interphones individuels et collectifs.'],
+        'Programmation de télécommandes et badges' => ['telecommande', 'Télécommandes et badges', 'Programmation de télécommandes et de badges, copies.'],
+        'Remplacement de platine de rue et de combiné' => ['batiment', 'Platine de rue', 'Remplacement de la platine de rue et du combiné.'],
+        'Dépannage de digicode et de gâche électrique' => ['digicode', 'Digicode et gâche', 'Dépannage de digicode et de gâche électrique.'],
+        'Entretien et réglage des automatismes' => ['outil', 'Entretien', 'Réglage et entretien des automatismes.'],
+        'Dépannage et remplacement de volets roulants' => ['volet', 'Volets roulants', 'Dépannage et remplacement de volets roulants.'],
+        'Motorisation de volets et de stores existants' => ['motorisation', 'Motorisation', 'Motorisation de volets et de stores existants.'],
+        'Installation de stores et brise-soleil motorisés' => ['store', 'Stores et brise-soleil', 'Installation de stores et brise-soleil motorisés.'],
+        'Programmation de commandes et de scénarios domotiques' => ['domotique', 'Domotique', 'Programmation de commandes et de scénarios.'],
+        'Dépannage de lave-linge, lave-vaisselle et sèche-linge' => ['lave-linge', 'Électroménager', 'Dépannage de lave-linge, lave-vaisselle et sèche-linge.'],
+        'Raccordement et mise en service d\'électroménager' => ['cablage', 'Raccordement', 'Raccordement et mise en service de vos appareils.'],
+        'Remplacement de moteurs, cartes et télécommandes' => ['carte', 'Pièces électroniques', 'Remplacement de moteurs, cartes et télécommandes.'],
+        'Conseil sur les équipements connectés' => ['connecte', 'Équipements connectés', 'Conseil pour choisir et installer vos équipements connectés.'],
+    ];
+}
+
+/** Dessin qui représente un métier (filtres des réalisations). */
+function service_trade_icon(string $trade): string
+{
+    return ['electricite' => 'eclair', 'plomberie' => 'robinet', 'chauffage' => 'chaudiere', 'climatisation' => 'clim',
+            'vmc' => 'vmc', 'portail' => 'portail', 'automatisme' => 'volet'][$trade] ?? 'check';
+}
+
+/** Ajoute des paramètres à une adresse, qu'elle en ait déjà ou non. */
+function url_with_query(string $url, array $q): string
+{
+    $q = array_filter($q, static fn($v) => $v !== null && $v !== '');
+    return $q ? $url.(str_contains($url, '?') ? '&' : '?').http_build_query($q) : $url;
+}
+
+/** Marques affichées en bandeau sur une page métier (modifiables dans l'admin). */
+function service_brand_defaults(): array
+{
+    return [
+        'chauffage'     => ['Saunier Duval', 'Frisquet', 'De Dietrich', 'Viessmann', 'Vaillant', 'Chaffoteaux', 'ELM Leblanc',
+                            'Atlantic', 'Bosch', 'Ariston', 'Chappée', 'Buderus', 'Daikin', 'Mitsubishi Electric'],
+        'climatisation' => ['Daikin', 'Mitsubishi Electric', 'Fujitsu', 'Hitachi', 'Toshiba', 'Panasonic', 'LG',
+                            'Samsung', 'Gree', 'Midea', 'Carrier', 'Airwell', 'Atlantic'],
+    ];
+}
+
+function service_brand_titles(): array
+{
+    return [
+        'chauffage'     => 'Toutes marques de chaudières et de pompes à chaleur',
+        'climatisation' => 'Toutes marques de climatisation',
+    ];
+}
+
 function service_template(string $trade): ?array
 {
     $d = service_trade_defaults()[$trade] ?? null;
@@ -2625,7 +3567,11 @@ function service_template(string $trade): ?array
         'offer_title' => setting($p . 'offer_title', $d['offer_title']),
         'badges'      => $list($p . 'badges',      $d['badges']),
         'offer_items' => $list($p . 'offer_items', $d['offer_items']),
-        'interv'      => $list($p . 'interv',      $d['interv']),
+        'brands'      => $list($p . 'brands',      service_brand_defaults()[$trade] ?? []),
+        'brands_on'   => global_setting($p . 'brands_on', '1') === '1',   // interrupteur commun à toutes les zones
+        'brands_title'=> setting($p . 'brands_title', service_brand_titles()[$trade] ?? 'Toutes marques'),
         'faq'         => $list($p . 'faq',         $d['faq']),
+        'signs'       => $list($p . 'signs',       service_alert_signs()[$trade] ?? []),
+        'signs_title' => setting($p . 'signs_title', 'Quand nous appeler ?'),
     ];
 }

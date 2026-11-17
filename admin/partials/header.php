@@ -2,6 +2,10 @@
 require_once __DIR__ . '/../../includes/bootstrap.php';
 require_once __DIR__ . '/../../includes/render.php';
 require_admin();
+growth_remember_origin();   // adresse du site pour les liens des messages automatiques
+// De nombreux écrans traitent leur formulaire après avoir inclus cet en-tête :
+// sans tampon, le menu part avant leur redirection et celle-ci échoue.
+ob_start();
 $adminCurrent = basename($_SERVER['PHP_SELF'] ?? '');
 $adminSection = $adminSection ?? '';
 function admin_is_active(array $files, string $section = ''): string {

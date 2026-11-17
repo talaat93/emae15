@@ -186,7 +186,7 @@ absent('un argument n\'est pas balisé', (string)($w['items'][0]['title'] ?? '')
 $page = inline_edit_postprocess('<html><body><h2>'.e($w['title']).'</h2><p>'.e($w['items'][0]['text']).'</p></body></html>');
 contains('le titre devient cliquable', $page, 'data-k="why_title"');
 absent('aucun marqueur résiduel',      $page, "\x02");
-contains('le texte de l\'argument reste du texte', $page, 'Moins de 2h en urgence');
+contains('le texte de l\'argument reste du texte', $page, 'Astreinte 24h/24 et 7j/7');
 
 echo "\n13. Enregistrer depuis la page écrit bien dans le bloc\n";
 inline_edit_active(false); settings_cache(true); admin_inline_keys(true);

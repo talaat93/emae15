@@ -25,6 +25,7 @@ function admin_screens(): array
         'Le site' => [
             'page_content.php' => ['📝 Textes des pages'],
             'zones.php'        => ['🗺️ Zones d\'intervention'],
+            'city_texts.php'   => ['🏙️ Textes des pages ville'],
             'site_identity.php'=> ['🏢 Identité & coordonnées'],
             'appearance.php'   => ['🎨 Couleurs & polices'],
             'header_menu.php'  => ['🧭 Header & menu'],
@@ -37,6 +38,13 @@ function admin_screens(): array
             'pages.php'        => ['📄 Pages libres'],
             'gallery.php'      => ['🖼️ Galerie médias'],
         ],
+        'Croissance' => [
+            'leads.php'        => ['📊 Suivi des demandes'],
+            'growth.php'       => ['🚀 Conversion & avis'],
+            'contracts.php'    => ['🔧 Contrats d\'entretien'],
+            'payments.php'     => ['💳 Paiements en ligne'],
+            'agent.php'        => ['🤖 Agent relation client'],
+        ],
         'Activité' => [
             'quotes.php'       => ['📋 Demandes & interventions'],
             'technicians.php'  => ['👷 Techniciens'],
@@ -46,6 +54,8 @@ function admin_screens(): array
             'seo.php'          => ['🔍 SEO & Google Ads'],
             'chatbot.php'      => ['🤖 Chatbot IA'],
             'sms.php'          => ['📱 Notifications SMS'],
+            'google.php'       => ['🔗 Google : avis et contacts'],
+            'google.php'       => ['🔗 Google : avis et contacts'],
             'profile.php'      => ['👤 Mon profil', true],        // toujours accessible
             'mail_test.php'    => ['📧 Test email'],
         ],
@@ -65,6 +75,8 @@ function admin_hidden_screens(): array
 {
     return [
         // Zones : tout part désormais de zones.php
+        'google_oauth.php'         => ['Connexion Google',           'google.php'],
+        'google_oauth.php'         => ['Connexion Google',           'google.php'],
         'zones_manager.php'        => ['Zones géographiques',        'zones.php'],
         'zone_edit.php'            => ['Réglages d\'une zone',        'zones.php'],
         'zones_diag.php'           => ['Diagnostic des zones',        'zones.php'],
@@ -80,6 +92,7 @@ function admin_hidden_screens(): array
         'services_hero_images.php' => ['Images hero des services',    'page_content.php'],
         'page_edit.php'            => ['Modifier une page',           'pages.php'],
         'dossier.php'              => ['Dossier d\'intervention',      'quotes.php'],
+        'quote_photo.php'          => ['Photos d\'une demande',        'quotes.php'],
         // Doublon historique de « Couleurs & polices »
         'design.php'               => ['Design & Couleurs',           'appearance.php'],
     ];

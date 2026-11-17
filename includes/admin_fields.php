@@ -12,6 +12,7 @@ declare(strict_types=1);
  * (exactement la valeur de repli utilisée par le site), help (optionnel).
  * Un champ peut viser un sous-élément d'un bloc JSON via json => [clé, sous-clé].
  */
+require_once __DIR__.'/content_pages.php';
 function admin_page_catalog(): array
 {
     $name = company_name();
@@ -42,23 +43,19 @@ function admin_page_catalog(): array
                         ['key'=>'home_chip_4','label'=>'Étiquette 4','type'=>'text','default'=>'PAC'],
                         ['key'=>'home_chip_5','label'=>'Étiquette 5','type'=>'text','default'=>'Climatisation'],
                         ['key'=>'home_chip_6','label'=>'Étiquette 6','type'=>'text','default'=>'CVC'],
-                        ['key'=>'home_quote_eyebrow','label'=>'Encart devis — surtitre','type'=>'text','default'=>'Rappel gratuit sous 30 min','help'=>'Le petit bloc de devis posé dans le bandeau.'],
-                        ['key'=>'home_quote_title','label'=>'Encart devis — titre','type'=>'text','default'=>'Obtenir un devis'],
+                        ['key'=>'home_quote_eyebrow','label'=>'Encart devis — surtitre','type'=>'text','default'=>'Rappel gratuit','help'=>'Le petit bloc « être rappelé » posé dans le bandeau.'],
+                        ['key'=>'home_quote_title','label'=>'Encart devis — titre','type'=>'text','default'=>'Être rappelé'],
                     ],
                 ],
                 [
                     'id'    => 'trust',
-                    'label' => 'Les 4 garanties',
-                    'seen'  => 'La bande de réassurance juste sous le bandeau',
+                    'label' => 'Bandeau de réassurance',
+                    'seen'  => 'Le bandeau à icônes sous le haut de page (accueil, pages service et ville). « Prix annoncé », l’assurance et la note Google s’y ajoutent d’eux-mêmes, depuis les mentions légales et la fiche Google.',
                     'fields' => [
-                        ['key'=>'trust_1_title','label'=>'Garantie 1 — titre','type'=>'text','default'=>'Intervention rapide'],
-                        ['key'=>'trust_1_sub','label'=>'Garantie 1 — détail','type'=>'text','default'=>'Moins de 2h en urgence'],
+                        ['key'=>'trust_1_title','label'=>'Garantie 1 — titre','type'=>'text','default'=>'Urgences 24h/24'],
+                        ['key'=>'trust_1_sub','label'=>'Garantie 1 — détail','type'=>'text','default'=>'Délai confirmé au téléphone'],
                         ['key'=>'trust_2_title','label'=>'Garantie 2 — titre','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'trust_2_sub','label'=>'Garantie 2 — détail','type'=>'text','default'=>'Sans engagement'],
-                        ['key'=>'trust_3_title','label'=>'Garantie 3 — titre','type'=>'text','default'=>setting('schema_rating_value','4.9').'/5','help'=>'Reprend votre note par défaut. Écrivez ici pour forcer un autre texte.'],
-                        ['key'=>'trust_3_sub','label'=>'Garantie 3 — détail','type'=>'text','default'=>setting('schema_review_count','120').' avis'],
-                        ['key'=>'trust_4_title','label'=>'Garantie 4 — titre','type'=>'text','default'=>'Certifiés'],
-                        ['key'=>'trust_4_sub','label'=>'Garantie 4 — détail','type'=>'text','default'=>'Artisans qualifiés'],
                     ],
                 ],
                 [
@@ -70,6 +67,8 @@ function admin_page_catalog(): array
                         ['key'=>'services_section_label','label'=>'Surtitre','type'=>'text','default'=>'Nos pôles d\'intervention'],
                         ['key'=>'services_title','label'=>'Titre','type'=>'text','default'=>'Tout ce dont vous avez'],
                         ['key'=>'services_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'besoin'],
+                        ['key'=>'services_all_title','label'=>'Tuile « Tous nos services » — titre','type'=>'text','default'=>'Tous nos services'],
+                        ['key'=>'services_all_desc','label'=>'Tuile « Tous nos services » — texte','type'=>'text','default'=>'Découvrez l\'ensemble de nos métiers et de nos prestations.'],
                         ['key'=>'services_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Dépannage urgence, installation, entretien et mise aux normes {en_region} — un seul interlocuteur pour tous vos besoins techniques.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
                     ],
                 ],
@@ -94,7 +93,7 @@ function admin_page_catalog(): array
                         ['key'=>'process_title','label'=>'Titre','type'=>'text','default'=>'Votre intervention en'],
                         ['key'=>'process_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'3 étapes'],
                         ['key'=>'process_1_title','label'=>'Étape 1 — titre','type'=>'text','default'=>'Vous nous contactez'],
-                        ['key'=>'process_1_text','label'=>'Étape 1 — texte','type'=>'textarea','default'=>'Appelez ou remplissez le formulaire. Nous répondons immédiatement et qualifions votre besoin en moins de 5 minutes.'],
+                        ['key'=>'process_1_text','label'=>'Étape 1 — texte','type'=>'textarea','default'=>'Appelez ou demandez à être rappelé : nous faisons le point sur votre besoin au téléphone.'],
                         ['key'=>'process_2_title','label'=>'Étape 2 — titre','type'=>'text','default'=>'Nous organisons l\'intervention'],
                         ['key'=>'process_2_text','label'=>'Étape 2 — texte','type'=>'textarea','default'=>'Un technicien qualifié est envoyé sur site. Délai et tarif estimé confirmés avant déplacement.'],
                         ['key'=>'process_3_title','label'=>'Étape 3 — titre','type'=>'text','default'=>'Intervention & compte rendu'],
@@ -132,9 +131,9 @@ function admin_page_catalog(): array
                         ['key'=>'qs_label','label'=>'Surtitre','type'=>'text','default'=>'Devis gratuit'],
                         ['key'=>'qs_title','label'=>'Titre','type'=>'text','default'=>'Besoin d\'un'],
                         ['key'=>'qs_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'technicien ?'],
-                        ['key'=>'qs_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous rappelons sous 30 minutes avec un chiffrage clair. Aucune visite facturée sans votre accord.'],
+                        ['key'=>'qs_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Aucune visite facturée sans votre accord.'],
                         ['key'=>'qs_perk_1','label'=>'Argument 1','type'=>'text','default'=>'Devis 100% gratuit et sans engagement'],
-                        ['key'=>'qs_perk_2','label'=>'Argument 2','type'=>'text','default'=>'Rappel sous 30 minutes garanti'],
+                        ['key'=>'qs_perk_2','label'=>'Argument 2','type'=>'text','default'=>'Rappel sous 5 minutes'],
                         ['key'=>'qs_perk_3','label'=>'Argument 3','type'=>'text','default'=>'Tarif annoncé avant toute intervention'],
                         ['key'=>'qs_perk_4','label'=>'Argument 4','type'=>'text','default'=>'Technicien qualifié et assuré'],
                         ['key'=>'qs_perk_5','label'=>'Argument 5','type'=>'text','default'=>'Disponible 7j/7, urgences 24h/24'],
@@ -150,8 +149,8 @@ function admin_page_catalog(): array
                     'fields' => [
                         ['key'=>'zones_label','label'=>'Surtitre','type'=>'text','default'=>'Zone d\'intervention'],
                         ['key'=>'zones_title','label'=>'Titre','type'=>'text','default'=>'Nos zones d\'intervention'],
-                        ['key'=>'zones_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'partout en France'],
-                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'{region} — délai moyen d\'intervention inférieur à 2 heures pour les urgences dans nos zones principales.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement} : chaque zone affichera sa propre valeur, réglée dans « Variables de lieu ». Un texte contenant une variable se modifie ici seulement, pas directement sur la page.'],
+                        ['key'=>'home_zone_region','label'=>'Région affichée (titre et carte)','type'=>'text','default'=>'Bourgogne-Franche-Comté','help'=>'Une seule carte regroupe vos départements (Jura, Côte-d’Or, Doubs) ; les pages de chaque département restent en ligne.'],
+                        ['key'=>'zones_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Nous intervenons {en_region}.','help'=>'Vous pouvez écrire {ville}, {en_region} ou {departement}. La phrase sur la disponibilité et le délai est ajoutée automatiquement.'],
                         ['key'=>'zones_btn','label'=>'Bouton','type'=>'text','default'=>'Demander une intervention'],
                     ],
                 ],
@@ -174,6 +173,7 @@ function admin_page_catalog(): array
                         ['key'=>'nav_zones','label'=>'Lien Nos zones','type'=>'text','default'=>'Nos zones'],
                         ['key'=>'nav_avis','label'=>'Lien Avis clients','type'=>'text','default'=>'Avis clients'],
                         ['key'=>'nav_realisations','label'=>'Lien Réalisations','type'=>'text','default'=>'Réalisations'],
+                        ['key'=>'nav_tarifs','label'=>'Lien Tarifs','type'=>'text','default'=>'Tarifs','help'=>'Visible seulement si la page Tarifs est activée.'],
                     ],
                 ],
                 [
@@ -221,7 +221,7 @@ function admin_page_catalog(): array
                         ['key'=>'zp_eyebrow','json'=>['zones_page_settings','eyebrow'],'label'=>'Surtitre','type'=>'text','default'=>'Zones d\'intervention'],
                         ['key'=>'zp_title','json'=>['zones_page_settings','title'],'label'=>'Titre','type'=>'text','default'=>'Nous intervenons'],
                         ['key'=>'zp_title_hl','json'=>['zones_page_settings','title_hl'],'label'=>'Fin du titre, en couleur','type'=>'text','default'=>'{en_region}'],
-                        ['key'=>'zp_lead','json'=>['zones_page_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des techniciens qualifiés disponibles 24h/24 et 7j/7 sur l\'ensemble de nos zones. Délai d\'intervention garanti.'],
+                        ['key'=>'zp_lead','json'=>['zones_page_settings','lead'],'label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Électricité, plomberie, chauffage et climatisation dans nos zones. Disponibilité, délai estimé et conditions d\'intervention confirmés par téléphone avant déplacement.'],
                     ],
                 ],
                 [
@@ -270,7 +270,7 @@ function admin_page_catalog(): array
                     'seen'  => 'Le titre affiché dans Google',
                     'fields' => [
                         ['key'=>'avis_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Avis clients | '.$name],
-                        ['key'=>'avis_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'Découvrez les avis de nos clients — note de '.setting('schema_rating_value','4.6').'/5 sur '.setting('schema_review_count','120').' avis vérifiés.'],
+                        ['key'=>'avis_meta_desc','label'=>'Description Google','type'=>'textarea','default'=>'Témoignages de clients sur nos interventions en électricité, plomberie, chauffage et climatisation.'],
                     ],
                 ],
             ],
@@ -316,7 +316,7 @@ function admin_page_catalog(): array
                     'seen'  => 'Les pastilles sous le titre de la page Contact',
                     'fields' => [
                         ['key'=>'contact_badge_1','label'=>'Pastille 1','type'=>'text','default'=>'Devis gratuit'],
-                        ['key'=>'contact_badge_2','label'=>'Pastille 2','type'=>'text','default'=>'Réponse sous 30 min'],
+                        ['key'=>'contact_badge_2','label'=>'Pastille 2','type'=>'text','default'=>'Réponse sous 5 min'],
                     ],
                 ],
                 [
@@ -350,7 +350,7 @@ function admin_page_catalog(): array
                     'seen'  => 'La page de demande de devis',
                     'fields' => [
                         ['key'=>'quote_hero_title','label'=>'Titre','type'=>'text','default'=>'Votre demande d\'intervention'],
-                        ['key'=>'quote_hero_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Remplissez ce formulaire. Un technicien vous rappelle sous 30 minutes avec un chiffrage clair, sans engagement.'],
+                        ['key'=>'quote_hero_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Remplissez ce formulaire. Un technicien vous rappelle sous 5 minutes avec un chiffrage clair, sans engagement.'],
                         ['key'=>'quote_form_title','label'=>'Titre du formulaire','type'=>'text','default'=>'Décrivez votre besoin'],
                     ],
                 ],
@@ -396,6 +396,31 @@ function admin_page_catalog(): array
             ],
         ],
 
+        'page_nos_services' => [
+            'label' => 'Page Nos services',
+            'icon'  => '🧰',
+            'route' => 'services',
+            'intro' => 'La page qui présente tous les métiers. Le contenu de chaque carte se modifie dans l\'écran du métier concerné.',
+            'sections' => [
+                [
+                    'id'    => 'textes',
+                    'label' => 'Textes de la page',
+                    'seen'  => 'Le haut de page, l\'introduction et l\'appel à l\'action',
+                    'fields' => [
+                        ['key'=>'services_eyebrow','label'=>'Surtitre','type'=>'text','default'=>'Nos services'],
+                        ['key'=>'services_h1','label'=>'Grand titre','type'=>'text','default'=>'Services'],
+                        ['key'=>'services_page_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Nos services multitechniques'],
+                        ['key'=>'services_intro_title','label'=>'Introduction — titre','type'=>'text','default'=>'Nos '.count(service_trade_defaults()).' pôles d\'intervention'],
+                        ['key'=>'services_intro_lead','label'=>'Introduction — texte','type'=>'textarea','default'=>'Un seul interlocuteur pour l\'ensemble de vos besoins techniques. EMAE intervient en urgence, installation, entretien et mise aux normes {en_region}.'],
+                        ['key'=>'services_card_link','label'=>'Lien des cartes','type'=>'text','default'=>'Voir nos prestations'],
+                        ['key'=>'services_cta_title','label'=>'Appel à l\'action — titre','type'=>'text','default'=>'Besoin d\'un technicien ?'],
+                        ['key'=>'services_cta_lead','label'=>'Appel à l\'action — texte','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous rappelons sous 5 minutes avec un chiffrage clair. Devis gratuit et sans engagement.'],
+                        ['key'=>'services_cta_btn','label'=>'Appel à l\'action — bouton','type'=>'text','default'=>'Devis gratuit en 2 min'],
+                    ],
+                ],
+            ],
+        ],
+
         'page_services' => [
             'label' => 'Pages Service',
             'icon'  => '🔧',
@@ -408,18 +433,27 @@ function admin_page_catalog(): array
                     'seen'  => 'Les intertitres qui rythment chaque page métier',
                     'note'  => 'Les 3 étapes de ces pages utilisent les mêmes textes que « Comment ça marche » sur la page d\'accueil : les modifier change les deux.',
                     'fields' => [
-                        ['key'=>'svc_quote_eyebrow','label'=>'Encart « Être rappelé » — surtitre','type'=>'text','default'=>'Rappel gratuit sous 30 min'],
+                        ['key'=>'svc_quote_eyebrow','label'=>'Encart « Être rappelé » — surtitre','type'=>'text','default'=>'Rappel gratuit'],
                         ['key'=>'svc_quote_title','label'=>'Encart « Être rappelé » — titre','type'=>'text','default'=>'Être rappelé gratuitement'],
                         ['key'=>'svc_offer_label','label'=>'Surtitre de l\'offre','type'=>'text','default'=>'Notre offre'],
                         ['key'=>'svc_offer_lead','label'=>'Offre — texte sous le titre','type'=>'textarea','default'=>'Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.'],
-                        ['key'=>'svc_interv_label','label'=>'Interventions — surtitre','type'=>'text','default'=>'Nos interventions'],
-                        ['key'=>'svc_interv_title','label'=>'Interventions — titre','type'=>'text','default'=>'Ce que nous'],
-                        ['key'=>'svc_interv_title_hl','label'=>'Interventions — fin en couleur','type'=>'text','default'=>'faisons'],
-                        ['key'=>'svc_interv_lead','label'=>'Interventions — texte sous le titre','type'=>'textarea','default'=>'Chaque situation demande une réponse adaptée. Voici les interventions que nos techniciens réalisent au quotidien {en_region}.'],
+                        ['key'=>'svc_brands_note','label'=>'Bandeau des marques — mention sous les noms','type'=>'text','default'=>'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.'],
+                        ['key'=>'svc_reals_label','label'=>'Réalisations — surtitre','type'=>'text','default'=>'Nos réalisations'],
+                        ['key'=>'svc_reals_title','label'=>'Réalisations — titre','type'=>'text','default'=>'Chantiers'],
+                        ['key'=>'svc_reals_title_hl','label'=>'Réalisations — fin en couleur','type'=>'text','default'=>'réalisés'],
                         ['key'=>'svc_process_label','label'=>'Méthode — surtitre','type'=>'text','default'=>'Notre méthode'],
                         ['key'=>'svc_process_title','label'=>'Méthode — titre','type'=>'text','default'=>'Intervention en'],
                         ['key'=>'svc_process_title_hl','label'=>'Méthode — fin en couleur','type'=>'text','default'=>'3 étapes'],
                         ['key'=>'svc_process_lead','label'=>'Méthode — texte sous le titre','type'=>'textarea','default'=>'Un fonctionnement simple et transparent, du premier appel au compte rendu final.'],
+                        ['key'=>'svc_method_1_title','label'=>'Méthode — étape 1, titre','type'=>'text','default'=>'Diagnostic sur place'],
+                        ['key'=>'svc_method_1_text','label'=>'Méthode — étape 1, texte','type'=>'textarea','default'=>'Le technicien recherche la cause de la panne et vous l\'explique simplement.'],
+                        ['key'=>'svc_method_2_title','label'=>'Méthode — étape 2, titre','type'=>'text','default'=>'Devis clair avant travaux'],
+                        ['key'=>'svc_method_2_text','label'=>'Méthode — étape 2, texte','type'=>'textarea','default'=>'Vous connaissez le prix avant toute réparation et vous décidez : rien n\'est fait sans votre accord.'],
+                        ['key'=>'svc_method_3_title','label'=>'Méthode — étape 3, titre','type'=>'text','default'=>'Réparation aux normes'],
+                        ['key'=>'svc_method_3_text','label'=>'Méthode — étape 3, texte','type'=>'textarea','default'=>'Réparation ou installation dans les règles de l\'art, puis facture détaillée en fin d\'intervention.'],
+                        ['key'=>'svc_signs_label','label'=>'Signes d\'alerte — surtitre','type'=>'text','default'=>'Signes d\'alerte'],
+                        ['key'=>'svc_cta_title','label'=>'Bas de page — titre de l\'appel à l\'action','type'=>'text','default'=>'Un problème maintenant ?'],
+                        ['key'=>'svc_cta_lead','label'=>'Bas de page — texte','type'=>'textarea','default'=>'Appelez-nous ou demandez à être rappelé : nous faisons le point avec vous et vous annonçons le prix avant tout déplacement.'],
                         ['key'=>'svc_faq_label','label'=>'FAQ — surtitre','type'=>'text','default'=>'FAQ'],
                         ['key'=>'svc_faq_title','label'=>'FAQ — titre','type'=>'text','default'=>'Questions'],
                         ['key'=>'svc_faq_title_hl','label'=>'FAQ — fin en couleur','type'=>'text','default'=>'fréquentes'],
@@ -436,6 +470,62 @@ function admin_page_catalog(): array
             ],
         ],
 
+        'page_tarifs' => [
+            'label' => 'Page Tarifs',
+            'icon'  => '💶',
+            'route' => 'tarifs',
+            'intro' => 'Tant que la page est désactivée, seul un administrateur connecté peut la voir : vous pouvez la préparer avant de la publier.',
+            'sections' => [
+                [
+                    'id'    => 'statut',
+                    'label' => 'Publication',
+                    'seen'  => 'Active ou retire la page et son lien dans le menu',
+                    'fields' => [
+                        ['key'=>'tarifs_enabled','label'=>'Page Tarifs','type'=>'toggle','default'=>'0','check'=>'Afficher la page Tarifs sur le site','help'=>'Désactivée, la page disparaît du menu et du plan du site, et son adresse renvoie une erreur 404. Ce réglage vaut pour tout le site, zones comprises.'],
+                    ],
+                ],
+                [
+                    'id'    => 'grilles',
+                    'label' => 'Grilles de prix',
+                    'seen'  => 'Une grille par métier',
+                    'note'  => 'Un prix laissé vide s\'affiche « Sur devis ». Précisez si vos prix sont HT ou TTC.',
+                    'fields' => array_map(static function (string $trade, array $rows): array {
+                        return ['key'=>'tarifs_'.$trade,'label'=>$trade === 'base' ? 'Déplacement et main-d\'œuvre (obligatoire pour le dépannage : prix TTC)' : service_trade_defaults()[$trade]['label'],'type'=>'list','default'=>$rows,
+                            'columns'=>[
+                                ['k'=>'label','label'=>'Prestation'],
+                                ['k'=>'price','label'=>'Prix (ex : à partir de 90 € TTC)','w'=>'240px'],
+                                ['k'=>'detail','label'=>'Précision (facultatif)'],
+                            ]];
+                    }, array_keys(tarifs_default_rows()), tarifs_default_rows()),
+                ],
+                [
+                    'id'    => 'hero',
+                    'label' => 'Textes de la page',
+                    'seen'  => 'Le haut de page, la mention sous les grilles et l\'appel à l\'action',
+                    'fields' => [
+                        ['key'=>'tarifs_eyebrow','label'=>'Surtitre','type'=>'text','default'=>'Tarification'],
+                        ['key'=>'tarifs_title','label'=>'Titre','type'=>'text','default'=>'Nos'],
+                        ['key'=>'tarifs_title_hl','label'=>'Fin du titre, en couleur','type'=>'text','default'=>'tarifs'],
+                        ['key'=>'tarifs_quote_label','label'=>'Texte si aucun prix','type'=>'text','default'=>'Sur devis'],
+                        ['key'=>'tarifs_lead','label'=>'Phrase d\'accroche','type'=>'textarea','default'=>'Des prix clairs, confirmés avant toute intervention.'],
+                        ['key'=>'tarifs_note','label'=>'Mention sous les grilles','type'=>'textarea','default'=>'Tarifs donnés à titre indicatif. Le prix définitif est confirmé par un devis gratuit avant toute intervention.'],
+                        ['key'=>'tarifs_cta_title','label'=>'Appel à l\'action — titre','type'=>'text','default'=>'Besoin d\'un prix précis ?'],
+                        ['key'=>'tarifs_cta_btn','label'=>'Appel à l\'action — bouton','type'=>'text','default'=>'Demander un devis gratuit'],
+                        ['key'=>'tarifs_cta_lead','label'=>'Appel à l\'action — texte','type'=>'textarea','default'=>'Décrivez votre besoin, nous vous répondons avec un chiffrage clair et sans engagement.'],
+                    ],
+                ],
+                [
+                    'id'    => 'seo',
+                    'label' => 'Référencement de la page',
+                    'seen'  => 'Le titre affiché dans Google',
+                    'fields' => [
+                        ['key'=>'tarifs_meta_title','label'=>'Titre Google','type'=>'text','default'=>'Tarifs | '.$name],
+                        ['key'=>'tarifs_meta_description','label'=>'Description Google','type'=>'textarea','default'=>'Nos tarifs en électricité, plomberie, chauffage, climatisation, ventilation, portail et automatismes. Devis gratuit avant toute intervention.'],
+                    ],
+                ],
+            ],
+        ],
+
         'page_mentions' => [
             'label' => 'Mentions légales',
             'icon'  => '⚖️',
@@ -445,10 +535,9 @@ function admin_page_catalog(): array
                     'id'    => 'contenu',
                     'label' => 'Informations légales',
                     'seen'  => 'La page Mentions légales, liée depuis le pied de page',
-                    'link'  => ['admin/site_identity.php', 'Modifier raison sociale, SIRET et adresse'],
+                    'link'  => ['admin/site_identity.php#mentions', 'Dénomination, siège, SIREN, directeur de la publication, médiateur'],
                     'fields' => [
-                        ['key'=>'ml_directeur','label'=>'Directeur de la publication','type'=>'text','default'=>$name],
-                        ['key'=>'ml_hebergeur','label'=>'Hébergeur du site','type'=>'textarea','default'=>'o2switch — 222-224 Boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr'],
+                        ['key'=>'ml_hebergeur','label'=>'Hébergeur du site','type'=>'textarea','default'=>'o2switch SAS — 222-224 boulevard Gustave Flaubert, 63000 Clermont-Ferrand — www.o2switch.fr'],
                     ],
                 ],
                 [
@@ -530,25 +619,41 @@ function admin_service_pages(): array
                 [
                     'id'    => 'offre',
                     'label' => 'Notre offre',
-                    'seen'  => 'La liste à puces de vos prestations',
+                    'seen'  => 'Les cartes défilantes de vos prestations : un dessin, un titre, un texte court',
                     'fields' => [
                         ['key'=>$p.'offer_title','label'=>'Titre de la section','type'=>'text','default'=>$d['offer_title']],
                         ['key'=>$p.'offer_items','label'=>'Prestations','type'=>'list','default'=>$d['offer_items'],
-                         'columns'=>[['k'=>'v','label'=>'Prestation']]],
+                         'string_col'=>'title', 'row_upgrade'=>'service_offer_row_upgrade',
+                         'columns'=>[
+                            ['k'=>'icon','label'=>'Dessin','w'=>'190px','type'=>'select','options'=>service_icons()],
+                            ['k'=>'title','label'=>'Titre'],
+                            ['k'=>'text','label'=>'Texte court','type'=>'textarea'],
+                         ],
+                         'help'=>'Une carte par ligne. Gardez le texte court : une ou deux lignes suffisent.'],
                     ],
                 ],
                 [
-                    'id'    => 'interventions',
-                    'label' => 'Nos interventions',
-                    'seen'  => 'Les tuiles illustrées au milieu de la page',
+                    'id'    => 'signes',
+                    'label' => 'Quand nous appeler ?',
+                    'seen'  => 'La liste des signes d\'alerte, sous l\'offre',
                     'fields' => [
-                        ['key'=>$p.'interv','label'=>'Tuiles d\'intervention','type'=>'list','default'=>$d['interv'],
-                         'columns'=>[
-                            ['k'=>'icon','label'=>'Icône','w'=>'80px'],
-                            ['k'=>'title','label'=>'Titre'],
-                            ['k'=>'text','label'=>'Description'],
-                         ],
-                         'help'=>'L\'icône est un emoji. Copiez-en un depuis votre clavier d\'émojis.'],
+                        ['key'=>$p.'signs_title','label'=>'Titre de la section','type'=>'text','default'=>'Quand nous appeler ?'],
+                        ['key'=>$p.'signs','label'=>'Signes d\'alerte','type'=>'list','default'=>service_alert_signs()[$trade] ?? [],
+                         'columns'=>[['k'=>'v','label'=>'Signe']],
+                         'help'=>'Un symptôme par ligne, tel que le client le constate. Liste vide : section masquée.'],
+                    ],
+                ],
+                [
+                    'id'    => 'marques',
+                    'label' => 'Marques',
+                    'seen'  => 'Le bandeau défilant des marques, sous l\'en-tête de la page',
+                    'fields' => [
+                        ['key'=>$p.'brands_on','label'=>'Bandeau des marques','type'=>'toggle','default'=>'1','check'=>'Afficher le bandeau des marques sur cette page',
+                         'help'=>'Il ne s\'affiche que si la liste ci-dessous contient au moins une marque.'],
+                        ['key'=>$p.'brands_title','label'=>'Titre du bandeau','type'=>'text','default'=>service_brand_titles()[$trade] ?? 'Toutes marques'],
+                        ['key'=>$p.'brands','label'=>'Marques','type'=>'list','default'=>service_brand_defaults()[$trade] ?? [],
+                         'columns'=>[['k'=>'v','label'=>'Marque']],
+                         'help'=>'Les noms défilent en texte. Ne citez que des marques sur lesquelles vous intervenez réellement.'],
                     ],
                 ],
                 [
@@ -567,6 +672,8 @@ function admin_service_pages(): array
             ],
         ];
     }
+    // Pages panne, aides, estimation, rendez-vous, entretien (includes/content_pages.php).
+    $pages += content_pages_catalog();
     return $pages;
 }
 
@@ -605,6 +712,12 @@ function admin_catalog_keys(string $pageId): array
 function admin_field_is_list(array $f): bool
 {
     return ($f['type'] ?? '') === 'list';
+}
+
+/** Interrupteur oui/non, commun à tout le site : il ne se personnalise pas par zone. */
+function admin_field_is_toggle(array $f): bool
+{
+    return ($f['type'] ?? '') === 'toggle';
 }
 
 /** Colonnes d'une liste. Une liste sans colonnes déclarées en a une seule. */
@@ -646,9 +759,13 @@ function admin_list_save(array $f, array $rows): bool
     $clean = [];
     foreach ($rows as $row) {
         if ($multi) {
-            $vals = [];
-            foreach ($cols as $c) $vals[] = trim((string)($row[$c['k']] ?? ''));
-            if (implode('', $vals) === '') continue;          // ligne entièrement vide : ignorée
+            $vals = []; $typed = '';
+            foreach ($cols as $c) {
+                $v = trim((string)($row[$c['k']] ?? ''));
+                $vals[] = $v;
+                if (($c['type'] ?? 'text') !== 'select') $typed .= $v;   // une liste déroulante a toujours une valeur
+            }
+            if ($typed === '') continue;                      // ligne entièrement vide : ignorée
             $clean[] = $vals;
         } else {
             $v = trim((string)(is_array($row) ? reset($row) : $row));
@@ -684,7 +801,7 @@ function admin_list_flatten(array $f): string
 function admin_field_is_inline(array $f): bool
 {
     if (array_key_exists('inline', $f)) return (bool)$f['inline'];
-    if (admin_field_is_list($f)) return false;
+    if (admin_field_is_list($f) || admin_field_is_toggle($f)) return false;
     $k = $f['key'];
     foreach (['meta_title','meta_desc','meta_description','og_','_url','_cities','_tags','_placeholder'] as $pat) {
         if (str_contains($k, $pat)) return false;
@@ -734,6 +851,7 @@ function admin_json_block_plain(string $blob): array
 function admin_field_raw(array $f): string
 {
     if (admin_field_is_list($f)) return raw_setting($f['key']);
+    if (admin_field_is_toggle($f)) return global_setting($f['key'], (string)($f['default'] ?? '0'));
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
         return trim((string)(admin_json_block_plain($blob)[$sub] ?? ''));
@@ -745,6 +863,7 @@ function admin_field_raw(array $f): string
 function admin_field_shown(array $f): string
 {
     if (admin_field_is_list($f)) return admin_list_flatten($f);
+    if (admin_field_is_toggle($f)) return admin_field_raw($f);
     $default = (string)($f['default'] ?? '');
     if (!empty($f['json'])) {
         $raw = admin_field_raw($f);
@@ -760,6 +879,14 @@ function admin_field_save(array $f, string $value): bool
     if (admin_field_is_list($f)) return false;
     $value = trim($value);
     if ($value === admin_field_raw($f)) return false;
+    if (admin_field_is_toggle($f)) {
+        // Écrit la valeur globale, quelle que soit la zone en cours d'édition.
+        $zone = zone_context();
+        set_zone_context(null);
+        set_setting($f['key'], $value === '1' ? '1' : '0');
+        set_zone_context($zone);
+        return true;
+    }
     if (!empty($f['json'])) {
         [$blob, $sub] = $f['json'];
         $data = admin_json_block_plain($blob);

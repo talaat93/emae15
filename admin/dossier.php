@@ -14,6 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = trim((string)($_POST['action'] ?? 'save'));
 
     if ($action === 'delete') {
+        quote_delete_photos($q);
         db_execute('DELETE FROM quotes WHERE id = ?', [$id]);
         flash('success', 'Dossier #'.$id.' supprimé définitivement.');
         redirect_to('admin/quotes.php');
@@ -101,6 +102,7 @@ $techPhotos = quote_tech_photos($q);
       <?= e(date('d/m/Y à H:i', strtotime((string)$q['created_at']))) ?>
       &nbsp;·&nbsp;
       <span style="display:inline-block;padding:.2rem .75rem;border-radius:8px;background:<?= e($sm['bg']) ?>;color:<?= e($sm['color']) ?>;font-weight:700;font-size:.82rem;"><?= e($sm['label']) ?></span>
+      <?php if (quote_type_badge($q) !== ''): ?>&nbsp;·&nbsp;<?= quote_type_badge($q) ?><?php endif; ?>
       <?php if ($isArchived): ?>&nbsp;·&nbsp;<span style="font-size:.82rem;color:#8a6000;font-weight:700;">🗄️ Archivé</span><?php endif; ?>
     </p>
   </div>
@@ -169,6 +171,12 @@ $techPhotos = quote_tech_photos($q);
       <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:#8a9ab8;margin-bottom:.4rem;">Message</div>
       <div style="background:#f8faff;border-left:4px solid #F07B1D;border-radius:8px;padding:1rem;font-size:.92rem;color:#222;line-height:1.75;white-space:pre-wrap;"><?= e($q['message']) ?></div>
     </div>
+    <?php if (quote_client_photos($q)): ?>
+    <div style="margin-top:1rem;">
+      <div style="font-size:.75rem;font-weight:700;text-transform:uppercase;color:#8a9ab8;margin-bottom:.4rem;">📷 Photos envoyées par le client</div>
+      <?= quote_photos_html($q) ?>
+    </div>
+    <?php endif; ?>
   </div>
 </section>
 

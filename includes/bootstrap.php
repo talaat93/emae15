@@ -29,6 +29,22 @@ require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
 require_once __DIR__ . '/client360.php';
 require_once __DIR__ . '/finance.php';
+require_once __DIR__ . '/growth.php';
+require_once __DIR__ . '/google_api.php';
+require_once __DIR__ . '/google_contacts.php';
+require_once __DIR__ . '/coherence.php';
+require_once __DIR__ . '/city_pages.php';
+require_once __DIR__ . '/city_trade_pages.php';
+require_once __DIR__ . '/city_trade_content.php';
+require_once __DIR__ . '/city_texts.php';
+require_once __DIR__ . '/zone_map.php';
+require_once __DIR__ . '/content_pages.php';
+require_once __DIR__ . '/automations.php';
+require_once __DIR__ . '/client_space.php';
+require_once __DIR__ . '/payments.php';
+require_once __DIR__ . '/contracts.php';
+require_once __DIR__ . '/mailbox.php';
+require_once __DIR__ . '/agent_client.php';
 boot_session();
 // Auto-migration v15.1 — address & postal_code on quotes
 $_mf = __DIR__.'/../storage/.mig_v15_addr';
@@ -309,7 +325,7 @@ if (!file_exists($_mf12)) {
             ['paris-ile-de-france','Paris / Île-de-France','Paris (75)|Meaux (77)|Versailles (78)|Évry (91)|Nanterre (92)|Saint-Denis (93)|Créteil (94)|Cergy (95)','75,77,78,91,92,93,94,95',0],
             ['cote-dor','Côte-d\'Or','Dijon|Beaune|Auxonne|Montbard|Nuits-Saint-Georges','21',1],
             ['jura','Jura','Lons-le-Saunier|Dole|Saint-Claude|Morez|Champagnole','39',2],
-            ['doubs','Doubs','Besançon|Pontarlier|Montbéliard|Morteau|Baume-les-Dames','25',3],
+            ['doubs','Doubs','Besançon|Pontarlier|Morteau|Baume-les-Dames','25',3],
             ['seine-saint-denis','Seine-Saint-Denis','Saint-Denis|Bobigny|Montreuil|Aubervilliers|Pantin|Noisy-le-Grand','93',4],
         ];
         foreach ($__zd as [$__sl,$__nm,$__ci,$__pc,$__so]) {
@@ -716,19 +732,323 @@ if (!file_exists($_mf32)) {
     unset($_me);
 }
 unset($_mf32);
-// Auto-migration v15.33 — fin estimée par le technicien sur place : heure de fin prévue,
-// moment où il l'a indiquée, avancement (début, milieu, fin). Colonnes vides par défaut.
-$_mf33 = __DIR__.'/../storage/.mig_v15_tech_eta';
+// Auto-migration v15.33 — type de demande (rappel ou devis), photos envoyées par
+// le client, photo « avant » des réalisations.
+$_mf33 = __DIR__.'/../storage/.mig_v15_demandes_photos';
 if (!file_exists($_mf33)) {
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN request_type VARCHAR(20) NULL",
+        "ALTER TABLE quotes ADD COLUMN client_photos TEXT NULL",
+        "ALTER TABLE realisations ADD COLUMN before_image_path VARCHAR(255) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    quote_photo_dir();
+    @file_put_contents($_mf33, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf33);
+// Auto-migration v15.34 — rendez-vous en ligne, alertes, demandes d'avis, suivi
+// d'intervention, saisies non terminées, espace client, paiements, contrats d'entretien.
+$_mf34 = __DIR__.'/../storage/.mig_v15_croissance';
+if (!file_exists($_mf34)) {
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN preferred_date DATE NULL",
+        "ALTER TABLE quotes ADD COLUMN preferred_slot VARCHAR(40) NULL",
+        "ALTER TABLE quotes ADD COLUMN alerted_at DATETIME NULL",
+        "ALTER TABLE quotes ADD COLUMN review_requested_at DATETIME NULL",
+        "ALTER TABLE quotes ADD COLUMN tech_completed_at DATETIME NULL",
+        "ALTER TABLE quotes ADD INDEX idx_rdv (request_type, preferred_date)",
+        "ALTER TABLE interventions ADD COLUMN track_token VARCHAR(24) NULL",
+        "ALTER TABLE interventions ADD COLUMN review_requested_at DATETIME NULL",
+        "ALTER TABLE interventions ADD INDEX idx_track (track_token)",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    auto_messages_table(); partial_table(); client_codes_table(); payments_table(); contracts_table();
+    @file_put_contents($_mf34, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf34);
+// Auto-migration v15.35 — pages d'arrivée Google Ads (08/11/2026) : Montbéliard, exclu
+// des annonces, disparaît des textes et des villes ; le délai de rappel annoncé
+// passe partout à 5 minutes, comme dans l'encart des pages métier.
+$_mf35 = __DIR__.'/../storage/.mig_v15_pages_ads';
+if (!file_exists($_mf35)) {
+    @file_put_contents($_mf35, date('c'));
+    try {
+        $__rep = [
+            'Montbéliard, Quetigny' => 'Quetigny', ' et Montbéliard' => ' et Chenôve', ', Montbéliard' => '',
+            'Montbéliard, ' => '', '|Montbéliard' => '', 'Montbéliard|' => '',
+            'sous 30 minutes' => 'sous 5 minutes', 'sous 30 min' => 'sous 5 min',
+            'en 30 minutes' => 'en 5 minutes', 'en 30 min' => 'en 5 min',
+        ];
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_value LIKE '%Montbéliard%' OR setting_value LIKE '%30 min%'") as $__r) {
+            $__v = strtr((string)$__r['setting_value'], $__rep);
+            if ($__v !== (string)$__r['setting_value']) {
+                db_execute('UPDATE settings SET setting_value = ? WHERE setting_key = ?', [$__v, $__r['setting_key']]);
+            }
+        }
+        foreach (db_fetch_all("SELECT id, cities FROM zones WHERE cities LIKE '%Montbéliard%'") as $__r) {
+            $__v = trim((string)preg_replace(['/\s*Montbéliard\s*([|,\n])/u', '/([|,\n])\s*Montbéliard\s*$/u'], ['', ''], (string)$__r['cities']));
+            db_execute('UPDATE zones SET cities = ? WHERE id = ?', [$__v, (int)$__r['id']]);
+        }
+        settings_cache(true);
+    } catch (Throwable $_me) { error_log('Migration v15.35 : '.$_me->getMessage()); }
+    unset($_me, $__rep, $__r, $__v);
+}
+unset($_mf35);
+// Auto-migration v15.36 — agent relation client : messages traités, journal des actions
+// et de leur coût, liens « suite à votre appel » ; champs utiles au futur devis Pennylane.
+$_mf36 = __DIR__.'/../storage/.mig_v15_agent';
+if (!file_exists($_mf36)) {
+    agent_tables();
+    foreach ([
+        "ALTER TABLE quotes ADD COLUMN address VARCHAR(255) NULL",        // déjà là sur la plupart des bases
+        "ALTER TABLE quotes ADD COLUMN postal_code VARCHAR(10) NULL",
+        "ALTER TABLE quotes ADD COLUMN customer_kind VARCHAR(12) NULL",
+        "ALTER TABLE quotes ADD COLUMN company_name VARCHAR(190) NULL",
+        "ALTER TABLE quotes ADD COLUMN company_siret VARCHAR(20) NULL",
+        "ALTER TABLE quotes ADD COLUMN availability VARCHAR(500) NULL",
+    ] as $__sql) { try { db_execute($__sql); } catch (Throwable $_me) {} }
+    @file_put_contents($_mf36, date('c'));
+    unset($_me, $__sql);
+}
+unset($_mf36);
+// Auto-migration v15.37 — agent : mails envoyés par le propriétaire (table agent_sent).
+$_mf37 = __DIR__.'/../storage/.mig_v15_agent_sent';
+if (!file_exists($_mf37)) {
+    agent_tables();
+    @file_put_contents($_mf37, date('c'));
+}
+unset($_mf37);
+// Auto-migration v15.38 — mise en cohérence des contenus (novembre 2026) : provenance des
+// témoignages (un avis sans provenance n'est plus publié), puis textes enregistrés qui citent
+// un autre secteur ou une promesse non documentée (voir includes/coherence.php). Tout est
+// sauvegardé et s'annule depuis « Diagnostic des zones ».
+$_mf38 = __DIR__.'/../storage/.mig_v15_coherence';
+if (!file_exists($_mf38)) {
+    @file_put_contents($_mf38, date('c'));   // posé avant : une erreur ne relance pas à chaque visite
+    try { db_execute('ALTER TABLE reviews ADD COLUMN source_note VARCHAR(190) NULL'); } catch (Throwable $_me) {}
+    try {
+        require_once __DIR__ . '/admin_fields.php';
+        coherence_appliquer();
+    } catch (Throwable $_me) { error_log('Migration v15.38 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf38);
+// Auto-migration v15.39 — textes globaux figés par la modification sur la page (« autour de
+// Quetigny, Dijon et Genlis » repris tel quel par les zones Jura et Doubs) : modèle à variables
+// remis quand le texte en est exactement la version résolue. Annulable avec la v15.38.
+$_mf39 = __DIR__.'/../storage/.mig_v15_coherence_textes';
+if (!file_exists($_mf39)) {
+    @file_put_contents($_mf39, date('c'));
+    try { require_once __DIR__ . '/admin_fields.php'; coherence_degeler(); }
+    catch (Throwable $_me) { error_log('Migration v15.39 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf39);
+// Auto-migration v15.40 — page Tarifs publiée (grille de base reprise de Pennylane, 10/11/2026),
+// sauf si le propriétaire l'a déjà réglée lui-même.
+$_mf40 = __DIR__.'/../storage/.mig_v15_tarifs_publies';
+if (!file_exists($_mf40)) {
+    @file_put_contents($_mf40, date('c'));
+    try { if (!db_fetch("SELECT id FROM settings WHERE setting_key = 'tarifs_enabled'")) db_execute("INSERT INTO settings (setting_key, setting_value) VALUES ('tarifs_enabled', '1')"); settings_cache(true); }
+    catch (Throwable $_me) { error_log('Migration v15.40 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf40);
+// Auto-migration v15.41 (10/11/2026, décisions du propriétaire) : numéro WhatsApp complet ;
+// zone /idf/ désactivée (l'Île-de-France sera recréée proprement plus tard). Valeurs d'avant
+// sauvegardées (lot « proprietaire-… », annulable depuis Diagnostic des zones).
+$_mf41 = __DIR__.'/../storage/.mig_v15_whatsapp_idf';
+if (!file_exists($_mf41)) {
+    @file_put_contents($_mf41, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'proprietaire-'.date('Ymd-His');
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key = 'company_whatsapp' OR setting_key LIKE 'z:%:company_whatsapp'") as $_r) {
+            geo_sauvegarder($_lot, 'setting:'.$_r['setting_key'], (string)$_r['setting_value']);
+            if ($_r['setting_key'] !== 'company_whatsapp') db_execute('DELETE FROM settings WHERE setting_key = ?', [$_r['setting_key']]);
+        }
+        geo_ecrire_brut('company_whatsapp', '+33767968333');
+        foreach (db_fetch_all("SELECT id, status FROM zones WHERE slug = 'idf'") as $_z) {
+            geo_sauvegarder($_lot, 'zone_status:'.(int)$_z['id'], (string)$_z['status']);
+            db_execute('UPDATE zones SET status = 0 WHERE id = ?', [(int)$_z['id']]);
+        }
+        settings_cache(true);
+        if (function_exists('intervention_zones_flush')) intervention_zones_flush();
+    } catch (Throwable $_me) { error_log('Migration v15.41 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_r, $_z);
+}
+unset($_mf41);
+// Auto-migration v15.42 (11/11/2026) : textes de l'accueil rendus locaux et vérifiables.
+// - haut de page et « Pourquoi nous choisir » réécrits (Dole, 21/39/25, prix avant déplacement) ;
+// - arguments chiffrés sans preuve retirés (« + de 20 techniciens », « +1500 interventions / an ») :
+//   le texte par défaut reprend la place ;
+// - doublon « 24/7 Disponibilités » remplacé par « 3 Départements » ; « Dôle » → « Dole » ;
+//   accents de « Dépannage » et « Réalisations ».
+// Valeurs d'avant sauvegardées dans geo_sauvegarde (lot « credibilite-… », geo_annuler()).
+$_mf42 = __DIR__.'/../storage/.mig_v15_credibilite';
+if (!file_exists($_mf42)) {
+    @file_put_contents($_mf42, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'credibilite-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+        $_get = static function (string $k): ?string { $r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', [$k]); return $r ? (string)$r['setting_value'] : null; };
+        $_set = static function (string $k, string $v) use ($_lot, $_get): void {
+            $old = $_get($k);
+            if ($old === $v) return;
+            geo_sauvegarder($_lot, 'setting:'.$k, $old);
+            geo_ecrire_brut($k, $v);
+        };
+        $_set('home_title', 'Électricien, plombier, chauffagiste');
+        $_set('home_title_hl', 'en Côte-d\'Or, Jura et Doubs');
+        $_set('home_lead', 'Dépannage et installation à Dole, Dijon, Besançon, Lons-le-Saunier et dans les villages autour. Nous partons de Dole : disponibilité, délai et prix du déplacement confirmés au téléphone avant de venir. Devis gratuit.');
+        $_why = json_decode((string)$_get('why_us_settings'), true);
+        $_why = is_array($_why) ? $_why : [];
+        $_why['title'] = 'Un dépanneur local, basé à Dole';
+        $_why['lead']  = 'Électricité, plomberie, chauffage, climatisation : un seul numéro pour Dole, Dijon, Besançon, Lons-le-Saunier et les villages autour. Avant de partir, nous vous disons ce que nous allons faire et combien coûte le déplacement.';
+        $_why['items'] = [
+            ['icon_type'=>'emoji','icon'=>'📍','icon_img'=>'','title'=>'Basés à Dole',                   'text'=>'Nous partons de Dole vers le Jura, la Côte-d\'Or et le Doubs : de Beaune à Pontarlier, de Dijon à Lons-le-Saunier. Pour un village, appelez : nous vous disons tout de suite si nous venons.'],
+            ['icon_type'=>'emoji','icon'=>'📋','icon_img'=>'','title'=>'Le prix avant le déplacement',    'text'=>'Déplacement, diagnostic et taux horaire sont publiés sur notre page Tarifs. Pour les travaux, devis gratuit : rien n\'est fait sans votre accord.'],
+            ['icon_type'=>'emoji','icon'=>'📞','icon_img'=>'','title'=>'Une vraie personne au téléphone', 'text'=>'Vous décrivez la panne, nous posons les bonnes questions et confirmons disponibilité et délai avant de partir. Vous préférez être rappelé ? Laissez simplement votre numéro.'],
+            ['icon_type'=>'emoji','icon'=>'🔥','icon_img'=>'','title'=>'Chauffage et pompes à chaleur',   'text'=>'Les hivers sont longs dans le Jura et le Doubs : chaudières gaz et fioul, pompes à chaleur, radiateurs. Nous dépannons, entretenons et remplaçons, avec un devis clair.'],
+            ['icon_type'=>'emoji','icon'=>'🛠️','icon_img'=>'','title'=>'Une panne, plusieurs métiers',    'text'=>'Une fuite qui a touché le tableau électrique, une pompe à chaleur qui fait disjoncter : nous traitons l\'ensemble, sans vous renvoyer d\'un artisan à l\'autre.'],
+            ['icon_type'=>'emoji','icon'=>'🧾','icon_img'=>'','title'=>'Facture détaillée',               'text'=>'Déplacement, pièces et main-d\'œuvre (comptée à la demi-heure) détaillés sur la facture, remise en fin d\'intervention.'],
+        ];
+        $_set('why_us_settings', (string)json_encode($_why, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        // Arguments chiffrés sans preuve et doublon 24/7 : réglage retiré, le texte par défaut reprend la place.
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key REGEXP '^(z:[^:]+:)?(trust_[1-4]_(title|sub)|stat_[1-4]_(number|label))$'") as $_r) {
+            $_k = (string)$_r['setting_key']; $_v = (string)$_r['setting_value'];
+            $_retirer = claim_unsupported($_v) || preg_match('/techniciens|interventions\s*\/\s*an/iu', $_v);
+            if (!$_retirer && preg_match('/stat_4_label$/', $_k) && preg_match('/disponibilit/iu', $_v)) {
+                $_retirer = true;
+                $_n = str_replace('label', 'number', $_k);
+                if (($_nv = $_get($_n)) !== null) { geo_sauvegarder($_lot, 'setting:'.$_n, $_nv); geo_ecrire_brut($_n, ''); }
+            }
+            if ($_retirer) { geo_sauvegarder($_lot, 'setting:'.$_k, $_v); geo_ecrire_brut($_k, ''); }
+        }
+        // Orthographe : « Dôle » (la ville s'écrit Dole), accents manquants.
+        foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_value LIKE '%Dôle%' OR setting_value LIKE '%Depannage%' OR setting_value = 'Realisations'") as $_r) {
+            $_v = (string)$_r['setting_value'];
+            $_nv = $_v === 'Realisations' ? 'Réalisations' : str_replace(['Dôle', 'Depannage'], ['Dole', 'Dépannage'], $_v);
+            if ($_nv !== $_v) { geo_sauvegarder($_lot, 'setting:'.$_r['setting_key'], $_v); geo_ecrire_brut((string)$_r['setting_key'], $_nv); }
+        }
+        settings_cache(true);
+    } catch (Throwable $_me) { error_log('Migration v15.42 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_get, $_set, $_why, $_r, $_k, $_v, $_n, $_nv, $_retirer);
+}
+unset($_mf42);
+// Auto-migration v15.43 (11/11/2026) : fiche Google validée, lien fourni par le propriétaire
+// (share.google/bcbkgvlzCNZO7OL7g → fiche « Emae », kgmid /g/11z_dyx41_). Adresse stable de
+// la fiche, utilisée en sameAs ; écrite seulement si aucun lien n'est déjà réglé dans l'admin.
+$_mf43 = __DIR__.'/../storage/.mig_v15_fiche_google';
+if (!file_exists($_mf43)) {
+    @file_put_contents($_mf43, date('c'));
+    try {
+        if (trim(global_setting('google_mybusiness_url', '')) === '') {
+            geo_sauvegarde_table();
+            geo_sauvegarder('proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2)), 'setting:google_mybusiness_url', null);
+            geo_ecrire_brut('google_mybusiness_url', 'https://www.google.com/search?kgmid=/g/11z_dyx41_');
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.43 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf43);
+// Auto-migration v15.44 (11/11/2026) : lien « Demander des avis » et note de la fiche Google,
+// relevés par le propriétaire sur sa fiche (capture du 11/11/2026 : 5,0 ★, 1 avis).
+$_mf44 = __DIR__.'/../storage/.mig_v15_avis_google';
+if (!file_exists($_mf44)) {
+    @file_put_contents($_mf44, date('c'));
+    try {
+        geo_sauvegarde_table();
+        $_lot = 'proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+        foreach (['google_reviews_url' => 'https://g.page/r/CUSbX6hewFclEBM/review', 'google_rating' => '5',
+                  'google_review_count' => '1', 'google_rating_updated_at' => '2026-11-11 03:35:00'] as $_k => $_v) {
+            $_r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', [$_k]);
+            geo_sauvegarder($_lot, 'setting:'.$_k, $_r ? (string)$_r['setting_value'] : null);
+            geo_ecrire_brut($_k, $_v);
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.44 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_k, $_v, $_r);
+}
+unset($_mf44);
+// Auto-migration v15.45 (11/11/2026) : fourchette « Entretien annuel de chaudière » donnée par le
+// propriétaire (109 € à 239 € TTC). Seulement si la ligne est vide : un prix saisi dans l'admin reste.
+$_mf45 = __DIR__.'/../storage/.mig_v15_entretien_chaudiere';
+if (!file_exists($_mf45)) {
+    @file_put_contents($_mf45, date('c'));
+    try {
+        $_r = db_fetch('SELECT setting_value FROM settings WHERE setting_key = ?', ['tarifs_chauffage']);
+        $_rows = $_r ? json_decode((string)$_r['setting_value'], true) : null;
+        if (is_array($_rows) && $_rows !== []) {
+            $_chg = false;
+            foreach ($_rows as $_i => $_row) {
+                $_row = array_pad(array_values((array)$_row), 3, '');
+                if (text_ascii_lower(trim((string)$_row[0])) === 'entretien annuel de chaudiere' && trim((string)$_row[1]) === '') {
+                    $_rows[$_i] = [$_row[0], '109 € à 239 € TTC', trim((string)$_row[2]) !== '' ? $_row[2] : ENTRETIEN_CHAUDIERE_PRECISION];
+                    $_chg = true;
+                }
+            }
+            if ($_chg) {
+                geo_sauvegarde_table();
+                $_lot = 'proprietaire-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+                geo_sauvegarder($_lot, 'setting:tarifs_chauffage', (string)$_r['setting_value']);
+                geo_ecrire_brut('tarifs_chauffage', json_encode(array_values($_rows), JSON_UNESCAPED_UNICODE));
+            }
+        }
+        // Sans grille enregistrée, les lignes par défaut (tarifs_default_rows) portent déjà la fourchette.
+    } catch (Throwable $_me) { error_log('Migration v15.45 : '.$_me->getMessage()); }
+    unset($_me, $_lot, $_r, $_rows, $_chg, $_i, $_row);
+}
+unset($_mf45);
+// Auto-migration v15.46 (11/11/2026) : date de l'avis et date du chantier, saisies dans l'admin.
+// Un avis dont la provenance donne une date (« avis Google du 12/03/2026 ») la reçoit d'office.
+$_mf46 = __DIR__.'/../storage/.mig_v15_dates';
+if (!file_exists($_mf46)) {
+    @file_put_contents($_mf46, date('c'));
+    try { db_execute('ALTER TABLE reviews ADD COLUMN review_date DATE NULL'); } catch (Throwable $_me) {}
+    try { db_execute('ALTER TABLE realisations ADD COLUMN done_at DATE NULL'); } catch (Throwable $_me) {}
+    try {
+        foreach (db_fetch_all("SELECT id, source_note FROM reviews WHERE review_date IS NULL AND COALESCE(source_note, '') <> ''") as $_r) {
+            if (preg_match('#\b(\d{1,2})/(\d{1,2})/(\d{4})\b#', (string)$_r['source_note'], $_m) && checkdate((int)$_m[2], (int)$_m[1], (int)$_m[3])) {
+                db_execute('UPDATE reviews SET review_date = ? WHERE id = ?', [sprintf('%04d-%02d-%02d', $_m[3], $_m[2], $_m[1]), (int)$_r['id']]);
+            }
+        }
+    } catch (Throwable $_me) { error_log('Migration v15.46 : '.$_me->getMessage()); }
+    unset($_me, $_r, $_m);
+}
+unset($_mf46);
+// Auto-migration v15.47 (11/11/2026) : suivi de la création des contacts Google (includes/google_contacts.php).
+$_mf47 = __DIR__.'/../storage/.mig_v15_google_contacts';
+if (!file_exists($_mf47)) {
+    @file_put_contents($_mf47, date('c'));
+    try { db_execute('ALTER TABLE quotes ADD COLUMN google_contact VARCHAR(120) NULL'); } catch (Throwable $_me) {}
+    try { db_execute('CREATE INDEX idx_quotes_google_contact ON quotes (google_contact)'); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf47);
+// Auto-migration v15.48 — fin estimée par le technicien sur place : heure de fin prévue,
+// moment où il l'a indiquée, avancement (début, milieu, fin). Colonnes vides par défaut.
+$_mf48 = __DIR__.'/../storage/.mig_v15_tech_eta';
+if (!file_exists($_mf48)) {
     foreach (["ALTER TABLE interventions ADD COLUMN tech_eta_end DATETIME NULL",
               "ALTER TABLE interventions ADD COLUMN tech_eta_at DATETIME NULL",
               "ALTER TABLE interventions ADD COLUMN tech_progress VARCHAR(10) NULL"] as $_sql) {
         try { db_execute($_sql); } catch (Throwable $_me) {}
     }
-    @file_put_contents($_mf33, date('c'));
+    @file_put_contents($_mf48, date('c'));
     unset($_me, $_sql);
 }
-unset($_mf33);
+unset($_mf48);
+// Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
+// d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
+if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {
+    try {
+        $_n = city_texts_seed_missing();
+        db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', ['city_texts_seed_v', (string)CITY_TEXTS_SEED_V]);
+        settings_cache(true);
+        if ($_n > 0) error_log('[EMAE] textes des pages ville : '.$_n.' page(s) créée(s) en base');
+    } catch (Throwable $_me) { error_log('Textes des pages ville : '.$_me->getMessage()); }
+    unset($_n, $_me);
+}
 // Contexte zone de l'admin — défini avant toute logique de page (traitements POST inclus)
 if (str_contains(str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? '')), '/admin/')) {
     boot_session();

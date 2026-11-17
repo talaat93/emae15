@@ -3,7 +3,7 @@
 Document de reprise. À lire en entier avant de toucher au code : il contient
 plusieurs pièges qui ont déjà coûté du temps.
 
-Dernière mise à jour : 20 octobre 2026.
+Dernière mise à jour : 10 novembre 2026.
 
 ---
 
@@ -363,7 +363,7 @@ reste dû).
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
 finir ? » son avancement (début, milieu, fin) et le temps restant (15 min à
 3 h et +). Colonnes `interventions.tech_eta_end`, `tech_eta_at`,
-`tech_progress` (migration v15.33). Chaque estimation est aussi notée dans
+`tech_progress` (migration v15.48). Chaque estimation est aussi notée dans
 l'historique de l'intervention.
 
 | Fonction | Rôle |
@@ -383,6 +383,131 @@ de technicien. Aucune notification : l'information se lit à l'écran.
   lecture directe, seule, via `pennylane_each()`.
 
 ---
+
+## 4quater. Outils de croissance (novembre 2026)
+
+Vingt améliorations ajoutées d'un coup. Rubrique « Croissance » du menu admin.
+Réglages **globaux** (zones comprises) : lire avec `growth_get()` /
+`global_setting()`, écrire avec `growth_save()`, jamais avec `set_setting()`
+(qui écrirait dans la zone choisie dans l'admin).
+
+| Fichier | Contenu |
+|---|---|
+| `includes/growth.php` | bandeau de disponibilité, note Google (affichée seulement si lien + note + nombre saisis), WhatsApp (`whatsapp_digits()`), SMS automatiques et leurs garde-fous (`auto_messages` : 1 par numéro et par jour, plafond quotidien), demandes non terminées (`quote_partials`), créneaux de rendez-vous |
+| `includes/content_pages.php` | textes par défaut des pages panne, aides, estimation, rendez-vous, entretien + leurs sections du catalogue (`content_pages_catalog()`) |
+| `includes/pages_extra.php` | gabarits de ces pages (appelés par `index.php`) |
+| `includes/client_space.php` | lien de suivi d'intervention (`interventions.track_token`), espace client avec code à 6 chiffres (`client_login_codes`) |
+| `includes/payments.php` + `api/stripe_webhook.php` | paiement par carte via Stripe Checkout (`online_payments`), webhook signé, montant revérifié ; Pennylane n'est jamais modifié |
+| `includes/contracts.php` | contrats d'entretien (`maintenance_contracts`) |
+| `includes/automations.php` + `cron/automations.php` | tâches toutes les 5 min : alerte demande sans réponse, demande d'avis, rappels d'entretien, suppression des photos, réduction des photos, note Google. Lancées après l'affichage d'une page **et** par le cron Pennylane existant |
+| `admin/growth.php`, `leads.php`, `contracts.php`, `payments.php` | écrans |
+
+Règles : une page désactivée renvoie 404 (sinon « chaudiere-en-panne » tomberait
+sur la page Chauffage par `service_detect_trade`) ; un admin connecté la
+prévisualise. Une adresse inconnue renvoie maintenant une vraie 404 ; une
+ancienne adresse propre d'une page existante (`/plomberie`) est redirigée (301).
+`picture_html()` sert une copie réduite (`-w1200.jpg` + `.webp`, créée au premier
+besoin, GD requis, sinon l'original). Les adresses dans les messages envoyés par
+le cron utilisent `site_public_origin`, retenu quand un admin ouvre l'admin.
+
+---
+
+## 4quinquies. Agent relation client (phase 1 du brief des agents, novembre 2026)
+
+Cahier des charges : `brief-agents-emae.md` (non versionné, à la racine du dossier
+local). Phase 1 = tri des deux boîtes, brouillons, validation sur Telegram,
+formulaire « suite à votre appel ». Écran : Croissance → 🤖 Agent relation client.
+
+**Choix d'architecture (validé par le propriétaire le 10/11/2026)** : l'agent tourne
+sur o2switch, dans les tâches automatiques existantes (`agent_run()` dans
+`automations_run()`), et non sur l'ordinateur du propriétaire. La boîte du domaine
+est sur le même serveur (MX `mail.emaee.fr` = IP du site, **pas OVH**).
+
+| Fichier | Contenu |
+|---|---|
+| `includes/mailbox.php` | IMAP (`ImapLite`) et SMTP (`SmtpLite`) écrits à la main, **sans extension PHP** (imap / mailparse peuvent manquer chez l'hébergeur), lecture MIME (`mime_parse()`), fabrication d'un message (`mime_build()`) |
+| `includes/agent_client.php` | réglages (`agent_get/agent_set`, table `integration_settings`), tables `agent_items` / `agent_log` / `agent_links`, tri sans IA (`agent_prefilter()`), tri par Haiku et rédaction par Sonnet (via `claude_structured()`, consignes en cache), garde-fou `agent_guard()`, envoi (`agent_send_reply()`), Telegram (`agent_tg_*`), formulaire (`agent_followup_*`) |
+| `api/telegram.php` | webhook du bot (en-tête secret obligatoire, seul le téléphone relié agit). **Attention** : ne pas supprimer avec le reste de `api/` (voir §8, décisions en attente) |
+| `admin/agent.php` | écran : marche/arrêt, mode test / envoi activé, boîtes, Telegram, dossiers, lien « suite à votre appel », bilan, journal et coûts |
+| `includes/pages_extra.php` → `render_page_suite_appel()` | page `?route=suite-appel[&t=jeton]`, noindex ; crée une demande `source = 'suite-appel'` avec `customer_kind`, `company_name`, `company_siret`, `availability` (pour le futur devis Pennylane, phase 4) |
+
+Règles à ne pas casser :
+- **Rien ne part sans un appui sur « Envoyer » dans Telegram**, et jamais en mode
+  test. Par choix du propriétaire (10/11/2026), le mode par défaut est « envoi
+  activé » (`agent_mode = live`), sans semaine d'essai. Verrou `status = 'sending'` :
+  un double appui ou une relance de Telegram n'envoie qu'une fois.
+- Prix, dates et délais **autorisés** (choix du propriétaire, 10/11/2026), mais
+  seulement ceux des réglages `agent_prices` (pré-rempli avec les « tarifs
+  habituels » de l'outil Pennylane, différents de la grille dispatcher) et
+  `agent_delays`. `agent_guard()` les **signale** dans la note du brouillon sans
+  bloquer. Ce qui manque est écrit `[à compléter : …]` ou `[…, à confirmer]` :
+  `agent_blocker()` retire alors le bouton Envoyer jusqu'à correction (« Modifier »).
+- Mails lus : depuis la mise en marche (`agent_start`), moins `agent_history_days`
+  jours si le propriétaire demande ses anciens mails ; au-delà de
+  `agent_history_reply_days` jours, un mail est trié et rangé sans brouillon ni
+  message Telegram. Jamais marqués comme lus (`BODY.PEEK`). Rangement par copie par défaut
+  (`agent_filing = copy`) dans `EMAE/<catégorie>` (`INBOX.EMAE.…` chez cPanel).
+- Mails envoyés : `agent_fetch_sent()` lit le dossier \Sent (au moins 90 jours, sans IA)
+  dans la table `agent_sent` (`by_agent = 1` pour ceux de l'agent). Un mail auquel le
+  propriétaire a déjà répondu depuis sa messagerie (`In-Reply-To`, ou mail envoyé à
+  l'expéditeur après réception) passe en statut `answered`, sans brouillon ; les 3
+  derniers envoyés au correspondant sont joints à la consigne de rédaction.
+  Migration `.mig_v15_agent_sent`.
+- Les mails envoyés par le site portent `X-EMAE-Source: site` et ceux de l'agent
+  `X-EMAE-Item: <id>` : ils sont ignorés au tri. Les demandes `suite-appel` ne sont
+  pas reprises comme demandes du site.
+- Coût réel de chaque appel dans `agent_log.cost_usd` (prix par million de jetons
+  dans `AGENT_PRICES`, cache écrit ×1,25, lu ×0,1), plafond par jour
+  `agent_daily_cap` (le tri sans IA continue au-delà). Un seul passage à la fois
+  (`storage/.agent_lock`).
+- Mots de passe des boîtes et jeton du bot : `integration_secret()`, jamais
+  réaffichés, masqués dans les journaux (`integration_redact()`). Gmail exige un
+  **mot de passe d'application** (validation en deux étapes).
+
+Essai de bout en bout fait sur une copie locale avec de faux serveurs IMAP (façon
+Dovecot/cPanel), SMTP, Claude et Telegram : 80 vérifications. **Pas encore essayé
+contre les vrais serveurs** (Gmail, o2switch, Telegram, API Claude).
+
+---
+
+## 4sexies. Cohérence, preuves et consentement (10 novembre 2026)
+
+Règles posées par la mission de mise en cohérence du site. À respecter dans tout nouveau texte.
+
+- **Promesses** : `claim_unsupported()` / `claim_clean()` (`includes/helpers.php`) écartent à
+  l'affichage note ou nombre d'avis sans source, « 1000+ », délai d'arrivée chiffré, « garanti »,
+  certifications (RGE, Qualifelec…), « technicien disponible ». Seul le délai de **rappel**
+  `callback_delay()` (« 5 minutes », décision du 8/11) est permis, dans une phrase sur le rappel.
+  Phrases uniques : `intervention_terms_text()`, `hours_text()`, `callback_promise_short()` —
+  réglables dans Identité & coordonnées → « Engagements publiés ».
+- **Avis** : note publiée seulement via `review_summary()` (fiche Google : lien + note + nombre +
+  date). Un témoignage n'est publié que s'il a une provenance (`reviews.source_note`).
+- **Données structurées** : une seule entité `ElectricalContractor`, `@id` = `/#entreprise`, sans
+  adresse ni `aggregateRating` ; `areaServed` = départements du secteur réel ; `sameAs` = fiche Google.
+- **Mentions légales** : `legal_info()` (réglages globaux `ml_*`), siège parisien ≠ base de Dole.
+- **Cookies** : `consent_head_script()` / `render_consent_banner()` (`includes/render.php`). Aucune
+  balise Google avant accord (gtag n'existe pas, rien n'est mis en file), consentement v2 « default »
+  puis « update », choix gardé 6 mois (cookie `emae_consent`), retrait = cookies Google supprimés.
+  Conversions : clic `tel:` → libellés « appel » ; demande enregistrée → libellé « demande » sur la
+  page suivante, une fois, seulement si l'accord existait déjà. WhatsApp : événement GA seulement.
+  Polices hébergées sur le site (`assets/fonts`, `assets/css/fonts.css`) : plus de Google Fonts.
+- **Formulaires** : plus aucun envoi avant le clic (`partial_enabled()` renvoie false, le serveur
+  répond 410 aux anciens envois). Encart « Être rappelé » = rappel express (téléphone + code postal).
+- **Zones** : `intervention_zones_listed()` = zones avec département ou ville ; `/idf/` (vide,
+  renommée « Bourgogne-Franche-Comté ») n'est plus listée et passe en `noindex` — décision en attente.
+- **SEO** : ancienne page métier (« ?route=Électricité ») → 301 vers la page métier ; page métier
+  de zone identique à la globale → canonical vers la globale ; sitemap sans `lastmod`, avec les
+  pages des départements et Automatismes.
+- **Migration v15.38** (`.mig_v15_coherence`, `includes/coherence.php`) : nettoie la base portée
+  par portée, sauvegarde tout (lot `coherence-…`), annulable dans Diagnostic des zones.
+  `geo_appliquer(false)` ne réécrit plus les variables et titres globaux du propriétaire.
+  Migration v15.39 (`.mig_v15_coherence_textes`, `coherence_degeler()`) : un texte global figé
+  par la modification sur la page (« autour de Quetigny, Dijon et Genlis », hérité par /jura/)
+  retrouve son modèle à variables quand il en est la version résolue. Annulée avec la v15.38.
+- Texte libre des pages (`content_html`) : `page_html_without_third_party()` retire à l'affichage
+  les feuilles Google Fonts et scripts externes collés dans l'éditeur (page Chauffage).
+- Tests : `test_coherence.php`, `test_coherence_migration.php` (base reproduisant le site du
+  10/11/2026), et dans le bac à sable : `cdp_consent.mjs` (navigateur, requêtes réseau).
 
 ## 5. Conventions de travail
 
@@ -412,10 +537,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-685 assertions, aucune base de données nécessaire : chaque test remplace
+1178 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 170 fichiers PHP.
+sur les 212 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -433,6 +558,9 @@ sur les 170 fichiers PHP.
 | `test_secteurs.php` | lieux cités, variables par zone, mise en conformité des secteurs et son annulation |
 | `test_pennylane_simulation.php` | **en simulation, aucune requête ne part vers Pennylane** ; le jeton n'apparaît dans aucun journal |
 | `test_relances.php` | texte des relances selon le niveau, chiffres exacts, rien d'inventé |
+| `test_demandes.php` | mails rappel / devis, photos des clients (vraies images seulement, aucun autre fichier accessible), avant / après, couleur des boutons |
+| `test_croissance.php` | outils de conversion : numéro WhatsApp, horaires du bandeau, note Google jamais inventée, SMS automatiques, créneaux de rendez-vous, pages panne, 404, signature Stripe, échéances d'entretien, espace client, suivi |
+| `test_agent.php` | agent relation client : lecture des mails (encodages, pièces jointes, réponses citées), tri sans IA, garde-fou prix / dates / délais, coût, boutons Telegram selon le mode, **aucun envoi en mode test ni en double** |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 | `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
 
@@ -451,6 +579,11 @@ du site et les deux nouveaux écrans d'admin.
 ## 7. Pièges déjà rencontrés
 
 À lire avant de déboguer quoi que ce soit de similaire.
+
+**Le dossier local peut être très en retard sur GitHub.** Le 7 novembre 2026,
+`C:\xampp\htdocs\emae15` avait 72 commits de retard sur `origin/main`. Toujours
+faire `git fetch` et comparer avant de commencer : pousser une vieille base
+écraserait le site en ligne.
 
 **`backdrop-filter` casse `position: fixed`.** Un élément qui porte un
 `backdrop-filter` devient le bloc conteneur de ses descendants en
@@ -518,6 +651,31 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 - [ ] Vérifier les villes reprises automatiquement sur la page Contact
       (4 par zone, 18 au maximum).
 
+### Outils de croissance — à faire par le propriétaire (novembre 2026)
+
+- [ ] Corriger le numéro WhatsApp (Identité & coordonnées) : celui en ligne a
+      un chiffre de moins qu'un mobile, le bouton ne fonctionne pas.
+- [ ] Conversion & avis : coller le lien « Demander des avis » de la fiche
+      Google, la note et le nombre d'avis (sinon ni badge ni demandes d'avis).
+- [ ] Saisir les identifiants OVH (Notifications SMS) : sans eux, aucun SMS.
+- [ ] Relire les 8 pages panne (actives dès la mise en ligne).
+- [ ] Avant d'activer : prix des grilles Tarifs (Estimation), certification
+      RGE (Aides), prix des offres (Entretien), créneaux (Rendez-vous),
+      clé Stripe et webhook (Paiements), espace client, demandes non terminées.
+- [ ] Ajouter ses clients sous contrat dans Contrats d'entretien.
+
+### Agent relation client — à faire par le propriétaire (novembre 2026)
+
+- [ ] Créer le bot Telegram (@BotFather), coller le jeton dans l'écran de l'agent,
+      puis « Relier mon téléphone » **depuis le site en ligne** (Telegram exige https).
+- [ ] Saisir le mot de passe de contact@emaee.fr et le mot de passe d'application
+      Gmail (entreprisemultitechniqueavance@gmail.com), puis « Tester la connexion ».
+- [ ] Vérifier que la clé de l'API Claude est saisie et fixer une limite de
+      dépense mensuelle sur console.anthropic.com.
+- [ ] Vérifier la liste « Tarifs que l'agent peut annoncer » et compléter les
+      délais, puis choisir combien de jours d'anciens mails relire.
+- [ ] Mettre l'agent en marche, corriger les catégories fausses dans l'écran.
+
 ### Pennylane — à faire par le propriétaire
 
 - [ ] Générer le jeton Pennylane avec les droits : clients, produits,
@@ -534,9 +692,22 @@ valeur, utiliser `setting_plain()` ou `raw_setting()`, jamais `setting()`.
 
 ### Décisions en attente
 
+- **Île-de-France** : la zone `/idf/` (renommée « Bourgogne-Franche-Comté », sans ville) est
+  masquée des listes et en `noindex` ; les 48 pages d'arrivée Seine-et-Marne / Essonne restent au
+  sitemap. À trancher : activité réelle en IDF ou non (campagnes Ads liées ?).
+- **Données à fournir** (Identité & coordonnées → Mentions légales / Engagements) : numéro
+  WhatsApp complet (l'actuel a 8 chiffres après +33 ; le code contenait autrefois
+  06 67 83 03 76, non confirmé), directeur de la publication (nom), RCS et TVA d'après le Kbis,
+  médiateur de la consommation, assurance, adresse exacte de l'hébergeur, fiche Google (lien,
+  note, nombre d'avis) et provenance de chaque témoignage, tarifs TTC et majorations validés,
+  justificatifs de qualification avant tout badge.
+
 - **`api/`** — 36 fichiers PHP, copie périmée de `admin/`. Rien n'y mène, aucun
   risque de sécurité identifié, mais c'est du poids mort qui trompe les
   recherches dans le code. En attente d'un feu vert pour suppression.
+  **Ne pas supprimer** `api/stripe_webhook.php` ni `api/telegram.php` (webhooks
+  utilisés), ni `api/chat.php`, `api/track.php`, `api/yousign_webhook.php` sans
+  vérifier leur usage.
 - **`tech/index.php`** — copie de la page publique faite sans corriger les
   chemins : elle charge `tech/includes/bootstrap.php`, dossier qui n'existe
   pas, donc elle plante à chaque appel. Plus référencée nulle part depuis que
@@ -558,9 +729,19 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
-| *(suivant)* | Fin estimée 3 — affichage dispatcher : planning, fiche, suggestions |
+| *(voir `git log`)* | Fin estimée 3 — affichage dispatcher : planning, fiche, suggestions |
 | `6f1c48d` | Fin estimée 2 — barre « Quand pensez-vous finir ? » côté technicien |
 | `22edcaf` | Fin estimée 1 — colonnes, calculs, prise en compte dans l'assignation |
+| *(voir `git log`)* | Mise en cohérence (§4sexies) : bandeau cookies et consentement v2, plus de collecte sans clic, rappel express, promesses non sourcées filtrées, avis avec provenance, JSON-LD réparé, mentions légales, WhatsApp incomplet masqué, rendez-vous lundi-samedi hors fériés, ancienne page « Électricité » redirigée, sitemap, polices locales. Migration `.mig_v15_coherence` |
+| *(voir `git log`)* | Mention du logo plus discrète ; cartes volets et portails retirées de la page électricité (ils ont leur page métier) ; anciennes listes de prestations enregistrées par l'admin reconnues par `service_offer_legacy()` (elles s'affichaient sans texte ni dessin) ; page Réalisations filtrable par métier (`?metier=electricite`, pastilles dessinées), le bouton d'une page métier y mène filtré |
+| *(voir `git log`)* | Pages métier : « Nos interventions » supprimé (doublon de « Notre offre ») ; prestations en cartes défilantes (dessin + titre + texte court, `offer_items` = `[dessin, titre, texte]`, `service_offer_cards()` lit aussi l'ancien format phrase) ; dessins PNG au trait orange dans `assets/img/icons/` (Tabler Icons, licence MIT, + dessins maison), liste dans `service_icons()` ; cartes volets, portails et chauffe-eau dessinées ; bandeau défilant des marques (`svc_<métier>_brands`, `_brands_title`, `_brands_on`), rempli pour chauffage et climatisation, noms en texte, sans logos de fabricants. Logo EMAE : mention en texte sous « EMAE » (`assets/img/logo-emae-mark.png`, `site_logo_is_emae()`). Corrigé au passage : les tuiles débordaient de l'écran sur téléphone, ce qui faisait dézoomer toute la page |
+| *(voir `git log`)* | Agent : lecture des mails envoyés (`agent_sent`, statut `answered` « répondu par vous », fil des échanges dans les brouillons) ; refus de connexion IMAP accompagné de la raison donnée par le serveur |
+| *(voir `git log`)* | Agent relation client, phase 1 (§4quinquies) : lecture des boîtes du domaine et Gmail sans extension PHP, tri sans IA puis par Haiku, rangement dans `EMAE/<catégorie>`, brouillons par Sonnet déposés dans la boîte, garde-fou prix / dates, validation sur Telegram (`api/telegram.php`), formulaire « suite à votre appel », journal et coût réel, plafond par jour. Migration `.mig_v15_agent`. Les mails du site portent `X-EMAE-Source: site`. `claude_structured()` accepte `model`, `cache_system` et renvoie `usage` |
+| *(voir `git log`)* | Photos fournies avec le site (`assets/img/services/`, photos Unsplash, licence Unsplash : usage commercial libre, sans crédit obligatoire) : cartes VMC (`vmc.jpg`), Portail & Visiophone (`portail.jpg`), Automatismes & Électroménager (`electromenager.jpg`) quand l'admin n'a pas d'image ; fond des pages métier par `service_hero_image()` : vmc, portail (`visiophone.jpg`), automatisme. Une image envoyée dans l'admin reste prioritaire ; les trois métiers ajoutés à « Images hero services ». Sources : unsplash.com/photos/RAliDqgJKbE, 6vVEd4LOxl0, A9wbeTxMBeU, 23coWmkTNSg. Accueil sur téléphone : titre avant l'encart de rappel (`d32720f`) |
+| `fba9194` | 20 outils de croissance (§4quater) : bandeau de disponibilité, note Google, demande d'avis, SMS d'accusé de réception, vraie 404, WhatsApp, réalisations près de la ville, 8 pages panne, suivi des demandes, alerte sans réponse, conservation des photos, rendez-vous, estimation, demandes non terminées, contrats d'entretien, espace client, suivi d'intervention, paiement Stripe, aides et primes, photos réduites. Migration `.mig_v15_croissance`. Corrigé au passage : la case « SMS à l'admin à chaque demande » n'envoyait rien ; un caractère mal encodé faisait perdre une demande |
+| `b20f827` | Rappel ou devis distingués (`quotes.request_type`, objet, expéditeur et bandeau du mail), photos client (`quotes.client_photos`, dossier fermé `storage/uploads/demandes`, lecture par `admin/quote_photo.php` après connexion : admin, dispatcher, et technicien seulement pour ses propres demandes, allégées dans le navigateur par `site.js`, jointes au mail jusqu'à 10 Mo), photo avant des réalisations (`before_image_path`, `render_realisation_media()`), bouton d'appel en orange et bouton devis dans son ancienne couleur. Migration automatique `.mig_v15_demandes_photos` |
+| `19cd3c7` | Les 7 métiers partout : page Nos services générée depuis les fiches métier (le bloc HTML de la page `services` en base n'est plus affiché), cartes de l'accueil avec tuile « Tous nos services », pied de page |
+| `cf858e8` | Page Tarifs activable depuis l'admin (`tarifs_enabled`, valeur globale), réalisations sur les pages métier (`realisation_trades()`), modification des réalisations et des avis (`?edit=ID`), chantiers masqués retirés de la page publique, vrai code 404 |
 | `e7a2d4c` | Secteurs : site global sur Doubs, Jura et Côte-d'Or ; titres des zones corrigés |
 | *(suivant)* | Pages métier : encart « Être rappelé » en haut de page, comme l'accueil |
 | `d660dd8` | Pages métier : présentation du métier et textes sous chaque titre de section |

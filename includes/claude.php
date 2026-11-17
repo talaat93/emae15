@@ -67,16 +67,21 @@ function claude_structured(array $req): array
     if ($key === '') return $fallback('SIMULATION : aucune clé API Claude n\'est configurée.');
 
     $effort = in_array($req['effort'] ?? '', ['low', 'medium', 'high'], true) ? $req['effort'] : 'medium';
-    $model  = claude_model();
+    // Modèle imposé par l'appelant (agents : Haiku pour trier, Sonnet pour rédiger), sinon le réglage.
+    $model  = (string)($req['model'] ?? '') !== '' ? (string)$req['model'] : claude_model();
+    $system = (string)($req['system'] ?? '');
     $body = [
         'model'         => $model,
         'max_tokens'    => (int)($req['max_tokens'] ?? 8000),
-        'system'        => (string)($req['system'] ?? ''),
+        // Consignes fixes mises en cache : relues à 10 % du prix tant qu'elles ne changent pas.
+        'system'        => !empty($req['cache_system']) && $system !== ''
+            ? [['type' => 'text', 'text' => $system, 'cache_control' => ['type' => 'ephemeral']]]
+            : $system,
         'messages'      => (array)($req['messages'] ?? []),
         'output_config' => ['effort' => $effort] + ($schema ? ['format' => ['type' => 'json_schema', 'schema' => $schema]] : []),
     ];
     $headers = ['Content-Type: application/json', 'x-api-key: '.$key, 'anthropic-version: 2023-06-01'];
-    if ($model === 'claude-opus-5') {
+    if (in_array($model, ['claude-opus-5', 'claude-sonnet-5-5'], true)) {
         // Refus de sécurité : l'API rejoue la requête sur le modèle de repli recommandé.
         $body['fallbacks'] = 'default';
         $headers[] = 'anthropic-beta: server-side-fallback-2026-07-01';
@@ -109,11 +114,11 @@ function claude_structured(array $req): array
         integration_log('claude', $purpose.' : refus', $logCtx + ['categorie' => $json['stop_details']['category'] ?? null]);
         $r = $fallback('Claude a décliné cette demande.');
         $r['refused'] = true;
-        return $r;
+        return $r + ['usage' => (array)($json['usage'] ?? [])];
     }
     if (($json['stop_reason'] ?? '') === 'max_tokens') {
         integration_log('claude', $purpose.' : réponse tronquée', $logCtx);
-        return $fallback('La réponse de Claude était trop longue et a été coupée.');
+        return $fallback('La réponse de Claude était trop longue et a été coupée.') + ['usage' => (array)($json['usage'] ?? [])];
     }
 
     $text = '';
@@ -124,10 +129,11 @@ function claude_structured(array $req): array
     $errs = is_array($data) && $schema ? json_schema_errors($data, $schema) : (is_array($data) ? [] : ['réponse non JSON']);
     if ($errs) {
         integration_log('claude', $purpose.' : JSON non conforme', $logCtx + ['erreurs' => array_slice($errs, 0, 3)]);
-        return $fallback('La réponse de Claude n\'était pas exploitable.');
+        return $fallback('La réponse de Claude n\'était pas exploitable.') + ['usage' => (array)($json['usage'] ?? [])];
     }
     integration_log('claude', $purpose.' : ok', $logCtx);
-    return ['ok' => true, 'data' => $data, 'simulated' => false, 'error' => null, 'refused' => false, 'model' => (string)($json['model'] ?? $model)];
+    return ['ok' => true, 'data' => $data, 'simulated' => false, 'error' => null, 'refused' => false,
+            'model' => (string)($json['model'] ?? $model), 'usage' => (array)($json['usage'] ?? [])];
 }
 
 /** Test de connexion pour la page des réglages. */
