@@ -9,4 +9,5 @@ if(toggle && sidebar){
   document.addEventListener('click',function(e){if(sidebar.classList.contains('open')&&!sidebar.contains(e.target)&&e.target!==toggle)sidebar.classList.remove('open');});
 }
 </script>
+<script src="<?= e(asset_url('assets/js/filtre.js')) ?>"></script>
 </body></html>

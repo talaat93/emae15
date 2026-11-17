@@ -99,7 +99,7 @@ function ta_nav(string $active, int $todayCount = 0): string
     return $h.'</nav>';
 }
 
-function ta_head(string $title): void
+function ta_head(string $title, string $bodyAttrs = ''): void
 {
     ?><!DOCTYPE html>
 <html lang="fr">
@@ -114,8 +114,9 @@ function ta_head(string $title): void
 <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" onload="this.onload=null;this.rel='stylesheet'">
 <link rel="stylesheet" href="<?= htmlspecialchars(asset_url('assets/css/tech-app.css'), ENT_QUOTES, 'UTF-8') ?>">
 <?= ta_pwa_head() ?>
+<script src="<?= htmlspecialchars(asset_url('assets/js/filtre.js'), ENT_QUOTES, 'UTF-8') ?>"></script>
 </head>
-<body>
+<body<?= $bodyAttrs ?>>
 <?php
 }
 

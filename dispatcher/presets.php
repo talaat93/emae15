@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 $pageTitle   = 'Gestion des presets';
+$listFilter  = ['items' => '.d-card-body form[style*="display:inline"]', 'groups' => '.d-card-body > div'];
 $dispSection = 'presets';
 require __DIR__.'/partials/header.php';
 

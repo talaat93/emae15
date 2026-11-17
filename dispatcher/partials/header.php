@@ -80,7 +80,13 @@ function disp_photo_request_value(): ?string
 <link rel="stylesheet" href="<?= e(asset_url('assets/css/dispatcher.css')) ?>">
 <?= $extraHead ?? '' ?>
 </head>
-<body class="d-body">
+<?php
+// Recherche dans la liste (assets/js/filtre.js) : une page l'active avec $listFilter = true,
+// ou un tableau ['items' => sélecteur des éléments, 'groups' => blocs à masquer s'ils sont vides].
+$lf = $listFilter ?? false;
+$lfAttr = $lf ? ' data-filtre'.(is_array($lf) && !empty($lf['items']) ? ' data-filtre-items="'.e($lf['items']).'"' : '').(is_array($lf) && !empty($lf['groups']) ? ' data-filtre-groupes="'.e($lf['groups']).'"' : '') : '';
+?>
+<body class="d-body"<?= $lfAttr ?>>
 <div class="d-shell">
 <!-- SIDEBAR -->
 <aside class="d-sidebar" id="d-sidebar">

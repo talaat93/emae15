@@ -435,6 +435,21 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Rechercher au lieu de défiler — `assets/js/filtre.js`
+
+Chargé par `dispatcher/partials/footer.php` et `tech/_ui.php` (`ta_head()`).
+- Listes : une page pose `$listFilter = true` (lignes des tableaux `.d-table`)
+  ou `['items' => sélecteur, 'groups' => blocs masqués s'ils sont vides]` avant
+  `header.php` ; une case « Rechercher » apparaît dès 6 éléments. Tous les mots
+  tapés, sans majuscules ni accents, valeurs des champs comprises (tarifs).
+  Masquage par la classe `emae-cache` : ne jamais filtrer en changeant le style,
+  les chips des listes prédéfinies dépendent de leur `display:inline`.
+  Pages : interventions, clients, factures, finances, techniciens, tâches,
+  tarifs, listes prédéfinies ; technicien : « Aujourd'hui ».
+- Menus déroulants de plus de 15 choix (ou `data-recherche`) : case
+  « Rechercher… » au-dessus ; `window.emaeSelectRecherche(select)` pour un menu
+  créé après coup (prestations du rapport technicien).
+
 ### Paiement : remarque et facture reliée après coup — `includes/invoicing.php`
 
 - `interventions.payment_note` (migration v15.52) : saisie par le technicien
@@ -641,10 +656,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1335 assertions, aucune base de données nécessaire : chaque test remplace
+1352 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 221 fichiers PHP.
+sur les 222 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -674,6 +689,7 @@ sur les 221 fichiers PHP.
 | `test_renforts.php` | plusieurs techniciens : mode de rapport, état du rapport d'un renfort, ajout refusé (principal, inactif, doublon), rapport enregistré ou envoyé |
 | `test_carte_tech.php` | carte de l'intervention (fiche technicien) : GPS → carte, ville repère la plus proche, hors zone |
 | `test_facture_liee.php` | facture Pennylane reliée après coup (recherche par numéro, refus, suivi du paiement, brouillon remplacé, lien retiré), remarques de paiement |
+| `test_recherche.php` | recherche dans les listes : pages qui l'activent, script chargé (dispatcher et technicien) |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

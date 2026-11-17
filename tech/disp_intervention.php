@@ -1146,7 +1146,11 @@ function renderLines() {
     sel.onchange = function () { l.code = sel.value; renderLines(); };
     qty.oninput = function () { l.qty = qty.value; var gg = gridBy[l.code]; price.textContent = gg && !gg.percent ? eur(gg.price * num(qty.value)) : price.textContent; syncLines(); };
     del.onclick = function () { lines.splice(i, 1); renderLines(); };
-    row.append(sel, qty, price, del);
+    var selBox = el('div', { className: 'ta-line-sel' });
+    selBox.appendChild(sel);
+    row.append(selBox, qty, price, del);
+    // Nouvelle ligne : case « Rechercher » au-dessus de la longue liste des prestations.
+    if (!l.code && window.emaeSelectRecherche) window.emaeSelectRecherche(sel);
     box.appendChild(row);
   });
   syncLines();
