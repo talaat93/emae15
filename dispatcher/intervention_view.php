@@ -93,11 +93,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .($rr['notice'] ? ' '.$rr['notice'] : ''));
         redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
     }
-    if ($action === 'review_accept' && in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)) {
+    if ($action === 'review_accept' && in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true)) {
         $lr = review_latest($id);
-        review_accept($id, $lr ? (int)$lr['id'] : null, 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Rapport validé par le dispatcher');
-        flash('success', 'Rapport validé : brouillon de facture préparé.');
-        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+        // Case « Facture Pennylane automatique » : cochée = brouillon de facture, décochée = clôture sans facture.
+        // Depuis « Facture à valider », seule la clôture sans facture est proposée.
+        $withInvoice = ($_POST['with_invoice'] ?? '') === '1' && (string)$iv['status'] !== 'facture_brouillon';
+        review_accept($id, $lr ? (int)$lr['id'] : null, 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Rapport validé par le dispatcher', $withInvoice);
+        flash('success', $withInvoice
+            ? 'Rapport validé : brouillon de facture préparé'.(tech_report_lines($iv) ? '.' : ' sans prestation, à compléter dans Factures.')
+            : 'Intervention validée sans facture : elle est clôturée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.($withInvoice ? '#facture' : ''));
     }
     if ($action === 'review_return' && in_array((string)$iv['status'], ['rapport_rendu', 'rapport_verifie', 'facture_brouillon', 'a_revoir'], true)) {
         $msg = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 1000);
@@ -548,11 +553,25 @@ function fmt_dur(int $mins): string {
                 <button type="submit" class="d-btn d-btn--sm"><?= $review ? 'Relancer la relecture' : 'Lancer la relecture' ?></button>
               </form>
               <?php endif; ?>
-              <?php if (in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)): ?>
-              <form method="post" onsubmit="return confirm('Valider le rapport et préparer le brouillon de facture ?');">
+              <?php if ($currentStatus === 'facture_brouillon'): ?>
+              <form method="post" onsubmit="return confirm('Annuler le brouillon de facture et clôturer l\'intervention sans facture ? Un brouillon déjà envoyé dans Pennylane y restera : à supprimer dans Pennylane.');">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_accept">
-                <button type="submit" class="d-btn d-btn--sm d-btn--primary">Valider le rapport et préparer la facture</button>
+                <input type="hidden" name="with_invoice" value="0">
+                <button type="submit" class="d-btn d-btn--sm">Clôturer sans facture</button>
               </form>
+              <?php elseif (in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)):
+                $ivHasLines = (bool)tech_report_lines($iv); ?>
+              <form method="post" class="val-form" onsubmit="return confirm(this.with_invoice.checked ? 'Valider le rapport et préparer le brouillon de facture (envoyé en brouillon dans Pennylane) ?' : 'Valider sans facture ? L\'intervention sera clôturée.');">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_accept">
+                <label class="val-switch">
+                  <input type="checkbox" name="with_invoice" value="1" <?= $ivHasLines ? 'checked' : '' ?>
+                         onchange="this.form.querySelector('button').textContent = this.checked ? 'Valider et préparer la facture' : 'Valider sans facture';">
+                  <span>Facture Pennylane automatique</span>
+                </label>
+                <button type="submit" class="d-btn d-btn--sm d-btn--primary"><?= $ivHasLines ? 'Valider et préparer la facture' : 'Valider sans facture' ?></button>
+              </form>
+              <?php if (!$ivHasLines): ?><div style="font-size:.8rem;color:var(--d-t2);width:100%;">Aucune prestation déclarée : validez sans facture, ou cochez la case pour préparer une facture à compléter dans Factures.</div><?php endif; ?>
+              <style>.val-form{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.val-switch{display:inline-flex;align-items:center;gap:.4rem;font-size:.84rem;color:var(--d-t1);cursor:pointer}.val-switch input{width:auto;margin:0}</style>
               <?php endif; ?>
             </div>
             <?php if ($currentStatus !== 'a_revoir'): ?>
