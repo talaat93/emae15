@@ -358,6 +358,18 @@ Conventions : TTC ; brouillons et annulées exclus ; « encaissé » = factures
 payées à leur date de paiement (un paiement partiel n'apparaît que dans le
 reste dû).
 
+### Application technicien — lisibilité (`tech/dashboard.php`, `tech/disp_intervention.php`)
+
+- « Aujourd'hui » rangé par journée : `day_section_label()` / `day_section_key()`
+  (`includes/helpers.php`) ; une intervention sans date ou commencée en avance
+  est rangée avec aujourd'hui. Chaque carte affiche `created_label()`.
+- Fiche : bloc « La panne » en tête (`type_label`, `fault_reported`,
+  `description`, date de création) ; e-mail du client modifiable par le
+  technicien (feuille « Modifier ») ; « Remarques sur le client » écrites dans
+  `client_notes` avec l'auteur « Nom (technicien) ». Le technicien ne voit que
+  les remarques des techniciens (les notes du bureau peuvent être internes) ;
+  le bureau les voit toutes sur la fiche client.
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -537,7 +549,7 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1178 assertions, aucune base de données nécessaire : chaque test remplace
+1194 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
 sur les 212 fichiers PHP.
@@ -563,6 +575,7 @@ sur les 212 fichiers PHP.
 | `test_agent.php` | agent relation client : lecture des mails (encodages, pièces jointes, réponses citées), tri sans IA, garde-fou prix / dates / délais, coût, boutons Telegram selon le mode, **aucun envoi en mode test ni en double** |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 | `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
+| `test_dates_tech.php` | application technicien : séparations Aujourd'hui / Hier / Avant-hier / date, « Créée hier à 18 h 12 » |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
