@@ -140,7 +140,8 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
     <?php
 }
 
-ta_head('Ma journée — '.company_name());
+// Recherche dans la liste (assets/js/filtre.js) dès qu'elle compte au moins 6 interventions.
+ta_head('Ma journée — '.company_name(), ' data-filtre data-filtre-items=".ta-job" data-filtre-groupes=".none" data-filtre-cible=".ta-main"');
 ?>
 <header class="ta-top">
   <?= ta_logo() ?>

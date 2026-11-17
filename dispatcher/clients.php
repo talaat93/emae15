@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 $pageTitle = 'Clients';
+$listFilter  = true;
 $dispSection = 'clients';
 require __DIR__.'/partials/header.php';
 

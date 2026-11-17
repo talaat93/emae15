@@ -5,6 +5,7 @@ declare(strict_types=1);
  * « Valider et envoyer », paiement, relances rédigées par Claude.
  */
 $pageTitle   = 'Factures';
+$listFilter  = true;
 $dispSection = 'factures';
 require __DIR__.'/partials/header.php';
 

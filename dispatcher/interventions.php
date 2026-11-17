@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 $pageTitle   = 'Interventions';
+$listFilter  = true;
 $dispSection = 'interventions';
 require __DIR__.'/partials/header.php';
 

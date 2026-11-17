@@ -64,6 +64,7 @@ $tasks    = all_tasks($taskFilters);
 $techs    = all_technicians();
 
 $pageTitle = 'Tâches & Rappels';
+$listFilter = ['items' => '.d-card.tache', 'groups' => '.none'];
 require_once __DIR__.'/partials/header.php';
 ?>
 
@@ -136,7 +137,7 @@ require_once __DIR__.'/partials/header.php';
             if (!empty($tk['due_time'])) $dueStr .= ' à ' . date('H:i', strtotime($tk['due_time']));
         }
       ?>
-      <div class="d-card" style="margin-bottom:.75rem;<?= $isDone ? 'opacity:.6;' : '' ?><?= $isUrgent && !$isDone ? 'border-left:4px solid #ef4444;' : ($isDone ? 'border-left:4px solid #10b981;' : 'border-left:4px solid var(--d-orange);') ?>">
+      <div class="d-card tache" style="margin-bottom:.75rem;<?= $isDone ? 'opacity:.6;' : '' ?><?= $isUrgent && !$isDone ? 'border-left:4px solid #ef4444;' : ($isDone ? 'border-left:4px solid #10b981;' : 'border-left:4px solid var(--d-orange);') ?>">
         <div class="d-card-head" style="display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;padding:1rem 1.25rem .65rem;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.3rem;">
