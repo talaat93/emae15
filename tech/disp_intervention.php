@@ -183,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_job_completed'     => $yn('tech_job_completed'),
             'tech_incomplete_reason' => trim((string)($_POST['tech_incomplete_reason'] ?? '')) ?: null,
             'tech_return_visit'      => $yn('tech_return_visit'),
+            'tech_quote_needed'      => $yn('tech_quote_needed'),
+            'tech_quote_text'        => ($yn('tech_quote_needed') === 1 ? mb_substr(trim((string)($_POST['tech_quote_text'] ?? '')), 0, 4000) : '') ?: null,
             'tech_notes_extra'       => trim((string)($_POST['tech_notes_extra'] ?? '')),
             'tech_device_number'     => trim((string)($_POST['tech_device_number'] ?? '')),
             'tech_ticket_time'       => trim((string)($_POST['tech_ticket_time'] ?? '')) ?: null,
@@ -236,6 +238,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (trim((string)$after['tech_incomplete_reason']) === '') $missing[] = 'la raison (intervention non terminée)';
                 if ($after['tech_return_visit'] === null)                  $missing[] = 'si un retour est à prévoir';
             }
+            if ((int)($after['tech_quote_needed'] ?? 0) === 1 && trim((string)($after['tech_quote_text'] ?? '')) === '') {
+                $missing[] = 'les travaux à chiffrer pour le devis';
+            }
             $allPhotos = iv_photos($after);
             if (count($allPhotos) < 2)                            $missing[] = 'au moins 2 photos';
             $lackPhotos = array_diff(intervention_photos_required($iv), array_column($allPhotos, 'type'));
@@ -260,6 +265,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($done) {
             log_intervention_history($id, $iv['status'], 'rapport_rendu', 'technicien', $techId, (string)$tech['name'], 'Rapport rendu depuis l\'application technicien');
             notify_report_submitted($id);
+            // Devis à faire pour plus tard : brouillon créé et dispatcher prévenu.
+            if ((int)($upd['tech_quote_needed'] ?? 0) === 1) {
+                try { devis_from_tech($id, (string)$upd['tech_quote_text'], $tech); } catch (Throwable $e) { integration_log('audit', 'devis technicien #'.$id.' : '.$e->getMessage()); }
+            }
             review_run_after_response($id);   // relecture (Claude ou contrôles standard) sans faire attendre le technicien
         }
         flash('success', $message);
@@ -613,6 +622,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           $rows['Raison'] = (string)($iv['tech_incomplete_reason'] ?? '');
           $rows['Retour à prévoir'] = $yesNo($iv['tech_return_visit'] ?? null);
       }
+      if ((int)($iv['tech_quote_needed'] ?? 0) === 1) $rows['Devis à faire'] = 'Oui — '.(string)($iv['tech_quote_text'] ?? '');
       $rows['Arrivée'] = $hm($iv['tech_arrived_at'] ?? null);
       $rows['Fin'] = !empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : $hm($iv['tech_completed_at'] ?? null);
       foreach ($rows as $k => $v): if ((string)$v === '') continue; ?>
@@ -772,6 +782,20 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
                 <button type="button" data-v="0" class="<?= $rv === '0' ? 'on-no' : '' ?>">Non</button>
               </div>
             </div>
+          </div>
+        <?php $qn = $iv['tech_quote_needed'] ?? null; $qn = ($qn === null || $qn === '') ? '' : (string)(int)$qn; ?>
+          <div class="ta-yn">
+            <span>Un devis est à faire pour plus tard ?</span>
+            <div class="ta-seg" id="quote-seg">
+              <input type="hidden" name="tech_quote_needed" value="<?= e($qn) ?>">
+              <button type="button" data-v="1" class="<?= $qn === '1' ? 'on-yes' : '' ?>">Oui</button>
+              <button type="button" data-v="0" class="<?= $qn === '0' ? 'on-no' : '' ?>">Non</button>
+            </div>
+          </div>
+          <div id="quote-box" <?= $qn === '1' ? '' : 'hidden' ?> style="padding:.3rem 0 .6rem;">
+            <label class="ta-label req" for="f-quote">Travaux à chiffrer</label>
+            <textarea class="ta-textarea" id="f-quote" name="tech_quote_text" style="min-height:80px;" placeholder="Ex. : remplacer le ballon 200 L (fuite sur la cuve), prévoir groupe de sécurité et réducteur de pression."><?= e((string)($iv['tech_quote_text'] ?? '')) ?></textarea>
+            <div class="ta-muted" style="font-size:.8rem;margin-top:.3rem;">Le bureau reçoit un devis brouillon avec ce texte, le chiffre et l'envoie au client.</div>
           </div>
         <?php
         foreach ($checks as $name => $label):
@@ -980,6 +1004,7 @@ document.querySelectorAll('.ta-seg').forEach(function (seg) {
       if (v !== '') b.className = (v === '1' || v === 'payé') ? 'on-yes' : 'on-no';
       if (seg.id === 'pay-seg') document.getElementById('pay-details').hidden = v !== 'payé';
       if (seg.id === 'done-seg') document.getElementById('incomplete').hidden = v !== '0';
+      if (seg.id === 'quote-seg') document.getElementById('quote-box').hidden = v !== '1';
     });
   });
 });
