@@ -284,3 +284,19 @@ details.ta-card:not([open]) > summary { border-bottom: 0; }
 .ta-eta-time button:active { background: var(--p); color: #fff; }
 .ta-eta-time button.on { background: var(--p); border-color: var(--p); color: #fff; }
 .ta-eta.is-late { border-color: #f59e0b; }
+
+/* Séparations par journée dans « Aujourd'hui » et date de création sur chaque carte. */
+.ta-day { display: flex; align-items: center; gap: .6rem; margin: 1rem 0 .55rem; font-size: .82rem; font-weight: 700; color: var(--navy); }
+.ta-day::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+.ta-job-created { font-size: .78rem; color: var(--t3); margin-top: .15rem; }
+
+/* La panne, en tête de la fiche : lisible d'un coup d'œil. */
+.ta-panne { background: #fff; border: 1px solid var(--line); border-left: 5px solid var(--p); border-radius: var(--r); padding: .9rem 1rem; margin-bottom: .8rem; }
+.ta-panne-k { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--p-dk); }
+.ta-panne-t { font-size: 1.12rem; font-weight: 700; color: var(--t1); margin-top: .2rem; line-height: 1.3; }
+.ta-panne-d { font-size: 1rem; color: var(--t1); line-height: 1.55; margin-top: .45rem; white-space: pre-line; }
+.ta-panne-meta { font-size: .8rem; color: var(--t3); margin-top: .5rem; }
+
+/* Remarques sur le client (visibles par le bureau). */
+.ta-cnote { background: var(--amber-lt); border-radius: 8px; padding: .5rem .65rem; font-size: .88rem; margin-top: .45rem; }
+.ta-cnote small { display: block; color: var(--t3); font-size: .74rem; margin-top: .15rem; }

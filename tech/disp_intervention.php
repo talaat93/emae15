@@ -246,12 +246,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_client') {
         $cid = (int)($iv['c_id'] ?? 0);
+        $mail = mb_substr(trim((string)($_POST['client_email'] ?? '')), 0, 190);
+        if ($mail !== '' && !filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Adresse e-mail invalide : rien n\'a été modifié.');
+            header('Location: '.$self); exit;
+        }
         if ($cid > 0) {
             try {
                 db_execute(
-                    "UPDATE clients SET phone = ?, address = ?, postal_code = ?, city = ?, floor = ?, digicode = ? WHERE id = ?",
+                    "UPDATE clients SET phone = ?, email = ?, address = ?, postal_code = ?, city = ?, floor = ?, digicode = ? WHERE id = ?",
                     [
                         trim((string)($_POST['client_phone'] ?? '')),
+                        $mail,
                         trim((string)($_POST['client_address'] ?? '')),
                         trim((string)($_POST['client_postal'] ?? '')),
                         trim((string)($_POST['client_city'] ?? '')),
@@ -264,6 +270,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable $e) {}
         }
         header('Location: '.$self); exit;
+    }
+
+    // Petite remarque sur le client (souvenir, accès, caractère…) : visible par le bureau sur sa fiche.
+    if ($action === 'client_note') {
+        $cid = (int)($iv['c_id'] ?? 0);
+        $body = trim((string)($_POST['note'] ?? ''));
+        if ($cid > 0 && $body !== '') {
+            try {
+                client_add_note($cid, $body.' — intervention '.($iv['ref'] ?? '#'.$id), ['id' => 0, 'name' => (string)$tech['name'].' (technicien)']);
+                flash('success', 'Remarque enregistrée. Le bureau la voit sur la fiche du client.');
+            } catch (Throwable $e) { flash('error', 'Remarque non enregistrée, réessayez.'); }
+        }
+        header('Location: '.$self.'#client'); exit;
     }
 
     if ($action === 'update_financial') {
@@ -398,8 +417,25 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   </section>
   <?php endif; ?>
 
+  <!-- La panne, en gros, avant tout le reste -->
+  <?php
+  $panneTitre = (string)($iv['type_label'] ?: $catLabel);
+  $panneTxt = trim((string)($iv['fault_reported'] ?? ''));
+  $panneDesc = trim((string)($iv['description'] ?? ''));
+  if ($panneTxt !== '' && $panneDesc !== '' && str_contains($panneDesc, $panneTxt)) $panneTxt = '';
+  $created = created_label($iv['created_at'] ?? null, time());
+  ?>
+  <section class="ta-panne">
+    <div class="ta-panne-k">La panne<?= !empty($iv['urgency']) ? ' · <span class="ta-urgent">Urgent</span>' : '' ?></div>
+    <?php if ($panneTitre !== ''): ?><div class="ta-panne-t"><?= e($panneTitre) ?></div><?php endif; ?>
+    <?php if ($panneTxt !== ''): ?><div class="ta-panne-d"><?= e($panneTxt) ?></div><?php endif; ?>
+    <?php if ($panneDesc !== ''): ?><div class="ta-panne-d"><?= e($panneDesc) ?></div><?php endif; ?>
+    <?php if ($panneTxt === '' && $panneDesc === ''): ?><div class="ta-panne-d ta-muted">Pas de description : appelez le client ou le bureau si besoin.</div><?php endif; ?>
+    <?php if ($created !== ''): ?><div class="ta-panne-meta"><?= e($created) ?></div><?php endif; ?>
+  </section>
+
   <!-- Client & accès -->
-  <section class="ta-card">
+  <section class="ta-card" id="client">
     <div class="ta-card-h">
       <h3>Client et accès</h3>
       <?php if (!$locked): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
@@ -415,6 +451,11 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       ]);
       ?>
       <?php if ($access): ?><div class="ta-muted" style="font-size:.88rem;margin-top:.25rem;"><?= e(implode(' · ', $access)) ?></div><?php endif; ?>
+      <?php if (!empty($iv['client_email'])): ?>
+        <div style="font-size:.88rem;margin-top:.25rem;"><a href="mailto:<?= e($iv['client_email']) ?>" style="color:var(--blue);"><?= e($iv['client_email']) ?></a></div>
+      <?php elseif (!$locked): ?>
+        <button type="button" onclick="openSheet('sheet-client')" style="font-size:.86rem;color:var(--blue);font-weight:600;margin-top:.3rem;">+ Ajouter l'e-mail du client</button>
+      <?php endif; ?>
       <div style="display:flex;gap:.5rem;margin-top:.8rem;">
         <?php if (!empty($iv['client_phone'])): ?>
           <a class="ta-btn grow" href="<?= e(ta_tel($iv['client_phone'])) ?>"><?= ta_icon('phone') ?>Appeler</a>
@@ -427,6 +468,29 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </div>
   </section>
 
+  <!-- Remarques sur le client -->
+  <?php
+  // Seules les remarques des techniciens sont montrées ici : les notes du bureau peuvent être internes.
+  $cNotes = !empty($iv['c_id']) ? array_slice(array_values(array_filter(client_notes((int)$iv['c_id']),
+      static fn($n) => str_ends_with((string)($n['author_name'] ?? ''), '(technicien)'))), 0, 3) : [];
+  ?>
+  <?php if (!empty($iv['c_id'])): ?>
+  <section class="ta-card">
+    <div class="ta-card-h"><h3>Remarques sur le client</h3></div>
+    <div class="ta-card-b">
+      <?php foreach ($cNotes as $cn): ?>
+        <div class="ta-cnote"><?= nl2br(e((string)$cn['body'])) ?><small><?= e((string)($cn['author_name'] ?? '')) ?> · <?= e(date('d/m/Y', strtotime((string)$cn['created_at']))) ?></small></div>
+      <?php endforeach; ?>
+      <form method="post" style="margin-top:<?= $cNotes ? '.7rem' : '0' ?>;">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" value="client_note">
+        <textarea class="ta-input ta-textarea" style="min-height:64px;" name="note" rows="2" maxlength="1000" required placeholder="Ex. : client très sympa, chien dans le jardin, préfère être appelé avant."></textarea>
+        <button type="submit" class="ta-btn" style="margin-top:.45rem;width:100%;">Ajouter la remarque</button>
+      </form>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <!-- Demande -->
   <section class="ta-card">
     <div class="ta-card-h"><h3>Demande</h3></div>
@@ -438,8 +502,6 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       <?php if (!empty($iv['duration_estimate'])): ?><div class="ta-row"><span>Durée prévue</span><span><?= e(ta_duration((int)$iv['duration_estimate'])) ?></span></div><?php endif; ?>
       <?php if (!empty($iv['urgency'])): ?><div class="ta-row"><span>Priorité</span><span><span class="ta-urgent">Urgent</span></span></div><?php endif; ?>
       <?php if (!empty($iv['installation_type'])): ?><div class="ta-row"><span>Installation</span><span><?= e($iv['installation_type']) ?></span></div><?php endif; ?>
-      <?php if (!empty($iv['description'])): ?><div class="ta-text" style="margin-top:.6rem;"><?= e($iv['description']) ?></div><?php endif; ?>
-      <?php if (!empty($iv['fault_reported'])): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Panne signalée : <?= e($iv['fault_reported']) ?></div><?php endif; ?>
       <?php if (($clientPhotos = intervention_client_photos_html($iv)) !== ''): ?>
       <div style="margin-top:.7rem;"><div class="ta-muted" style="font-size:.85rem;margin-bottom:.35rem;">📷 Photos envoyées par le client</div><?= $clientPhotos ?></div>
       <?php endif; ?>
@@ -784,6 +846,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
     <input type="hidden" name="action" value="update_client">
     <div class="ta-field"><label>Téléphone</label><input class="ta-input" type="tel" name="client_phone" value="<?= e($iv['client_phone'] ?? '') ?>"></div>
+    <div class="ta-field"><label>E-mail</label><input class="ta-input" type="email" name="client_email" value="<?= e($iv['client_email'] ?? '') ?>" placeholder="client@exemple.fr" autocomplete="off"></div>
     <div class="ta-field"><label>Adresse</label><input class="ta-input" type="text" name="client_address" value="<?= e($iv['client_address'] ?? '') ?>"></div>
     <div style="display:grid;grid-template-columns:110px 1fr;gap:.6rem;" class="ta-field">
       <div><label class="ta-label">Code postal</label><input class="ta-input" type="text" name="client_postal" value="<?= e($iv['client_postal'] ?? '') ?>" inputmode="numeric"></div>

@@ -3575,3 +3575,53 @@ function service_template(string $trade): ?array
         'signs_title' => setting($p . 'signs_title', 'Quand nous appeler ?'),
     ];
 }
+
+/* ─── Dates lisibles pour l'application technicien ───────────── */
+
+/** Nom de jour français : « Mardi 17 novembre ». */
+function fr_day_label(string $ymd): string
+{
+    $j = ['dimanche','lundi','mardi','mercredi','jeudi','vendredi','samedi'];
+    $m = ['','janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+    $t = strtotime($ymd);
+    return ucfirst($j[(int)date('w', $t)]).' '.(int)date('j', $t).' '.$m[(int)date('n', $t)];
+}
+
+/**
+ * Titre de séparation d'une journée dans la liste du technicien :
+ * « Aujourd'hui — mardi 17 novembre », « Hier — … », « Avant-hier — … », puis la date seule.
+ * Une date vide ou future est rangée avec aujourd'hui (intervention déjà commencée).
+ */
+function day_section_label(?string $ymd, string $today): string
+{
+    $d = ($ymd === null || $ymd === '' || $ymd > $today) ? $today : substr($ymd, 0, 10);
+    $diff = (int)round((strtotime($today) - strtotime($d)) / 86400);
+    $label = fr_day_label($d);
+    return match ($diff) {
+        0 => 'Aujourd\'hui — '.mb_strtolower($label, 'UTF-8'),
+        1 => 'Hier — '.mb_strtolower($label, 'UTF-8'),
+        2 => 'Avant-hier — '.mb_strtolower($label, 'UTF-8'),
+        default => $label,
+    };
+}
+
+/** Clé de tri de la section (0 = aujourd'hui, 1 = hier…), même règle que day_section_label(). */
+function day_section_key(?string $ymd, string $today): int
+{
+    $d = ($ymd === null || $ymd === '' || $ymd > $today) ? $today : substr($ymd, 0, 10);
+    return max(0, (int)round((strtotime($today) - strtotime($d)) / 86400));
+}
+
+/** « Créée aujourd'hui à 9 h 05 », « Créée hier à 18 h 12 », « Créée le 12/11 à 8 h 30 ». */
+function created_label(?string $createdAt, int $now): string
+{
+    if ($createdAt === null || $createdAt === '' || ($ts = strtotime($createdAt)) === false) return '';
+    $hm = date('G', $ts)."\u{a0}h\u{a0}".date('i', $ts);
+    $days = (int)round((strtotime(date('Y-m-d', $now)) - strtotime(date('Y-m-d', $ts))) / 86400);
+    return match (true) {
+        $days === 0 => 'Créée aujourd\'hui à '.$hm,
+        $days === 1 => 'Créée hier à '.$hm,
+        $days === 2 => 'Créée avant-hier à '.$hm,
+        default     => 'Créée le '.date('d/m', $ts).(date('Y', $ts) !== date('Y', $now) ? '/'.date('Y', $ts) : '').' à '.$hm,
+    };
+}

@@ -31,6 +31,10 @@ $todayList = array_values(array_filter($open, static fn($i) =>
     ($i['scheduled_date'] ?? '') === $today
     || in_array($i['status'] ?? '', ['en_route', 'sur_place'], true)
     || (!empty($i['scheduled_date']) && $i['scheduled_date'] < $today)));
+// Rangées par journée : aujourd'hui, hier, avant-hier, puis les dates plus anciennes.
+usort($todayList, static fn($a, $b) =>
+    [day_section_key($a['scheduled_date'] ?? null, $today), (string)($a['scheduled_time'] ?? '99'), (int)$a['id']]
+    <=> [day_section_key($b['scheduled_date'] ?? null, $today), (string)($b['scheduled_time'] ?? '99'), (int)$b['id']]);
 $todayIds = array_column($todayList, 'id');
 $nextList = array_values(array_filter($open, static fn($i) => !in_array($i['id'], $todayIds, true)));
 $doneList = array_reverse(array_values(array_filter($mine, static fn($i) => in_array($i['status'] ?? '', $closed, true))));
@@ -93,6 +97,7 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
             <?= ta_pill($status) ?>
           </div>
           <?php if ($what !== ''): ?><div class="ta-job-what"><?= e($what) ?></div><?php endif; ?>
+          <?php if (($cr = created_label($iv['created_at'] ?? null, time())) !== ''): ?><div class="ta-job-created"><?= e($cr) ?></div><?php endif; ?>
           <?php if (!empty($iv['urgency']) || $late): ?>
             <div style="margin-top:.35rem;display:flex;gap:.35rem;">
               <?php if (!empty($iv['urgency'])): ?><span class="ta-urgent">Urgent</span><?php endif; ?>
@@ -151,7 +156,16 @@ ta_head('Ma journée — '.company_name());
     <?php if (!$todayList): ?>
       <div class="ta-empty"><b>Rien de prévu aujourd'hui</b>Les nouvelles interventions apparaîtront ici dès que le dispatcher vous les attribue.</div>
     <?php endif; ?>
-    <?php foreach ($todayList as $iv) ta_job_card($iv, $today, false); ?>
+    <?php
+    $lastSection = null;
+    foreach ($todayList as $iv):
+      $section = day_section_label($iv['scheduled_date'] ?? null, $today);
+      if ($section !== $lastSection):
+        $lastSection = $section; ?>
+        <div class="ta-day"><?= e($section) ?></div>
+      <?php endif;
+      ta_job_card($iv, $today, false);
+    endforeach; ?>
 
     <?php if ($tasks): ?>
       <div class="ta-h2">Rappels du dispatcher <span><?= count($tasks) ?></span></div>
