@@ -84,6 +84,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    /* ── Renforts : plusieurs techniciens sur la même intervention ── */
+    if ($action === 'team_add') {
+        $r = team_add($id, (int)($_POST['tech_id'] ?? 0), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? $r['name'].' ajouté en renfort : il est prévenu.' : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+    if ($action === 'team_remove') {
+        if (team_remove($id, (int)($_POST['tech_id'] ?? 0), $disp)) flash('success', 'Renfort retiré.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+    if ($action === 'report_mode') {
+        $mode = isset(report_mode_options()[$_POST['report_mode'] ?? '']) ? (string)$_POST['report_mode'] : 'principal';
+        update_intervention($id, ['report_mode' => $mode]);
+        flash('success', 'Rapport : '.mb_strtolower(report_mode_options()[$mode], 'UTF-8').'.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+
     /* ── Relecture du rapport (Claude assiste, le dispatcher décide) ── */
     if ($action === 'review_run') {
         @set_time_limit(180);
@@ -224,6 +241,10 @@ $assignedTech = !empty($iv['technician_id']) ? null : null;
 foreach ($techs as $t) {
     if ((int)$t['id'] === (int)($iv['technician_id'] ?? 0)) { $assignedTech = $t; break; }
 }
+
+/* Renforts */
+$team = team_members((int)$iv['id']);
+$teamMode = report_mode($iv);
 
 /* Amount TTC auto */
 $amtHt  = (float)($iv['amount_ht']  ?? 0);
@@ -518,6 +539,29 @@ function fmt_dur(int $mins): string {
         $invoice = invoice_for_intervention((int)$iv['id']);
         $canReview = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true);
         if ($review || $canReview): $rv = $review['result'] ?? []; ?>
+        <?php endif; ?>
+        <?php $teamReports = array_values(array_filter($team, static fn($tm) => trim((string)$tm['diagnostic'].(string)$tm['report'].(string)$tm['notes']) !== ''));
+        if ($teamReports): ?>
+        <!-- RAPPORTS DES RENFORTS -->
+        <div class="d-card" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Rapports des renforts</div></div>
+          <div class="d-card-body">
+            <?php foreach ($teamReports as $tm): ?>
+              <div style="margin-bottom:1rem;">
+                <div style="font-weight:600;"><?= e((string)$tm['tech_name']) ?>
+                  <span style="font-size:.75rem;font-weight:500;color:<?= !empty($tm['submitted_at']) ? 'var(--d-success)' : '#b45309' ?>;">· <?= !empty($tm['submitted_at']) ? 'rendu le '.e(date('d/m à H:i', strtotime((string)$tm['submitted_at']))) : 'pas encore envoyé' ?></span>
+                  <?php if (!empty($tm['arrived_time']) || !empty($tm['close_time'])): ?><span style="font-size:.75rem;color:var(--d-t2);"> · <?= e(trim(($tm['arrived_time'] ?? '').' → '.($tm['close_time'] ?? ''), ' →')) ?></span><?php endif; ?>
+                </div>
+                <?php foreach (['diagnostic' => 'Diagnostic', 'report' => 'Travaux réalisés', 'notes' => 'Remarques'] as $k => $l): if (trim((string)$tm[$k]) === '') continue; ?>
+                  <div class="d-label" style="margin-top:.4rem;"><?= e($l) ?></div>
+                  <div style="font-size:.87rem;color:var(--d-t1);line-height:1.55;background:var(--d-card-2);border-radius:6px;padding:.6rem .75rem;"><?= nl2br(e((string)$tm[$k])) ?></div>
+                <?php endforeach; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+        <?php if ($review || $canReview): ?>
         <!-- RELECTURE DU RAPPORT -->
         <div class="d-card" id="relecture" style="margin-top:1.25rem;">
           <div class="d-card-head">
@@ -1055,6 +1099,50 @@ function fmt_dur(int $mins): string {
                 <?php endif; ?>
               <?php else: ?>
                 <span style="color:var(--d-t3);">Non assigné</span>
+              <?php endif; ?>
+            </span>
+          </div>
+          <div class="d-info-row" id="equipe" style="align-items:flex-start;">
+            <span class="d-info-label">Renforts</span>
+            <span class="d-info-value" style="text-align:right;">
+              <?php foreach ($team as $tm): ?>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:.35rem;">
+                  <span><?= e((string)($tm['tech_name'] ?? 'Technicien')) ?></span>
+                  <?php if (!$isTerminal): ?>
+                  <form method="post" style="display:inline;margin:0;" onsubmit="return confirm('Retirer ce renfort ?');">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="team_remove">
+                    <input type="hidden" name="tech_id" value="<?= (int)$tm['technician_id'] ?>">
+                    <button type="submit" title="Retirer" style="background:none;border:none;color:var(--d-t3);cursor:pointer;font-size:.9rem;line-height:1;padding:0;">×</button>
+                  </form>
+                  <?php endif; ?>
+                </div>
+                <?php if ($teamMode === 'chacun'): $st = team_report_state($tm, $teamMode); ?>
+                  <div style="font-size:.72rem;font-weight:600;color:<?= $st === 'rendu' ? 'var(--d-success)' : '#b45309' ?>;"><?= e(team_report_state_label($st)) ?></div>
+                <?php endif; ?>
+              <?php endforeach; ?>
+              <?php if (!$isTerminal && !empty($iv['technician_id'])):
+                $teamIds = array_map('intval', array_column($team, 'technician_id'));
+                $addable = array_filter($techs, static fn($t) => (int)$t['id'] !== (int)$iv['technician_id'] && !in_array((int)$t['id'], $teamIds, true)); ?>
+                <?php if ($addable): ?>
+                <form method="post" style="display:flex;gap:.3rem;justify-content:flex-end;margin-top:.35rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="team_add">
+                  <select name="tech_id" required style="font-size:.78rem;padding:.2rem .3rem;max-width:140px;">
+                    <option value="">+ Ajouter…</option>
+                    <?php foreach ($addable as $t): ?><option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option><?php endforeach; ?>
+                  </select>
+                  <button type="submit" class="d-btn d-btn--sm" style="padding:.2rem .5rem;font-size:.76rem;">OK</button>
+                </form>
+                <?php endif; ?>
+              <?php elseif (!$team): ?>
+                <span style="color:var(--d-t3);font-size:.8rem;"><?= empty($iv['technician_id']) ? 'Assignez d\'abord un technicien' : '—' ?></span>
+              <?php endif; ?>
+              <?php if ($team): ?>
+                <form method="post" style="margin-top:.4rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="report_mode">
+                  <select name="report_mode" onchange="this.form.submit()" style="font-size:.76rem;padding:.2rem .3rem;max-width:200px;">
+                    <?php foreach (report_mode_options() as $k => $l): ?><option value="<?= e($k) ?>" <?= $teamMode === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?>
+                  </select>
+                </form>
               <?php endif; ?>
             </span>
           </div>

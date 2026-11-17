@@ -418,6 +418,23 @@ modifier ce fichier ensuite ne change plus rien en base.
   y reste) et ne touche jamais une facture validée ou envoyée. Depuis
   « Facture à valider » : bouton « Clôturer sans facture ».
 
+### Plusieurs techniciens sur une intervention — `includes/team.php`
+
+- Le principal reste `interventions.technician_id` et garde tout (acceptation,
+  statuts, rapport, photos, signature, paiement, prestations). Les renforts sont
+  dans `intervention_team` (migration v15.51), avec leur propre rapport :
+  diagnostic, travaux, heures, remarques, `submitted_at`.
+- `interventions.report_mode` : `principal` (un seul rapport, par défaut) ou
+  `chacun` (chaque renfort rédige le sien). Choisi sur la fiche dispatcher,
+  ligne « Renforts » (ajout, retrait, mode). Un renfort ajouté est prévenu
+  (`team_notify_added()`, mêmes réglages que les notifications technicien).
+- Technicien : un renfort voit l'intervention (badge « Renfort »), ne pilote
+  aucun statut ; en mode `chacun`, « Mon rapport » jusqu'à la facture validée
+  (`team_report_open()`). Toute autre action est refusée côté serveur.
+- Dispatcher : carte « Rapports des renforts » ; rapport PDF : les rapports des
+  renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
+  le PDF.
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -597,10 +614,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1277 assertions, aucune base de données nécessaire : chaque test remplace
+1300 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 217 fichiers PHP.
+sur les 219 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -627,6 +644,7 @@ sur les 217 fichiers PHP.
 | `test_referentiel.php` | référentiel de départ : tient dans `preset_items`, marques et modèles rattachés à un appareil, structure envoyée aux écrans |
 | `test_import_produits.php` | import des produits Pennylane (TVA, unité, métier deviné, « VVV » écartés, déjà présents) et prestations ajoutées pour tous les métiers |
 | `test_validation.php` | validation sans prestation, « valider sans facture » (clôture, brouillon annulé, facture partie jamais touchée), facture automatique |
+| `test_renforts.php` | plusieurs techniciens : mode de rapport, état du rapport d'un renfort, ajout refusé (principal, inactif, doublon), rapport enregistré ou envoyé |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

@@ -18,8 +18,8 @@ function load_iv(int $id, int $techId): ?array {
              FROM interventions i
              LEFT JOIN clients c ON c.id = i.client_id
              LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
-             WHERE i.id = ? AND i.technician_id = ?",
-            [$id, $techId]
+             WHERE i.id = ? AND (i.technician_id = ? OR i.id IN (SELECT intervention_id FROM intervention_team WHERE technician_id = ?))",
+            [$id, $techId, $techId]
         );
     } catch (Throwable $e) { return null; }
 }
@@ -37,12 +37,35 @@ function iv_photos(array $iv): array {
 
 $iv = load_iv($id, $techId);
 if (!$iv) { header('Location: '.url_for('tech/dashboard.php')); exit; }
+// En renfort : le technicien principal pilote la fiche ; le renfort consulte et, si le
+// dispatcher l'a demandé, rédige son propre rapport (includes/team.php).
+$isHelper = (int)($iv['technician_id'] ?? 0) !== $techId;
+$member   = $isHelper ? team_member($id, $techId) : null;
+$teamMode = report_mode($iv);
 
 $self = url_for('tech/disp_intervention.php?id='.$id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = trim((string)($_POST['action'] ?? ''));
+
+    if ($isHelper) {
+        if ($action === 'team_report' && $teamMode === 'chacun' && team_report_open((string)$iv['status'])) {
+            $submit = ($_POST['submit_report'] ?? '') === '1';
+            if ($submit && (trim((string)($_POST['diagnostic'] ?? '')) === '' || trim((string)($_POST['report'] ?? '')) === '')) {
+                team_report_save($id, $techId, $_POST, false);
+                flash('error', 'Rapport enregistré mais pas envoyé : il manque le diagnostic ou les travaux réalisés.');
+            } else {
+                team_report_save($id, $techId, $_POST, $submit);
+                flash('success', $submit ? 'Rapport envoyé au bureau.' : 'Rapport enregistré.');
+            }
+            header('Location: '.$self.'#rapport'); exit;
+        }
+        if ($action !== 'client_note') {
+            flash('error', 'Vous êtes en renfort : c\'est le technicien principal qui fait cette action.');
+            header('Location: '.$self); exit;
+        }
+    }
 
     // Réponse à l'attribution : accepter, ou refuser avec un motif (la fiche repart au dispatcher).
     if ($action === 'accept' && ($iv['tech_response'] ?? '') === 'en_attente') {
@@ -353,7 +376,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
 </div>
 <?php endif; ?>
 
-<main class="ta-main <?= $locked ? '' : 'has-bar' ?>">
+<main class="ta-main <?= $locked || $isHelper ? '' : 'has-bar' ?>">
   <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
   <?php if ($isCancel): ?><div class="ta-flash err">Cette intervention a été annulée par le dispatcher.</div><?php endif; ?>
@@ -363,7 +386,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <div style="margin-top:.4rem;"><a href="#rapport" style="color:inherit;font-weight:700;text-decoration:underline;">Compléter maintenant</a>, puis appuyez sur « Terminer ».</div>
   </div>
   <?php endif; ?>
-  <?php if ($status === 'sur_place' && ($iv['tech_response'] ?? '') !== 'en_attente'):
+  <?php if (!$isHelper && $status === 'sur_place' && ($iv['tech_response'] ?? '') !== 'en_attente'):
     $eta = eta_status($iv, time()); $curProg = (string)($iv['tech_progress'] ?? '') ?: 'debut'; ?>
   <section class="ta-card ta-eta<?= $eta && $eta['late'] ? ' is-late' : '' ?>" id="fin-estimee">
     <div class="ta-card-h"><h3>Quand pensez-vous finir ?</h3></div>
@@ -390,7 +413,10 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </form>
   </section>
   <?php endif; ?>
-  <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked; ?>
+  <?php if ($isHelper): $principal = get_tech_by_id((int)$iv['technician_id']); ?>
+  <div class="ta-flash" style="background:#eef2ff;color:#3730a3;">Vous êtes <b>en renfort</b> de <?= e((string)($principal['name'] ?? 'votre collègue')) ?><?= !empty($principal['phone']) ? ' (<a href="'.e(ta_tel((string)$principal['phone'])).'" style="color:inherit;">'.e((string)$principal['phone']).'</a>)' : '' ?>. C'est lui qui indique le trajet, l'arrivée et la fin.</div>
+  <?php endif; ?>
+  <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked && !$isHelper; ?>
   <?php if ($pending): ?>
   <section class="ta-card" id="reponse" style="border-color:#f59e0b;">
     <div class="ta-card-h" style="background:#fffbeb;"><h3>Nouvelle intervention : l'acceptez-vous ?</h3></div>
@@ -439,7 +465,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <section class="ta-card" id="client">
     <div class="ta-card-h">
       <h3>Client et accès</h3>
-      <?php if (!$locked): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
+      <?php if (!$locked && !$isHelper): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
     </div>
     <div class="ta-card-b">
       <div style="font-weight:600;"><?= e($clientName) ?></div>
@@ -454,7 +480,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       <?php if ($access): ?><div class="ta-muted" style="font-size:.88rem;margin-top:.25rem;"><?= e(implode(' · ', $access)) ?></div><?php endif; ?>
       <?php if (!empty($iv['client_email'])): ?>
         <div style="font-size:.88rem;margin-top:.25rem;"><a href="mailto:<?= e($iv['client_email']) ?>" style="color:var(--blue);"><?= e($iv['client_email']) ?></a></div>
-      <?php elseif (!$locked): ?>
+      <?php elseif (!$locked && !$isHelper): ?>
         <button type="button" onclick="openSheet('sheet-client')" style="font-size:.86rem;color:var(--blue);font-weight:600;margin-top:.3rem;">+ Ajouter l'e-mail du client</button>
       <?php endif; ?>
       <div style="display:flex;gap:.5rem;margin-top:.8rem;">
@@ -512,6 +538,50 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </div>
   </section>
 
+  <?php if ($isHelper): ?>
+  <!-- Rapport du renfort -->
+  <section class="ta-card" id="rapport">
+    <div class="ta-card-h"><h3>Mon rapport</h3><?php if (!empty($member['submitted_at'])): ?><span class="ta-muted" style="font-size:.82rem;">Envoyé le <?= e(date('d/m à H:i', strtotime((string)$member['submitted_at']))) ?></span><?php endif; ?></div>
+    <div class="ta-card-b">
+    <?php if ($teamMode !== 'chacun'): ?>
+      <div class="ta-text">Un seul rapport est demandé pour cette intervention : il est rempli par <?= e((string)($principal['name'] ?? 'le technicien principal')) ?>. Vous pouvez laisser une remarque sur le client ci-dessus.</div>
+    <?php elseif (!team_report_open($status)): ?>
+      <div class="ta-text">L'intervention est facturée : votre rapport ne peut plus être modifié.</div>
+      <?php foreach (['diagnostic' => 'Diagnostic', 'report' => 'Travaux réalisés', 'notes' => 'Remarques'] as $k => $l): if (trim((string)($member[$k] ?? '')) === '') continue; ?>
+        <div class="ta-label" style="margin-top:.7rem;"><?= e($l) ?></div><div class="ta-text"><?= e((string)$member[$k]) ?></div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" value="team_report">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+          <div><label class="ta-label" for="h-arr">Arrivée</label><input class="ta-input" id="h-arr" type="time" name="arrived_time" value="<?= e((string)($member['arrived_time'] ?? '')) ?>"></div>
+          <div><label class="ta-label" for="h-end">Fin</label><input class="ta-input" id="h-end" type="time" name="close_time" value="<?= e((string)($member['close_time'] ?? '')) ?>"></div>
+        </div>
+        <div class="ta-field">
+          <label for="h-diag" class="req">Diagnostic</label>
+          <textarea class="ta-textarea" id="h-diag" name="diagnostic" placeholder="Ce que vous avez constaté…"><?= e((string)($member['diagnostic'] ?? '')) ?></textarea>
+          <?= ref_phrases_html('phrase_diag', (string)($iv['category'] ?? ''), 'h-diag') ?>
+        </div>
+        <div class="ta-field">
+          <label for="h-rep" class="req">Travaux réalisés</label>
+          <textarea class="ta-textarea" id="h-rep" name="report" placeholder="Ce que vous avez fait…"><?= e((string)($member['report'] ?? '')) ?></textarea>
+          <?= ref_phrases_html('phrase_travaux', (string)($iv['category'] ?? ''), 'h-rep') ?>
+        </div>
+        <div class="ta-field">
+          <label for="h-notes">Remarques</label>
+          <textarea class="ta-textarea" id="h-notes" name="notes" style="min-height:64px;" placeholder="Pour le bureau (facultatif)"><?= e((string)($member['notes'] ?? '')) ?></textarea>
+        </div>
+        <div style="display:flex;gap:.5rem;">
+          <button type="submit" name="submit_report" value="0" class="ta-btn grow"><?= ta_icon('save') ?>Enregistrer</button>
+          <button type="submit" name="submit_report" value="1" class="ta-btn ok grow"><?= ta_icon('check') ?><?= !empty($member['submitted_at']) ? 'Renvoyer' : 'Envoyer mon rapport' ?></button>
+        </div>
+        <div class="ta-muted" style="font-size:.8rem;margin-top:.5rem;">Les prestations, les photos, la signature et le paiement sont dans le rapport du technicien principal.</div>
+      </form>
+    <?php endif; ?>
+    </div>
+  </section>
+  <?php else: ?>
   <!-- Rapport -->
   <?php if ($locked): ?>
   <section class="ta-card" id="rapport">
@@ -804,6 +874,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <?php endif; ?>
   </form>
   <?php endif; ?>
+  <?php endif; /* fin : rapport du technicien principal */ ?>
 
   <?php if ($history): ?>
   <details class="ta-card">
@@ -820,7 +891,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <?php endif; ?>
 </main>
 
-<?php if (!$locked): ?>
+<?php if (!$locked && !$isHelper): ?>
 <div class="ta-bar"><div class="ta-bar-in">
   <?php if ($pending): ?>
     <form method="post" style="flex:1;display:flex;">
