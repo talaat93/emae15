@@ -1092,6 +1092,21 @@ if (!file_exists($_mf53)) {
     unset($_me, $_sql);
 }
 unset($_mf53);
+// Auto-migration v15.54 — « devis à faire pour plus tard » demandé par le technicien dans son rapport.
+$_mf54 = __DIR__.'/../storage/.mig_v15_devis_tech';
+if (!file_exists($_mf54)) {
+    // Témoin posé APRÈS le travail : si la base tombe pendant la mise à jour, elle sera rejouée
+    // (chaque ALTER déjà fait échoue sans dommage).
+    try { devis_table(); } catch (Throwable $_me) {}
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_quote_needed TINYINT(1) NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_quote_text TEXT NULL",
+              "ALTER TABLE devis ADD COLUMN source VARCHAR(20) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    @file_put_contents($_mf54, date('c'));
+    unset($_me, $_sql);
+}
+unset($_mf54);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

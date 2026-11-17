@@ -435,6 +435,17 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Devis à faire pour plus tard — `devis_from_tech()` (`includes/yousign.php`)
+
+Case « Un devis est à faire pour plus tard ? » dans les Contrôles du rapport
+(`interventions.tech_quote_needed`, `tech_quote_text`, migration v15.54).
+À la remise du rapport : brouillon `devis` sans ligne (`source = 'technicien'`,
+numéro DEV-année-id), e-mail au dispatcher ; une nouvelle remise met à jour le
+même brouillon. Fiche dispatcher : « Demandé par le technicien », formulaire
+« Compléter le devis » (même `devis_save()`), envoi impossible tant qu'il n'a
+pas de ligne. La migration v15.54 pose son témoin après le travail (si la base
+tombe pendant la mise à jour, elle est rejouée).
+
 ### Rapport corrigé par Claude — `includes/correction.php`
 
 - Lancé en arrière-plan à la remise du rapport, avant la relecture
@@ -675,10 +686,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1374 assertions, aucune base de données nécessaire : chaque test remplace
+1388 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 224 fichiers PHP.
+sur les 225 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -710,6 +721,7 @@ sur les 224 fichiers PHP.
 | `test_facture_liee.php` | facture Pennylane reliée après coup (recherche par numéro, refus, suivi du paiement, brouillon remplacé, lien retiré), remarques de paiement |
 | `test_recherche.php` | recherche dans les listes : pages qui l'activent, script chargé (dispatcher et technicien) |
 | `test_correction.php` | rapport corrigé par Claude : garde-fous (nombres, longueur), texte d'origine jamais réécrit, correction écartée signalée |
+| `test_devis_tech.php` | devis à faire demandé par le technicien : brouillon sans prix, numéro, pas de doublon, dispatcher prévenu |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

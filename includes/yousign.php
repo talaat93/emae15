@@ -409,3 +409,47 @@ function devis_refresh_pending(int $max = 20): int
     }
     return $n;
 }
+
+/**
+ * « Devis à faire pour plus tard » coché par le technicien : devis brouillon créé sur
+ * l'intervention avec les travaux à chiffrer (sans prix : le dispatcher ajoute les lignes de
+ * la grille puis l'envoie), et dispatcher prévenu. Une nouvelle remise du rapport met à jour
+ * ce même brouillon au lieu d'en créer un second.
+ */
+function devis_from_tech(int $ivId, string $text, array $tech): ?int
+{
+    devis_table();
+    $text = trim($text);
+    $iv = db_fetch('SELECT * FROM interventions WHERE id = ?', [$ivId]);
+    if (!$iv || $text === '') return null;
+    $cat = intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux';
+    $title = mb_substr($cat.' — '.preg_replace('/\s+/', ' ', mb_substr($text, 0, 80)), 0, 255);
+    $existing = db_fetch("SELECT id FROM devis WHERE intervention_id = ? AND source = 'technicien' AND status = 'brouillon' ORDER BY id DESC LIMIT 1", [$ivId]);
+    if ($existing) {
+        $id = (int)$existing['id'];
+        db_execute('UPDATE devis SET title = ?, description = ?, pdf_path = NULL, updated_at = NOW() WHERE id = ?', [$title, mb_substr($text, 0, 4000), $id]);
+        return $id;
+    }
+    $client = !empty($iv['client_id']) ? get_client_by_id((int)$iv['client_id']) : null;
+    db_execute("INSERT INTO devis (title, description, line_items, vat_rate, total_ht, total_tva, total_ttc, intervention_id, client_id, valid_until, source, updated_at)
+        VALUES (?,?,'[]',?,0,0,0,?,?,?,'technicien',NOW())",
+        [$title, mb_substr($text, 0, 4000), iv_vat_rate($iv, $client), $ivId, $iv['client_id'] ?: null, date('Y-m-d', strtotime('+30 days'))]);
+    $id = db_last_id();
+    $number = 'DEV-'.date('Y').'-'.str_pad((string)$id, 5, '0', STR_PAD_LEFT);
+    db_execute('UPDATE devis SET number = ? WHERE id = ?', [$number, $id]);
+    log_intervention_history($ivId, (string)$iv['status'], (string)$iv['status'], 'technicien', (int)$tech['id'], (string)$tech['name'],
+        'Devis à faire pour plus tard : brouillon '.$number.' créé');
+    integration_log('audit', 'devis demandé par le technicien #'.$id, ['intervention' => $ivId]);
+    try {
+        $to = !empty($iv['dispatcher_id']) ? (string)(db_fetch('SELECT email FROM dispatchers WHERE id = ?', [(int)$iv['dispatcher_id']])['email'] ?? '') : '';
+        if ($to === '') $to = company_email();
+        $h = static fn($v) => htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8');
+        notif_mail($to, 'Devis à faire — '.($iv['ref'] ?? '#'.$ivId), 'Un technicien demande un devis', [
+            '<b>'.$h($tech['name']).'</b> indique qu\'un devis est à faire pour l\'intervention '.$h($iv['ref'] ?? '#'.$ivId).'.',
+            'Travaux à chiffrer : '.nl2br($h(mb_substr($text, 0, 800))),
+            'Le brouillon '.$h($number).' est prêt : ajoutez les prestations, puis envoyez-le au client.',
+        ], notif_abs_url('dispatcher/intervention_view.php?id='.$ivId.'#devis'), 'Compléter le devis');
+    } catch (Throwable $e) {}
+    if (function_exists('disp_notify')) disp_notify('devis_a_faire', 'Devis à faire — '.($iv['ref'] ?? '#'.$ivId), $tech['name'].' : '.mb_substr($text, 0, 140), 'dispatcher/intervention_view.php?id='.$ivId.'#devis', $ivId);
+    return $id;
+}

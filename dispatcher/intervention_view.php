@@ -788,9 +788,12 @@ function fmt_dur(int $mins): string {
         $threshold = yousign_threshold();
         $estTtc = (float)($iv['amount_ttc'] ?? 0);
         $hasSigned = (bool)array_filter($devisList, static fn($d) => $d['status'] === 'signe');
-        $showDevis = $devisList || !$isTerminal || in_array($currentStatus, ['a_revoir', 'rapport_rendu'], true) || (($iv['tech_return_visit'] ?? null) !== null && (int)$iv['tech_return_visit'] === 1);
+        $showDevis = $devisList || (int)($iv['tech_quote_needed'] ?? 0) === 1 || !$isTerminal || in_array($currentStatus, ['a_revoir', 'rapport_rendu'], true) || (($iv['tech_return_visit'] ?? null) !== null && (int)$iv['tech_return_visit'] === 1);
         if ($showDevis):
           $dGrid = price_grid_rows(true, (string)($iv['category'] ?? ''));
+          // Devis demandé par le technicien, encore sans ligne : le formulaire sert à le compléter.
+          $techDraft = null;
+          foreach ($devisList as $dv) if (($dv['source'] ?? '') === 'technicien' && $dv['status'] === 'brouillon' && !$dv['lines']) { $techDraft = $dv; break; }
           $dVat = iv_vat_rate($iv, $ivClient); ?>
         <!-- DEVIS -->
         <div class="d-card" id="devis" style="margin-top:1.25rem;">
@@ -810,6 +813,9 @@ function fmt_dur(int $mins): string {
                 </div>
                 <?php if (!empty($dv['sent_at'])): ?><div style="font-size:.78rem;color:var(--d-t3);margin-top:.2rem;">Envoyé le <?= e(date('d/m/Y H:i', strtotime((string)$dv['sent_at']))) ?> à <?= e((string)$dv['signer_email']) ?><?= !empty($dv['signed_at']) ? ' · signé le '.e(date('d/m/Y H:i', strtotime((string)$dv['signed_at']))) : '' ?></div><?php endif; ?>
                 <?php if (!empty($dv['error'])): ?><div style="font-size:.8rem;color:var(--d-danger);margin-top:.25rem;"><?= e((string)$dv['error']) ?></div><?php endif; ?>
+                <?php if (($dv['source'] ?? '') === 'technicien'): ?>
+                  <div style="font-size:.84rem;background:#fffbeb;border-radius:6px;padding:.5rem .65rem;margin-top:.45rem;"><b>Demandé par le technicien :</b> <?= nl2br(e((string)$dv['description'])) ?></div>
+                <?php endif; ?>
                 <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.55rem;">
                   <a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF</a>
                   <?php if (!empty($dv['signed_pdf_path'])): ?><a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?signed=1&id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF signé</a><?php endif; ?>
@@ -825,7 +831,9 @@ function fmt_dur(int $mins): string {
                     </form>
                   <?php endif; ?>
                 </div>
-                <?php if ($dv['status'] === 'brouillon'): ?>
+                <?php if ($dv['status'] === 'brouillon' && !$dv['lines']): ?>
+                  <div style="font-size:.8rem;color:#b45309;margin-top:.5rem;">À chiffrer : ajoutez les prestations ci-dessous avant de l'envoyer au client.</div>
+                <?php elseif ($dv['status'] === 'brouillon'): ?>
                   <form method="post" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:flex-end;margin-top:.6rem;" onsubmit="return confirm('Envoyer ce devis de <?= e(money_fr((float)$dv['total_ttc'])) ?> TTC au client pour signature ?');">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_send"><input type="hidden" name="devis_id" value="<?= (int)$dv['id'] ?>">
                     <div class="d-field" style="margin:0;flex:1;min-width:180px;"><label class="req">E-mail du client</label><input type="email" name="email" required value="<?= e((string)($ivClient['email'] ?? '')) ?>"></div>
@@ -835,12 +843,13 @@ function fmt_dur(int $mins): string {
                 <?php endif; ?>
               </div>
             <?php endforeach; ?>
-            <details <?= $devisList ? '' : 'open' ?>>
-              <summary style="cursor:pointer;font-size:.88rem;font-weight:600;">+ Nouveau devis</summary>
+            <details <?= !$devisList || $techDraft ? 'open' : '' ?>>
+              <summary style="cursor:pointer;font-size:.88rem;font-weight:600;"><?= $techDraft ? 'Compléter le devis '.e((string)$techDraft['number']).' demandé par le technicien' : '+ Nouveau devis' ?></summary>
               <form method="post" style="margin-top:.6rem;">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_save">
-                <div class="d-field"><label class="req">Titre</label><input name="dl_title" required value="<?= e((intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux').' — '.(trim((string)($iv['tech_fault_label'] ?? '')) ?: trim((string)($iv['type_label'] ?? '')) ?: 'devis')) ?>"></div>
-                <div class="d-field"><label>Description des travaux</label><textarea name="dl_description" rows="3"><?= e(trim((string)($iv['tech_incomplete_reason'] ?? '')) ?: trim((string)($iv['tech_diagnostic'] ?? ''))) ?></textarea></div>
+                <?php if ($techDraft): ?><input type="hidden" name="devis_id" value="<?= (int)$techDraft['id'] ?>"><?php endif; ?>
+                <div class="d-field"><label class="req">Titre</label><input name="dl_title" required value="<?= e($techDraft ? (string)$techDraft['title'] : (intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux').' — '.(trim((string)($iv['tech_fault_label'] ?? '')) ?: trim((string)($iv['type_label'] ?? '')) ?: 'devis')) ?>"></div>
+                <div class="d-field"><label>Description des travaux</label><textarea name="dl_description" rows="3"><?= e($techDraft ? (string)$techDraft['description'] : (trim((string)($iv['tech_incomplete_reason'] ?? '')) ?: trim((string)($iv['tech_diagnostic'] ?? '')))) ?></textarea></div>
                 <table class="d-table" style="font-size:.84rem;">
                   <thead><tr><th>Désignation</th><th style="width:70px;">Qté</th><th style="width:110px;">P.U. HT</th></tr></thead>
                   <tbody>
