@@ -1025,6 +1025,19 @@ if (!file_exists($_mf47)) {
     unset($_me);
 }
 unset($_mf47);
+// Auto-migration v15.48 — fin estimée par le technicien sur place : heure de fin prévue,
+// moment où il l'a indiquée, avancement (début, milieu, fin). Colonnes vides par défaut.
+$_mf48 = __DIR__.'/../storage/.mig_v15_tech_eta';
+if (!file_exists($_mf48)) {
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_eta_end DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_eta_at DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_progress VARCHAR(10) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    @file_put_contents($_mf48, date('c'));
+    unset($_me, $_sql);
+}
+unset($_mf48);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

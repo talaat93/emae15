@@ -253,6 +253,7 @@ Il couvre la vie d'une intervention, de l'appel à la facture encaissée :
 | Grille tarifaire et TVA | `includes/pricing.php`, `price_grid_seed.php` |
 | Qualification de l'appel assistée par Claude | `includes/qualification.php`, `claude.php` |
 | Assignation, technicien suggéré | `includes/assignment.php` |
+| Fin estimée par le technicien sur place | `includes/assignment.php` (`eta_*`), `tech/disp_intervention.php` |
 | Rapport du technicien, chiffré par la grille | `tech/`, `includes/review.php` |
 | Relecture et brouillon de facture | `includes/review.php`, `invoicing.php` |
 | Comptabilité Pennylane | `includes/pennylane.php`, `cron/pennylane_sync.php` |
@@ -356,6 +357,23 @@ niveau suggéré 1 à 3), `finance_top_debtors()`, `finance_monthly()`,
 Conventions : TTC ; brouillons et annulées exclus ; « encaissé » = factures
 payées à leur date de paiement (un paiement partiel n'apparaît que dans le
 reste dû).
+
+### Fin estimée par le technicien sur place — `includes/assignment.php`
+
+Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
+finir ? » son avancement (début, milieu, fin) et le temps restant (15 min à
+3 h et +). Colonnes `interventions.tech_eta_end`, `tech_eta_at`,
+`tech_progress` (migration v15.48). Chaque estimation est aussi notée dans
+l'historique de l'intervention.
+
+| Fonction | Rôle |
+|---|---|
+| `eta_status($iv, $now)` | texte « milieu — libre vers 15 h 40 » ou « fin prévue 15 h 40, dépassée de 25 min » ; null hors « Sur place » |
+| `eta_busy_end($job, $now)` | fin d'occupation utilisée par `assign_suggestions()` ; estimation dépassée = maintenant + 15 min |
+
+Affichée au dispatcher dans le planning du jour (sous le nom du technicien,
+orange si dépassée), sur la fiche de l'intervention et dans les suggestions
+de technicien. Aucune notification : l'information se lit à l'écran.
 
 ### Écrans
 
@@ -519,10 +537,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1087 assertions, aucune base de données nécessaire : chaque test remplace
+1178 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 196 fichiers PHP.
+sur les 212 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -544,9 +562,10 @@ sur les 196 fichiers PHP.
 | `test_croissance.php` | outils de conversion : numéro WhatsApp, horaires du bandeau, note Google jamais inventée, SMS automatiques, créneaux de rendez-vous, pages panne, 404, signature Stripe, échéances d'entretien, espace client, suivi |
 | `test_agent.php` | agent relation client : lecture des mails (encodages, pièces jointes, réponses citées), tri sans IA, garde-fou prix / dates / délais, coût, boutons Telegram selon le mode, **aucun envoi en mode test ni en double** |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
+| `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
-assignation, relecture, Yousign) n'est pas encore couvert.
+assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
 
 **Rendu visuel.** Chromium et Playwright sont installés
 (`/opt/node22/lib/node_modules/playwright`, ne pas lancer
@@ -710,6 +729,9 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Fin estimée 3 — affichage dispatcher : planning, fiche, suggestions |
+| `6f1c48d` | Fin estimée 2 — barre « Quand pensez-vous finir ? » côté technicien |
+| `22edcaf` | Fin estimée 1 — colonnes, calculs, prise en compte dans l'assignation |
 | *(voir `git log`)* | Mise en cohérence (§4sexies) : bandeau cookies et consentement v2, plus de collecte sans clic, rappel express, promesses non sourcées filtrées, avis avec provenance, JSON-LD réparé, mentions légales, WhatsApp incomplet masqué, rendez-vous lundi-samedi hors fériés, ancienne page « Électricité » redirigée, sitemap, polices locales. Migration `.mig_v15_coherence` |
 | *(voir `git log`)* | Mention du logo plus discrète ; cartes volets et portails retirées de la page électricité (ils ont leur page métier) ; anciennes listes de prestations enregistrées par l'admin reconnues par `service_offer_legacy()` (elles s'affichaient sans texte ni dessin) ; page Réalisations filtrable par métier (`?metier=electricite`, pastilles dessinées), le bouton d'une page métier y mène filtré |
 | *(voir `git log`)* | Pages métier : « Nos interventions » supprimé (doublon de « Notre offre ») ; prestations en cartes défilantes (dessin + titre + texte court, `offer_items` = `[dessin, titre, texte]`, `service_offer_cards()` lit aussi l'ancien format phrase) ; dessins PNG au trait orange dans `assets/img/icons/` (Tabler Icons, licence MIT, + dessins maison), liste dans `service_icons()` ; cartes volets, portails et chauffe-eau dessinées ; bandeau défilant des marques (`svc_<métier>_brands`, `_brands_title`, `_brands_on`), rempli pour chauffage et climatisation, noms en texte, sans logos de fabricants. Logo EMAE : mention en texte sous « EMAE » (`assets/img/logo-emae-mark.png`, `site_logo_is_emae()`). Corrigé au passage : les tuiles débordaient de l'écran sur téléphone, ce qui faisait dézoomer toute la page |

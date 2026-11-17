@@ -82,6 +82,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: '.$self); exit;
     }
 
+    // Fin estimée : le technicien sur place indique où il en est et le temps qu'il lui reste,
+    // pour que le dispatcher sache quand il pourra lui confier l'intervention suivante.
+    if ($action === 'eta') {
+        $prog = (string)($_POST['progress'] ?? '');
+        $rest = (int)($_POST['remaining'] ?? 0);
+        if (($iv['status'] ?? '') !== 'sur_place' || !isset(eta_progress_options()[$prog]) || !in_array($rest, eta_remaining_options(), true)) {
+            flash('error', 'Estimation non enregistrée : choisissez l\'avancement puis le temps restant.');
+            header('Location: '.$self); exit;
+        }
+        $end = time() + $rest * 60;
+        update_intervention($id, ['tech_eta_end' => date('Y-m-d H:i:s', $end), 'tech_eta_at' => date('Y-m-d H:i:s'), 'tech_progress' => $prog]);
+        log_intervention_history($id, 'sur_place', 'sur_place', 'technicien', $techId, (string)$tech['name'],
+            'Avancement : '.mb_strtolower(eta_progress_options()[$prog], 'UTF-8').' — fin estimée vers '.eta_hm($end));
+        flash('success', 'Estimation envoyée au dispatcher : fin vers '.eta_hm($end).'.');
+        header('Location: '.$self); exit;
+    }
+
     $ajax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'fetch';
     $isOpen = wf_tech_editable((string)($iv['status'] ?? ''));
 
@@ -326,6 +343,33 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <b>Rapport à compléter</b><br><?= nl2br(e((string)($iv['review_message'] ?? 'Le bureau vous demande de compléter votre rapport.'))) ?>
     <div style="margin-top:.4rem;"><a href="#rapport" style="color:inherit;font-weight:700;text-decoration:underline;">Compléter maintenant</a>, puis appuyez sur « Terminer ».</div>
   </div>
+  <?php endif; ?>
+  <?php if ($status === 'sur_place' && ($iv['tech_response'] ?? '') !== 'en_attente'):
+    $eta = eta_status($iv, time()); $curProg = (string)($iv['tech_progress'] ?? '') ?: 'debut'; ?>
+  <section class="ta-card ta-eta<?= $eta && $eta['late'] ? ' is-late' : '' ?>" id="fin-estimee">
+    <div class="ta-card-h"><h3>Quand pensez-vous finir ?</h3></div>
+    <form class="ta-card-b" method="post">
+      <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+      <input type="hidden" name="action" value="eta">
+      <?php if ($eta): ?>
+        <div class="ta-eta-now">Indiqué à <?= e(eta_hm(strtotime((string)$iv['tech_eta_at']))) ?> : <b><?= e(ucfirst($eta['text'])) ?></b><?= $eta['late'] ? '. Mettez à jour pour prévenir le dispatcher.' : '' ?></div>
+      <?php else: ?>
+        <div class="ta-eta-now">Le dispatcher voit votre heure de fin et sait quand vous confier la suite.</div>
+      <?php endif; ?>
+      <div class="ta-eta-k">Avancement</div>
+      <div class="ta-eta-prog">
+        <?php foreach (eta_progress_options() as $k => $l): ?>
+          <input type="radio" name="progress" id="prog-<?= e($k) ?>" value="<?= e($k) ?>" <?= $curProg === $k ? 'checked' : '' ?>><label for="prog-<?= e($k) ?>"><?= e($l) ?></label>
+        <?php endforeach; ?>
+      </div>
+      <div class="ta-eta-k">Il me reste</div>
+      <div class="ta-eta-time">
+        <?php foreach (eta_remaining_options() as $m): ?>
+          <button type="submit" name="remaining" value="<?= $m ?>"><?= e(eta_remaining_label($m)) ?></button>
+        <?php endforeach; ?>
+      </div>
+    </form>
+  </section>
   <?php endif; ?>
   <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked; ?>
   <?php if ($pending): ?>
