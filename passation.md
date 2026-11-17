@@ -435,6 +435,25 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Rapport corrigé par Claude — `includes/correction.php`
+
+- Lancé en arrière-plan à la remise du rapport, avant la relecture
+  (`review_run_after_response()`), relançable par le dispatcher. Corrige
+  diagnostic et travaux : orthographe, français, vocabulaire du métier.
+- Le texte du technicien n'est jamais réécrit : versions corrigées dans
+  `tech_diagnostic_corrige` / `tech_report_corrige` (migration v15.53),
+  `correction_source` = `claude` ou `dispatcher`. `correction_text()` donne
+  la version corrigée sinon l'original : écrans dispatcher et technicien,
+  rapport PDF.
+- Garde-fous (`correction_acceptable()`) : correction écartée si un nombre
+  apparaît, disparaît ou change, ou si la longueur varie trop ; le texte
+  d'origine reste alors utilisé et l'historique le signale.
+- Dispatcher : texte d'origine consultable, « Modifier la version corrigée »,
+  « Relancer la correction », « Revenir au texte d'origine ». Technicien :
+  notification (si activée) et « Mon texte d'origine » sur sa fiche.
+- Sans clé Claude : aucune correction. Les rapports des renforts ne sont pas
+  corrigés.
+
 ### Rechercher au lieu de défiler — `assets/js/filtre.js`
 
 Chargé par `dispatcher/partials/footer.php` et `tech/_ui.php` (`ta_head()`).
@@ -656,10 +675,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1352 assertions, aucune base de données nécessaire : chaque test remplace
+1374 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 222 fichiers PHP.
+sur les 224 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -690,6 +709,7 @@ sur les 222 fichiers PHP.
 | `test_carte_tech.php` | carte de l'intervention (fiche technicien) : GPS → carte, ville repère la plus proche, hors zone |
 | `test_facture_liee.php` | facture Pennylane reliée après coup (recherche par numéro, refus, suivi du paiement, brouillon remplacé, lien retiré), remarques de paiement |
 | `test_recherche.php` | recherche dans les listes : pages qui l'activent, script chargé (dispatcher et technicien) |
+| `test_correction.php` | rapport corrigé par Claude : garde-fous (nombres, longueur), texte d'origine jamais réécrit, correction écartée signalée |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

@@ -87,6 +87,10 @@ try {
 $iv['address']      = $iv['client_address'] ?? $iv['address'] ?? '';
 $iv['postal_code']  = $iv['client_postal']  ?? $iv['postal_code'] ?? '';
 
+// Version corrigée par Claude (ou retouchée par le dispatcher) si elle existe ; sinon le texte du technicien.
+$iv['tech_diagnostic'] = correction_text($iv, 'tech_diagnostic');
+$iv['tech_report']     = correction_text($iv, 'tech_report');
+
 // Facture reliée (préparée par le site ou reliée depuis Pennylane), si elle a un numéro.
 if (($inv = invoice_for_intervention($id)) && $inv['status'] !== 'brouillon' && !empty($inv['number'])) $iv['invoice_number'] = (string)$inv['number'];
 

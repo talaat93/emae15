@@ -84,6 +84,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    /* ── Rapport corrigé par Claude : relancer, retoucher, revenir au texte d'origine ── */
+    if ($action === 'correction_run') {
+        @set_time_limit(120);
+        $r = correction_run($id, 'dispatcher');
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Rapport corrigé.'.($r['notice'] ? ' '.$r['notice'] : '') : (string)$r['notice']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+    if ($action === 'correction_save') {
+        $d = mb_substr(trim((string)($_POST['diag'] ?? '')), 0, 5000);
+        $t = mb_substr(trim((string)($_POST['report'] ?? '')), 0, 5000);
+        db_execute("UPDATE interventions SET tech_diagnostic_corrige = ?, tech_report_corrige = ?, correction_at = NOW(), correction_source = 'dispatcher' WHERE id = ?",
+            [$d !== trim((string)$iv['tech_diagnostic']) ? $d : null, $t !== trim((string)$iv['tech_report']) ? $t : null, $id]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Version corrigée du rapport modifiée');
+        flash('success', 'Version corrigée enregistrée : elle sera utilisée dans le rapport PDF.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+    if ($action === 'correction_reset') {
+        db_execute('UPDATE interventions SET tech_diagnostic_corrige = NULL, tech_report_corrige = NULL WHERE id = ?', [$id]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Retour au texte d\'origine du technicien');
+        flash('success', 'Le rapport PDF reprend le texte d\'origine du technicien.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+
     /* ── Renforts : plusieurs techniciens sur la même intervention ── */
     if ($action === 'team_add') {
         $r = team_add($id, (int)($_POST['tech_id'] ?? 0), $disp);
@@ -466,7 +489,7 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_diagnostic'])): ?>
             <div style="margin:1rem 0;">
               <div class="d-label">Diagnostic</div>
-              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_diagnostic'])) ?></div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e(correction_text($iv, 'tech_diagnostic'))) ?></div>
             </div>
             <?php endif; ?>
             <?php if ($repCalc['lines']): ?>
@@ -493,7 +516,51 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_report'])): ?>
             <div style="margin:1rem 0;">
               <div class="d-label"><?= !empty($iv['tech_diagnostic']) ? 'Travaux réalisés' : 'Constat et travaux réalisés' ?></div>
-              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_report'])) ?></div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e(correction_text($iv, 'tech_report'))) ?></div>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($iv['tech_diagnostic']) || !empty($iv['tech_report'])): ?>
+            <!-- Version corrigée (Claude) : texte d'origine gardé, modifiable par le dispatcher -->
+            <div class="corr-box">
+              <div style="font-size:.8rem;color:var(--d-t2);">
+                <?php if (correction_has($iv)): ?>
+                  ✓ Texte corrigé <?= ($iv['correction_source'] ?? '') === 'dispatcher' ? 'par le dispatcher' : 'par Claude (orthographe, vocabulaire technique)' ?><?= !empty($iv['correction_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['correction_at']))) : '' ?> · utilisé dans le rapport PDF.
+                <?php elseif (!empty($iv['correction_at'])): ?>
+                  Texte du technicien gardé tel quel (aucune correction utile ou correction écartée par sécurité).
+                <?php else: ?>
+                  Pas encore corrigé<?= claude_is_configured() ? '' : ' (aucune clé Claude : correction désactivée)' ?>.
+                <?php endif; ?>
+              </div>
+              <?php if (correction_has($iv)): ?>
+              <details><summary>Texte d'origine du technicien</summary>
+                <?php foreach (['tech_diagnostic' => 'Diagnostic', 'tech_report' => 'Travaux réalisés'] as $cf => $cl): if (trim((string)$iv[$cf]) === '') continue; ?>
+                  <div class="d-label" style="margin-top:.4rem;"><?= e($cl) ?></div><div class="corr-orig"><?= nl2br(e((string)$iv[$cf])) ?></div>
+                <?php endforeach; ?>
+              </details>
+              <?php endif; ?>
+              <details><summary>Modifier la version corrigée</summary>
+                <form method="post" style="margin-top:.5rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_save">
+                  <div class="d-field"><label>Diagnostic</label><textarea name="diag" rows="3"><?= e(correction_text($iv, 'tech_diagnostic')) ?></textarea></div>
+                  <div class="d-field"><label>Travaux réalisés</label><textarea name="report" rows="4"><?= e(correction_text($iv, 'tech_report')) ?></textarea></div>
+                  <button type="submit" class="d-btn d-btn--sm d-btn--primary">Enregistrer</button>
+                </form>
+              </details>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+                <?php if (claude_is_configured()): ?>
+                <form method="post" onsubmit="this.querySelector('button').textContent='Correction en cours…';">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_run">
+                  <button type="submit" class="d-btn d-btn--sm"><?= !empty($iv['correction_at']) ? 'Relancer la correction' : 'Corriger avec Claude' ?></button>
+                </form>
+                <?php endif; ?>
+                <?php if (correction_has($iv)): ?>
+                <form method="post" onsubmit="return confirm('Revenir au texte d\'origine du technicien pour le rapport PDF ?');">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_reset">
+                  <button type="submit" class="d-btn d-btn--sm d-btn--ghost">Revenir au texte d'origine</button>
+                </form>
+                <?php endif; ?>
+              </div>
+              <style>.corr-box{border-top:1px dashed var(--d-border);padding-top:.7rem;margin-bottom:1rem}.corr-box details{margin-top:.45rem;font-size:.85rem}.corr-box summary{cursor:pointer;color:var(--d-t2)}.corr-orig{font-size:.84rem;color:var(--d-t2);line-height:1.55;background:#fffbeb;border-radius:6px;padding:.55rem .7rem}</style>
             </div>
             <?php endif; ?>
             <?php if (!empty($iv['tech_notes_extra'])): ?>

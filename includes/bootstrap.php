@@ -26,6 +26,7 @@ require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/referentiel.php';
 require_once __DIR__ . '/team.php';
+require_once __DIR__ . '/correction.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1078,6 +1079,19 @@ if (!file_exists($_mf52)) {
     unset($_me);
 }
 unset($_mf52);
+// Auto-migration v15.53 — rapport corrigé par Claude (le texte du technicien reste à part, intact).
+$_mf53 = __DIR__.'/../storage/.mig_v15_correction';
+if (!file_exists($_mf53)) {
+    @file_put_contents($_mf53, date('c'));
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_diagnostic_corrige TEXT NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_report_corrige TEXT NULL",
+              "ALTER TABLE interventions ADD COLUMN correction_at DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN correction_source VARCHAR(20) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    unset($_me, $_sql);
+}
+unset($_mf53);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {
