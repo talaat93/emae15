@@ -208,6 +208,10 @@ function notify_dispatcher_refusal(int $ivId, array $tech, string $reason): void
     try {
         $iv = get_intervention_by_id($ivId);
         if (!$iv) return;
+        if (function_exists('disp_notify')) {
+            disp_notify('refus', 'Intervention refusée — '.($iv['ref'] ?? '#'.$ivId), $tech['name'].' : '.$reason.' · à réassigner',
+                'dispatcher/intervention_view.php?id='.$ivId.'#assigner', $ivId);
+        }
         $s = notif_iv_summary($iv);
         $to = '';
         if (!empty($iv['dispatcher_id'])) {

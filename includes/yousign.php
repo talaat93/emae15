@@ -375,6 +375,11 @@ function devis_refresh(int $devisId, ?string $simulateStatus = null): array
 function devis_notify_dispatcher(array $d, string $what): void
 {
     try {
+        if (function_exists('disp_notify')) {
+            disp_notify('devis_reponse', 'Devis '.$d['number'].' '.$what, money_fr((float)$d['total_ttc']).' TTC — '.(string)$d['title'],
+                !empty($d['intervention_id']) ? 'dispatcher/intervention_view.php?id='.(int)$d['intervention_id'].'#devis' : 'dispatcher/index.php',
+                !empty($d['intervention_id']) ? (int)$d['intervention_id'] : null, 'devis-'.(int)$d['id'].'-'.$what);
+        }
         $iv = !empty($d['intervention_id']) ? get_intervention_by_id((int)$d['intervention_id']) : null;
         $to = '';
         if ($iv && !empty($iv['dispatcher_id'])) $to = (string)(db_fetch('SELECT email FROM dispatchers WHERE id = ?', [(int)$iv['dispatcher_id']])['email'] ?? '');
