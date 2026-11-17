@@ -300,3 +300,8 @@ details.ta-card:not([open]) > summary { border-bottom: 0; }
 /* Remarques sur le client (visibles par le bureau). */
 .ta-cnote { background: var(--amber-lt); border-radius: 8px; padding: .5rem .65rem; font-size: .88rem; margin-top: .45rem; }
 .ta-cnote small { display: block; color: var(--t3); font-size: .74rem; margin-top: .15rem; }
+
+/* Phrases toutes prêtes sous le diagnostic et les travaux réalisés. */
+.ta-phrases { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .45rem; }
+.ta-phrases button { border: 1px solid var(--line); background: #f7f9fc; color: var(--t1); border-radius: 99px; padding: .35rem .7rem; font-size: .82rem; text-align: left; }
+.ta-phrases button.on { background: var(--ok-lt); border-color: #b7e4c7; color: #166534; }

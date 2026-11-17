@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $cat = (string)($_POST['i_category'] ?? '');
         $sum['intervention']['category']         = isset($catsCfg[$cat]) ? $cat : (string)$sum['intervention']['category'];
         $sum['intervention']['fault_type']       = mb_substr(trim((string)($_POST['i_fault_type'] ?? '')), 0, 190);
+        $sum['intervention']['installation']     = mb_substr(trim((string)($_POST['i_installation'] ?? '')), 0, 190);
         $sum['intervention']['description']      = mb_substr(trim((string)($_POST['i_description'] ?? '')), 0, 5000);
         $sum['intervention']['urgency']          = !empty($_POST['i_urgency']);
         $sum['intervention']['priority']         = in_array($_POST['i_priority'] ?? '', ['normale', 'haute', 'urgente'], true) ? (string)$_POST['i_priority'] : 'normale';
@@ -198,7 +199,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'priority'          => $iv['priority'],
                 'category'          => $iv['category'],
                 'type_label'        => $iv['fault_type'],
-                'installation_type' => '',
+                'installation_type' => (string)($iv['installation'] ?? ''),
                 'fault_reported'    => $iv['fault_type'],
                 'description'       => $iv['description'],
                 'materials_needed'  => $iv['materials'] ? json_encode(array_map(static fn($m) => ['name' => $m], $iv['materials']), JSON_UNESCAPED_UNICODE) : '',
@@ -530,6 +531,8 @@ $quote   = $s['quote_id'] ? db_fetch('SELECT * FROM quotes WHERE id = ?', [(int)
                 <select id="i_priority" name="i_priority"><?php foreach (['normale' => 'Normale', 'haute' => 'Haute', 'urgente' => 'Urgente'] as $k => $l): ?><option value="<?= $k ?>" <?= $ivs['priority'] === $k ? 'selected' : '' ?>><?= $l ?></option><?php endforeach; ?></select></div>
               <div class="d-field"><label for="i_duration">Durée estimée (min)</label><input id="i_duration" name="i_duration" inputmode="numeric" value="<?= (int)$ivs['duration_minutes'] ?>"></div>
             </div>
+            <?= ref_picker_html(['cat' => 'i_category', 'install' => 'i_installation', 'fault' => 'i_fault_type', 'fault_mode' => 'set']) ?>
+            <div class="d-field"><label for="i_installation">Appareil (type, marque, modèle)</label><input id="i_installation" name="i_installation" maxlength="190" value="<?= e((string)($ivs['installation'] ?? '')) ?>" placeholder="Rempli par les choix ci-dessus, ou à écrire"></div>
             <div class="d-field"><label><input type="checkbox" name="i_urgency" value="1" <?= $ivs['urgency'] ? 'checked' : '' ?>> Intervention urgente</label></div>
             <div class="d-field"><label class="req" for="i_description">Description pour le technicien</label><textarea id="i_description" name="i_description" rows="6" required><?= e((string)$ivs['description']) ?></textarea></div>
             <div class="d-field"><label for="i_skills">Compétences requises (séparées par des virgules)</label><input id="i_skills" name="i_skills" value="<?= e(implode(', ', $ivs['skills'])) ?>"></div>

@@ -24,6 +24,7 @@ require_once __DIR__ . '/pennylane.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
+require_once __DIR__ . '/referentiel.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1038,6 +1039,16 @@ if (!file_exists($_mf48)) {
     unset($_me, $_sql);
 }
 unset($_mf48);
+// Auto-migration v15.49 — référentiel de départ (appareils, marques, modèles, pannes, phrases
+// toutes prêtes) chargé dans preset_items, modifiable ensuite dans « Listes prédéfinies ».
+// Un type déjà rempli n'est pas touché.
+$_mf49 = __DIR__.'/../storage/.mig_v15_referentiel';
+if (!file_exists($_mf49)) {
+    @file_put_contents($_mf49, date('c'));
+    try { ref_seed_db(); } catch (Throwable $_me) { error_log('Migration v15.49 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf49);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

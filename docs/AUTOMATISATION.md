@@ -124,7 +124,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.48 (fin estimée par le technicien sur place).
+v15.49 (référentiel appareils, marques, pannes et phrases toutes prêtes).
 
 ### Vérifications manuelles disponibles
 

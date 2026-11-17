@@ -335,14 +335,15 @@ $post = $_POST;
                   style="margin-bottom:0;flex-shrink:0;padding:.55rem .9rem;" title="Ajouter ce type aux presets">＋</button>
         </div>
       </div>
+      <?= ref_picker_html(['cat' => 'category-select', 'install' => 'f-installation', 'fault' => 'f-fault', 'fault_mode' => 'append']) ?>
       <div class="d-field">
         <label>Type d'installation</label>
-        <input type="text" name="installation_type" value="<?= e($post['installation_type'] ?? '') ?>"
-               placeholder="Ex: Tableau électrique Legrand 18 modules">
+        <input type="text" id="f-installation" name="installation_type" value="<?= e($post['installation_type'] ?? '') ?>"
+               placeholder="Rempli par les choix ci-dessus, ou à écrire">
       </div>
       <div class="d-field">
         <label>Panne signalée</label>
-        <textarea name="fault_reported" placeholder="Description de la panne signalée par le client…"><?= e($post['fault_reported'] ?? '') ?></textarea>
+        <textarea id="f-fault" name="fault_reported" placeholder="Description de la panne signalée par le client…"><?= e($post['fault_reported'] ?? '') ?></textarea>
       </div>
       <div class="d-field">
         <label>Description détaillée</label>
