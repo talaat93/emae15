@@ -28,6 +28,7 @@ require_once __DIR__ . '/referentiel.php';
 require_once __DIR__ . '/team.php';
 require_once __DIR__ . '/correction.php';
 require_once __DIR__ . '/disp_notify.php';
+require_once __DIR__ . '/assist.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1115,6 +1116,14 @@ if (!file_exists($_mf55)) {
     unset($_me);
 }
 unset($_mf55);
+// Auto-migration v15.56 — aide au technicien (questions traitées par Claude Code sur le PC du
+// propriétaire, relais par l'API Claude). Témoin posé après le travail.
+$_mf56 = __DIR__.'/../storage/.mig_v15_assist';
+if (!file_exists($_mf56)) {
+    try { assist_table(); @file_put_contents($_mf56, date('c')); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf56);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

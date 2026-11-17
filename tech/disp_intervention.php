@@ -556,6 +556,62 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </div>
   </section>
 
+  <!-- Aide : question à l'assistant (Claude Code sur le PC du bureau, relais Claude) -->
+  <?php if (!$isCancel): ?>
+  <section class="ta-card" id="aide">
+    <div class="ta-card-h"><h3>Besoin d'aide ?</h3><span class="ta-muted" id="aide-etat" style="font-size:.78rem;"></span></div>
+    <div class="ta-card-b">
+      <div id="aide-liste"></div>
+      <form id="aide-form" style="margin-top:.4rem;">
+        <textarea class="ta-textarea" id="aide-q" maxlength="2000" style="min-height:70px;" placeholder="Ex. : chaudière Saunier Duval ThemaPlus en code F28 après purge, que vérifier ?"></textarea>
+        <button type="submit" class="ta-btn primary" style="width:100%;margin-top:.45rem;">Demander à l'assistant</button>
+        <div class="ta-muted" style="font-size:.78rem;margin-top:.35rem;">L'assistant connaît la panne et l'appareil de cette fiche. En cas de danger (gaz, électricité), mettez d'abord en sécurité et appelez le bureau.</div>
+      </form>
+    </div>
+  </section>
+  <script>
+  (function () {
+    var url = <?= json_encode(url_for('tech/assist.php?iv='.$id)) ?>, csrf = <?= json_encode($csrf) ?>;
+    var liste = document.getElementById('aide-liste'), etat = document.getElementById('aide-etat'), form = document.getElementById('aide-form'), q = document.getElementById('aide-q');
+    var timer = null;
+    function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    function rendre(data) {
+      etat.textContent = data.pc_online ? 'Assistant connecté' : '';
+      liste.innerHTML = data.items.map(function (it) {
+        var rep = it.status === 'repondu'
+          ? '<div class="aide-r"><b>' + esc(it.by) + '</b><div>' + esc(it.answer).replace(/\n/g, '<br>') + '</div></div>'
+          : (it.status === 'sans_reponse'
+              ? '<div class="aide-r aide-ko">Pas de réponse automatique : le bureau est prévenu. Appelez-le si c\'est urgent.</div>'
+              : '<div class="aide-r aide-wait">' + esc(it.status_label) + '</div>');
+        return '<div class="aide-item"><div class="aide-q"><small>' + esc(it.at) + '</small>' + esc(it.question) + '</div>' + rep + '</div>';
+      }).join('');
+      var attente = data.items.some(function (it) { return it.status === 'en_attente' || it.status === 'en_cours' || it.status === 'relais'; });
+      clearTimeout(timer);
+      timer = setTimeout(charger, attente ? 5000 : 30000);
+    }
+    function charger() { fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(rendre).catch(function () { clearTimeout(timer); timer = setTimeout(charger, 15000); }); }
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var t = q.value.trim(); if (!t) return;
+      var b = form.querySelector('button'); b.disabled = true;
+      var fd = new FormData(); fd.append('csrf_token', csrf); fd.append('question', t);
+      fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (d) { q.value = ''; rendre(d); }).finally(function () { b.disabled = false; });
+    });
+    charger();
+  })();
+  </script>
+  <style>
+  .aide-item { margin-bottom:.8rem; }
+  .aide-q { background:#eef2ff; color:#1e1b4b; border-radius:10px 10px 10px 2px; padding:.55rem .7rem; font-size:.92rem; }
+  .aide-q small { display:block; color:#6366f1; font-size:.72rem; }
+  .aide-r { background:#f7f9fc; border:1px solid var(--line); border-radius:10px 10px 2px 10px; padding:.6rem .75rem; margin:.35rem 0 0 1.2rem; font-size:.92rem; line-height:1.5; }
+  .aide-r b { display:block; font-size:.74rem; color:var(--t2); margin-bottom:.15rem; }
+  .aide-wait { color:var(--t2); font-style:italic; }
+  .aide-ko { background:var(--amber-lt); color:#8a5300; }
+  </style>
+  <?php endif; ?>
+
   <?php if ($isHelper): ?>
   <!-- Rapport du renfort -->
   <section class="ta-card" id="rapport">

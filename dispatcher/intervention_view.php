@@ -84,6 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    /* ── Aide au technicien : réponse du bureau ── */
+    if ($action === 'assist_reply') {
+        $ok = assist_answer((int)($_POST['assist_id'] ?? 0), (string)($_POST['answer'] ?? ''), 'dispatcher');
+        flash($ok ? 'success' : 'error', $ok ? 'Réponse envoyée au technicien.' : 'Réponse vide ou demande introuvable.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#aide');
+    }
+
     /* ── Rapport corrigé par Claude : relancer, retoucher, revenir au texte d'origine ── */
     if ($action === 'correction_run') {
         @set_time_limit(120);
@@ -628,6 +635,29 @@ function fmt_dur(int $mins): string {
         $invoice = invoice_for_intervention((int)$iv['id']);
         $canReview = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true);
         if ($review || $canReview): $rv = $review['result'] ?? []; ?>
+        <?php endif; ?>
+        <?php $assists = assist_for_intervention((int)$iv['id']); if ($assists): ?>
+        <!-- DEMANDES D'AIDE DU TECHNICIEN -->
+        <div class="d-card" id="aide" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Demandes d'aide du technicien</div></div>
+          <div class="d-card-body">
+            <?php foreach ($assists as $as): ?>
+              <div style="margin-bottom:1rem;">
+                <div style="font-size:.76rem;color:var(--d-t3);"><?= e(date('d/m à H:i', strtotime((string)$as['created_at']))) ?> · <?= e(assist_status_label((string)$as['status'])) ?></div>
+                <div style="background:#eef2ff;border-radius:8px;padding:.55rem .7rem;font-size:.87rem;margin-top:.2rem;"><?= nl2br(e((string)$as['question'])) ?></div>
+                <?php if ($as['status'] === 'repondu'): ?>
+                  <div style="background:var(--d-card-2);border-radius:8px;padding:.55rem .7rem;font-size:.87rem;margin:.35rem 0 0 1.2rem;"><b style="font-size:.74rem;color:var(--d-t2);display:block;"><?= e(assist_author_label($as['answered_by'] ?? null)) ?></b><?= nl2br(e((string)$as['answer'])) ?></div>
+                <?php else: ?>
+                  <form method="post" style="margin:.4rem 0 0 1.2rem;display:flex;gap:.4rem;">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="assist_reply"><input type="hidden" name="assist_id" value="<?= (int)$as['id'] ?>">
+                    <textarea name="answer" rows="2" required placeholder="Votre réponse au technicien" style="flex:1;font-size:.85rem;"></textarea>
+                    <button type="submit" class="d-btn d-btn--sm d-btn--primary">Répondre</button>
+                  </form>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
         <?php endif; ?>
         <?php $teamReports = array_values(array_filter($team, static fn($tm) => trim((string)$tm['diagnostic'].(string)$tm['report'].(string)$tm['notes']) !== ''));
         if ($teamReports): ?>
