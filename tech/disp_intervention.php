@@ -618,8 +618,16 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       foreach ($rows as $k => $v): if ((string)$v === '') continue; ?>
         <div class="ta-row"><span><?= e($k) ?></span><span><?= e($v) ?></span></div>
       <?php endforeach; ?>
-      <?php if (!empty($iv['tech_diagnostic'])): ?><div class="ta-label" style="margin-top:.7rem;">Diagnostic</div><div class="ta-text"><?= e($iv['tech_diagnostic']) ?></div><?php endif; ?>
-      <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e($iv['tech_report']) ?></div><?php endif; ?>
+      <?php if (correction_has($iv)): ?><div class="ta-flash ok" style="margin:.6rem 0 0;font-size:.84rem;">Rapport corrigé (orthographe, vocabulaire technique) : c'est cette version qui figure dans le PDF.</div><?php endif; ?>
+      <?php if (!empty($iv['tech_diagnostic'])): ?><div class="ta-label" style="margin-top:.7rem;">Diagnostic</div><div class="ta-text"><?= e(correction_text($iv, 'tech_diagnostic')) ?></div><?php endif; ?>
+      <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e(correction_text($iv, 'tech_report')) ?></div><?php endif; ?>
+      <?php if (correction_has($iv)): ?>
+        <details style="margin-top:.5rem;font-size:.86rem;"><summary class="ta-muted" style="cursor:pointer;">Mon texte d'origine</summary>
+          <?php foreach (['tech_diagnostic' => 'Diagnostic', 'tech_report' => 'Travaux réalisés'] as $cf => $cl): if (trim((string)$iv[$cf]) === '') continue; ?>
+            <div class="ta-label" style="margin-top:.4rem;"><?= e($cl) ?></div><div class="ta-text ta-muted"><?= e((string)$iv[$cf]) ?></div>
+          <?php endforeach; ?>
+        </details>
+      <?php endif; ?>
       <?php $calc = tech_report_pricing($iv); if ($calc['lines']): ?>
         <div class="ta-label" style="margin-top:.7rem;">Prestations</div>
         <?php foreach ($calc['lines'] as $l): ?>

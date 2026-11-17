@@ -348,6 +348,9 @@ function review_run_after_response(int $ivId): void
         elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
         @ignore_user_abort(true);
         @set_time_limit(180);
+        // D'abord la correction du texte (orthographe, vocabulaire technique), puis la relecture.
+        try { if (function_exists('correction_run')) correction_run($ivId, 'technicien'); }
+        catch (Throwable $e) { integration_log('claude', 'correction #'.$ivId.' : '.$e->getMessage()); }
         try { review_run($ivId, 'technicien'); }
         catch (Throwable $e) { integration_log('review', 'relecture #'.$ivId.' : '.$e->getMessage()); }
     });
