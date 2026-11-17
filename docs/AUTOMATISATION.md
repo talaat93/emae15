@@ -124,7 +124,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.49 (référentiel appareils, marques, pannes et phrases toutes prêtes).
+v15.50 (prestations pour tous les métiers, prix moyens de départ).
 
 ### Vérifications manuelles disponibles
 
@@ -132,5 +132,6 @@ v15.49 (référentiel appareils, marques, pannes et phrases toutes prêtes).
 |---|---|
 | Réglages → Pennylane → « Tester la connexion » | teste 6 routes de lecture, route par route |
 | `PENNYLANE_TOKEN=… php cron/pennylane_check.php` | contrôle complet en lecture seule, sur le serveur ou en local |
+| Tarifs → « Lire mes produits Pennylane » | lit vos produits Pennylane sans rien y modifier ; vous cochez ceux à ajouter à la grille |
 | Factures → « Pennylane en direct » | liste des factures lue directement dans Pennylane, sans rien modifier |
 | `bash tests/run.sh` | suite de tests, dont la simulation Pennylane et les relances |
