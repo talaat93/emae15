@@ -403,6 +403,21 @@ modifier ce fichier ensuite ne change plus rien en base.
   prix HT de départ = milieu des fourchettes de sites de prix de travaux, à
   vérifier par le propriétaire. Seuls les codes absents sont ajoutés.
 
+### Validation avec ou sans facture — `includes/review.php`
+
+- Les prestations sont facultatives : ni le technicien (`tech/disp_intervention.php`),
+  ni la relecture (`review_rule_missing()`) ne bloquent sans prestation ; la
+  relecture l'indique dans les incohérences.
+- `review_invoice_auto()` (Réglages → Pennylane → « Facture automatique »,
+  `integration_setting('facture_auto')`, activée par défaut) : rapport complet
+  avec prestations → brouillon de facture tout de suite. Désactivée, ou sans
+  prestation → « Rapport vérifié », le dispatcher décide.
+- Fiche intervention : case « Facture Pennylane automatique » + bouton.
+  `review_accept(..., $withInvoice = false)` passe la fiche en « Clôturée »,
+  annule un brouillon local éventuel (un brouillon déjà poussé dans Pennylane
+  y reste) et ne touche jamais une facture validée ou envoyée. Depuis
+  « Facture à valider » : bouton « Clôturer sans facture ».
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -582,10 +597,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1266 assertions, aucune base de données nécessaire : chaque test remplace
+1277 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 216 fichiers PHP.
+sur les 217 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -611,6 +626,7 @@ sur les 216 fichiers PHP.
 | `test_dates_tech.php` | application technicien : séparations Aujourd'hui / Hier / Avant-hier / date, « Créée hier à 18 h 12 » |
 | `test_referentiel.php` | référentiel de départ : tient dans `preset_items`, marques et modèles rattachés à un appareil, structure envoyée aux écrans |
 | `test_import_produits.php` | import des produits Pennylane (TVA, unité, métier deviné, « VVV » écartés, déjà présents) et prestations ajoutées pour tous les métiers |
+| `test_validation.php` | validation sans prestation, « valider sans facture » (clôture, brouillon annulé, facture partie jamais touchée), facture automatique |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

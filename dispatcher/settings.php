@@ -78,6 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             settings_save_secret('pennylane_api_key');
             set_integration_setting('mode_simulation', !empty($_POST['mode_simulation']) ? '1' : '0');
+            set_integration_setting('facture_auto', !empty($_POST['facture_auto']) ? '1' : '0');
             $test = trim((string)($_POST['adresse_test'] ?? ''));
             if ($test !== '' && !filter_var($test, FILTER_VALIDATE_EMAIL)) {
                 flash('error', 'Adresse de test invalide : elle n\'a pas été enregistrée.');
@@ -239,6 +240,10 @@ function settings_secret_field(string $name, string $label, string $placeholder,
         <label style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:1rem;cursor:pointer;">
           <input type="checkbox" name="mode_simulation" value="1" <?= $simOn ? 'checked' : '' ?> style="width:auto;margin-top:.2rem;">
           <span><b>Mode simulation</b><br><span style="font-size:.82rem;color:var(--d-t2);">Aucune requête n'est envoyée à Pennylane ; les données affichées sont fictives et marquées « SIMULATION ». Les relances ne partent pas chez le client. Automatique tant qu'aucun jeton n'est saisi.</span></span>
+        </label>
+        <label style="display:flex;gap:.5rem;align-items:flex-start;margin-bottom:1rem;cursor:pointer;">
+          <input type="checkbox" name="facture_auto" value="1" <?= review_invoice_auto() ? 'checked' : '' ?> style="width:auto;margin-top:.2rem;">
+          <span><b>Facture automatique</b><br><span style="font-size:.82rem;color:var(--d-t2);">Quand la relecture trouve un rapport complet avec des prestations, le brouillon de facture est préparé tout de suite et envoyé en brouillon dans Pennylane. Décoché : le rapport attend votre validation, avec ou sans facture. Rien n'est jamais envoyé au client sans votre validation.</span></span>
         </label>
         <div class="d-field">
           <label for="f-adresse-test">Adresse de test (mode simulation)</label>

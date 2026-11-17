@@ -206,7 +206,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                                   $missing[] = 'une heure de fin postérieure à l\'arrivée';
             if (trim((string)$after['tech_diagnostic']) === '')  $missing[] = 'le diagnostic';
             if (trim((string)$after['tech_report']) === '')      $missing[] = 'les travaux réalisés';
-            if (!$lines)                                          $missing[] = 'au moins une prestation de la grille';
+            // Prestations facultatives : le bureau peut valider sans (garantie, contrat, geste commercial).
             if ($after['tech_job_completed'] === null)           $missing[] = 'si l\'intervention est terminée';
             elseif ((int)$after['tech_job_completed'] === 0) {
                 if (trim((string)$after['tech_incomplete_reason']) === '') $missing[] = 'la raison (intervention non terminée)';
@@ -640,10 +640,10 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </section>
 
     <section class="ta-card" id="prestations">
-      <div class="ta-card-h"><h3 class="req">Prestations</h3><button type="button" onclick="addLine()">+ Ajouter</button></div>
+      <div class="ta-card-h"><h3>Prestations</h3><button type="button" onclick="addLine()">+ Ajouter</button></div>
       <div class="ta-card-b">
         <div id="lines"></div>
-        <div id="lines-empty" class="ta-muted" style="font-size:.9rem;">Ajoutez les prestations réalisées (tarifs de la grille, non modifiables).</div>
+        <div id="lines-empty" class="ta-muted" style="font-size:.9rem;">Ajoutez les prestations réalisées (tarifs de la grille, non modifiables). Facultatif : le bureau peut valider sans.</div>
         <div class="ta-total" id="total-box">
           <div><span>Total HT</span><b id="t-ht">0,00 €</b></div>
           <div><span>TVA <span id="t-rate"></span></span><b id="t-tva">0,00 €</b></div>
@@ -1110,7 +1110,7 @@ function missingFields() {
       if (!(n.dataset.saved || (pad && pad.dirty))) miss.push(n.dataset.req);
     } else if (!n.value.trim()) miss.push(n.dataset.req);
   });
-  if (!lines.filter(function (l) { return l.code; }).length) miss.push('au moins une prestation');
+  // Prestations facultatives (voir la vérification côté serveur).
   if (document.querySelector('[name=tech_job_completed]').value === '0') {
     if (!document.getElementById('f-inc').value.trim()) miss.push('la raison (intervention non terminée)');
     if (document.querySelector('[name=tech_return_visit]').value === '') miss.push('si un retour est à prévoir');
