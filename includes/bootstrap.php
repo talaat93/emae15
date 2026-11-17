@@ -27,6 +27,7 @@ require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/referentiel.php';
 require_once __DIR__ . '/team.php';
 require_once __DIR__ . '/correction.php';
+require_once __DIR__ . '/disp_notify.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1107,6 +1108,13 @@ if (!file_exists($_mf54)) {
     unset($_me, $_sql);
 }
 unset($_mf54);
+// Auto-migration v15.55 — notifications du dispatcher (cloche). Témoin posé après le travail.
+$_mf55 = __DIR__.'/../storage/.mig_v15_disp_notif';
+if (!file_exists($_mf55)) {
+    try { disp_notif_table(); @file_put_contents($_mf55, date('c')); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf55);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

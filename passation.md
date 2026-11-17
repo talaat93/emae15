@@ -435,6 +435,19 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Notifications du dispatcher — `includes/disp_notify.php`, `dispatcher/notifications.php`
+
+Table `disp_notifications` (migration v15.55), un seul fil pour le bureau.
+`disp_notify(type, titre, texte, lien interne, intervention, clé)` ; la clé
+évite les doublons. Menu « Notifications » avec compteur des non lues ; ouvrir
+une alerte la marque lue et mène à la fiche (`disp_notif_safe_url()` refuse
+tout lien extérieur). Branchées : devis à faire (`devis_from_tech`), rapport
+rendu (`notify_report_submitted`), refus (`notify_dispatcher_refusal`),
+réponse à un devis (`devis_notify_dispatcher`), paiement constaté dans
+Pennylane (`pennylane_sync_intervention_status`), fin estimée dépassée de
+plus de 30 min (`disp_notif_check_eta()`, à chaque page dispatcher), demande
+d'aide sans réponse (livraison 12). Les urgentes partent aussi par e-mail.
+
 ### Devis à faire pour plus tard — `devis_from_tech()` (`includes/yousign.php`)
 
 Case « Un devis est à faire pour plus tard ? » dans les Contrôles du rapport
@@ -686,10 +699,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1388 assertions, aucune base de données nécessaire : chaque test remplace
+1404 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 225 fichiers PHP.
+sur les 228 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -722,6 +735,7 @@ sur les 225 fichiers PHP.
 | `test_recherche.php` | recherche dans les listes : pages qui l'activent, script chargé (dispatcher et technicien) |
 | `test_correction.php` | rapport corrigé par Claude : garde-fous (nombres, longueur), texte d'origine jamais réécrit, correction écartée signalée |
 | `test_devis_tech.php` | devis à faire demandé par le technicien : brouillon sans prix, numéro, pas de doublon, dispatcher prévenu |
+| `test_notifications_disp.php` | notifications du dispatcher : ajout, dédoublonnage, liens sûrs, fin estimée dépassée |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

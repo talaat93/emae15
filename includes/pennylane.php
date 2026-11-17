@@ -498,6 +498,11 @@ function pennylane_sync_intervention_status(int $invoiceId, ?array $actor = null
             ['payment_status' => 'payé', 'paid_at' => date('Y-m-d H:i:s')]);
     }
     wf_set_status((int)$iv['id'], 'cloturee', 'system', 0, $actor ? 'Système' : 'Pennylane', 'Dossier clôturé automatiquement après paiement');
+    // Paiement constaté dans Pennylane (pas celui que le dispatcher vient de saisir lui-même).
+    if (!$actor && function_exists('disp_notify')) {
+        disp_notify('paiement', 'Paiement reçu — facture '.($inv['number'] ?: '#'.$inv['id']), 'Dossier clôturé automatiquement.',
+            'dispatcher/intervention_view.php?id='.(int)$iv['id'], (int)$iv['id'], 'paiement-'.(int)$inv['id']);
+    }
 }
 
 /** Finalise la facture (numéro définitif). Retour : ['ok', 'error', 'number']. */
