@@ -193,6 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_materials_used'    => json_encode($mats, JSON_UNESCAPED_UNICODE),
             'tech_client_name'       => trim((string)($_POST['tech_client_name'] ?? '')) ?: null,
             'payment_status'         => $pay,
+            'payment_note'           => mb_substr(trim((string)($_POST['payment_note'] ?? '')), 0, 500) ?: null,
         ];
         if ($arr !== '') $upd['tech_arrived_at'] = $day.' '.$arr.':00';
         if ($end !== '') $upd['tech_close_time'] = $end.':00';
@@ -648,6 +649,10 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <?php if (!empty($iv['payment_method'])): ?><div class="ta-row"><span>Règlement</span><span><?= e($iv['payment_method']) ?></span></div><?php endif; ?>
         <?php if (!empty($iv['amount_ttc'])): ?><div class="ta-row"><span>Montant TTC</span><span><?= e(number_format((float)$iv['amount_ttc'], 2, ',', ' ')) ?> €</span></div><?php endif; ?>
       <?php endif; ?>
+      <?php if (!empty($iv['payment_note'])): ?><div class="ta-row"><span>Remarque</span><span><?= e((string)$iv['payment_note']) ?></span></div><?php endif; ?>
+      <?php if (($linkedInv = invoice_for_intervention($id)) && $linkedInv['status'] !== 'brouillon'): ?>
+        <div class="ta-row"><span>Facture</span><span><?= e((string)($linkedInv['number'] ?: 'n° à venir')) ?> · <?= e(money_fr((float)$linkedInv['total_ttc'])) ?> · <?= $linkedInv['status'] === 'payee' ? 'payée' : 'non payée' ?></span></div>
+      <?php endif; ?>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.7rem;">
         <?php foreach (['client_signature' => 'Client'.(!empty($iv['tech_client_name']) ? ' — '.$iv['tech_client_name'] : ''), 'tech_signature' => 'Technicien'] as $sk => $sl): if (empty($iv[$sk])) continue; ?>
           <div><div class="ta-label"><?= e($sl) ?></div><div class="ta-sig"><img src="<?= e($iv[$sk]) ?>" alt="Signature <?= e($sl) ?>" style="height:90px;"></div></div>
@@ -853,6 +858,13 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           <div>
             <label class="ta-label">Montant TTC (€)</label>
             <input class="ta-input" type="text" inputmode="decimal" name="amount_ttc" value="<?= $iv['amount_ttc'] !== null ? e(number_format((float)$iv['amount_ttc'], 2, ',', '')) : '' ?>" placeholder="0,00">
+          </div>
+        </div>
+        <div style="margin-top:.7rem;">
+          <label class="ta-label" for="f-paynote">Remarque de paiement</label>
+          <input class="ta-input" id="f-paynote" type="text" name="payment_note" maxlength="500" value="<?= e((string)($iv['payment_note'] ?? '')) ?>" placeholder="Ex. : le propriétaire paie">
+          <div class="ta-phrases" data-target="f-paynote" data-mode="set">
+            <?php foreach (payment_note_presets() as $pn): ?><button type="button"><?= e($pn) ?></button><?php endforeach; ?>
           </div>
         </div>
       </div>
@@ -1250,7 +1262,8 @@ document.querySelectorAll('.ta-phrases').forEach(function (box) {
   box.addEventListener('click', function (ev) {
     var b = ev.target.closest('button'); if (!b) return;
     var p = b.textContent.trim();
-    if (t.value.indexOf(p) < 0) t.value = t.value.trim() ? t.value.replace(/\s+$/, '') + ' ' + p : p;
+    if (box.dataset.mode === 'set') { t.value = p; box.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); }
+    else if (t.value.indexOf(p) < 0) t.value = t.value.trim() ? t.value.replace(/\s+$/, '') + ' ' + p : p;
     b.classList.add('on'); t.dispatchEvent(new Event('input', { bubbles: true }));
   });
 });

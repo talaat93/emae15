@@ -1070,6 +1070,14 @@ if (!file_exists($_mf51)) {
     unset($_me);
 }
 unset($_mf51);
+// Auto-migration v15.52 — remarque de paiement (« le propriétaire paie », assurance…).
+$_mf52 = __DIR__.'/../storage/.mig_v15_payment_note';
+if (!file_exists($_mf52)) {
+    @file_put_contents($_mf52, date('c'));
+    try { db_execute("ALTER TABLE interventions ADD COLUMN payment_note VARCHAR(500) NULL"); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf52);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

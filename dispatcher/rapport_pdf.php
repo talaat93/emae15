@@ -87,6 +87,9 @@ try {
 $iv['address']      = $iv['client_address'] ?? $iv['address'] ?? '';
 $iv['postal_code']  = $iv['client_postal']  ?? $iv['postal_code'] ?? '';
 
+// Facture reliée (préparée par le site ou reliée depuis Pennylane), si elle a un numéro.
+if (($inv = invoice_for_intervention($id)) && $inv['status'] !== 'brouillon' && !empty($inv['number'])) $iv['invoice_number'] = (string)$inv['number'];
+
 // Rapports des renforts, ajoutés à la suite des travaux réalisés du technicien principal.
 foreach (team_members($id) as $tm) {
     $parts = array_filter([

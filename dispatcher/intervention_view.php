@@ -173,6 +173,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    // Remarque de paiement (qui paie, assurance…) : modifiable à tout moment, même après validation.
+    if ($action === 'set_payment_note') {
+        $note = mb_substr(trim((string)($_POST['payment_note'] ?? '')), 0, 500);
+        update_intervention($id, ['payment_note' => $note !== '' ? $note : null]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'],
+            $note !== '' ? 'Remarque de paiement : '.$note : 'Remarque de paiement effacée');
+        flash('success', 'Remarque de paiement enregistrée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#financier');
+    }
+    // Facture Pennylane existante reliée après coup (recherche par numéro, lecture seule).
+    if ($action === 'invoice_link') {
+        @set_time_limit(300);
+        $r = invoice_link_number($id, (string)($_POST['invoice_number'] ?? ''), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Facture '.$r['number'].' reliée'.($r['paid'] ? ' : déjà payée, dossier clôturé.' : ' : le paiement sera suivi avec Pennylane.') : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+    }
+    if ($action === 'invoice_unlink') {
+        $ok = invoice_unlink($id, (int)($_POST['invoice_id'] ?? 0), $disp);
+        flash($ok ? 'success' : 'error', $ok ? 'Lien avec la facture retiré.' : 'Seule une facture reliée à la main peut être détachée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+    }
+
     if ($action === 'quick_status') {
         $validStatuses = array_keys(intervention_status_config());
         $newStatus = trim((string)($_POST['new_status'] ?? ''));
@@ -636,6 +658,24 @@ function fmt_dur(int $mins): string {
         </div>
         <?php endif; ?>
 
+        <?php
+        $invLinkable = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'cloturee', 'terminé', 'payé', 'facturé'], true)
+            && (!$invoice || $invoice['status'] === 'brouillon');
+        if ($invLinkable): ?>
+        <!-- RELIER UNE FACTURE PENNYLANE EXISTANTE -->
+        <div class="d-card" id="facture-lien" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Relier une facture Pennylane</div></div>
+          <div class="d-card-body">
+            <p style="font-size:.84rem;color:var(--d-t2);margin:0 0 .6rem;">Facture déjà faite dans Pennylane ? Saisissez son numéro : elle est reliée à cette intervention (rien n'est modifié dans Pennylane) et son paiement est suivi automatiquement.<?= $invoice ? ' Le brouillon préparé par le site sera remplacé.' : '' ?></p>
+            <form method="post" style="display:flex;gap:.5rem;flex-wrap:wrap;" onsubmit="this.querySelector('button').textContent='Recherche…';">
+              <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="invoice_link">
+              <input name="invoice_number" required maxlength="60" placeholder="Ex. : F-2026-0042" style="flex:1;min-width:160px;">
+              <button type="submit" class="d-btn d-btn--sm d-btn--primary">Relier la facture</button>
+            </form>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <?php if ($invoice): ?>
         <!-- FACTURE -->
         <div class="d-card" id="facture" style="margin-top:1.25rem;">
@@ -644,6 +684,17 @@ function fmt_dur(int $mins): string {
             <span style="font-size:.8rem;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?> TTC</span>
           </div>
           <div class="d-card-body">
+            <?php if ($invoice['status'] !== 'brouillon' && empty($invoice['review_id'])): ?>
+              <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;font-size:.84rem;margin-bottom:.6rem;">
+                <span>Facture reliée depuis Pennylane · <?= $invoice['status'] === 'payee' ? '<b style="color:var(--d-success);">payée</b>' : 'reste '.e(money_fr((float)($invoice['remaining_ttc'] ?? $invoice['total_ttc']))) ?></span>
+                <?php if (!empty($invoice['pdf_url'])): ?><a href="<?= e((string)$invoice['pdf_url']) ?>" target="_blank" rel="noopener">PDF de la facture</a><?php endif; ?>
+                <form method="post" style="margin:0;" onsubmit="return confirm('Retirer le lien avec cette facture ? La facture reste dans Pennylane.');">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="invoice_unlink">
+                  <input type="hidden" name="invoice_id" value="<?= (int)$invoice['id'] ?>">
+                  <button type="submit" class="d-btn d-btn--sm d-btn--ghost">Retirer le lien</button>
+                </form>
+              </div>
+            <?php endif; ?>
             <?php if (!empty($invoice['summary'])): ?><div style="font-size:.87rem;margin-bottom:.6rem;"><?= nl2br(e((string)$invoice['summary'])) ?></div><?php endif; ?>
             <table class="d-table" style="font-size:.84rem;">
               <tbody>
@@ -655,11 +706,11 @@ function fmt_dur(int $mins): string {
               </tbody>
               <tfoot>
                 <tr><td colspan="2" style="text-align:right;">Total HT</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_ht'])) ?></td></tr>
-                <tr><td colspan="2" style="text-align:right;">TVA <?= e(rtrim(rtrim(number_format((float)$invoice['vat_rate'], 1, ',', ''), '0'), ',')) ?> %</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_tva'])) ?></td></tr>
+                <tr><td colspan="2" style="text-align:right;">TVA <?php $invRate = (float)$invoice['vat_rate'] > 0 ? (float)$invoice['vat_rate'] : ((float)$invoice['total_ht'] > 0 ? round((float)$invoice['total_tva'] / (float)$invoice['total_ht'] * 100, 1) : 0.0); ?><?= e(rtrim(rtrim(number_format($invRate, 1, ',', ''), '0'), ',')) ?> %</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_tva'])) ?></td></tr>
                 <tr><td colspan="2" style="text-align:right;font-weight:700;">Total TTC</td><td style="text-align:right;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?></td></tr>
               </tfoot>
             </table>
-            <div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div>
+            <?php if (!empty($invoice['review_id'])): ?><div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div><?php endif; ?>
             <a class="d-btn d-btn--sm <?= $invoice['status'] === 'brouillon' ? 'd-btn--primary' : '' ?>" style="margin-top:.6rem;" href="<?= e(url_for('dispatcher/factures.php?id='.(int)$invoice['id'])) ?>"><?= $invoice['status'] === 'brouillon' ? 'Vérifier et valider la facture' : 'Ouvrir la facture' ?></a>
           </div>
         </div>
@@ -1207,6 +1258,16 @@ function fmt_dur(int $mins): string {
             <span class="d-info-label">Paiement</span>
             <span class="d-info-value"><?= payment_badge($ps) ?></span>
           </div>
+          <form method="post" id="financier" style="margin-top:.6rem;">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="set_payment_note">
+            <label class="d-label" for="pay-note" style="display:block;margin-bottom:.25rem;">Remarque de paiement</label>
+            <div style="display:flex;gap:.35rem;">
+              <input id="pay-note" name="payment_note" list="pay-note-list" maxlength="500" value="<?= e((string)($iv['payment_note'] ?? '')) ?>" placeholder="Ex. : le propriétaire paie" style="flex:1;min-width:0;font-size:.84rem;">
+              <button type="submit" class="d-btn d-btn--sm">OK</button>
+            </div>
+            <datalist id="pay-note-list"><?php foreach (payment_note_presets() as $pn): ?><option value="<?= e($pn) ?>"><?php endforeach; ?></datalist>
+          </form>
           <form method="post" style="display:flex;gap:.5rem;margin-top:.6rem;">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="set_payment">

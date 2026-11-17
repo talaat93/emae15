@@ -435,6 +435,22 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Paiement : remarque et facture reliée après coup — `includes/invoicing.php`
+
+- `interventions.payment_note` (migration v15.52) : saisie par le technicien
+  (carte Paiement, raccourcis `payment_note_presets()`) et par le dispatcher
+  à tout moment (carte Financier). Reprise dans le rapport PDF.
+- « Relier une facture Pennylane » (fiche dispatcher, après remise du rapport,
+  tant qu'aucune vraie facture n'est liée) : `invoice_link_number()` cherche
+  le numéro dans le cache local `invoices` ; absent → `pennylane_sync_run('liaison')`
+  puis nouvelle recherche. Aucun filtre ni écriture Pennylane (pas de route non
+  vérifiée). Refus : brouillon, déjà reliée ailleurs, intervention ayant déjà
+  une vraie facture. Payée → « Payée » puis « Clôturée » ; sinon « Facture
+  envoyée », et la synchronisation clôture au paiement. Un brouillon préparé
+  par le site est annulé. `invoice_unlink()` ne détache que les factures
+  reliées à la main (`review_id` vide). Le technicien voit numéro, montant et
+  état ; le numéro figure dans le PDF.
+
 ### Carte de l'intervention (fiche technicien) — `includes/zone_map.php`
 
 `render_tech_zone_map()` reprend les tracés de la carte du site (21, 39, 25),
@@ -625,10 +641,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1315 assertions, aucune base de données nécessaire : chaque test remplace
+1335 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 220 fichiers PHP.
+sur les 221 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -657,6 +673,7 @@ sur les 220 fichiers PHP.
 | `test_validation.php` | validation sans prestation, « valider sans facture » (clôture, brouillon annulé, facture partie jamais touchée), facture automatique |
 | `test_renforts.php` | plusieurs techniciens : mode de rapport, état du rapport d'un renfort, ajout refusé (principal, inactif, doublon), rapport enregistré ou envoyé |
 | `test_carte_tech.php` | carte de l'intervention (fiche technicien) : GPS → carte, ville repère la plus proche, hors zone |
+| `test_facture_liee.php` | facture Pennylane reliée après coup (recherche par numéro, refus, suivi du paiement, brouillon remplacé, lien retiré), remarques de paiement |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
