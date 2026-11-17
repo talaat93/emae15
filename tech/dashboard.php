@@ -19,9 +19,9 @@ try {
                 c.postal_code, c.floor, c.digicode
          FROM interventions i
          LEFT JOIN clients c ON c.id = i.client_id
-         WHERE i.technician_id = ?
+         WHERE i.technician_id = ? OR i.id IN (SELECT intervention_id FROM intervention_team WHERE technician_id = ?)
          ORDER BY COALESCE(i.scheduled_date, '9999-12-31'), COALESCE(i.scheduled_time, '23:59'), i.urgency DESC, i.id",
-        [$techId]
+        [$techId, $techId]
     );
 } catch (Throwable $e) { $mine = []; }
 
@@ -56,6 +56,11 @@ if ($view === 'today') {
 /** Prochaine étape proposée sur la carte. */
 function ta_next_step(array $iv): ?array
 {
+    global $techId;
+    if ((int)($iv['technician_id'] ?? 0) !== (int)$techId) {
+        // En renfort : le technicien principal pilote les statuts ; rapport seulement si demandé.
+        return report_mode($iv) === 'chacun' && team_report_open((string)($iv['status'] ?? '')) ? ['report', 'Mon rapport', 'doc'] : null;
+    }
     if (($iv['tech_response'] ?? '') === 'en_attente' && in_array($iv['status'] ?? '', ['assigné', 'a_assigner', 'nouveau', 'confirmé'], true)) {
         return ['respond', 'Accepter ou refuser', 'check'];
     }
@@ -98,6 +103,7 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
           </div>
           <?php if ($what !== ''): ?><div class="ta-job-what"><?= e($what) ?></div><?php endif; ?>
           <?php if (($cr = created_label($iv['created_at'] ?? null, time())) !== ''): ?><div class="ta-job-created"><?= e($cr) ?></div><?php endif; ?>
+          <?php if ((int)($iv['technician_id'] ?? 0) !== (int)$GLOBALS['techId']): ?><div style="margin-top:.3rem;"><span class="ta-urgent" style="background:#eef2ff;color:#3730a3;">Renfort</span></div><?php endif; ?>
           <?php if (!empty($iv['urgency']) || $late): ?>
             <div style="margin-top:.35rem;display:flex;gap:.35rem;">
               <?php if (!empty($iv['urgency'])): ?><span class="ta-urgent">Urgent</span><?php endif; ?>

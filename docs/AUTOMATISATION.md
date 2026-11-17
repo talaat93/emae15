@@ -101,6 +101,7 @@ SMTP ni de bibliothèque), via `send_quote_notification()` ou `notif_mail()`.
 | Facture envoyée | copie au technicien | `invoice_copy_to_tech()` |
 | Relance de facture (déclenchée par le dispatcher) | client — ou l'adresse de test en simulation | `reminder_send()`, `reminder_send_texte()` |
 | Devis signé, refusé ou expiré | dispatcher | `devis_notify_dispatcher()` |
+| Renfort ajouté sur une intervention | technicien en renfort : notification, e-mail selon les réglages | `team_notify_added()` |
 | Nouvelle tâche | dispatcher | `notify_task_created()` |
 
 En **mode simulation**, les relances ne partent jamais chez le client :
@@ -124,7 +125,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.50 (prestations pour tous les métiers, prix moyens de départ).
+v15.51 (plusieurs techniciens sur une intervention).
 
 ### Vérifications manuelles disponibles
 

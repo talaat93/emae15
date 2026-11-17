@@ -25,6 +25,7 @@ require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
 require_once __DIR__ . '/referentiel.php';
+require_once __DIR__ . '/team.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1059,6 +1060,16 @@ if (!file_exists($_mf50)) {
     unset($_me);
 }
 unset($_mf50);
+// Auto-migration v15.51 — plusieurs techniciens sur une intervention : table des renforts et
+// choix du rapport (un seul ou un par technicien). Par défaut : un seul rapport, comme avant.
+$_mf51 = __DIR__.'/../storage/.mig_v15_equipe';
+if (!file_exists($_mf51)) {
+    @file_put_contents($_mf51, date('c'));
+    try { team_table(); } catch (Throwable $_me) {}
+    try { db_execute("ALTER TABLE interventions ADD COLUMN report_mode VARCHAR(12) NOT NULL DEFAULT 'principal'"); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf51);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {
