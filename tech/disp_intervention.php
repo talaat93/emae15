@@ -333,6 +333,13 @@ $mats     = json_decode((string)($iv['tech_materials_used'] ?? '[]'), true);
 $mats     = is_array($mats) ? $mats : [];
 $clientName = trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? '')) ?: 'Client';
 $addr     = ta_address($iv['client_address'] ?? '', $iv['client_postal'] ?? '', $iv['client_city'] ?? '');
+// Position de l'adresse pour la carte : calculée une seule fois puis gardée sur la fiche
+// (0/0 = adresse introuvable, pour ne pas la rechercher à chaque ouverture).
+if (($iv['latitude'] ?? null) === null && $addr !== '') {
+    $g = geocode_address((string)($iv['client_address'] ?? ''), (string)($iv['client_city'] ?? ''), (string)($iv['client_postal'] ?? ''));
+    if ($g['lat'] !== null) { update_intervention($id, ['latitude' => $g['lat'], 'longitude' => $g['lng']]); $iv['latitude'] = $g['lat']; $iv['longitude'] = $g['lng']; }
+    elseif ($g['reached']) update_intervention($id, ['latitude' => 0, 'longitude' => 0]);
+}
 $catLabel = intervention_category_config()[$iv['category'] ?? '']['label'] ?? '';
 $isLift   = ($iv['category'] ?? '') === 'ascenseur';
 $hm       = static fn(?string $dt) => $dt ? date('H:i', strtotime($dt)) : '';
@@ -483,6 +490,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       <?php elseif (!$locked && !$isHelper): ?>
         <button type="button" onclick="openSheet('sheet-client')" style="font-size:.86rem;color:var(--blue);font-weight:600;margin-top:.3rem;">+ Ajouter l'e-mail du client</button>
       <?php endif; ?>
+      <?= render_tech_zone_map(isset($iv['latitude']) ? (float)$iv['latitude'] : null, isset($iv['longitude']) ? (float)$iv['longitude'] : null, $addr) ?>
       <div style="display:flex;gap:.5rem;margin-top:.8rem;">
         <?php if (!empty($iv['client_phone'])): ?>
           <a class="ta-btn grow" href="<?= e(ta_tel($iv['client_phone'])) ?>"><?= ta_icon('phone') ?>Appeler</a>
