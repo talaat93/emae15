@@ -435,6 +435,17 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Carte de l'intervention (fiche technicien) — `includes/zone_map.php`
+
+`render_tech_zone_map()` reprend les tracés de la carte du site (21, 39, 25),
+sans liens, avec un point rouge à l'adresse et « À environ N km de <ville> »
+(`zone_map_nearest_city()`). Les tracés n'ayant pas de coordonnées GPS,
+`zone_map_project()` est une correspondance linéaire calculée sur 8 villes
+(écart ≤ 4 unités sur 400) ; à recalculer si les tracés sont regénérés.
+Hors carte : point au bord, « Hors zone habituelle ». La position vient de
+`interventions.latitude/longitude` ; si elle manque, la fiche la calcule une
+fois (`geocode_address()`) et la garde (0/0 = introuvable, plus de carte).
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -614,10 +625,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1300 assertions, aucune base de données nécessaire : chaque test remplace
+1315 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 219 fichiers PHP.
+sur les 220 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -645,6 +656,7 @@ sur les 219 fichiers PHP.
 | `test_import_produits.php` | import des produits Pennylane (TVA, unité, métier deviné, « VVV » écartés, déjà présents) et prestations ajoutées pour tous les métiers |
 | `test_validation.php` | validation sans prestation, « valider sans facture » (clôture, brouillon annulé, facture partie jamais touchée), facture automatique |
 | `test_renforts.php` | plusieurs techniciens : mode de rapport, état du rapport d'un renfort, ajout refusé (principal, inactif, doublon), rapport enregistré ou envoyé |
+| `test_carte_tech.php` | carte de l'intervention (fiche technicien) : GPS → carte, ville repère la plus proche, hors zone |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
