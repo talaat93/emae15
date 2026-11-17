@@ -830,7 +830,7 @@ function fmt_dur(int $mins): string {
               <div class="d-grid-2">
                 <div class="d-field">
                   <label>Catégorie</label>
-                  <select name="category">
+                  <select name="category" id="e-category">
                     <option value="">Choisir</option>
                     <?php foreach ($catCfg as $ck=>$cv): ?>
                       <option value="<?=e($ck)?>" <?=($iv['category']??'')===$ck?'selected':''?>><?=e($cv['icon'].' '.$cv['label'])?></option>
@@ -842,13 +842,14 @@ function fmt_dur(int $mins): string {
                   <input type="text" name="type_label" value="<?=e($iv['type_label']??'')?>">
                 </div>
               </div>
+              <?= ref_picker_html(['cat' => 'e-category', 'install' => 'e-installation', 'fault' => 'e-fault', 'fault_mode' => 'append']) ?>
               <div class="d-field">
                 <label>Type d'installation</label>
-                <input type="text" name="installation_type" value="<?=e($iv['installation_type']??'')?>">
+                <input type="text" id="e-installation" name="installation_type" value="<?=e($iv['installation_type']??'')?>">
               </div>
               <div class="d-field">
                 <label>Panne signalée</label>
-                <textarea name="fault_reported"><?=e($iv['fault_reported']??'')?></textarea>
+                <textarea id="e-fault" name="fault_reported"><?=e($iv['fault_reported']??'')?></textarea>
               </div>
               <div class="d-field">
                 <label>Description</label>

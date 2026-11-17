@@ -370,6 +370,24 @@ reste dû).
   les remarques des techniciens (les notes du bureau peuvent être internes) ;
   le bureau les voit toutes sur la fiche client.
 
+### Référentiel : appareils, marques, modèles, pannes, phrases — `includes/referentiel.php`
+
+Rangé dans `preset_items` (types `equipement`, `marque`, `modele`, `panne`,
+`phrase_diag`, `phrase_travaux`), donc modifiable dans « Listes prédéfinies ».
+Liste de départ : `includes/referentiel_seed.php`, chargée une seule fois par la
+migration v15.49 (`ref_seed_db()`, un type déjà rempli n'est pas touché) ;
+modifier ce fichier ensuite ne change plus rien en base.
+
+- Dispatcher : `ref_picker_html()` sur la saisie manuelle, la modification d'une
+  intervention et la qualification d'appel. Appareil → marque → modèle remplit
+  « Type d'installation » (`Appareil · Marque · Modèle`) ; un clic sur un type
+  de panne l'ajoute à la panne signalée (ou remplace le « Type de panne » court
+  de la qualification). La qualification enregistre l'appareil dans
+  `installation_type` (avant : toujours vide).
+- Technicien : `ref_phrases_html()` sous « Diagnostic » et « Travaux réalisés »,
+  phrases du métier de l'intervention ; un appui ajoute la phrase, modifiable.
+  L'appareil est rappelé dans le bloc « La panne ».
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -549,10 +567,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1194 assertions, aucune base de données nécessaire : chaque test remplace
+1231 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 212 fichiers PHP.
+sur les 214 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -576,6 +594,7 @@ sur les 212 fichiers PHP.
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
 | `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
 | `test_dates_tech.php` | application technicien : séparations Aujourd'hui / Hier / Avant-hier / date, « Créée hier à 18 h 12 » |
+| `test_referentiel.php` | référentiel de départ : tient dans `preset_items`, marques et modèles rattachés à un appareil, structure envoyée aux écrans |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

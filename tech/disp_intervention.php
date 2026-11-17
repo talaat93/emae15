@@ -428,6 +428,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <section class="ta-panne">
     <div class="ta-panne-k">La panne<?= !empty($iv['urgency']) ? ' · <span class="ta-urgent">Urgent</span>' : '' ?></div>
     <?php if ($panneTitre !== ''): ?><div class="ta-panne-t"><?= e($panneTitre) ?></div><?php endif; ?>
+    <?php if (!empty($iv['installation_type'])): ?><div class="ta-panne-meta" style="margin-top:.25rem;color:var(--t2);font-size:.88rem;">Appareil : <b><?= e($iv['installation_type']) ?></b></div><?php endif; ?>
     <?php if ($panneTxt !== ''): ?><div class="ta-panne-d"><?= e($panneTxt) ?></div><?php endif; ?>
     <?php if ($panneDesc !== ''): ?><div class="ta-panne-d"><?= e($panneDesc) ?></div><?php endif; ?>
     <?php if ($panneTxt === '' && $panneDesc === ''): ?><div class="ta-panne-d ta-muted">Pas de description : appelez le client ou le bureau si besoin.</div><?php endif; ?>
@@ -616,10 +617,12 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <div class="ta-field">
           <label for="f-diag" class="req">Diagnostic</label>
           <textarea class="ta-textarea" id="f-diag" name="tech_diagnostic" data-req="le diagnostic" placeholder="Ce que vous avez constaté, la cause de la panne…"><?= e($iv['tech_diagnostic'] ?? '') ?></textarea>
+          <?= ref_phrases_html('phrase_diag', (string)($iv['category'] ?? ''), 'f-diag') ?>
         </div>
         <div class="ta-field">
           <label for="f-report" class="req">Travaux réalisés</label>
           <textarea class="ta-textarea" id="f-report" name="tech_report" data-req="les travaux réalisés" placeholder="Ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+          <?= ref_phrases_html('phrase_travaux', (string)($iv['category'] ?? ''), 'f-report') ?>
         </div>
         <?php if ($isLift): ?>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
@@ -1160,5 +1163,18 @@ function finish() {
 }
 </script>
 <?php endif; ?>
+<script>
+// Phrases toutes prêtes : un appui ajoute la phrase à la zone de texte (le technicien peut ensuite la modifier).
+document.querySelectorAll('.ta-phrases').forEach(function (box) {
+  var t = document.getElementById(box.dataset.target);
+  if (!t) return;
+  box.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    var p = b.textContent.trim();
+    if (t.value.indexOf(p) < 0) t.value = t.value.trim() ? t.value.replace(/\s+$/, '') + ' ' + p : p;
+    b.classList.add('on'); t.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
+</script>
 </body>
 </html>
