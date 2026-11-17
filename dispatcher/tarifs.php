@@ -16,6 +16,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $label = trim((string)($_POST['label'] ?? ''));
     $code  = strtoupper(preg_replace('/[^A-Za-z0-9-]/', '', (string)($_POST['code'] ?? '')));
 
+    // Import Pennylane : lecture seule chez Pennylane, puis ajout des produits cochés.
+    if ($action === 'pl_read') {
+        $res = pennylane_products_for_import();
+        $_SESSION['pl_products'] = $res['items'];
+        if (!$res['ok']) flash('error', 'Lecture Pennylane incomplète : '.$res['error']);
+        else flash('success', count($res['items']).' produit(s) lu(s) dans Pennylane'.($res['simulated'] ? ' (SIMULATION : exemple fictif, aucune lecture réelle)' : '').'. Cochez ceux à garder.');
+        redirect_to('dispatcher/tarifs.php#import');
+    }
+    if ($action === 'pl_import') {
+        $list = [];
+        foreach ((array)($_SESSION['pl_products'] ?? []) as $p) $list[(string)$p['id']] = $p;
+        $chosen = [];
+        foreach ((array)($_POST['pl'] ?? []) as $pid) {
+            $pid = (string)$pid;
+            if (!isset($list[$pid])) continue;
+            $p = $list[$pid];
+            $c = (string)($_POST['pl_cat'][$pid] ?? $p['category']);
+            $p['category'] = array_key_exists($c, $cats) ? $c : 'commun';
+            $chosen[] = $p;
+        }
+        $n = price_grid_import_products($chosen);
+        unset($_SESSION['pl_products']);
+        integration_log('audit', 'import Pennylane : '.$n.' produit(s) ajouté(s) à la grille', ['dispatcher' => (int)$disp['id']]);
+        flash('success', $n.' prestation(s) ajoutée(s) à la grille, liées à Pennylane.');
+        redirect_to('dispatcher/tarifs.php');
+    }
+    if ($action === 'pl_cancel') {
+        unset($_SESSION['pl_products']);
+        redirect_to('dispatcher/tarifs.php');
+    }
+
     if ($action === 'add') {
         if ($code === '' || $label === '') {
             flash('error', 'Le code et la désignation sont obligatoires.');
@@ -72,6 +103,56 @@ $csrf = csrf_token();
     Ces prix sont la seule source des montants : Claude et les techniciens choisissent des <b>codes</b> et des quantités,
     les totaux sont toujours recalculés ici. Les majorations (%) s'appliquent au total des autres lignes.
     TVA : 10 % pour un particulier dont le logement a plus de 2 ans (attestation simplifiée), sinon 20 % — modifiable sur chaque fiche.
+  </div>
+
+  <?php $plItems = (array)($_SESSION['pl_products'] ?? []); ?>
+  <div class="d-card" id="import" style="margin-bottom:1.1rem;">
+    <div class="d-card-head">
+      <div class="d-card-title">Importer mes produits Pennylane</div>
+      <?php if (!$plItems): ?>
+      <form method="post" style="margin:0;">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" value="pl_read">
+        <button type="submit" class="d-btn d-btn--sm">Lire mes produits Pennylane</button>
+      </form>
+      <?php endif; ?>
+    </div>
+    <div class="d-card-body">
+      <?php if (!$plItems): ?>
+        <p style="margin:0;font-size:.85rem;color:var(--d-t2);">Lit vos produits dans Pennylane sans rien y modifier, puis vous cochez ceux à ajouter à la grille. Les produits dont le nom contient « VVV » sont décochés d'office.</p>
+      <?php else: ?>
+        <form method="post">
+          <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+          <input type="hidden" name="action" value="pl_import">
+          <div style="overflow-x:auto;">
+          <table class="d-table" style="min-width:760px;font-size:.84rem;">
+            <thead><tr><th style="width:36px;"></th><th>Produit Pennylane</th><th style="width:110px;">Code</th><th style="width:100px;text-align:right;">Prix HT</th><th style="width:70px;">TVA</th><th style="width:170px;">Métier</th><th style="width:150px;">État</th></tr></thead>
+            <tbody>
+            <?php foreach ($plItems as $p): ?>
+              <tr style="<?= $p['in_grid'] || $p['vvv'] ? 'opacity:.55;' : '' ?>">
+                <td><input type="checkbox" name="pl[]" value="<?= e($p['id']) ?>" <?= $p['checked'] ? 'checked' : '' ?> <?= $p['in_grid'] ? 'disabled' : '' ?>></td>
+                <td><?= e($p['label']) ?></td>
+                <td class="tarif-code"><?= e($p['code']) ?></td>
+                <td style="text-align:right;"><?= e(money_fr((float)$p['price_ht'])) ?></td>
+                <td><?= e(rtrim(rtrim(number_format((float)$p['vat_rate'], 1, ',', ''), '0'), ',')) ?> %</td>
+                <td><select name="pl_cat[<?= e($p['id']) ?>]" class="d-input" style="padding:.3rem .4rem;font-size:.82rem;"><?php foreach ($cats as $ck => $cl): ?><option value="<?= e($ck) ?>" <?= $p['category'] === $ck ? 'selected' : '' ?>><?= e($cl) ?></option><?php endforeach; ?></select></td>
+                <td><?= $p['in_grid'] ? 'Déjà dans la grille' : ($p['vvv'] ? 'Écarté (VVV)' : 'Nouveau') ?></td>
+              </tr>
+            <?php endforeach; ?>
+            </tbody>
+          </table>
+          </div>
+          <div style="display:flex;gap:.5rem;margin-top:.8rem;">
+            <button type="submit" class="d-btn d-btn--primary d-btn--sm">Ajouter les produits cochés à la grille</button>
+          </div>
+        </form>
+        <form method="post" style="margin-top:.5rem;">
+          <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+          <input type="hidden" name="action" value="pl_cancel">
+          <button type="submit" class="d-btn d-btn--ghost d-btn--sm">Annuler</button>
+        </form>
+      <?php endif; ?>
+    </div>
   </div>
 
   <?php foreach ($cats as $ck => $cl): if (empty($byCat[$ck])) continue; ?>

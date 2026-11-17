@@ -388,6 +388,21 @@ modifier ce fichier ensuite ne change plus rien en base.
   phrases du métier de l'intervention ; un appui ajoute la phrase, modifiable.
   L'appareil est rappelé dans le bloc « La panne ».
 
+### Prestations : import Pennylane et grille élargie — `includes/pricing.php`, `dispatcher/tarifs.php`
+
+- « Importer mes produits Pennylane » (Tarifs) : `pennylane_products_for_import()`
+  lit `GET /products` (lecture seule), `pennylane_product_for_grid()` met chaque
+  produit au format de la grille (code = référence, sinon `PL-<id>` ; TVA depuis
+  le code `FR_xxx` ; unité ; métier deviné par `price_guess_category()`). Les
+  noms contenant « VVV » sont décochés d'office (choix du propriétaire,
+  17/11/2026), les produits déjà liés ou de même code ne sont pas proposés.
+  Liste gardée en session le temps du choix ; `price_grid_import_products()`
+  ajoute les lignes cochées avec `pennylane_product_id`, pour que
+  `pennylane_sync_products()` ne crée pas de doublon.
+- Migration v15.50 : 54 prestations de plus (`price_grid_extra_seed.php`),
+  prix HT de départ = milieu des fourchettes de sites de prix de travaux, à
+  vérifier par le propriétaire. Seuls les codes absents sont ajoutés.
+
 ### Fin estimée par le technicien sur place — `includes/assignment.php`
 
 Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
@@ -567,10 +582,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1231 assertions, aucune base de données nécessaire : chaque test remplace
+1266 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 214 fichiers PHP.
+sur les 216 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -595,6 +610,7 @@ sur les 214 fichiers PHP.
 | `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
 | `test_dates_tech.php` | application technicien : séparations Aujourd'hui / Hier / Avant-hier / date, « Créée hier à 18 h 12 » |
 | `test_referentiel.php` | référentiel de départ : tient dans `preset_items`, marques et modèles rattachés à un appareil, structure envoyée aux écrans |
+| `test_import_produits.php` | import des produits Pennylane (TVA, unité, métier deviné, « VVV » écartés, déjà présents) et prestations ajoutées pour tous les métiers |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

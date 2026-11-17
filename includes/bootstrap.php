@@ -1049,6 +1049,16 @@ if (!file_exists($_mf49)) {
     unset($_me);
 }
 unset($_mf49);
+// Auto-migration v15.50 — prestations pour tous les métiers (prix moyens de départ,
+// includes/price_grid_extra_seed.php). Seuls les codes absents de la grille sont ajoutés.
+$_mf50 = __DIR__.'/../storage/.mig_v15_grille_metiers';
+if (!file_exists($_mf50)) {
+    @file_put_contents($_mf50, date('c'));
+    try { price_grid_add_missing((array)require __DIR__.'/price_grid_extra_seed.php'); }
+    catch (Throwable $_me) { error_log('Migration v15.50 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf50);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {
