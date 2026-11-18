@@ -7,6 +7,7 @@ require __DIR__.'/partials/header.php';
 $tabs = [
     'notifications' => 'Notifications',
     'claude'        => 'Claude',
+    'aide'          => 'Aide (Claude Code)',
     'pennylane'     => 'Pennylane',
     'yousign'       => 'Yousign',
 ];
@@ -43,6 +44,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (array_keys($group) as $k) notif_store_setting($k, !empty($_POST[$k]) ? '1' : '0');
         }
         flash('success', 'Réglages des notifications enregistrés.');
+    } elseif ($tab === 'aide') {
+        if ($action === 'new_token') {
+            // Clé montrée une seule fois, juste après sa création ; ensuite « Configurée » seulement.
+            $_SESSION['assist_token_once'] = assist_new_token();
+            admin_log_safe('réglages', 'nouvelle clé de l\'assistant local', (int)$disp['id'], (string)$disp['name']);
+            flash('success', 'Nouvelle clé créée. Copiez-la maintenant sur votre PC : elle ne sera plus affichée.');
+        } elseif ($action === 'revoke') {
+            set_integration_secret('assist_token', '');
+            flash('success', 'Clé supprimée : le PC ne peut plus récupérer les questions.');
+        } else {
+            set_integration_setting('assist_relay_seconds', (string)max(0, min(900, (int)($_POST['assist_relay_seconds'] ?? 120))));
+            flash('success', 'Réglages de l\'aide enregistrés.');
+        }
     } elseif ($tab === 'claude') {
         if ($action === 'test') {
             $t = claude_test_connection();
@@ -191,6 +205,58 @@ function settings_secret_field(string $name, string $label, string $placeholder,
           Pour les activer, le technicien ouvre son espace sur son téléphone, installe l'application
           (sur iPhone : Partager → « Sur l'écran d'accueil ») puis touche « Activer les notifications ».
         </p>
+      </div>
+    </div>
+  </div>
+
+<?php elseif ($tab === 'aide'):
+  $tokOnce = $_SESSION['assist_token_once'] ?? null; unset($_SESSION['assist_token_once']);
+  $lastPoll = assist_last_poll();
+  $relay = assist_relay_seconds(); ?>
+  <div class="d-grid-2" style="align-items:start;">
+    <div class="d-card">
+      <div class="d-card-head"><div class="d-card-title">Assistant sur votre PC (Claude Code)</div></div>
+      <div class="d-card-body" style="font-size:.88rem;line-height:1.6;">
+        <p style="margin:0 0 .6rem;"><b>État :</b>
+          <?php if ($lastPoll !== null && time() - $lastPoll < 120): ?><span style="color:var(--d-success);font-weight:600;">connecté</span> (dernier passage il y a <?= time() - $lastPoll ?> s)
+          <?php elseif ($lastPoll !== null): ?><span style="color:var(--d-warning);font-weight:600;">pas de nouvelles depuis le <?= e(date('d/m à H:i', $lastPoll)) ?></span>
+          <?php else: ?><span style="color:var(--d-t3);">jamais connecté</span><?php endif; ?></p>
+        <p style="margin:0 0 .6rem;"><b>Clé du PC :</b> <?= integration_secret('assist_token') !== '' ? '<span style="color:var(--d-success);">Configurée</span>' : '<span style="color:var(--d-warning);">Aucune</span>' ?></p>
+        <?php if ($tokOnce): ?>
+          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:.7rem;margin-bottom:.7rem;">
+            <div style="font-weight:600;margin-bottom:.3rem;">Votre nouvelle clé (affichée une seule fois) :</div>
+            <input readonly value="<?= e($tokOnce) ?>" onclick="this.select()" style="width:100%;font-family:ui-monospace,monospace;font-size:.8rem;">
+            <div style="font-size:.8rem;color:var(--d-t2);margin-top:.3rem;">Collez-la dans le fichier <code>cle.txt</code> du dossier de l'assistant sur votre PC. Ne l'envoyez à personne, ni par message, ni par e-mail.</div>
+          </div>
+        <?php endif; ?>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+          <form method="post" onsubmit="return <?= integration_secret('assist_token') !== '' ? "confirm('Créer une nouvelle clé ? L\\'ancienne ne fonctionnera plus.')" : 'true' ?>;"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="new_token"><button type="submit" class="d-btn d-btn--primary d-btn--sm"><?= integration_secret('assist_token') !== '' ? 'Créer une nouvelle clé' : 'Créer la clé du PC' ?></button></form>
+          <?php if (integration_secret('assist_token') !== ''): ?><form method="post" onsubmit="return confirm('Supprimer la clé ? Le PC ne pourra plus répondre.');"><input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="revoke"><button type="submit" class="d-btn d-btn--sm">Supprimer la clé</button></form><?php endif; ?>
+        </div>
+        <form method="post" style="margin-top:1rem;">
+          <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+          <label for="f-relay" style="font-weight:600;">Relais si le PC ne répond pas</label>
+          <select id="f-relay" name="assist_relay_seconds" style="display:block;margin:.3rem 0 .5rem;">
+            <?php foreach ([60 => 'après 1 minute', 120 => 'après 2 minutes (conseillé)', 300 => 'après 5 minutes', 0 => 'jamais : le bureau est prévenu après 5 minutes'] as $sec => $lab): ?>
+              <option value="<?= $sec ?>" <?= $relay === $sec ? 'selected' : '' ?>><?= e($lab) ?></option>
+            <?php endforeach; ?>
+          </select>
+          <div style="font-size:.8rem;color:var(--d-t2);margin-bottom:.5rem;">Le relais répond avec la clé API Claude (onglet Claude)<?= claude_is_configured() ? '' : ' — <b>aucune clé configurée</b> : sans elle, le bureau est prévenu' ?>.</div>
+          <button type="submit" class="d-btn d-btn--sm">Enregistrer</button>
+        </form>
+      </div>
+    </div>
+    <div class="d-card">
+      <div class="d-card-head"><div class="d-card-title">Installer l'assistant sur votre PC</div></div>
+      <div class="d-card-body" style="font-size:.86rem;line-height:1.6;">
+        <ol style="margin:0 0 .6rem 1.1rem;padding:0;">
+          <li>Créez la clé du PC (bouton à gauche) et gardez-la sous la main.</li>
+          <li>Ouvrez votre Claude Code local et demandez-lui : <i>« Installe l'assistant d'aide EMAE en suivant le fichier outils/aide-locale/LISEZMOI.md du dépôt talaat93/emae15 »</i>.</li>
+          <li>Collez la clé dans <code>cle.txt</code> quand il vous le demande, puis laissez la fenêtre ouverte (ou installez le lancement automatique proposé).</li>
+          <li>L'état passe à « connecté » ci-contre. Faites un essai depuis une fiche : « Besoin d'aide ? ».</li>
+        </ol>
+        <p style="margin:.4rem 0 0;"><b>Sécurité :</b> votre PC va chercher les questions sur le site (aucun port à ouvrir chez vous) et Claude Code répond <b>sans aucun outil</b> : il ne peut rien exécuter ni modifier sur votre ordinateur. Les questions ne contiennent ni nom, ni téléphone, ni adresse du client.</p>
+        <p style="margin:.4rem 0 0;">Adresse utilisée par le PC : <code><?= e(notif_abs_url('api/assist.php')) ?></code></p>
       </div>
     </div>
   </div>

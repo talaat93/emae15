@@ -435,6 +435,25 @@ modifier ce fichier ensuite ne change plus rien en base.
   renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
   le PDF.
 
+### Aide au technicien (Claude Code sur le PC du propriétaire) — `includes/assist.php`
+
+- Fiche technicien : carte « Besoin d'aide ? » (`tech/assist.php`, JSON :
+  poser une question, suivre la réponse toutes les 5 s). Principal et renforts.
+- File `assist_requests` (migration v15.56). Le PC du propriétaire vient
+  chercher les questions : `api/assist.php` (`Authorization: Bearer <clé>`,
+  clé `assist_token` créée dans Réglages → Aide, montrée une seule fois),
+  `?action=next&format=plain` puis `POST ?action=answer`. Script du PC :
+  `outils/aide-locale/aide.sh` + `LISEZMOI.md` (exclus du déploiement, accès
+  web refusé) ; Claude Code y tourne en **réponse seule**
+  (`claude -p --tools "" --strict-mcp-config`), choix du propriétaire
+  17/11/2026 : ne jamais lui donner d'outils.
+- `assist_prompt()` : consignes (sécurité, pas d'invention), contexte technique,
+  question encadrée comme une donnée ; ni nom, ni téléphone, ni adresse.
+- Relais (`assist_process_overdue()`, au suivi par le technicien) : après
+  `assist_relay_seconds` (120 s), réponse par l'API Claude ; sinon
+  « sans réponse », notification « aide » et e-mail au dispatcher. Le bureau
+  peut répondre depuis la fiche (carte « Demandes d'aide du technicien »).
+
 ### Notifications du dispatcher — `includes/disp_notify.php`, `dispatcher/notifications.php`
 
 Table `disp_notifications` (migration v15.55), un seul fil pour le bureau.
@@ -699,10 +718,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1404 assertions, aucune base de données nécessaire : chaque test remplace
+1426 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 228 fichiers PHP.
+sur les 231 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -736,6 +755,7 @@ sur les 228 fichiers PHP.
 | `test_correction.php` | rapport corrigé par Claude : garde-fous (nombres, longueur), texte d'origine jamais réécrit, correction écartée signalée |
 | `test_devis_tech.php` | devis à faire demandé par le technicien : brouillon sans prix, numéro, pas de doublon, dispatcher prévenu |
 | `test_notifications_disp.php` | notifications du dispatcher : ajout, dédoublonnage, liens sûrs, fin estimée dépassée |
+| `test_aide.php` | aide au technicien : texte envoyé à Claude (sans données personnelles, question encadrée), clé du PC, file d'attente, relais, bureau prévenu |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
 assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.

@@ -117,6 +117,7 @@ elles vont à l'« adresse de test » des réglages, ou nulle part.
 | Brouillons de facture jamais arrivés dans Pennylane → nouvel essai | à chaque synchronisation | `pennylane_sync_run()` |
 | Devis signé, refusé ou expiré | à la réception du webhook Yousign | `api/yousign_webhook.php` |
 | Fin estimée du technicien sur place → « libre vers… » au planning et dans les suggestions de technicien | à chaque mise à jour par le technicien | `eta_status()`, `eta_busy_end()` |
+| Question d'aide d'un technicien → réponse de Claude Code sur le PC du propriétaire ; relais par l'API Claude après 2 min ; sinon bureau prévenu | à chaque question (le PC interroge le site toutes les 20 s) | `api/assist.php`, `outils/aide-locale/aide.sh`, `assist_process_overdue()` |
 | Correction du rapport par Claude (orthographe, vocabulaire technique) ; texte d'origine gardé | juste après la remise du rapport, avant la relecture (un appel Claude de plus par rapport) | `correction_run()` |
 | Relecture du rapport (Claude ou contrôles standard) → brouillon de facture | juste après la remise du rapport, en arrière-plan | `review_run_after_response()` |
 
@@ -127,7 +128,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.55 (notifications du dispatcher).
+v15.56 (aide au technicien par Claude Code local).
 
 ### Vérifications manuelles disponibles
 
