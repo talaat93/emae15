@@ -47,7 +47,8 @@ try {
 } catch (Throwable $e) {}
 
 // Un technicien ne voit que les rapports de ses propres interventions.
-if ($iv && empty($_SESSION['disp_id']) && (int)($iv['technician_id'] ?? 0) !== (int)$actor['id']) {
+// Un renfort sur l'intervention y a aussi accès.
+if ($iv && empty($_SESSION['disp_id']) && (int)($iv['technician_id'] ?? 0) !== (int)$actor['id'] && !team_member($id, (int)($actor['id'] ?? 0))) {
     $iv = null;
 }
 
@@ -85,6 +86,25 @@ try {
 // Merge address fields (the query aliases them, re-map to what the generator expects)
 $iv['address']      = $iv['client_address'] ?? $iv['address'] ?? '';
 $iv['postal_code']  = $iv['client_postal']  ?? $iv['postal_code'] ?? '';
+
+// Version corrigée par Claude (ou retouchée par le dispatcher) si elle existe ; sinon le texte du technicien.
+$iv['tech_diagnostic'] = correction_text($iv, 'tech_diagnostic');
+$iv['tech_report']     = correction_text($iv, 'tech_report');
+
+// Facture reliée (préparée par le site ou reliée depuis Pennylane), si elle a un numéro.
+if (($inv = invoice_for_intervention($id)) && $inv['status'] !== 'brouillon' && !empty($inv['number'])) $iv['invoice_number'] = (string)$inv['number'];
+
+// Rapports des renforts, ajoutés à la suite des travaux réalisés du technicien principal.
+foreach (team_members($id) as $tm) {
+    $parts = array_filter([
+        trim((string)$tm['diagnostic']) !== '' ? 'Diagnostic : '.trim((string)$tm['diagnostic']) : '',
+        trim((string)$tm['report']) !== '' ? 'Travaux réalisés : '.trim((string)$tm['report']) : '',
+        trim((string)$tm['notes']) !== '' ? 'Remarques : '.trim((string)$tm['notes']) : '',
+    ]);
+    if (!$parts) continue;
+    $hours = trim(($tm['arrived_time'] ?? '').' – '.($tm['close_time'] ?? ''), ' –');
+    $iv['tech_report'] = trim((string)($iv['tech_report'] ?? ''))."\n\n— Rapport de ".($tm['tech_name'] ?? 'renfort').' (renfort'.($hours !== '' ? ', '.$hours : '').") —\n".implode("\n", $parts);
+}
 
 // Generate PDF
 $generator = new InterventionPdfGenerator();

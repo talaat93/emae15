@@ -288,3 +288,91 @@ function reminder_send_texte(int $invoiceId, string $to, string $subject, string
     if ($r['ok']) integration_log('audit', 'relance envoyée facture #'.$invoiceId, ['dispatcher' => (int)$actor['id']]);
     return $r;
 }
+
+/* ─── Remarque de paiement ─────────────────────────────────── */
+
+/** Remarques proposées en un clic (« qui paie »), en plus du texte libre. */
+function payment_note_presets(): array
+{
+    return ['Le propriétaire paie', 'Le locataire paie', 'Payé par l\'agence ou le syndic', 'Prise en charge par l\'assurance',
+            'Facture à adresser à l\'entreprise', 'Paiement à réception de la facture', 'Sous garantie : rien à payer'];
+}
+
+/* ─── Relier après coup une facture Pennylane existante ─────────
+ * Recherche dans le cache local des factures (synchronisé avec Pennylane toutes les 15 min) ;
+ * si le numéro n'y est pas encore, une synchronisation est lancée puis la recherche refaite.
+ * Aucune écriture dans Pennylane. */
+
+/** Numéro normalisé pour la comparaison (espaces retirés, majuscules). */
+function invoice_number_key(string $n): string
+{
+    return strtoupper(preg_replace('/\s+/', '', trim($n)));
+}
+
+function invoice_find_by_number(string $number): ?array
+{
+    $key = invoice_number_key($number);
+    if ($key === '') return null;
+    review_tables();
+    try { return db_fetch("SELECT * FROM invoices WHERE UPPER(REPLACE(number, ' ', '')) = ? AND status <> 'annulee' ORDER BY id DESC LIMIT 1", [$key]); }
+    catch (Throwable $e) { return null; }
+}
+
+/**
+ * Relie la facture n° $number à l'intervention, même après la validation du rapport.
+ * Refus : facture introuvable, encore en brouillon, ou déjà reliée à une autre intervention.
+ * La fiche suit ensuite le paiement : payée → « Payée » puis « Clôturée », sinon « Facture envoyée ».
+ */
+function invoice_link_number(int $ivId, string $number, array $actor): array
+{
+    $inv = invoice_find_by_number($number);
+    if (!$inv && !pennylane_simulated()) {
+        try { pennylane_sync_run('liaison'); } catch (Throwable $e) {}
+        $inv = invoice_find_by_number($number);
+    }
+    if (!$inv) return ['ok' => false, 'error' => 'Facture « '.trim($number).' » introuvable. Vérifiez le numéro ; une facture créée il y a moins de 15 minutes peut ne pas être encore synchronisée.'];
+    if ($inv['status'] === 'brouillon') return ['ok' => false, 'error' => 'La facture '.$inv['number'].' est encore un brouillon : finalisez-la dans Pennylane, puis reliez-la.'];
+    if (!empty($inv['intervention_id']) && (int)$inv['intervention_id'] !== $ivId) {
+        $o = db_fetch('SELECT ref FROM interventions WHERE id = ?', [(int)$inv['intervention_id']]);
+        return ['ok' => false, 'error' => 'La facture '.$inv['number'].' est déjà reliée à l\'intervention '.($o['ref'] ?? '#'.$inv['intervention_id']).'.'];
+    }
+    $cur = invoice_for_intervention($ivId);
+    if ($cur && (int)$cur['id'] !== (int)$inv['id'] && $cur['status'] !== 'brouillon') {
+        return ['ok' => false, 'error' => 'Cette intervention a déjà la facture '.($cur['number'] ?: '#'.$cur['id']).'.'];
+    }
+    $iv = db_fetch('SELECT id, status, client_id, paid_at FROM interventions WHERE id = ?', [$ivId]);
+    if (!$iv) return ['ok' => false, 'error' => 'Intervention introuvable.'];
+    // Un brouillon préparé par le site est remplacé par la vraie facture.
+    if ($cur && (int)$cur['id'] !== (int)$inv['id']) db_execute("UPDATE invoices SET status = 'annulee', updated_at = NOW() WHERE id = ?", [(int)$cur['id']]);
+    db_execute('UPDATE invoices SET intervention_id = ?, client_id = COALESCE(client_id, ?), updated_at = NOW() WHERE id = ?',
+        [$ivId, $iv['client_id'] ?: null, (int)$inv['id']]);
+    update_intervention($ivId, ['amount_ttc' => (float)$inv['total_ttc'], 'amount_ht' => (float)$inv['total_ht']]);
+    $num = (string)($inv['number'] ?: '#'.$inv['id']);
+    $aType = 'dispatcher'; $aId = (int)$actor['id']; $aName = (string)$actor['name'];
+    if ($inv['status'] === 'payee') {
+        $pay = ['payment_status' => 'payé', 'paid_at' => $iv['paid_at'] ?: date('Y-m-d H:i:s')];
+        if (!in_array($iv['status'], ['payé', 'cloturee'], true)) {
+            wf_set_status($ivId, 'payé', $aType, $aId, $aName, 'Facture '.$num.' reliée (déjà payée)', $pay);
+            wf_set_status($ivId, 'cloturee', 'system', 0, 'Système', 'Dossier clôturé : facture payée');
+        } else {
+            update_intervention($ivId, $pay);
+            log_intervention_history($ivId, (string)$iv['status'], (string)$iv['status'], $aType, $aId, $aName, 'Facture '.$num.' reliée (déjà payée)');
+        }
+    } else {
+        wf_set_status($ivId, 'facture_envoyee', $aType, $aId, $aName, 'Facture '.$num.' reliée : paiement suivi avec Pennylane');
+    }
+    integration_log('audit', 'facture '.$num.' reliée à l\'intervention', ['intervention' => $ivId, 'dispatcher' => $aId]);
+    return ['ok' => true, 'error' => null, 'number' => $num, 'paid' => $inv['status'] === 'payee'];
+}
+
+/** Retire le lien avec une facture reliée à la main (une facture préparée par le site reste liée). */
+function invoice_unlink(int $ivId, int $invoiceId, array $actor): bool
+{
+    $inv = db_fetch('SELECT id, number, intervention_id, review_id FROM invoices WHERE id = ?', [$invoiceId]);
+    if (!$inv || (int)$inv['intervention_id'] !== $ivId || !empty($inv['review_id'])) return false;
+    db_execute('UPDATE invoices SET intervention_id = NULL, updated_at = NOW() WHERE id = ?', [$invoiceId]);
+    $iv = db_fetch('SELECT status FROM interventions WHERE id = ?', [$ivId]);
+    log_intervention_history($ivId, (string)($iv['status'] ?? ''), (string)($iv['status'] ?? ''), 'dispatcher', (int)$actor['id'], (string)$actor['name'],
+        'Lien retiré avec la facture '.($inv['number'] ?: '#'.$invoiceId));
+    return true;
+}

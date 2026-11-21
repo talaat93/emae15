@@ -2,6 +2,7 @@
 declare(strict_types=1);
 /** Profil d'assignation des techniciens : métiers, point de départ, capacité et horaires. */
 $pageTitle   = 'Techniciens';
+$listFilter  = ['items' => '.tech-prof-grid > form.d-card', 'groups' => '.none'];
 $dispSection = 'techniciens';
 require __DIR__.'/partials/header.php';
 

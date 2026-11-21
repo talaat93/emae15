@@ -15,6 +15,9 @@ function disp_is_active(array $files, string $section = ''): string {
 }
 // Count urgent interventions for badge
 try { $urgentCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN (".wf_sql_list(wf_closed()).")")['c']??0); } catch(Throwable $e) { $urgentCount=0; }
+// Notifications du dispatcher : fins estimées dépassées vérifiées à chaque page, puis compteur.
+try { disp_notif_check_eta(); } catch (Throwable $e) {}
+$notifCount = disp_notif_unread_count();
 try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0); } catch(Throwable $e) { $waitingCount=0; }
 $tasksBadge = dispatcher_pending_tasks_count();
 
@@ -80,7 +83,13 @@ function disp_photo_request_value(): ?string
 <link rel="stylesheet" href="<?= e(asset_url('assets/css/dispatcher.css')) ?>">
 <?= $extraHead ?? '' ?>
 </head>
-<body class="d-body">
+<?php
+// Recherche dans la liste (assets/js/filtre.js) : une page l'active avec $listFilter = true,
+// ou un tableau ['items' => sélecteur des éléments, 'groups' => blocs à masquer s'ils sont vides].
+$lf = $listFilter ?? false;
+$lfAttr = $lf ? ' data-filtre'.(is_array($lf) && !empty($lf['items']) ? ' data-filtre-items="'.e($lf['items']).'"' : '').(is_array($lf) && !empty($lf['groups']) ? ' data-filtre-groupes="'.e($lf['groups']).'"' : '') : '';
+?>
+<body class="d-body"<?= $lfAttr ?>>
 <div class="d-shell">
 <!-- SIDEBAR -->
 <aside class="d-sidebar" id="d-sidebar">
@@ -95,6 +104,9 @@ function disp_photo_request_value(): ?string
   <nav class="d-nav">
     <a class="d-nav-item <?= disp_is_active(['index.php'],'dashboard') ?>" href="<?= e(url_for('dispatcher/index.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg></span> Aujourd'hui<?php if($urgentCount>0):?><span class="d-nav-badge red" title="Urgences"><?= $urgentCount ?></span><?php endif;?>
+    </a>
+    <a class="d-nav-item <?= disp_is_active(['notifications.php'],'notifications') ?>" href="<?= e(url_for('dispatcher/notifications.php')) ?>">
+      <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg></span> Notifications<?php if ($notifCount > 0): ?><span class="d-nav-badge red" title="Non lues"><?= $notifCount ?></span><?php endif; ?>
     </a>
     <a class="d-nav-item <?= disp_is_active(['interventions.php','intervention_view.php','intervention_new.php'],'interventions') ?>" href="<?= e(url_for('dispatcher/interventions.php')) ?>">
       <span class="nav-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13"/><circle cx="3.5" cy="6" r="1"/><circle cx="3.5" cy="12" r="1"/><circle cx="3.5" cy="18" r="1"/></svg></span> Interventions<?php if($waitingCount>0):?><span class="d-nav-badge" title="À traiter"><?= $waitingCount ?></span><?php endif;?>

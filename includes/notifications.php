@@ -396,6 +396,11 @@ function notify_report_submitted(int $ivId): void
     try {
         $iv = get_intervention_by_id($ivId);
         if (!$iv) return;
+        if (function_exists('disp_notify')) {
+            disp_notify('rapport_rendu', 'Rapport rendu — '.($iv['ref'] ?? '#'.$ivId),
+                trim(($iv['tech_name'] ?? 'Le technicien').' · '.trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? ''))),
+                'dispatcher/intervention_view.php?id='.$ivId.'#relecture', $ivId);
+        }
         $to = '';
         if (!empty($iv['dispatcher_id'])) {
             $d = db_fetch('SELECT email FROM dispatchers WHERE id = ?', [(int)$iv['dispatcher_id']]);

@@ -1,0 +1,5 @@
+# Dossier d'outils à installer sur un PC : rien à servir sur le site.
+Require all denied
+<IfModule !mod_authz_core.c>
+Deny from all
+</IfModule>

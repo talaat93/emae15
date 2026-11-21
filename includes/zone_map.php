@@ -140,3 +140,75 @@ function render_zone_map(array $opt = []): string
     if ($cap !== '') $o .= '<figcaption>'.e($cap).'</figcaption>';
     return $o.'</figure>';
 }
+
+/* ─── Carte de l'intervention, sur la fiche du technicien ──────────
+ * Même fond que la carte du site (Côte-d'Or, Jura, Doubs), sans liens, avec un point rouge
+ * à l'adresse de l'intervention. Les tracés n'ayant pas de coordonnées GPS, la correspondance
+ * GPS → carte a été calculée sur 8 villes de référence (écart de 4 unités au plus sur 400). */
+
+/** Position sur la carte [x, y] d'un point GPS. */
+function zone_map_project(float $lat, float $lng): array
+{
+    return [round(126.4614 * $lng - 503.146, 1), round(-187.3406 * $lat + 9006.203, 1)];
+}
+
+/** Point GPS approximatif [lat, lng] d'une position de la carte (inverse de zone_map_project). */
+function zone_map_unproject(float $x, float $y): array
+{
+    return [round((9006.203 - $y) / 187.3406, 4), round(($x + 503.146) / 126.4614, 4)];
+}
+
+/** Ville repère la plus proche : ['slug' => …, 'km' => …] (villes de la carte). */
+function zone_map_nearest_city(float $lat, float $lng): ?array
+{
+    $best = null;
+    foreach (zone_map_data()['cities'] as $slug => [$x, $y]) {
+        [$clat, $clng] = zone_map_unproject((float)$x, (float)$y);
+        $km = geo_km($lat, $lng, $clat, $clng);
+        if ($best === null || $km < $best['km']) $best = ['slug' => (string)$slug, 'km' => round($km)];
+    }
+    return $best;
+}
+
+/**
+ * Carte de l'intervention pour le technicien : les 3 départements, quelques villes repères
+ * et un point rouge. Hors de la carte, le point est posé au bord avec « hors zone habituelle ».
+ * Chaîne vide si la position de l'adresse est inconnue.
+ */
+function render_tech_zone_map(?float $lat, ?float $lng, string $label): string
+{
+    if ($lat === null || $lng === null || !geo_valid($lat, $lng)) return '';
+    $m = zone_map_data();
+    [$x, $y] = zone_map_project($lat, $lng);
+    $inside = $x >= 0 && $x <= $m['w'] && $y >= 0 && $y <= $m['h'];
+    $px = max(14.0, min($m['w'] - 14.0, $x)); $py = max(14.0, min($m['h'] - 14.0, $y));
+    $o = '<figure class="tzmap"><svg viewBox="0 0 '.$m['w'].' '.$m['h'].'" role="img" aria-label="'.e('Position de l\'intervention : '.$label).'" xmlns="http://www.w3.org/2000/svg">';
+    foreach ($m['deps'] as $code => $d) {
+        [$name, $lx, $ly] = zone_map_departements()[$code] ?? [$code, 0, 0];
+        $o .= '<path d="'.$d.'" class="tz-dep"/><text x="'.$lx.'" y="'.$ly.'" class="tz-dlab">'.e($name).'</text>';
+    }
+    $reperes = ['dijon' => 'Dijon', 'beaune' => 'Beaune', 'dole' => 'Dole', 'lons-le-saunier' => 'Lons', 'besancon' => 'Besançon', 'pontarlier' => 'Pontarlier', 'montbeliard' => 'Montbéliard'];
+    foreach ($reperes as $slug => $nom) {
+        if (!isset($m['cities'][$slug])) continue;
+        [$cx, $cy] = $m['cities'][$slug];
+        // Nom masqué si le point rouge le recouvre : la légende sous la carte le donne déjà.
+        $hidden = abs($cx + 25 - $px) < 34 && abs($cy - $py) < 14;
+        $o .= '<circle cx="'.$cx.'" cy="'.$cy.'" r="3" class="tz-city"/>'.($hidden ? '' : '<text x="'.($cx + 6).'" y="'.($cy + 4).'" class="tz-clab">'.e($nom).'</text>');
+    }
+    $o .= '<circle cx="'.$px.'" cy="'.$py.'" r="16" class="tz-halo"/><circle cx="'.$px.'" cy="'.$py.'" r="7.5" class="tz-pin"/>';
+    $o .= '</svg>';
+    $near = zone_map_nearest_city($lat, $lng);
+    $nearName = $near ? (city_page($near['slug'])['nom'] ?? ucfirst($near['slug'])) : '';
+    $cap = $inside
+        ? ($near && $near['km'] >= 2 ? 'À environ '.$near['km'].' km de '.$nearName : ($nearName !== '' ? 'À '.$nearName : ''))
+        : 'Hors zone habituelle'.($near ? ' · à environ '.$near['km'].' km de '.$nearName : '');
+    if ($cap !== '') $o .= '<figcaption>'.e($cap).'</figcaption>';
+    $o .= '<style>.tzmap{margin:.7rem 0 0;background:#f7f9fc;border:1px solid var(--line,#e4e8ee);border-radius:10px;padding:.4rem}'
+        . '.tzmap svg{display:block;width:100%;height:auto;max-height:240px}'
+        . '.tz-dep{fill:#e8edf5;stroke:#b9c4d4;stroke-width:1.2}.tz-dlab{font:600 13px sans-serif;fill:#8c99ad}'
+        . '.tz-city{fill:#8c99ad}.tz-clab{font:500 11px sans-serif;fill:#5a6a82}'
+        . '.tz-pin{fill:#dc2626;stroke:#fff;stroke-width:2.5}.tz-halo{fill:rgba(220,38,38,.22);animation:tzp 1.8s ease-out infinite;transform-box:fill-box;transform-origin:center}'
+        . '@keyframes tzp{0%{transform:scale(.5);opacity:1}100%{transform:scale(1.6);opacity:0}}@media (prefers-reduced-motion:reduce){.tz-halo{animation:none}}'
+        . '.tzmap figcaption{font-size:.82rem;color:var(--t2,#5a6a82);text-align:center;margin-top:.2rem}</style>';
+    return $o.'</figure>';
+}

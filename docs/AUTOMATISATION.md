@@ -100,7 +100,9 @@ SMTP ni de bibliothèque), via `send_quote_notification()` ou `notif_mail()`.
 | Rapport incomplet | technicien | `notify_tech_report_incomplete()` |
 | Facture envoyée | copie au technicien | `invoice_copy_to_tech()` |
 | Relance de facture (déclenchée par le dispatcher) | client — ou l'adresse de test en simulation | `reminder_send()`, `reminder_send_texte()` |
+| Devis à faire coché par le technicien (brouillon créé) | dispatcher | `devis_from_tech()` |
 | Devis signé, refusé ou expiré | dispatcher | `devis_notify_dispatcher()` |
+| Renfort ajouté sur une intervention | technicien en renfort : notification, e-mail selon les réglages | `team_notify_added()` |
 | Nouvelle tâche | dispatcher | `notify_task_created()` |
 
 En **mode simulation**, les relances ne partent jamais chez le client :
@@ -114,6 +116,9 @@ elles vont à l'« adresse de test » des réglages, ou nulle part.
 | Paiement constaté dans Pennylane → intervention « Payée » puis « Clôturée » | à chaque synchronisation | `pennylane_sync_intervention_status()` |
 | Brouillons de facture jamais arrivés dans Pennylane → nouvel essai | à chaque synchronisation | `pennylane_sync_run()` |
 | Devis signé, refusé ou expiré | à la réception du webhook Yousign | `api/yousign_webhook.php` |
+| Fin estimée du technicien sur place → « libre vers… » au planning et dans les suggestions de technicien | à chaque mise à jour par le technicien | `eta_status()`, `eta_busy_end()` |
+| Question d'aide d'un technicien → réponse de Claude Code sur le PC du propriétaire ; relais par l'API Claude après 2 min ; sinon bureau prévenu | à chaque question (le PC interroge le site toutes les 20 s) | `api/assist.php`, `outils/aide-locale/aide.sh`, `assist_process_overdue()` |
+| Correction du rapport par Claude (orthographe, vocabulaire technique) ; texte d'origine gardé | juste après la remise du rapport, avant la relecture (un appel Claude de plus par rapport) | `correction_run()` |
 | Relecture du rapport (Claude ou contrôles standard) → brouillon de facture | juste après la remise du rapport, en arrière-plan | `review_run_after_response()` |
 
 ### Migrations de la base
@@ -123,7 +128,7 @@ Au premier chargement d'une page après une mise en ligne,
 migration ne s'exécute qu'une fois, grâce à un fichier témoin
 `storage/.mig_v15_xxx`, jamais déployé. Elles n'effacent jamais de données ;
 les rejouer est sans effet. Les plus récentes : v15.21 (grille tarifaire) à
-v15.30 (tables `integration_settings` et `integration_log`).
+v15.56 (aide au technicien par Claude Code local).
 
 ### Vérifications manuelles disponibles
 
@@ -131,5 +136,6 @@ v15.30 (tables `integration_settings` et `integration_log`).
 |---|---|
 | Réglages → Pennylane → « Tester la connexion » | teste 6 routes de lecture, route par route |
 | `PENNYLANE_TOKEN=… php cron/pennylane_check.php` | contrôle complet en lecture seule, sur le serveur ou en local |
+| Tarifs → « Lire mes produits Pennylane » | lit vos produits Pennylane sans rien y modifier ; vous cochez ceux à ajouter à la grille |
 | Factures → « Pennylane en direct » | liste des factures lue directement dans Pennylane, sans rien modifier |
 | `bash tests/run.sh` | suite de tests, dont la simulation Pennylane et les relances |

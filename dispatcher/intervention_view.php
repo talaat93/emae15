@@ -84,6 +84,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
 
+    /* ── Aide au technicien : réponse du bureau ── */
+    if ($action === 'assist_reply') {
+        $ok = assist_answer((int)($_POST['assist_id'] ?? 0), (string)($_POST['answer'] ?? ''), 'dispatcher');
+        flash($ok ? 'success' : 'error', $ok ? 'Réponse envoyée au technicien.' : 'Réponse vide ou demande introuvable.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#aide');
+    }
+
+    /* ── Rapport corrigé par Claude : relancer, retoucher, revenir au texte d'origine ── */
+    if ($action === 'correction_run') {
+        @set_time_limit(120);
+        $r = correction_run($id, 'dispatcher');
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Rapport corrigé.'.($r['notice'] ? ' '.$r['notice'] : '') : (string)$r['notice']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+    if ($action === 'correction_save') {
+        $d = mb_substr(trim((string)($_POST['diag'] ?? '')), 0, 5000);
+        $t = mb_substr(trim((string)($_POST['report'] ?? '')), 0, 5000);
+        db_execute("UPDATE interventions SET tech_diagnostic_corrige = ?, tech_report_corrige = ?, correction_at = NOW(), correction_source = 'dispatcher' WHERE id = ?",
+            [$d !== trim((string)$iv['tech_diagnostic']) ? $d : null, $t !== trim((string)$iv['tech_report']) ? $t : null, $id]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Version corrigée du rapport modifiée');
+        flash('success', 'Version corrigée enregistrée : elle sera utilisée dans le rapport PDF.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+    if ($action === 'correction_reset') {
+        db_execute('UPDATE interventions SET tech_diagnostic_corrige = NULL, tech_report_corrige = NULL WHERE id = ?', [$id]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Retour au texte d\'origine du technicien');
+        flash('success', 'Le rapport PDF reprend le texte d\'origine du technicien.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+
+    /* ── Renforts : plusieurs techniciens sur la même intervention ── */
+    if ($action === 'team_add') {
+        $r = team_add($id, (int)($_POST['tech_id'] ?? 0), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? $r['name'].' ajouté en renfort : il est prévenu.' : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+    if ($action === 'team_remove') {
+        if (team_remove($id, (int)($_POST['tech_id'] ?? 0), $disp)) flash('success', 'Renfort retiré.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+    if ($action === 'report_mode') {
+        $mode = isset(report_mode_options()[$_POST['report_mode'] ?? '']) ? (string)$_POST['report_mode'] : 'principal';
+        update_intervention($id, ['report_mode' => $mode]);
+        flash('success', 'Rapport : '.mb_strtolower(report_mode_options()[$mode], 'UTF-8').'.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#equipe');
+    }
+
     /* ── Relecture du rapport (Claude assiste, le dispatcher décide) ── */
     if ($action === 'review_run') {
         @set_time_limit(180);
@@ -93,11 +140,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .($rr['notice'] ? ' '.$rr['notice'] : ''));
         redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
     }
-    if ($action === 'review_accept' && in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)) {
+    if ($action === 'review_accept' && in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true)) {
         $lr = review_latest($id);
-        review_accept($id, $lr ? (int)$lr['id'] : null, 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Rapport validé par le dispatcher');
-        flash('success', 'Rapport validé : brouillon de facture préparé.');
-        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+        // Case « Facture Pennylane automatique » : cochée = brouillon de facture, décochée = clôture sans facture.
+        // Depuis « Facture à valider », seule la clôture sans facture est proposée.
+        $withInvoice = ($_POST['with_invoice'] ?? '') === '1' && (string)$iv['status'] !== 'facture_brouillon';
+        review_accept($id, $lr ? (int)$lr['id'] : null, 'dispatcher', (int)$disp['id'], (string)$disp['name'], 'Rapport validé par le dispatcher', $withInvoice);
+        flash('success', $withInvoice
+            ? 'Rapport validé : brouillon de facture préparé'.(tech_report_lines($iv) ? '.' : ' sans prestation, à compléter dans Factures.')
+            : 'Intervention validée sans facture : elle est clôturée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.($withInvoice ? '#facture' : ''));
     }
     if ($action === 'review_return' && in_array((string)$iv['status'], ['rapport_rendu', 'rapport_verifie', 'facture_brouillon', 'a_revoir'], true)) {
         $msg = mb_substr(trim((string)($_POST['message'] ?? '')), 0, 1000);
@@ -149,6 +201,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ps === 'payé' ? 'Marquée payée' : 'Marquée non payée');
         flash('success', $ps === 'payé' ? 'Intervention marquée payée.' : 'Intervention marquée non payée.');
         redirect_to('dispatcher/intervention_view.php?id='.$id);
+    }
+
+    // Remarque de paiement (qui paie, assurance…) : modifiable à tout moment, même après validation.
+    if ($action === 'set_payment_note') {
+        $note = mb_substr(trim((string)($_POST['payment_note'] ?? '')), 0, 500);
+        update_intervention($id, ['payment_note' => $note !== '' ? $note : null]);
+        log_intervention_history($id, $iv['status'], (string)$iv['status'], 'dispatcher', (int)$disp['id'], (string)$disp['name'],
+            $note !== '' ? 'Remarque de paiement : '.$note : 'Remarque de paiement effacée');
+        flash('success', 'Remarque de paiement enregistrée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#financier');
+    }
+    // Facture Pennylane existante reliée après coup (recherche par numéro, lecture seule).
+    if ($action === 'invoice_link') {
+        @set_time_limit(300);
+        $r = invoice_link_number($id, (string)($_POST['invoice_number'] ?? ''), $disp);
+        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Facture '.$r['number'].' reliée'.($r['paid'] ? ' : déjà payée, dossier clôturé.' : ' : le paiement sera suivi avec Pennylane.') : (string)$r['error']);
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
+    }
+    if ($action === 'invoice_unlink') {
+        $ok = invoice_unlink($id, (int)($_POST['invoice_id'] ?? 0), $disp);
+        flash($ok ? 'success' : 'error', $ok ? 'Lien avec la facture retiré.' : 'Seule une facture reliée à la main peut être détachée.');
+        redirect_to('dispatcher/intervention_view.php?id='.$id.'#facture');
     }
 
     if ($action === 'quick_status') {
@@ -219,6 +293,10 @@ $assignedTech = !empty($iv['technician_id']) ? null : null;
 foreach ($techs as $t) {
     if ((int)$t['id'] === (int)($iv['technician_id'] ?? 0)) { $assignedTech = $t; break; }
 }
+
+/* Renforts */
+$team = team_members((int)$iv['id']);
+$teamMode = report_mode($iv);
 
 /* Amount TTC auto */
 $amtHt  = (float)($iv['amount_ht']  ?? 0);
@@ -418,7 +496,7 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_diagnostic'])): ?>
             <div style="margin:1rem 0;">
               <div class="d-label">Diagnostic</div>
-              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_diagnostic'])) ?></div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e(correction_text($iv, 'tech_diagnostic'))) ?></div>
             </div>
             <?php endif; ?>
             <?php if ($repCalc['lines']): ?>
@@ -445,7 +523,51 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_report'])): ?>
             <div style="margin:1rem 0;">
               <div class="d-label"><?= !empty($iv['tech_diagnostic']) ? 'Travaux réalisés' : 'Constat et travaux réalisés' ?></div>
-              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e($iv['tech_report'])) ?></div>
+              <div style="font-size:.87rem;color:var(--d-t1);line-height:1.6;background:var(--d-card-2);border-radius:6px;padding:.75rem;"><?= nl2br(e(correction_text($iv, 'tech_report'))) ?></div>
+            </div>
+            <?php endif; ?>
+            <?php if (!empty($iv['tech_diagnostic']) || !empty($iv['tech_report'])): ?>
+            <!-- Version corrigée (Claude) : texte d'origine gardé, modifiable par le dispatcher -->
+            <div class="corr-box">
+              <div style="font-size:.8rem;color:var(--d-t2);">
+                <?php if (correction_has($iv)): ?>
+                  ✓ Texte corrigé <?= ($iv['correction_source'] ?? '') === 'dispatcher' ? 'par le dispatcher' : 'par Claude (orthographe, vocabulaire technique)' ?><?= !empty($iv['correction_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['correction_at']))) : '' ?> · utilisé dans le rapport PDF.
+                <?php elseif (!empty($iv['correction_at'])): ?>
+                  Texte du technicien gardé tel quel (aucune correction utile ou correction écartée par sécurité).
+                <?php else: ?>
+                  Pas encore corrigé<?= claude_is_configured() ? '' : ' (aucune clé Claude : correction désactivée)' ?>.
+                <?php endif; ?>
+              </div>
+              <?php if (correction_has($iv)): ?>
+              <details><summary>Texte d'origine du technicien</summary>
+                <?php foreach (['tech_diagnostic' => 'Diagnostic', 'tech_report' => 'Travaux réalisés'] as $cf => $cl): if (trim((string)$iv[$cf]) === '') continue; ?>
+                  <div class="d-label" style="margin-top:.4rem;"><?= e($cl) ?></div><div class="corr-orig"><?= nl2br(e((string)$iv[$cf])) ?></div>
+                <?php endforeach; ?>
+              </details>
+              <?php endif; ?>
+              <details><summary>Modifier la version corrigée</summary>
+                <form method="post" style="margin-top:.5rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_save">
+                  <div class="d-field"><label>Diagnostic</label><textarea name="diag" rows="3"><?= e(correction_text($iv, 'tech_diagnostic')) ?></textarea></div>
+                  <div class="d-field"><label>Travaux réalisés</label><textarea name="report" rows="4"><?= e(correction_text($iv, 'tech_report')) ?></textarea></div>
+                  <button type="submit" class="d-btn d-btn--sm d-btn--primary">Enregistrer</button>
+                </form>
+              </details>
+              <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.5rem;">
+                <?php if (claude_is_configured()): ?>
+                <form method="post" onsubmit="this.querySelector('button').textContent='Correction en cours…';">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_run">
+                  <button type="submit" class="d-btn d-btn--sm"><?= !empty($iv['correction_at']) ? 'Relancer la correction' : 'Corriger avec Claude' ?></button>
+                </form>
+                <?php endif; ?>
+                <?php if (correction_has($iv)): ?>
+                <form method="post" onsubmit="return confirm('Revenir au texte d\'origine du technicien pour le rapport PDF ?');">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="correction_reset">
+                  <button type="submit" class="d-btn d-btn--sm d-btn--ghost">Revenir au texte d'origine</button>
+                </form>
+                <?php endif; ?>
+              </div>
+              <style>.corr-box{border-top:1px dashed var(--d-border);padding-top:.7rem;margin-bottom:1rem}.corr-box details{margin-top:.45rem;font-size:.85rem}.corr-box summary{cursor:pointer;color:var(--d-t2)}.corr-orig{font-size:.84rem;color:var(--d-t2);line-height:1.55;background:#fffbeb;border-radius:6px;padding:.55rem .7rem}</style>
             </div>
             <?php endif; ?>
             <?php if (!empty($iv['tech_notes_extra'])): ?>
@@ -513,6 +635,52 @@ function fmt_dur(int $mins): string {
         $invoice = invoice_for_intervention((int)$iv['id']);
         $canReview = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'terminé'], true);
         if ($review || $canReview): $rv = $review['result'] ?? []; ?>
+        <?php endif; ?>
+        <?php $assists = assist_for_intervention((int)$iv['id']); if ($assists): ?>
+        <!-- DEMANDES D'AIDE DU TECHNICIEN -->
+        <div class="d-card" id="aide" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Demandes d'aide du technicien</div></div>
+          <div class="d-card-body">
+            <?php foreach ($assists as $as): ?>
+              <div style="margin-bottom:1rem;">
+                <div style="font-size:.76rem;color:var(--d-t3);"><?= e(date('d/m à H:i', strtotime((string)$as['created_at']))) ?> · <?= e(assist_status_label((string)$as['status'])) ?></div>
+                <div style="background:#eef2ff;border-radius:8px;padding:.55rem .7rem;font-size:.87rem;margin-top:.2rem;"><?= nl2br(e((string)$as['question'])) ?></div>
+                <?php if ($as['status'] === 'repondu'): ?>
+                  <div style="background:var(--d-card-2);border-radius:8px;padding:.55rem .7rem;font-size:.87rem;margin:.35rem 0 0 1.2rem;"><b style="font-size:.74rem;color:var(--d-t2);display:block;"><?= e(assist_author_label($as['answered_by'] ?? null)) ?></b><?= nl2br(e((string)$as['answer'])) ?></div>
+                <?php else: ?>
+                  <form method="post" style="margin:.4rem 0 0 1.2rem;display:flex;gap:.4rem;">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="assist_reply"><input type="hidden" name="assist_id" value="<?= (int)$as['id'] ?>">
+                    <textarea name="answer" rows="2" required placeholder="Votre réponse au technicien" style="flex:1;font-size:.85rem;"></textarea>
+                    <button type="submit" class="d-btn d-btn--sm d-btn--primary">Répondre</button>
+                  </form>
+                <?php endif; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+        <?php $teamReports = array_values(array_filter($team, static fn($tm) => trim((string)$tm['diagnostic'].(string)$tm['report'].(string)$tm['notes']) !== ''));
+        if ($teamReports): ?>
+        <!-- RAPPORTS DES RENFORTS -->
+        <div class="d-card" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Rapports des renforts</div></div>
+          <div class="d-card-body">
+            <?php foreach ($teamReports as $tm): ?>
+              <div style="margin-bottom:1rem;">
+                <div style="font-weight:600;"><?= e((string)$tm['tech_name']) ?>
+                  <span style="font-size:.75rem;font-weight:500;color:<?= !empty($tm['submitted_at']) ? 'var(--d-success)' : '#b45309' ?>;">· <?= !empty($tm['submitted_at']) ? 'rendu le '.e(date('d/m à H:i', strtotime((string)$tm['submitted_at']))) : 'pas encore envoyé' ?></span>
+                  <?php if (!empty($tm['arrived_time']) || !empty($tm['close_time'])): ?><span style="font-size:.75rem;color:var(--d-t2);"> · <?= e(trim(($tm['arrived_time'] ?? '').' → '.($tm['close_time'] ?? ''), ' →')) ?></span><?php endif; ?>
+                </div>
+                <?php foreach (['diagnostic' => 'Diagnostic', 'report' => 'Travaux réalisés', 'notes' => 'Remarques'] as $k => $l): if (trim((string)$tm[$k]) === '') continue; ?>
+                  <div class="d-label" style="margin-top:.4rem;"><?= e($l) ?></div>
+                  <div style="font-size:.87rem;color:var(--d-t1);line-height:1.55;background:var(--d-card-2);border-radius:6px;padding:.6rem .75rem;"><?= nl2br(e((string)$tm[$k])) ?></div>
+                <?php endforeach; ?>
+              </div>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <?php endif; ?>
+        <?php if ($review || $canReview): ?>
         <!-- RELECTURE DU RAPPORT -->
         <div class="d-card" id="relecture" style="margin-top:1.25rem;">
           <div class="d-card-head">
@@ -548,11 +716,25 @@ function fmt_dur(int $mins): string {
                 <button type="submit" class="d-btn d-btn--sm"><?= $review ? 'Relancer la relecture' : 'Lancer la relecture' ?></button>
               </form>
               <?php endif; ?>
-              <?php if (in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)): ?>
-              <form method="post" onsubmit="return confirm('Valider le rapport et préparer le brouillon de facture ?');">
+              <?php if ($currentStatus === 'facture_brouillon'): ?>
+              <form method="post" onsubmit="return confirm('Annuler le brouillon de facture et clôturer l\'intervention sans facture ? Un brouillon déjà envoyé dans Pennylane y restera : à supprimer dans Pennylane.');">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_accept">
-                <button type="submit" class="d-btn d-btn--sm d-btn--primary">Valider le rapport et préparer la facture</button>
+                <input type="hidden" name="with_invoice" value="0">
+                <button type="submit" class="d-btn d-btn--sm">Clôturer sans facture</button>
               </form>
+              <?php elseif (in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'terminé'], true)):
+                $ivHasLines = (bool)tech_report_lines($iv); ?>
+              <form method="post" class="val-form" onsubmit="return confirm(this.with_invoice.checked ? 'Valider le rapport et préparer le brouillon de facture (envoyé en brouillon dans Pennylane) ?' : 'Valider sans facture ? L\'intervention sera clôturée.');">
+                <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="review_accept">
+                <label class="val-switch">
+                  <input type="checkbox" name="with_invoice" value="1" <?= $ivHasLines ? 'checked' : '' ?>
+                         onchange="this.form.querySelector('button').textContent = this.checked ? 'Valider et préparer la facture' : 'Valider sans facture';">
+                  <span>Facture Pennylane automatique</span>
+                </label>
+                <button type="submit" class="d-btn d-btn--sm d-btn--primary"><?= $ivHasLines ? 'Valider et préparer la facture' : 'Valider sans facture' ?></button>
+              </form>
+              <?php if (!$ivHasLines): ?><div style="font-size:.8rem;color:var(--d-t2);width:100%;">Aucune prestation déclarée : validez sans facture, ou cochez la case pour préparer une facture à compléter dans Factures.</div><?php endif; ?>
+              <style>.val-form{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}.val-switch{display:inline-flex;align-items:center;gap:.4rem;font-size:.84rem;color:var(--d-t1);cursor:pointer}.val-switch input{width:auto;margin:0}</style>
               <?php endif; ?>
             </div>
             <?php if ($currentStatus !== 'a_revoir'): ?>
@@ -573,6 +755,24 @@ function fmt_dur(int $mins): string {
         </div>
         <?php endif; ?>
 
+        <?php
+        $invLinkable = in_array($currentStatus, ['rapport_rendu', 'a_revoir', 'rapport_verifie', 'facture_brouillon', 'cloturee', 'terminé', 'payé', 'facturé'], true)
+            && (!$invoice || $invoice['status'] === 'brouillon');
+        if ($invLinkable): ?>
+        <!-- RELIER UNE FACTURE PENNYLANE EXISTANTE -->
+        <div class="d-card" id="facture-lien" style="margin-top:1.25rem;">
+          <div class="d-card-head"><div class="d-card-title">Relier une facture Pennylane</div></div>
+          <div class="d-card-body">
+            <p style="font-size:.84rem;color:var(--d-t2);margin:0 0 .6rem;">Facture déjà faite dans Pennylane ? Saisissez son numéro : elle est reliée à cette intervention (rien n'est modifié dans Pennylane) et son paiement est suivi automatiquement.<?= $invoice ? ' Le brouillon préparé par le site sera remplacé.' : '' ?></p>
+            <form method="post" style="display:flex;gap:.5rem;flex-wrap:wrap;" onsubmit="this.querySelector('button').textContent='Recherche…';">
+              <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="invoice_link">
+              <input name="invoice_number" required maxlength="60" placeholder="Ex. : F-2026-0042" style="flex:1;min-width:160px;">
+              <button type="submit" class="d-btn d-btn--sm d-btn--primary">Relier la facture</button>
+            </form>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <?php if ($invoice): ?>
         <!-- FACTURE -->
         <div class="d-card" id="facture" style="margin-top:1.25rem;">
@@ -581,6 +781,17 @@ function fmt_dur(int $mins): string {
             <span style="font-size:.8rem;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?> TTC</span>
           </div>
           <div class="d-card-body">
+            <?php if ($invoice['status'] !== 'brouillon' && empty($invoice['review_id'])): ?>
+              <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;font-size:.84rem;margin-bottom:.6rem;">
+                <span>Facture reliée depuis Pennylane · <?= $invoice['status'] === 'payee' ? '<b style="color:var(--d-success);">payée</b>' : 'reste '.e(money_fr((float)($invoice['remaining_ttc'] ?? $invoice['total_ttc']))) ?></span>
+                <?php if (!empty($invoice['pdf_url'])): ?><a href="<?= e((string)$invoice['pdf_url']) ?>" target="_blank" rel="noopener">PDF de la facture</a><?php endif; ?>
+                <form method="post" style="margin:0;" onsubmit="return confirm('Retirer le lien avec cette facture ? La facture reste dans Pennylane.');">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="invoice_unlink">
+                  <input type="hidden" name="invoice_id" value="<?= (int)$invoice['id'] ?>">
+                  <button type="submit" class="d-btn d-btn--sm d-btn--ghost">Retirer le lien</button>
+                </form>
+              </div>
+            <?php endif; ?>
             <?php if (!empty($invoice['summary'])): ?><div style="font-size:.87rem;margin-bottom:.6rem;"><?= nl2br(e((string)$invoice['summary'])) ?></div><?php endif; ?>
             <table class="d-table" style="font-size:.84rem;">
               <tbody>
@@ -592,11 +803,11 @@ function fmt_dur(int $mins): string {
               </tbody>
               <tfoot>
                 <tr><td colspan="2" style="text-align:right;">Total HT</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_ht'])) ?></td></tr>
-                <tr><td colspan="2" style="text-align:right;">TVA <?= e(rtrim(rtrim(number_format((float)$invoice['vat_rate'], 1, ',', ''), '0'), ',')) ?> %</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_tva'])) ?></td></tr>
+                <tr><td colspan="2" style="text-align:right;">TVA <?php $invRate = (float)$invoice['vat_rate'] > 0 ? (float)$invoice['vat_rate'] : ((float)$invoice['total_ht'] > 0 ? round((float)$invoice['total_tva'] / (float)$invoice['total_ht'] * 100, 1) : 0.0); ?><?= e(rtrim(rtrim(number_format($invRate, 1, ',', ''), '0'), ',')) ?> %</td><td style="text-align:right;"><?= e(money_fr((float)$invoice['total_tva'])) ?></td></tr>
                 <tr><td colspan="2" style="text-align:right;font-weight:700;">Total TTC</td><td style="text-align:right;font-weight:700;"><?= e(money_fr((float)$invoice['total_ttc'])) ?></td></tr>
               </tfoot>
             </table>
-            <div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div>
+            <?php if (!empty($invoice['review_id'])): ?><div style="font-size:.78rem;color:var(--d-t3);margin-top:.5rem;">Montants calculés à partir de la grille tarifaire. Aucune facture n'est envoyée sans votre validation.</div><?php endif; ?>
             <a class="d-btn d-btn--sm <?= $invoice['status'] === 'brouillon' ? 'd-btn--primary' : '' ?>" style="margin-top:.6rem;" href="<?= e(url_for('dispatcher/factures.php?id='.(int)$invoice['id'])) ?>"><?= $invoice['status'] === 'brouillon' ? 'Vérifier et valider la facture' : 'Ouvrir la facture' ?></a>
           </div>
         </div>
@@ -607,9 +818,12 @@ function fmt_dur(int $mins): string {
         $threshold = yousign_threshold();
         $estTtc = (float)($iv['amount_ttc'] ?? 0);
         $hasSigned = (bool)array_filter($devisList, static fn($d) => $d['status'] === 'signe');
-        $showDevis = $devisList || !$isTerminal || in_array($currentStatus, ['a_revoir', 'rapport_rendu'], true) || (($iv['tech_return_visit'] ?? null) !== null && (int)$iv['tech_return_visit'] === 1);
+        $showDevis = $devisList || (int)($iv['tech_quote_needed'] ?? 0) === 1 || !$isTerminal || in_array($currentStatus, ['a_revoir', 'rapport_rendu'], true) || (($iv['tech_return_visit'] ?? null) !== null && (int)$iv['tech_return_visit'] === 1);
         if ($showDevis):
           $dGrid = price_grid_rows(true, (string)($iv['category'] ?? ''));
+          // Devis demandé par le technicien, encore sans ligne : le formulaire sert à le compléter.
+          $techDraft = null;
+          foreach ($devisList as $dv) if (($dv['source'] ?? '') === 'technicien' && $dv['status'] === 'brouillon' && !$dv['lines']) { $techDraft = $dv; break; }
           $dVat = iv_vat_rate($iv, $ivClient); ?>
         <!-- DEVIS -->
         <div class="d-card" id="devis" style="margin-top:1.25rem;">
@@ -629,6 +843,9 @@ function fmt_dur(int $mins): string {
                 </div>
                 <?php if (!empty($dv['sent_at'])): ?><div style="font-size:.78rem;color:var(--d-t3);margin-top:.2rem;">Envoyé le <?= e(date('d/m/Y H:i', strtotime((string)$dv['sent_at']))) ?> à <?= e((string)$dv['signer_email']) ?><?= !empty($dv['signed_at']) ? ' · signé le '.e(date('d/m/Y H:i', strtotime((string)$dv['signed_at']))) : '' ?></div><?php endif; ?>
                 <?php if (!empty($dv['error'])): ?><div style="font-size:.8rem;color:var(--d-danger);margin-top:.25rem;"><?= e((string)$dv['error']) ?></div><?php endif; ?>
+                <?php if (($dv['source'] ?? '') === 'technicien'): ?>
+                  <div style="font-size:.84rem;background:#fffbeb;border-radius:6px;padding:.5rem .65rem;margin-top:.45rem;"><b>Demandé par le technicien :</b> <?= nl2br(e((string)$dv['description'])) ?></div>
+                <?php endif; ?>
                 <div style="display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.55rem;">
                   <a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF</a>
                   <?php if (!empty($dv['signed_pdf_path'])): ?><a class="d-btn d-btn--sm" href="<?= e(url_for('dispatcher/devis_pdf.php?signed=1&id='.(int)$dv['id'])) ?>" target="_blank" rel="noopener">PDF signé</a><?php endif; ?>
@@ -644,7 +861,9 @@ function fmt_dur(int $mins): string {
                     </form>
                   <?php endif; ?>
                 </div>
-                <?php if ($dv['status'] === 'brouillon'): ?>
+                <?php if ($dv['status'] === 'brouillon' && !$dv['lines']): ?>
+                  <div style="font-size:.8rem;color:#b45309;margin-top:.5rem;">À chiffrer : ajoutez les prestations ci-dessous avant de l'envoyer au client.</div>
+                <?php elseif ($dv['status'] === 'brouillon'): ?>
                   <form method="post" style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:flex-end;margin-top:.6rem;" onsubmit="return confirm('Envoyer ce devis de <?= e(money_fr((float)$dv['total_ttc'])) ?> TTC au client pour signature ?');">
                     <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_send"><input type="hidden" name="devis_id" value="<?= (int)$dv['id'] ?>">
                     <div class="d-field" style="margin:0;flex:1;min-width:180px;"><label class="req">E-mail du client</label><input type="email" name="email" required value="<?= e((string)($ivClient['email'] ?? '')) ?>"></div>
@@ -654,12 +873,13 @@ function fmt_dur(int $mins): string {
                 <?php endif; ?>
               </div>
             <?php endforeach; ?>
-            <details <?= $devisList ? '' : 'open' ?>>
-              <summary style="cursor:pointer;font-size:.88rem;font-weight:600;">+ Nouveau devis</summary>
+            <details <?= !$devisList || $techDraft ? 'open' : '' ?>>
+              <summary style="cursor:pointer;font-size:.88rem;font-weight:600;"><?= $techDraft ? 'Compléter le devis '.e((string)$techDraft['number']).' demandé par le technicien' : '+ Nouveau devis' ?></summary>
               <form method="post" style="margin-top:.6rem;">
                 <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="devis_save">
-                <div class="d-field"><label class="req">Titre</label><input name="dl_title" required value="<?= e((intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux').' — '.(trim((string)($iv['tech_fault_label'] ?? '')) ?: trim((string)($iv['type_label'] ?? '')) ?: 'devis')) ?>"></div>
-                <div class="d-field"><label>Description des travaux</label><textarea name="dl_description" rows="3"><?= e(trim((string)($iv['tech_incomplete_reason'] ?? '')) ?: trim((string)($iv['tech_diagnostic'] ?? ''))) ?></textarea></div>
+                <?php if ($techDraft): ?><input type="hidden" name="devis_id" value="<?= (int)$techDraft['id'] ?>"><?php endif; ?>
+                <div class="d-field"><label class="req">Titre</label><input name="dl_title" required value="<?= e($techDraft ? (string)$techDraft['title'] : (intervention_category_config()[$iv['category'] ?? '']['label'] ?? 'Travaux').' — '.(trim((string)($iv['tech_fault_label'] ?? '')) ?: trim((string)($iv['type_label'] ?? '')) ?: 'devis')) ?>"></div>
+                <div class="d-field"><label>Description des travaux</label><textarea name="dl_description" rows="3"><?= e($techDraft ? (string)$techDraft['description'] : (trim((string)($iv['tech_incomplete_reason'] ?? '')) ?: trim((string)($iv['tech_diagnostic'] ?? '')))) ?></textarea></div>
                 <table class="d-table" style="font-size:.84rem;">
                   <thead><tr><th>Désignation</th><th style="width:70px;">Qté</th><th style="width:110px;">P.U. HT</th></tr></thead>
                   <tbody>
@@ -830,7 +1050,7 @@ function fmt_dur(int $mins): string {
               <div class="d-grid-2">
                 <div class="d-field">
                   <label>Catégorie</label>
-                  <select name="category">
+                  <select name="category" id="e-category">
                     <option value="">Choisir</option>
                     <?php foreach ($catCfg as $ck=>$cv): ?>
                       <option value="<?=e($ck)?>" <?=($iv['category']??'')===$ck?'selected':''?>><?=e($cv['icon'].' '.$cv['label'])?></option>
@@ -842,13 +1062,14 @@ function fmt_dur(int $mins): string {
                   <input type="text" name="type_label" value="<?=e($iv['type_label']??'')?>">
                 </div>
               </div>
+              <?= ref_picker_html(['cat' => 'e-category', 'install' => 'e-installation', 'fault' => 'e-fault', 'fault_mode' => 'append']) ?>
               <div class="d-field">
                 <label>Type d'installation</label>
-                <input type="text" name="installation_type" value="<?=e($iv['installation_type']??'')?>">
+                <input type="text" id="e-installation" name="installation_type" value="<?=e($iv['installation_type']??'')?>">
               </div>
               <div class="d-field">
                 <label>Panne signalée</label>
-                <textarea name="fault_reported"><?=e($iv['fault_reported']??'')?></textarea>
+                <textarea id="e-fault" name="fault_reported"><?=e($iv['fault_reported']??'')?></textarea>
               </div>
               <div class="d-field">
                 <label>Description</label>
@@ -1024,12 +1245,61 @@ function fmt_dur(int $mins): string {
                 <?php elseif ($tr === 'acceptee'): ?>
                   <div style="font-size:.74rem;color:var(--d-success);font-weight:600;">Acceptée<?= !empty($iv['tech_response_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['tech_response_at']))) : '' ?></div>
                 <?php endif; ?>
+                <?php if ($eta = eta_status($iv, time())): ?>
+                  <div style="font-size:.78rem;font-weight:600;color:<?= $eta['late'] ? '#b45309' : '#0e7490' ?>;" title="Estimation donnée par le technicien à <?= e(eta_hm(strtotime((string)$iv['tech_eta_at']))) ?>">Sur place : <?= e($eta['text']) ?></div>
+                <?php elseif (($iv['status'] ?? '') === 'sur_place'): ?>
+                  <div style="font-size:.74rem;color:var(--d-t3);">Sur place, pas encore d'heure de fin</div>
+                <?php endif; ?>
                 <?php if (!empty($assignedTech['phone'])): ?>
                   <a href="tel:<?= e(preg_replace('/\s+/','',$assignedTech['phone'])) ?>"
                      style="font-size:.77rem;color:var(--d-t2);text-decoration:none;"><?= e($assignedTech['phone']) ?></a>
                 <?php endif; ?>
               <?php else: ?>
                 <span style="color:var(--d-t3);">Non assigné</span>
+              <?php endif; ?>
+            </span>
+          </div>
+          <div class="d-info-row" id="equipe" style="align-items:flex-start;">
+            <span class="d-info-label">Renforts</span>
+            <span class="d-info-value" style="text-align:right;">
+              <?php foreach ($team as $tm): ?>
+                <div style="display:flex;align-items:center;justify-content:flex-end;gap:.35rem;">
+                  <span><?= e((string)($tm['tech_name'] ?? 'Technicien')) ?></span>
+                  <?php if (!$isTerminal): ?>
+                  <form method="post" style="display:inline;margin:0;" onsubmit="return confirm('Retirer ce renfort ?');">
+                    <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="team_remove">
+                    <input type="hidden" name="tech_id" value="<?= (int)$tm['technician_id'] ?>">
+                    <button type="submit" title="Retirer" style="background:none;border:none;color:var(--d-t3);cursor:pointer;font-size:.9rem;line-height:1;padding:0;">×</button>
+                  </form>
+                  <?php endif; ?>
+                </div>
+                <?php if ($teamMode === 'chacun'): $st = team_report_state($tm, $teamMode); ?>
+                  <div style="font-size:.72rem;font-weight:600;color:<?= $st === 'rendu' ? 'var(--d-success)' : '#b45309' ?>;"><?= e(team_report_state_label($st)) ?></div>
+                <?php endif; ?>
+              <?php endforeach; ?>
+              <?php if (!$isTerminal && !empty($iv['technician_id'])):
+                $teamIds = array_map('intval', array_column($team, 'technician_id'));
+                $addable = array_filter($techs, static fn($t) => (int)$t['id'] !== (int)$iv['technician_id'] && !in_array((int)$t['id'], $teamIds, true)); ?>
+                <?php if ($addable): ?>
+                <form method="post" style="display:flex;gap:.3rem;justify-content:flex-end;margin-top:.35rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="team_add">
+                  <select name="tech_id" required style="font-size:.78rem;padding:.2rem .3rem;max-width:140px;">
+                    <option value="">+ Ajouter…</option>
+                    <?php foreach ($addable as $t): ?><option value="<?= (int)$t['id'] ?>"><?= e($t['name']) ?></option><?php endforeach; ?>
+                  </select>
+                  <button type="submit" class="d-btn d-btn--sm" style="padding:.2rem .5rem;font-size:.76rem;">OK</button>
+                </form>
+                <?php endif; ?>
+              <?php elseif (!$team): ?>
+                <span style="color:var(--d-t3);font-size:.8rem;"><?= empty($iv['technician_id']) ? 'Assignez d\'abord un technicien' : '—' ?></span>
+              <?php endif; ?>
+              <?php if ($team): ?>
+                <form method="post" style="margin-top:.4rem;">
+                  <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>"><input type="hidden" name="action" value="report_mode">
+                  <select name="report_mode" onchange="this.form.submit()" style="font-size:.76rem;padding:.2rem .3rem;max-width:200px;">
+                    <?php foreach (report_mode_options() as $k => $l): ?><option value="<?= e($k) ?>" <?= $teamMode === $k ? 'selected' : '' ?>><?= e($l) ?></option><?php endforeach; ?>
+                  </select>
+                </form>
               <?php endif; ?>
             </span>
           </div>
@@ -1094,6 +1364,16 @@ function fmt_dur(int $mins): string {
             <span class="d-info-label">Paiement</span>
             <span class="d-info-value"><?= payment_badge($ps) ?></span>
           </div>
+          <form method="post" id="financier" style="margin-top:.6rem;">
+            <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
+            <input type="hidden" name="action" value="set_payment_note">
+            <label class="d-label" for="pay-note" style="display:block;margin-bottom:.25rem;">Remarque de paiement</label>
+            <div style="display:flex;gap:.35rem;">
+              <input id="pay-note" name="payment_note" list="pay-note-list" maxlength="500" value="<?= e((string)($iv['payment_note'] ?? '')) ?>" placeholder="Ex. : le propriétaire paie" style="flex:1;min-width:0;font-size:.84rem;">
+              <button type="submit" class="d-btn d-btn--sm">OK</button>
+            </div>
+            <datalist id="pay-note-list"><?php foreach (payment_note_presets() as $pn): ?><option value="<?= e($pn) ?>"><?php endforeach; ?></datalist>
+          </form>
           <form method="post" style="display:flex;gap:.5rem;margin-top:.6rem;">
             <input type="hidden" name="csrf_token" value="<?= e(csrf_token()) ?>">
             <input type="hidden" name="action" value="set_payment">

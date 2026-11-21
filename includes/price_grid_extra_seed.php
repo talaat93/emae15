@@ -1,0 +1,68 @@
+<?php
+declare(strict_types=1);
+// Prestations ajoutées le 17/11/2026 pour couvrir tous les métiers (migration v15.50).
+// Prix HT de départ, hors déplacement : milieu des fourchettes relevées sur des sites
+// de prix de travaux (mesdepanneurs.fr, ootravaux.fr, habitatpresto.com, obat.fr,
+// selectra.info, travaux.com…), TTC ramené en HT. Ce sont des ordres de grandeur,
+// à corriger dans Dispatcher > Tarifs. Seuls les codes absents de la grille sont ajoutés.
+// [métier, code, désignation, unité (forfait|heure|unite|kg|pourcent), prix HT]
+return [
+    ['electricite', 'ELEC-POINT', 'Création d\'un point lumineux avec interrupteur', 'unite', 110],
+    ['electricite', 'ELEC-PRISE-NEW', 'Création d\'une prise supplémentaire (fournie)', 'unite', 85],
+    ['electricite', 'ELEC-LUMINAIRE', 'Pose ou remplacement d\'un luminaire (hors fourniture)', 'unite', 55],
+    ['electricite', 'ELEC-CONTACTEUR', 'Remplacement contacteur jour/nuit (fourni)', 'unite', 99],
+    ['electricite', 'ELEC-PARAFOUDRE', 'Pose d\'un parafoudre (fourni)', 'unite', 190],
+    ['electricite', 'ELEC-TERRE', 'Mise à la terre (piquet de terre)', 'forfait', 290],
+    ['electricite', 'ELEC-MISE-SECU', 'Diagnostic de mise en sécurité avec rapport', 'forfait', 160],
+    ['electricite', 'ELEC-RADIATEUR', 'Remplacement radiateur électrique (hors fourniture)', 'unite', 90],
+    ['electricite', 'ELEC-VOLET', 'Dépannage volet roulant électrique', 'forfait', 99],
+    ['electricite', 'ELEC-MOTEUR-VOLET', 'Remplacement moteur de volet roulant (fourni)', 'unite', 290],
+    ['electricite', 'ELEC-INTERPHONE', 'Remplacement interphone audio (fourni)', 'unite', 220],
+    ['electricite', 'ELEC-VISIO', 'Remplacement visiophone (fourni)', 'unite', 390],
+    ['electricite', 'ELEC-PORTAIL', 'Dépannage motorisation de portail', 'forfait', 119],
+    ['electricite', 'ELEC-VMC', 'Remplacement groupe VMC simple flux (fourni)', 'unite', 290],
+
+    ['plomberie', 'PLB-RESIST', 'Remplacement résistance de chauffe-eau (fournie)', 'unite', 160],
+    ['plomberie', 'PLB-THERMO-CE', 'Remplacement thermostat de chauffe-eau (fourni)', 'unite', 130],
+    ['plomberie', 'PLB-ANODE', 'Remplacement anode magnésium (fournie)', 'unite', 110],
+    ['plomberie', 'PLB-DETARTRAGE', 'Détartrage chauffe-eau électrique', 'forfait', 150],
+    ['plomberie', 'PLB-CE100', 'Remplacement chauffe-eau 100 L (fourni, posé)', 'forfait', 990],
+    ['plomberie', 'PLB-CE150', 'Remplacement chauffe-eau 150 L (fourni, posé)', 'forfait', 1090],
+    ['plomberie', 'PLB-WC', 'Remplacement WC à poser (hors fourniture)', 'forfait', 220],
+    ['plomberie', 'PLB-WC-SUSP', 'Pose WC suspendu avec bâti (hors fourniture)', 'forfait', 450],
+    ['plomberie', 'PLB-MITIG-THERMO', 'Pose mitigeur thermostatique (hors fourniture)', 'unite', 120],
+    ['plomberie', 'PLB-CARTOUCHE', 'Remplacement cartouche ou joints de robinet', 'unite', 69],
+    ['plomberie', 'PLB-ROB-ARRET', 'Remplacement robinet d\'arrêt (fourni)', 'unite', 95],
+    ['plomberie', 'PLB-SIPHON', 'Remplacement siphon (fourni)', 'unite', 65],
+    ['plomberie', 'PLB-REDUCTEUR', 'Pose réducteur de pression (fourni)', 'unite', 190],
+    ['plomberie', 'PLB-FUITE-ENC', 'Recherche de fuite non apparente (caméra thermique, gaz traceur)', 'forfait', 350],
+    ['plomberie', 'PLB-BROYEUR', 'Dépannage broyeur WC', 'forfait', 119],
+    ['plomberie', 'PLB-BROYEUR-NEW', 'Remplacement broyeur WC (hors fourniture)', 'forfait', 230],
+
+    ['chauffage', 'CH-PRESSION', 'Remise en pression et purge du circuit', 'forfait', 79],
+    ['chauffage', 'CH-PURGE', 'Purge des radiateurs', 'forfait', 69],
+    ['chauffage', 'CH-DESEMBOUAGE', 'Désembouage du circuit (jusqu\'à 10 radiateurs)', 'forfait', 590],
+    ['chauffage', 'CH-THERMOSTAT', 'Remplacement thermostat d\'ambiance standard (fourni)', 'unite', 160],
+    ['chauffage', 'CH-3V', 'Remplacement vanne 3 voies (fournie)', 'unite', 320],
+    ['chauffage', 'CH-ELECTRODE', 'Remplacement électrode d\'allumage (fournie)', 'unite', 120],
+    ['chauffage', 'CH-SONDE', 'Remplacement sonde de température (fournie)', 'unite', 110],
+    ['chauffage', 'CH-CARTE', 'Remplacement carte électronique (hors fourniture)', 'forfait', 150],
+    ['chauffage', 'CH-ROB-THERMO', 'Remplacement robinet thermostatique de radiateur (fourni)', 'unite', 89],
+    ['chauffage', 'CH-ENTRETIEN-FIOUL', 'Entretien annuel chaudière fioul', 'forfait', 150],
+    ['chauffage', 'CH-RAMONAGE', 'Ramonage de conduit', 'forfait', 70],
+    ['chauffage', 'CH-PAC-DEPANNAGE', 'Diagnostic ou dépannage pompe à chaleur', 'forfait', 139],
+    ['chauffage', 'CH-PAC-ENTRETIEN', 'Entretien annuel pompe à chaleur air/eau', 'forfait', 170],
+    ['chauffage', 'CH-POELE', 'Entretien poêle à granulés', 'forfait', 140],
+
+    ['climatisation', 'CLIM-FUITE', 'Recherche de fuite de fluide frigorigène', 'forfait', 250],
+    ['climatisation', 'CLIM-CONDENSATS', 'Débouchage de l\'évacuation des condensats', 'forfait', 99],
+    ['climatisation', 'CLIM-POMPE-RELEV', 'Remplacement pompe de relevage (fournie)', 'unite', 160],
+    ['climatisation', 'CLIM-ENTRETIEN-UI', 'Entretien unité intérieure supplémentaire (multisplit)', 'unite', 49],
+    ['climatisation', 'CLIM-TELECOMMANDE', 'Remplacement télécommande (fournie)', 'unite', 59],
+
+    ['debouchage', 'DEB-CAMERA', 'Inspection caméra de canalisation', 'forfait', 230],
+    ['debouchage', 'DEB-RAPPORT', 'Rapport d\'inspection vidéo', 'unite', 80],
+    ['debouchage', 'DEB-SIPHON', 'Démontage et nettoyage du siphon', 'forfait', 69],
+    ['debouchage', 'DEB-COLONNE', 'Débouchage colonne d\'immeuble', 'forfait', 290],
+    ['debouchage', 'DEB-REGARD', 'Curage regard ou bac à graisse', 'forfait', 220],
+];

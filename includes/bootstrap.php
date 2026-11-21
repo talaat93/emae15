@@ -24,6 +24,11 @@ require_once __DIR__ . '/pennylane.php';
 require_once __DIR__ . '/pricing.php';
 require_once __DIR__ . '/qualification.php';
 require_once __DIR__ . '/assignment.php';
+require_once __DIR__ . '/referentiel.php';
+require_once __DIR__ . '/team.php';
+require_once __DIR__ . '/correction.php';
+require_once __DIR__ . '/disp_notify.php';
+require_once __DIR__ . '/assist.php';
 require_once __DIR__ . '/review.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
@@ -1025,16 +1030,110 @@ if (!file_exists($_mf47)) {
     unset($_me);
 }
 unset($_mf47);
-// Auto-migration v15.48 (21/11/2026) : fourchettes de prix des grilles climatisation, VMC, portail et
-// automatismes. Seulement les grilles sans aucun prix saisi ; l'ancienne valeur est sauvegardée.
-$_mf48 = __DIR__.'/../storage/.mig_v15_tarifs_fourchettes';
+// Auto-migration v15.48 — fin estimée par le technicien sur place : heure de fin prévue,
+// moment où il l'a indiquée, avancement (début, milieu, fin). Colonnes vides par défaut.
+$_mf48 = __DIR__.'/../storage/.mig_v15_tech_eta';
 if (!file_exists($_mf48)) {
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_eta_end DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_eta_at DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_progress VARCHAR(10) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
     @file_put_contents($_mf48, date('c'));
-    try { tarifs_fill_empty_grids(tarifs_fourchettes_rows()); }
-    catch (Throwable $_me) { error_log('Migration v15.48 : '.$_me->getMessage()); }
-    unset($_me);
+    unset($_me, $_sql);
 }
 unset($_mf48);
+// Auto-migration v15.49 — référentiel de départ (appareils, marques, modèles, pannes, phrases
+// toutes prêtes) chargé dans preset_items, modifiable ensuite dans « Listes prédéfinies ».
+// Un type déjà rempli n'est pas touché.
+$_mf49 = __DIR__.'/../storage/.mig_v15_referentiel';
+if (!file_exists($_mf49)) {
+    @file_put_contents($_mf49, date('c'));
+    try { ref_seed_db(); } catch (Throwable $_me) { error_log('Migration v15.49 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf49);
+// Auto-migration v15.50 — prestations pour tous les métiers (prix moyens de départ,
+// includes/price_grid_extra_seed.php). Seuls les codes absents de la grille sont ajoutés.
+$_mf50 = __DIR__.'/../storage/.mig_v15_grille_metiers';
+if (!file_exists($_mf50)) {
+    @file_put_contents($_mf50, date('c'));
+    try { price_grid_add_missing((array)require __DIR__.'/price_grid_extra_seed.php'); }
+    catch (Throwable $_me) { error_log('Migration v15.50 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf50);
+// Auto-migration v15.51 — plusieurs techniciens sur une intervention : table des renforts et
+// choix du rapport (un seul ou un par technicien). Par défaut : un seul rapport, comme avant.
+$_mf51 = __DIR__.'/../storage/.mig_v15_equipe';
+if (!file_exists($_mf51)) {
+    @file_put_contents($_mf51, date('c'));
+    try { team_table(); } catch (Throwable $_me) {}
+    try { db_execute("ALTER TABLE interventions ADD COLUMN report_mode VARCHAR(12) NOT NULL DEFAULT 'principal'"); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf51);
+// Auto-migration v15.52 — remarque de paiement (« le propriétaire paie », assurance…).
+$_mf52 = __DIR__.'/../storage/.mig_v15_payment_note';
+if (!file_exists($_mf52)) {
+    @file_put_contents($_mf52, date('c'));
+    try { db_execute("ALTER TABLE interventions ADD COLUMN payment_note VARCHAR(500) NULL"); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf52);
+// Auto-migration v15.53 — rapport corrigé par Claude (le texte du technicien reste à part, intact).
+$_mf53 = __DIR__.'/../storage/.mig_v15_correction';
+if (!file_exists($_mf53)) {
+    @file_put_contents($_mf53, date('c'));
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_diagnostic_corrige TEXT NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_report_corrige TEXT NULL",
+              "ALTER TABLE interventions ADD COLUMN correction_at DATETIME NULL",
+              "ALTER TABLE interventions ADD COLUMN correction_source VARCHAR(20) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    unset($_me, $_sql);
+}
+unset($_mf53);
+// Auto-migration v15.54 — « devis à faire pour plus tard » demandé par le technicien dans son rapport.
+$_mf54 = __DIR__.'/../storage/.mig_v15_devis_tech';
+if (!file_exists($_mf54)) {
+    // Témoin posé APRÈS le travail : si la base tombe pendant la mise à jour, elle sera rejouée
+    // (chaque ALTER déjà fait échoue sans dommage).
+    try { devis_table(); } catch (Throwable $_me) {}
+    foreach (["ALTER TABLE interventions ADD COLUMN tech_quote_needed TINYINT(1) NULL",
+              "ALTER TABLE interventions ADD COLUMN tech_quote_text TEXT NULL",
+              "ALTER TABLE devis ADD COLUMN source VARCHAR(20) NULL"] as $_sql) {
+        try { db_execute($_sql); } catch (Throwable $_me) {}
+    }
+    @file_put_contents($_mf54, date('c'));
+    unset($_me, $_sql);
+}
+unset($_mf54);
+// Auto-migration v15.55 — notifications du dispatcher (cloche). Témoin posé après le travail.
+$_mf55 = __DIR__.'/../storage/.mig_v15_disp_notif';
+if (!file_exists($_mf55)) {
+    try { disp_notif_table(); @file_put_contents($_mf55, date('c')); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf55);
+// Auto-migration v15.56 — aide au technicien (questions traitées par Claude Code sur le PC du
+// propriétaire, relais par l'API Claude). Témoin posé après le travail.
+$_mf56 = __DIR__.'/../storage/.mig_v15_assist';
+if (!file_exists($_mf56)) {
+    try { assist_table(); @file_put_contents($_mf56, date('c')); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf56);
+// Auto-migration v15.57 (21/11/2026) : fourchettes de prix des grilles climatisation, VMC, portail et
+// automatismes. Seulement les grilles sans aucun prix saisi ; l'ancienne valeur est sauvegardée.
+$_mf57 = __DIR__.'/../storage/.mig_v15_tarifs_fourchettes';
+if (!file_exists($_mf57)) {
+    @file_put_contents($_mf57, date('c'));
+    try { tarifs_fill_empty_grids(tarifs_fourchettes_rows()); }
+    catch (Throwable $_me) { error_log('Migration v15.57 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf57);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

@@ -82,6 +82,8 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
 .plan-who .nm { font-size:.85rem; font-weight:600; color:var(--d-t1); line-height:1.2; }
 .plan-who .ct { font-size:.74rem; color:var(--d-t3); }
 .plan-lane { position:relative; background-image:linear-gradient(to right, var(--d-border) 1px, transparent 1px); background-size:var(--hour) 100%; }
+.plan-who .eta { font-size:.72rem; font-weight:600; color:#0e7490; line-height:1.25; margin-top:2px; }
+.plan-who .eta.is-late { color:#b45309; }
 .plan-now { position:absolute; top:0; bottom:0; width:2px; background:var(--d-orange); z-index:2; }
 .plan-job { position:absolute; top:8px; bottom:8px; border-radius:6px; padding:.25rem .5rem; overflow:hidden; text-decoration:none; background:#fff; border:1px solid var(--d-border-2); border-left-width:4px; z-index:1; min-width:36px; }
 .plan-job:hover { box-shadow:0 2px 8px rgba(16,24,40,.12); z-index:3; }
@@ -206,6 +208,9 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
               <div>
                 <div class="nm"><?= e($tname) ?></div>
                 <div class="ct"><?= count($jobs) ?> intervention<?= count($jobs) > 1 ? 's' : '' ?></div>
+                <?php foreach ($jobs as $j): if ($eta = eta_status($j, time())): ?>
+                  <div class="eta<?= $eta['late'] ? ' is-late' : '' ?>" title="Estimation donnée par le technicien à <?= e(eta_hm(strtotime((string)$j['tech_eta_at']))) ?>"><?= e(ucfirst($eta['text'])) ?></div>
+                <?php endif; endforeach; ?>
               </div>
             </div>
             <div class="plan-lane">
@@ -216,6 +221,8 @@ $viewUrl = static fn(array $iv): string => url_for('dispatcher/intervention_view
                 $s = minutes_of($iv['scheduled_time'] ?? null);
                 if ($s === null) { $untimed[] = $iv; continue; }
                 $d = max(30, (int)($iv['duration_estimate'] ?? 60));
+                // Technicien sur place : la barre s'arrête à sa fin estimée.
+                if (($be = eta_busy_end($iv, time())) !== null && $be > $s) $d = max(30, $be - $s);
                 $col = $statusCfg[$iv['status'] ?? '']['color'] ?? '#8c99ad';
               ?>
                 <a class="plan-job<?= !empty($iv['urgency']) ? ' is-urgent' : '' ?>" href="<?= e($viewUrl($iv)) ?>"

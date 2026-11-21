@@ -7,6 +7,7 @@ declare(strict_types=1);
  * envoyée d'ici : le bouton ouvre la facture, où le dispatcher relit puis envoie.
  */
 $pageTitle   = 'Finances';
+$listFilter  = true;
 $dispSection = 'finances';
 require __DIR__.'/partials/header.php';
 require_finance_access($disp);

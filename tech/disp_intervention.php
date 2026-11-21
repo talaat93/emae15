@@ -18,8 +18,8 @@ function load_iv(int $id, int $techId): ?array {
              FROM interventions i
              LEFT JOIN clients c ON c.id = i.client_id
              LEFT JOIN dispatchers d ON d.id = i.dispatcher_id
-             WHERE i.id = ? AND i.technician_id = ?",
-            [$id, $techId]
+             WHERE i.id = ? AND (i.technician_id = ? OR i.id IN (SELECT intervention_id FROM intervention_team WHERE technician_id = ?))",
+            [$id, $techId, $techId]
         );
     } catch (Throwable $e) { return null; }
 }
@@ -37,12 +37,35 @@ function iv_photos(array $iv): array {
 
 $iv = load_iv($id, $techId);
 if (!$iv) { header('Location: '.url_for('tech/dashboard.php')); exit; }
+// En renfort : le technicien principal pilote la fiche ; le renfort consulte et, si le
+// dispatcher l'a demandé, rédige son propre rapport (includes/team.php).
+$isHelper = (int)($iv['technician_id'] ?? 0) !== $techId;
+$member   = $isHelper ? team_member($id, $techId) : null;
+$teamMode = report_mode($iv);
 
 $self = url_for('tech/disp_intervention.php?id='.$id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $action = trim((string)($_POST['action'] ?? ''));
+
+    if ($isHelper) {
+        if ($action === 'team_report' && $teamMode === 'chacun' && team_report_open((string)$iv['status'])) {
+            $submit = ($_POST['submit_report'] ?? '') === '1';
+            if ($submit && (trim((string)($_POST['diagnostic'] ?? '')) === '' || trim((string)($_POST['report'] ?? '')) === '')) {
+                team_report_save($id, $techId, $_POST, false);
+                flash('error', 'Rapport enregistré mais pas envoyé : il manque le diagnostic ou les travaux réalisés.');
+            } else {
+                team_report_save($id, $techId, $_POST, $submit);
+                flash('success', $submit ? 'Rapport envoyé au bureau.' : 'Rapport enregistré.');
+            }
+            header('Location: '.$self.'#rapport'); exit;
+        }
+        if ($action !== 'client_note') {
+            flash('error', 'Vous êtes en renfort : c\'est le technicien principal qui fait cette action.');
+            header('Location: '.$self); exit;
+        }
+    }
 
     // Réponse à l'attribution : accepter, ou refuser avec un motif (la fiche repart au dispatcher).
     if ($action === 'accept' && ($iv['tech_response'] ?? '') === 'en_attente') {
@@ -79,6 +102,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', $ns === 'en_route' ? 'Trajet démarré. Le dispatcher est informé.' : 'Arrivée enregistrée.');
         }
         if (($_POST['back'] ?? '') === 'list') redirect_to('tech/dashboard.php');
+        header('Location: '.$self); exit;
+    }
+
+    // Fin estimée : le technicien sur place indique où il en est et le temps qu'il lui reste,
+    // pour que le dispatcher sache quand il pourra lui confier l'intervention suivante.
+    if ($action === 'eta') {
+        $prog = (string)($_POST['progress'] ?? '');
+        $rest = (int)($_POST['remaining'] ?? 0);
+        if (($iv['status'] ?? '') !== 'sur_place' || !isset(eta_progress_options()[$prog]) || !in_array($rest, eta_remaining_options(), true)) {
+            flash('error', 'Estimation non enregistrée : choisissez l\'avancement puis le temps restant.');
+            header('Location: '.$self); exit;
+        }
+        $end = time() + $rest * 60;
+        update_intervention($id, ['tech_eta_end' => date('Y-m-d H:i:s', $end), 'tech_eta_at' => date('Y-m-d H:i:s'), 'tech_progress' => $prog]);
+        log_intervention_history($id, 'sur_place', 'sur_place', 'technicien', $techId, (string)$tech['name'],
+            'Avancement : '.mb_strtolower(eta_progress_options()[$prog], 'UTF-8').' — fin estimée vers '.eta_hm($end));
+        flash('success', 'Estimation envoyée au dispatcher : fin vers '.eta_hm($end).'.');
         header('Location: '.$self); exit;
     }
 
@@ -143,6 +183,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_job_completed'     => $yn('tech_job_completed'),
             'tech_incomplete_reason' => trim((string)($_POST['tech_incomplete_reason'] ?? '')) ?: null,
             'tech_return_visit'      => $yn('tech_return_visit'),
+            'tech_quote_needed'      => $yn('tech_quote_needed'),
+            'tech_quote_text'        => ($yn('tech_quote_needed') === 1 ? mb_substr(trim((string)($_POST['tech_quote_text'] ?? '')), 0, 4000) : '') ?: null,
             'tech_notes_extra'       => trim((string)($_POST['tech_notes_extra'] ?? '')),
             'tech_device_number'     => trim((string)($_POST['tech_device_number'] ?? '')),
             'tech_ticket_time'       => trim((string)($_POST['tech_ticket_time'] ?? '')) ?: null,
@@ -153,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'tech_materials_used'    => json_encode($mats, JSON_UNESCAPED_UNICODE),
             'tech_client_name'       => trim((string)($_POST['tech_client_name'] ?? '')) ?: null,
             'payment_status'         => $pay,
+            'payment_note'           => mb_substr(trim((string)($_POST['payment_note'] ?? '')), 0, 500) ?: null,
         ];
         if ($arr !== '') $upd['tech_arrived_at'] = $day.' '.$arr.':00';
         if ($end !== '') $upd['tech_close_time'] = $end.':00';
@@ -189,11 +232,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                                   $missing[] = 'une heure de fin postérieure à l\'arrivée';
             if (trim((string)$after['tech_diagnostic']) === '')  $missing[] = 'le diagnostic';
             if (trim((string)$after['tech_report']) === '')      $missing[] = 'les travaux réalisés';
-            if (!$lines)                                          $missing[] = 'au moins une prestation de la grille';
+            // Prestations facultatives : le bureau peut valider sans (garantie, contrat, geste commercial).
             if ($after['tech_job_completed'] === null)           $missing[] = 'si l\'intervention est terminée';
             elseif ((int)$after['tech_job_completed'] === 0) {
                 if (trim((string)$after['tech_incomplete_reason']) === '') $missing[] = 'la raison (intervention non terminée)';
                 if ($after['tech_return_visit'] === null)                  $missing[] = 'si un retour est à prévoir';
+            }
+            if ((int)($after['tech_quote_needed'] ?? 0) === 1 && trim((string)($after['tech_quote_text'] ?? '')) === '') {
+                $missing[] = 'les travaux à chiffrer pour le devis';
             }
             $allPhotos = iv_photos($after);
             if (count($allPhotos) < 2)                            $missing[] = 'au moins 2 photos';
@@ -219,6 +265,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($done) {
             log_intervention_history($id, $iv['status'], 'rapport_rendu', 'technicien', $techId, (string)$tech['name'], 'Rapport rendu depuis l\'application technicien');
             notify_report_submitted($id);
+            // Devis à faire pour plus tard : brouillon créé et dispatcher prévenu.
+            if ((int)($upd['tech_quote_needed'] ?? 0) === 1) {
+                try { devis_from_tech($id, (string)$upd['tech_quote_text'], $tech); } catch (Throwable $e) { integration_log('audit', 'devis technicien #'.$id.' : '.$e->getMessage()); }
+            }
             review_run_after_response($id);   // relecture (Claude ou contrôles standard) sans faire attendre le technicien
         }
         flash('success', $message);
@@ -229,12 +279,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($action === 'update_client') {
         $cid = (int)($iv['c_id'] ?? 0);
+        $mail = mb_substr(trim((string)($_POST['client_email'] ?? '')), 0, 190);
+        if ($mail !== '' && !filter_var($mail, FILTER_VALIDATE_EMAIL)) {
+            flash('error', 'Adresse e-mail invalide : rien n\'a été modifié.');
+            header('Location: '.$self); exit;
+        }
         if ($cid > 0) {
             try {
                 db_execute(
-                    "UPDATE clients SET phone = ?, address = ?, postal_code = ?, city = ?, floor = ?, digicode = ? WHERE id = ?",
+                    "UPDATE clients SET phone = ?, email = ?, address = ?, postal_code = ?, city = ?, floor = ?, digicode = ? WHERE id = ?",
                     [
                         trim((string)($_POST['client_phone'] ?? '')),
+                        $mail,
                         trim((string)($_POST['client_address'] ?? '')),
                         trim((string)($_POST['client_postal'] ?? '')),
                         trim((string)($_POST['client_city'] ?? '')),
@@ -247,6 +303,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } catch (Throwable $e) {}
         }
         header('Location: '.$self); exit;
+    }
+
+    // Petite remarque sur le client (souvenir, accès, caractère…) : visible par le bureau sur sa fiche.
+    if ($action === 'client_note') {
+        $cid = (int)($iv['c_id'] ?? 0);
+        $body = trim((string)($_POST['note'] ?? ''));
+        if ($cid > 0 && $body !== '') {
+            try {
+                client_add_note($cid, $body.' — intervention '.($iv['ref'] ?? '#'.$id), ['id' => 0, 'name' => (string)$tech['name'].' (technicien)']);
+                flash('success', 'Remarque enregistrée. Le bureau la voit sur la fiche du client.');
+            } catch (Throwable $e) { flash('error', 'Remarque non enregistrée, réessayez.'); }
+        }
+        header('Location: '.$self.'#client'); exit;
     }
 
     if ($action === 'update_financial') {
@@ -274,6 +343,13 @@ $mats     = json_decode((string)($iv['tech_materials_used'] ?? '[]'), true);
 $mats     = is_array($mats) ? $mats : [];
 $clientName = trim(($iv['firstname'] ?? '').' '.($iv['lastname'] ?? '')) ?: 'Client';
 $addr     = ta_address($iv['client_address'] ?? '', $iv['client_postal'] ?? '', $iv['client_city'] ?? '');
+// Position de l'adresse pour la carte : calculée une seule fois puis gardée sur la fiche
+// (0/0 = adresse introuvable, pour ne pas la rechercher à chaque ouverture).
+if (($iv['latitude'] ?? null) === null && $addr !== '') {
+    $g = geocode_address((string)($iv['client_address'] ?? ''), (string)($iv['client_city'] ?? ''), (string)($iv['client_postal'] ?? ''));
+    if ($g['lat'] !== null) { update_intervention($id, ['latitude' => $g['lat'], 'longitude' => $g['lng']]); $iv['latitude'] = $g['lat']; $iv['longitude'] = $g['lng']; }
+    elseif ($g['reached']) update_intervention($id, ['latitude' => 0, 'longitude' => 0]);
+}
 $catLabel = intervention_category_config()[$iv['category'] ?? '']['label'] ?? '';
 $isLift   = ($iv['category'] ?? '') === 'ascenseur';
 $hm       = static fn(?string $dt) => $dt ? date('H:i', strtotime($dt)) : '';
@@ -317,7 +393,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
 </div>
 <?php endif; ?>
 
-<main class="ta-main <?= $locked ? '' : 'has-bar' ?>">
+<main class="ta-main <?= $locked || $isHelper ? '' : 'has-bar' ?>">
   <?php if ($m = flash('success')): ?><div class="ta-flash ok"><?= e($m) ?></div><?php endif; ?>
   <?php if ($m = flash('error')): ?><div class="ta-flash err"><?= e($m) ?></div><?php endif; ?>
   <?php if ($isCancel): ?><div class="ta-flash err">Cette intervention a été annulée par le dispatcher.</div><?php endif; ?>
@@ -327,7 +403,37 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <div style="margin-top:.4rem;"><a href="#rapport" style="color:inherit;font-weight:700;text-decoration:underline;">Compléter maintenant</a>, puis appuyez sur « Terminer ».</div>
   </div>
   <?php endif; ?>
-  <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked; ?>
+  <?php if (!$isHelper && $status === 'sur_place' && ($iv['tech_response'] ?? '') !== 'en_attente'):
+    $eta = eta_status($iv, time()); $curProg = (string)($iv['tech_progress'] ?? '') ?: 'debut'; ?>
+  <section class="ta-card ta-eta<?= $eta && $eta['late'] ? ' is-late' : '' ?>" id="fin-estimee">
+    <div class="ta-card-h"><h3>Quand pensez-vous finir ?</h3></div>
+    <form class="ta-card-b" method="post">
+      <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+      <input type="hidden" name="action" value="eta">
+      <?php if ($eta): ?>
+        <div class="ta-eta-now">Indiqué à <?= e(eta_hm(strtotime((string)$iv['tech_eta_at']))) ?> : <b><?= e(ucfirst($eta['text'])) ?></b><?= $eta['late'] ? '. Mettez à jour pour prévenir le dispatcher.' : '' ?></div>
+      <?php else: ?>
+        <div class="ta-eta-now">Le dispatcher voit votre heure de fin et sait quand vous confier la suite.</div>
+      <?php endif; ?>
+      <div class="ta-eta-k">Avancement</div>
+      <div class="ta-eta-prog">
+        <?php foreach (eta_progress_options() as $k => $l): ?>
+          <input type="radio" name="progress" id="prog-<?= e($k) ?>" value="<?= e($k) ?>" <?= $curProg === $k ? 'checked' : '' ?>><label for="prog-<?= e($k) ?>"><?= e($l) ?></label>
+        <?php endforeach; ?>
+      </div>
+      <div class="ta-eta-k">Il me reste</div>
+      <div class="ta-eta-time">
+        <?php foreach (eta_remaining_options() as $m): ?>
+          <button type="submit" name="remaining" value="<?= $m ?>"><?= e(eta_remaining_label($m)) ?></button>
+        <?php endforeach; ?>
+      </div>
+    </form>
+  </section>
+  <?php endif; ?>
+  <?php if ($isHelper): $principal = get_tech_by_id((int)$iv['technician_id']); ?>
+  <div class="ta-flash" style="background:#eef2ff;color:#3730a3;">Vous êtes <b>en renfort</b> de <?= e((string)($principal['name'] ?? 'votre collègue')) ?><?= !empty($principal['phone']) ? ' (<a href="'.e(ta_tel((string)$principal['phone'])).'" style="color:inherit;">'.e((string)$principal['phone']).'</a>)' : '' ?>. C'est lui qui indique le trajet, l'arrivée et la fin.</div>
+  <?php endif; ?>
+  <?php $pending = ($iv['tech_response'] ?? '') === 'en_attente' && !$locked && !$isHelper; ?>
   <?php if ($pending): ?>
   <section class="ta-card" id="reponse" style="border-color:#f59e0b;">
     <div class="ta-card-h" style="background:#fffbeb;"><h3>Nouvelle intervention : l'acceptez-vous ?</h3></div>
@@ -354,11 +460,29 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   </section>
   <?php endif; ?>
 
+  <!-- La panne, en gros, avant tout le reste -->
+  <?php
+  $panneTitre = (string)($iv['type_label'] ?: $catLabel);
+  $panneTxt = trim((string)($iv['fault_reported'] ?? ''));
+  $panneDesc = trim((string)($iv['description'] ?? ''));
+  if ($panneTxt !== '' && $panneDesc !== '' && str_contains($panneDesc, $panneTxt)) $panneTxt = '';
+  $created = created_label($iv['created_at'] ?? null, time());
+  ?>
+  <section class="ta-panne">
+    <div class="ta-panne-k">La panne<?= !empty($iv['urgency']) ? ' · <span class="ta-urgent">Urgent</span>' : '' ?></div>
+    <?php if ($panneTitre !== ''): ?><div class="ta-panne-t"><?= e($panneTitre) ?></div><?php endif; ?>
+    <?php if (!empty($iv['installation_type'])): ?><div class="ta-panne-meta" style="margin-top:.25rem;color:var(--t2);font-size:.88rem;">Appareil : <b><?= e($iv['installation_type']) ?></b></div><?php endif; ?>
+    <?php if ($panneTxt !== ''): ?><div class="ta-panne-d"><?= e($panneTxt) ?></div><?php endif; ?>
+    <?php if ($panneDesc !== ''): ?><div class="ta-panne-d"><?= e($panneDesc) ?></div><?php endif; ?>
+    <?php if ($panneTxt === '' && $panneDesc === ''): ?><div class="ta-panne-d ta-muted">Pas de description : appelez le client ou le bureau si besoin.</div><?php endif; ?>
+    <?php if ($created !== ''): ?><div class="ta-panne-meta"><?= e($created) ?></div><?php endif; ?>
+  </section>
+
   <!-- Client & accès -->
-  <section class="ta-card">
+  <section class="ta-card" id="client">
     <div class="ta-card-h">
       <h3>Client et accès</h3>
-      <?php if (!$locked): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
+      <?php if (!$locked && !$isHelper): ?><button type="button" onclick="openSheet('sheet-client')">Modifier</button><?php endif; ?>
     </div>
     <div class="ta-card-b">
       <div style="font-weight:600;"><?= e($clientName) ?></div>
@@ -371,6 +495,12 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       ]);
       ?>
       <?php if ($access): ?><div class="ta-muted" style="font-size:.88rem;margin-top:.25rem;"><?= e(implode(' · ', $access)) ?></div><?php endif; ?>
+      <?php if (!empty($iv['client_email'])): ?>
+        <div style="font-size:.88rem;margin-top:.25rem;"><a href="mailto:<?= e($iv['client_email']) ?>" style="color:var(--blue);"><?= e($iv['client_email']) ?></a></div>
+      <?php elseif (!$locked && !$isHelper): ?>
+        <button type="button" onclick="openSheet('sheet-client')" style="font-size:.86rem;color:var(--blue);font-weight:600;margin-top:.3rem;">+ Ajouter l'e-mail du client</button>
+      <?php endif; ?>
+      <?= render_tech_zone_map(isset($iv['latitude']) ? (float)$iv['latitude'] : null, isset($iv['longitude']) ? (float)$iv['longitude'] : null, $addr) ?>
       <div style="display:flex;gap:.5rem;margin-top:.8rem;">
         <?php if (!empty($iv['client_phone'])): ?>
           <a class="ta-btn grow" href="<?= e(ta_tel($iv['client_phone'])) ?>"><?= ta_icon('phone') ?>Appeler</a>
@@ -383,6 +513,29 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </div>
   </section>
 
+  <!-- Remarques sur le client -->
+  <?php
+  // Seules les remarques des techniciens sont montrées ici : les notes du bureau peuvent être internes.
+  $cNotes = !empty($iv['c_id']) ? array_slice(array_values(array_filter(client_notes((int)$iv['c_id']),
+      static fn($n) => str_ends_with((string)($n['author_name'] ?? ''), '(technicien)'))), 0, 3) : [];
+  ?>
+  <?php if (!empty($iv['c_id'])): ?>
+  <section class="ta-card">
+    <div class="ta-card-h"><h3>Remarques sur le client</h3></div>
+    <div class="ta-card-b">
+      <?php foreach ($cNotes as $cn): ?>
+        <div class="ta-cnote"><?= nl2br(e((string)$cn['body'])) ?><small><?= e((string)($cn['author_name'] ?? '')) ?> · <?= e(date('d/m/Y', strtotime((string)$cn['created_at']))) ?></small></div>
+      <?php endforeach; ?>
+      <form method="post" style="margin-top:<?= $cNotes ? '.7rem' : '0' ?>;">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" value="client_note">
+        <textarea class="ta-input ta-textarea" style="min-height:64px;" name="note" rows="2" maxlength="1000" required placeholder="Ex. : client très sympa, chien dans le jardin, préfère être appelé avant."></textarea>
+        <button type="submit" class="ta-btn" style="margin-top:.45rem;width:100%;">Ajouter la remarque</button>
+      </form>
+    </div>
+  </section>
+  <?php endif; ?>
+
   <!-- Demande -->
   <section class="ta-card">
     <div class="ta-card-h"><h3>Demande</h3></div>
@@ -394,8 +547,6 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
       <?php if (!empty($iv['duration_estimate'])): ?><div class="ta-row"><span>Durée prévue</span><span><?= e(ta_duration((int)$iv['duration_estimate'])) ?></span></div><?php endif; ?>
       <?php if (!empty($iv['urgency'])): ?><div class="ta-row"><span>Priorité</span><span><span class="ta-urgent">Urgent</span></span></div><?php endif; ?>
       <?php if (!empty($iv['installation_type'])): ?><div class="ta-row"><span>Installation</span><span><?= e($iv['installation_type']) ?></span></div><?php endif; ?>
-      <?php if (!empty($iv['description'])): ?><div class="ta-text" style="margin-top:.6rem;"><?= e($iv['description']) ?></div><?php endif; ?>
-      <?php if (!empty($iv['fault_reported'])): ?><div class="ta-text ta-muted" style="margin-top:.4rem;">Panne signalée : <?= e($iv['fault_reported']) ?></div><?php endif; ?>
       <?php if (($clientPhotos = intervention_client_photos_html($iv)) !== ''): ?>
       <div style="margin-top:.7rem;"><div class="ta-muted" style="font-size:.85rem;margin-bottom:.35rem;">📷 Photos envoyées par le client</div><?= $clientPhotos ?></div>
       <?php endif; ?>
@@ -405,6 +556,106 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </div>
   </section>
 
+  <!-- Aide : question à l'assistant (Claude Code sur le PC du bureau, relais Claude) -->
+  <?php if (!$isCancel): ?>
+  <section class="ta-card" id="aide">
+    <div class="ta-card-h"><h3>Besoin d'aide ?</h3><span class="ta-muted" id="aide-etat" style="font-size:.78rem;"></span></div>
+    <div class="ta-card-b">
+      <div id="aide-liste"></div>
+      <form id="aide-form" style="margin-top:.4rem;">
+        <textarea class="ta-textarea" id="aide-q" maxlength="2000" style="min-height:70px;" placeholder="Ex. : chaudière Saunier Duval ThemaPlus en code F28 après purge, que vérifier ?"></textarea>
+        <button type="submit" class="ta-btn primary" style="width:100%;margin-top:.45rem;">Demander à l'assistant</button>
+        <div class="ta-muted" style="font-size:.78rem;margin-top:.35rem;">L'assistant connaît la panne et l'appareil de cette fiche. En cas de danger (gaz, électricité), mettez d'abord en sécurité et appelez le bureau.</div>
+      </form>
+    </div>
+  </section>
+  <script>
+  (function () {
+    var url = <?= json_encode(url_for('tech/assist.php?iv='.$id)) ?>, csrf = <?= json_encode($csrf) ?>;
+    var liste = document.getElementById('aide-liste'), etat = document.getElementById('aide-etat'), form = document.getElementById('aide-form'), q = document.getElementById('aide-q');
+    var timer = null;
+    function esc(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+    function rendre(data) {
+      etat.textContent = data.pc_online ? 'Assistant connecté' : '';
+      liste.innerHTML = data.items.map(function (it) {
+        var rep = it.status === 'repondu'
+          ? '<div class="aide-r"><b>' + esc(it.by) + '</b><div>' + esc(it.answer).replace(/\n/g, '<br>') + '</div></div>'
+          : (it.status === 'sans_reponse'
+              ? '<div class="aide-r aide-ko">Pas de réponse automatique : le bureau est prévenu. Appelez-le si c\'est urgent.</div>'
+              : '<div class="aide-r aide-wait">' + esc(it.status_label) + '</div>');
+        return '<div class="aide-item"><div class="aide-q"><small>' + esc(it.at) + '</small>' + esc(it.question) + '</div>' + rep + '</div>';
+      }).join('');
+      var attente = data.items.some(function (it) { return it.status === 'en_attente' || it.status === 'en_cours' || it.status === 'relais'; });
+      clearTimeout(timer);
+      timer = setTimeout(charger, attente ? 5000 : 30000);
+    }
+    function charger() { fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); }).then(rendre).catch(function () { clearTimeout(timer); timer = setTimeout(charger, 15000); }); }
+    form.addEventListener('submit', function (ev) {
+      ev.preventDefault();
+      var t = q.value.trim(); if (!t) return;
+      var b = form.querySelector('button'); b.disabled = true;
+      var fd = new FormData(); fd.append('csrf_token', csrf); fd.append('question', t);
+      fetch(url, { method: 'POST', body: fd, credentials: 'same-origin' }).then(function (r) { return r.json(); })
+        .then(function (d) { q.value = ''; rendre(d); }).finally(function () { b.disabled = false; });
+    });
+    charger();
+  })();
+  </script>
+  <style>
+  .aide-item { margin-bottom:.8rem; }
+  .aide-q { background:#eef2ff; color:#1e1b4b; border-radius:10px 10px 10px 2px; padding:.55rem .7rem; font-size:.92rem; }
+  .aide-q small { display:block; color:#6366f1; font-size:.72rem; }
+  .aide-r { background:#f7f9fc; border:1px solid var(--line); border-radius:10px 10px 2px 10px; padding:.6rem .75rem; margin:.35rem 0 0 1.2rem; font-size:.92rem; line-height:1.5; }
+  .aide-r b { display:block; font-size:.74rem; color:var(--t2); margin-bottom:.15rem; }
+  .aide-wait { color:var(--t2); font-style:italic; }
+  .aide-ko { background:var(--amber-lt); color:#8a5300; }
+  </style>
+  <?php endif; ?>
+
+  <?php if ($isHelper): ?>
+  <!-- Rapport du renfort -->
+  <section class="ta-card" id="rapport">
+    <div class="ta-card-h"><h3>Mon rapport</h3><?php if (!empty($member['submitted_at'])): ?><span class="ta-muted" style="font-size:.82rem;">Envoyé le <?= e(date('d/m à H:i', strtotime((string)$member['submitted_at']))) ?></span><?php endif; ?></div>
+    <div class="ta-card-b">
+    <?php if ($teamMode !== 'chacun'): ?>
+      <div class="ta-text">Un seul rapport est demandé pour cette intervention : il est rempli par <?= e((string)($principal['name'] ?? 'le technicien principal')) ?>. Vous pouvez laisser une remarque sur le client ci-dessus.</div>
+    <?php elseif (!team_report_open($status)): ?>
+      <div class="ta-text">L'intervention est facturée : votre rapport ne peut plus être modifié.</div>
+      <?php foreach (['diagnostic' => 'Diagnostic', 'report' => 'Travaux réalisés', 'notes' => 'Remarques'] as $k => $l): if (trim((string)($member[$k] ?? '')) === '') continue; ?>
+        <div class="ta-label" style="margin-top:.7rem;"><?= e($l) ?></div><div class="ta-text"><?= e((string)$member[$k]) ?></div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <form method="post">
+        <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
+        <input type="hidden" name="action" value="team_report">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
+          <div><label class="ta-label" for="h-arr">Arrivée</label><input class="ta-input" id="h-arr" type="time" name="arrived_time" value="<?= e((string)($member['arrived_time'] ?? '')) ?>"></div>
+          <div><label class="ta-label" for="h-end">Fin</label><input class="ta-input" id="h-end" type="time" name="close_time" value="<?= e((string)($member['close_time'] ?? '')) ?>"></div>
+        </div>
+        <div class="ta-field">
+          <label for="h-diag" class="req">Diagnostic</label>
+          <textarea class="ta-textarea" id="h-diag" name="diagnostic" placeholder="Ce que vous avez constaté…"><?= e((string)($member['diagnostic'] ?? '')) ?></textarea>
+          <?= ref_phrases_html('phrase_diag', (string)($iv['category'] ?? ''), 'h-diag') ?>
+        </div>
+        <div class="ta-field">
+          <label for="h-rep" class="req">Travaux réalisés</label>
+          <textarea class="ta-textarea" id="h-rep" name="report" placeholder="Ce que vous avez fait…"><?= e((string)($member['report'] ?? '')) ?></textarea>
+          <?= ref_phrases_html('phrase_travaux', (string)($iv['category'] ?? ''), 'h-rep') ?>
+        </div>
+        <div class="ta-field">
+          <label for="h-notes">Remarques</label>
+          <textarea class="ta-textarea" id="h-notes" name="notes" style="min-height:64px;" placeholder="Pour le bureau (facultatif)"><?= e((string)($member['notes'] ?? '')) ?></textarea>
+        </div>
+        <div style="display:flex;gap:.5rem;">
+          <button type="submit" name="submit_report" value="0" class="ta-btn grow"><?= ta_icon('save') ?>Enregistrer</button>
+          <button type="submit" name="submit_report" value="1" class="ta-btn ok grow"><?= ta_icon('check') ?><?= !empty($member['submitted_at']) ? 'Renvoyer' : 'Envoyer mon rapport' ?></button>
+        </div>
+        <div class="ta-muted" style="font-size:.8rem;margin-top:.5rem;">Les prestations, les photos, la signature et le paiement sont dans le rapport du technicien principal.</div>
+      </form>
+    <?php endif; ?>
+    </div>
+  </section>
+  <?php else: ?>
   <!-- Rapport -->
   <?php if ($locked): ?>
   <section class="ta-card" id="rapport">
@@ -427,13 +678,22 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
           $rows['Raison'] = (string)($iv['tech_incomplete_reason'] ?? '');
           $rows['Retour à prévoir'] = $yesNo($iv['tech_return_visit'] ?? null);
       }
+      if ((int)($iv['tech_quote_needed'] ?? 0) === 1) $rows['Devis à faire'] = 'Oui — '.(string)($iv['tech_quote_text'] ?? '');
       $rows['Arrivée'] = $hm($iv['tech_arrived_at'] ?? null);
       $rows['Fin'] = !empty($iv['tech_close_time']) ? substr((string)$iv['tech_close_time'], 0, 5) : $hm($iv['tech_completed_at'] ?? null);
       foreach ($rows as $k => $v): if ((string)$v === '') continue; ?>
         <div class="ta-row"><span><?= e($k) ?></span><span><?= e($v) ?></span></div>
       <?php endforeach; ?>
-      <?php if (!empty($iv['tech_diagnostic'])): ?><div class="ta-label" style="margin-top:.7rem;">Diagnostic</div><div class="ta-text"><?= e($iv['tech_diagnostic']) ?></div><?php endif; ?>
-      <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e($iv['tech_report']) ?></div><?php endif; ?>
+      <?php if (correction_has($iv)): ?><div class="ta-flash ok" style="margin:.6rem 0 0;font-size:.84rem;">Rapport corrigé (orthographe, vocabulaire technique) : c'est cette version qui figure dans le PDF.</div><?php endif; ?>
+      <?php if (!empty($iv['tech_diagnostic'])): ?><div class="ta-label" style="margin-top:.7rem;">Diagnostic</div><div class="ta-text"><?= e(correction_text($iv, 'tech_diagnostic')) ?></div><?php endif; ?>
+      <?php if (!empty($iv['tech_report'])): ?><div class="ta-label" style="margin-top:.7rem;">Travaux réalisés</div><div class="ta-text"><?= e(correction_text($iv, 'tech_report')) ?></div><?php endif; ?>
+      <?php if (correction_has($iv)): ?>
+        <details style="margin-top:.5rem;font-size:.86rem;"><summary class="ta-muted" style="cursor:pointer;">Mon texte d'origine</summary>
+          <?php foreach (['tech_diagnostic' => 'Diagnostic', 'tech_report' => 'Travaux réalisés'] as $cf => $cl): if (trim((string)$iv[$cf]) === '') continue; ?>
+            <div class="ta-label" style="margin-top:.4rem;"><?= e($cl) ?></div><div class="ta-text ta-muted"><?= e((string)$iv[$cf]) ?></div>
+          <?php endforeach; ?>
+        </details>
+      <?php endif; ?>
       <?php $calc = tech_report_pricing($iv); if ($calc['lines']): ?>
         <div class="ta-label" style="margin-top:.7rem;">Prestations</div>
         <?php foreach ($calc['lines'] as $l): ?>
@@ -462,6 +722,10 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <div class="ta-row"><span>Statut</span><span><?= $iv['payment_status'] === 'payé' ? 'Payé' : 'Non payé' ?></span></div>
         <?php if (!empty($iv['payment_method'])): ?><div class="ta-row"><span>Règlement</span><span><?= e($iv['payment_method']) ?></span></div><?php endif; ?>
         <?php if (!empty($iv['amount_ttc'])): ?><div class="ta-row"><span>Montant TTC</span><span><?= e(number_format((float)$iv['amount_ttc'], 2, ',', ' ')) ?> €</span></div><?php endif; ?>
+      <?php endif; ?>
+      <?php if (!empty($iv['payment_note'])): ?><div class="ta-row"><span>Remarque</span><span><?= e((string)$iv['payment_note']) ?></span></div><?php endif; ?>
+      <?php if (($linkedInv = invoice_for_intervention($id)) && $linkedInv['status'] !== 'brouillon'): ?>
+        <div class="ta-row"><span>Facture</span><span><?= e((string)($linkedInv['number'] ?: 'n° à venir')) ?> · <?= e(money_fr((float)$linkedInv['total_ttc'])) ?> · <?= $linkedInv['status'] === 'payee' ? 'payée' : 'non payée' ?></span></div>
       <?php endif; ?>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.7rem;">
         <?php foreach (['client_signature' => 'Client'.(!empty($iv['tech_client_name']) ? ' — '.$iv['tech_client_name'] : ''), 'tech_signature' => 'Technicien'] as $sk => $sl): if (empty($iv[$sk])) continue; ?>
@@ -510,10 +774,12 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
         <div class="ta-field">
           <label for="f-diag" class="req">Diagnostic</label>
           <textarea class="ta-textarea" id="f-diag" name="tech_diagnostic" data-req="le diagnostic" placeholder="Ce que vous avez constaté, la cause de la panne…"><?= e($iv['tech_diagnostic'] ?? '') ?></textarea>
+          <?= ref_phrases_html('phrase_diag', (string)($iv['category'] ?? ''), 'f-diag') ?>
         </div>
         <div class="ta-field">
           <label for="f-report" class="req">Travaux réalisés</label>
           <textarea class="ta-textarea" id="f-report" name="tech_report" data-req="les travaux réalisés" placeholder="Ce que vous avez fait…"><?= e($iv['tech_report'] ?? '') ?></textarea>
+          <?= ref_phrases_html('phrase_travaux', (string)($iv['category'] ?? ''), 'f-report') ?>
         </div>
         <?php if ($isLift): ?>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;" class="ta-field">
@@ -531,10 +797,10 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     </section>
 
     <section class="ta-card" id="prestations">
-      <div class="ta-card-h"><h3 class="req">Prestations</h3><button type="button" onclick="addLine()">+ Ajouter</button></div>
+      <div class="ta-card-h"><h3>Prestations</h3><button type="button" onclick="addLine()">+ Ajouter</button></div>
       <div class="ta-card-b">
         <div id="lines"></div>
-        <div id="lines-empty" class="ta-muted" style="font-size:.9rem;">Ajoutez les prestations réalisées (tarifs de la grille, non modifiables).</div>
+        <div id="lines-empty" class="ta-muted" style="font-size:.9rem;">Ajoutez les prestations réalisées (tarifs de la grille, non modifiables). Facultatif : le bureau peut valider sans.</div>
         <div class="ta-total" id="total-box">
           <div><span>Total HT</span><b id="t-ht">0,00 €</b></div>
           <div><span>TVA <span id="t-rate"></span></span><b id="t-tva">0,00 €</b></div>
@@ -572,6 +838,20 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
                 <button type="button" data-v="0" class="<?= $rv === '0' ? 'on-no' : '' ?>">Non</button>
               </div>
             </div>
+          </div>
+        <?php $qn = $iv['tech_quote_needed'] ?? null; $qn = ($qn === null || $qn === '') ? '' : (string)(int)$qn; ?>
+          <div class="ta-yn">
+            <span>Un devis est à faire pour plus tard ?</span>
+            <div class="ta-seg" id="quote-seg">
+              <input type="hidden" name="tech_quote_needed" value="<?= e($qn) ?>">
+              <button type="button" data-v="1" class="<?= $qn === '1' ? 'on-yes' : '' ?>">Oui</button>
+              <button type="button" data-v="0" class="<?= $qn === '0' ? 'on-no' : '' ?>">Non</button>
+            </div>
+          </div>
+          <div id="quote-box" <?= $qn === '1' ? '' : 'hidden' ?> style="padding:.3rem 0 .6rem;">
+            <label class="ta-label req" for="f-quote">Travaux à chiffrer</label>
+            <textarea class="ta-textarea" id="f-quote" name="tech_quote_text" style="min-height:80px;" placeholder="Ex. : remplacer le ballon 200 L (fuite sur la cuve), prévoir groupe de sécurité et réducteur de pression."><?= e((string)($iv['tech_quote_text'] ?? '')) ?></textarea>
+            <div class="ta-muted" style="font-size:.8rem;margin-top:.3rem;">Le bureau reçoit un devis brouillon avec ce texte, le chiffre et l'envoie au client.</div>
           </div>
         <?php
         foreach ($checks as $name => $label):
@@ -668,6 +948,13 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
             <input class="ta-input" type="text" inputmode="decimal" name="amount_ttc" value="<?= $iv['amount_ttc'] !== null ? e(number_format((float)$iv['amount_ttc'], 2, ',', '')) : '' ?>" placeholder="0,00">
           </div>
         </div>
+        <div style="margin-top:.7rem;">
+          <label class="ta-label" for="f-paynote">Remarque de paiement</label>
+          <input class="ta-input" id="f-paynote" type="text" name="payment_note" maxlength="500" value="<?= e((string)($iv['payment_note'] ?? '')) ?>" placeholder="Ex. : le propriétaire paie">
+          <div class="ta-phrases" data-target="f-paynote" data-mode="set">
+            <?php foreach (payment_note_presets() as $pn): ?><button type="button"><?= e($pn) ?></button><?php endforeach; ?>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -695,6 +982,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <?php endif; ?>
   </form>
   <?php endif; ?>
+  <?php endif; /* fin : rapport du technicien principal */ ?>
 
   <?php if ($history): ?>
   <details class="ta-card">
@@ -711,7 +999,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
   <?php endif; ?>
 </main>
 
-<?php if (!$locked): ?>
+<?php if (!$locked && !$isHelper): ?>
 <div class="ta-bar"><div class="ta-bar-in">
   <?php if ($pending): ?>
     <form method="post" style="flex:1;display:flex;">
@@ -740,6 +1028,7 @@ ta_head(($iv['ref'] ?? 'Intervention').' — '.$clientName);
     <input type="hidden" name="csrf_token" value="<?= e($csrf) ?>">
     <input type="hidden" name="action" value="update_client">
     <div class="ta-field"><label>Téléphone</label><input class="ta-input" type="tel" name="client_phone" value="<?= e($iv['client_phone'] ?? '') ?>"></div>
+    <div class="ta-field"><label>E-mail</label><input class="ta-input" type="email" name="client_email" value="<?= e($iv['client_email'] ?? '') ?>" placeholder="client@exemple.fr" autocomplete="off"></div>
     <div class="ta-field"><label>Adresse</label><input class="ta-input" type="text" name="client_address" value="<?= e($iv['client_address'] ?? '') ?>"></div>
     <div style="display:grid;grid-template-columns:110px 1fr;gap:.6rem;" class="ta-field">
       <div><label class="ta-label">Code postal</label><input class="ta-input" type="text" name="client_postal" value="<?= e($iv['client_postal'] ?? '') ?>" inputmode="numeric"></div>
@@ -771,6 +1060,7 @@ document.querySelectorAll('.ta-seg').forEach(function (seg) {
       if (v !== '') b.className = (v === '1' || v === 'payé') ? 'on-yes' : 'on-no';
       if (seg.id === 'pay-seg') document.getElementById('pay-details').hidden = v !== 'payé';
       if (seg.id === 'done-seg') document.getElementById('incomplete').hidden = v !== '0';
+      if (seg.id === 'quote-seg') document.getElementById('quote-box').hidden = v !== '1';
     });
   });
 });
@@ -945,7 +1235,11 @@ function renderLines() {
     sel.onchange = function () { l.code = sel.value; renderLines(); };
     qty.oninput = function () { l.qty = qty.value; var gg = gridBy[l.code]; price.textContent = gg && !gg.percent ? eur(gg.price * num(qty.value)) : price.textContent; syncLines(); };
     del.onclick = function () { lines.splice(i, 1); renderLines(); };
-    row.append(sel, qty, price, del);
+    var selBox = el('div', { className: 'ta-line-sel' });
+    selBox.appendChild(sel);
+    row.append(selBox, qty, price, del);
+    // Nouvelle ligne : case « Rechercher » au-dessus de la longue liste des prestations.
+    if (!l.code && window.emaeSelectRecherche) window.emaeSelectRecherche(sel);
     box.appendChild(row);
   });
   syncLines();
@@ -1000,7 +1294,7 @@ function missingFields() {
       if (!(n.dataset.saved || (pad && pad.dirty))) miss.push(n.dataset.req);
     } else if (!n.value.trim()) miss.push(n.dataset.req);
   });
-  if (!lines.filter(function (l) { return l.code; }).length) miss.push('au moins une prestation');
+  // Prestations facultatives (voir la vérification côté serveur).
   if (document.querySelector('[name=tech_job_completed]').value === '0') {
     if (!document.getElementById('f-inc').value.trim()) miss.push('la raison (intervention non terminée)');
     if (document.querySelector('[name=tech_return_visit]').value === '') miss.push('si un retour est à prévoir');
@@ -1053,5 +1347,19 @@ function finish() {
 }
 </script>
 <?php endif; ?>
+<script>
+// Phrases toutes prêtes : un appui ajoute la phrase à la zone de texte (le technicien peut ensuite la modifier).
+document.querySelectorAll('.ta-phrases').forEach(function (box) {
+  var t = document.getElementById(box.dataset.target);
+  if (!t) return;
+  box.addEventListener('click', function (ev) {
+    var b = ev.target.closest('button'); if (!b) return;
+    var p = b.textContent.trim();
+    if (box.dataset.mode === 'set') { t.value = p; box.querySelectorAll('button').forEach(function (x) { x.classList.remove('on'); }); }
+    else if (t.value.indexOf(p) < 0) t.value = t.value.trim() ? t.value.replace(/\s+$/, '') + ' ' + p : p;
+    b.classList.add('on'); t.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+});
+</script>
 </body>
 </html>

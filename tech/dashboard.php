@@ -19,9 +19,9 @@ try {
                 c.postal_code, c.floor, c.digicode
          FROM interventions i
          LEFT JOIN clients c ON c.id = i.client_id
-         WHERE i.technician_id = ?
+         WHERE i.technician_id = ? OR i.id IN (SELECT intervention_id FROM intervention_team WHERE technician_id = ?)
          ORDER BY COALESCE(i.scheduled_date, '9999-12-31'), COALESCE(i.scheduled_time, '23:59'), i.urgency DESC, i.id",
-        [$techId]
+        [$techId, $techId]
     );
 } catch (Throwable $e) { $mine = []; }
 
@@ -31,6 +31,10 @@ $todayList = array_values(array_filter($open, static fn($i) =>
     ($i['scheduled_date'] ?? '') === $today
     || in_array($i['status'] ?? '', ['en_route', 'sur_place'], true)
     || (!empty($i['scheduled_date']) && $i['scheduled_date'] < $today)));
+// Rangées par journée : aujourd'hui, hier, avant-hier, puis les dates plus anciennes.
+usort($todayList, static fn($a, $b) =>
+    [day_section_key($a['scheduled_date'] ?? null, $today), (string)($a['scheduled_time'] ?? '99'), (int)$a['id']]
+    <=> [day_section_key($b['scheduled_date'] ?? null, $today), (string)($b['scheduled_time'] ?? '99'), (int)$b['id']]);
 $todayIds = array_column($todayList, 'id');
 $nextList = array_values(array_filter($open, static fn($i) => !in_array($i['id'], $todayIds, true)));
 $doneList = array_reverse(array_values(array_filter($mine, static fn($i) => in_array($i['status'] ?? '', $closed, true))));
@@ -52,6 +56,11 @@ if ($view === 'today') {
 /** Prochaine étape proposée sur la carte. */
 function ta_next_step(array $iv): ?array
 {
+    global $techId;
+    if ((int)($iv['technician_id'] ?? 0) !== (int)$techId) {
+        // En renfort : le technicien principal pilote les statuts ; rapport seulement si demandé.
+        return report_mode($iv) === 'chacun' && team_report_open((string)($iv['status'] ?? '')) ? ['report', 'Mon rapport', 'doc'] : null;
+    }
     if (($iv['tech_response'] ?? '') === 'en_attente' && in_array($iv['status'] ?? '', ['assigné', 'a_assigner', 'nouveau', 'confirmé'], true)) {
         return ['respond', 'Accepter ou refuser', 'check'];
     }
@@ -93,6 +102,8 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
             <?= ta_pill($status) ?>
           </div>
           <?php if ($what !== ''): ?><div class="ta-job-what"><?= e($what) ?></div><?php endif; ?>
+          <?php if (($cr = created_label($iv['created_at'] ?? null, time())) !== ''): ?><div class="ta-job-created"><?= e($cr) ?></div><?php endif; ?>
+          <?php if ((int)($iv['technician_id'] ?? 0) !== (int)$GLOBALS['techId']): ?><div style="margin-top:.3rem;"><span class="ta-urgent" style="background:#eef2ff;color:#3730a3;">Renfort</span></div><?php endif; ?>
           <?php if (!empty($iv['urgency']) || $late): ?>
             <div style="margin-top:.35rem;display:flex;gap:.35rem;">
               <?php if (!empty($iv['urgency'])): ?><span class="ta-urgent">Urgent</span><?php endif; ?>
@@ -129,7 +140,8 @@ function ta_job_card(array $iv, string $today, bool $showDate): void
     <?php
 }
 
-ta_head('Ma journée — '.company_name());
+// Recherche dans la liste (assets/js/filtre.js) dès qu'elle compte au moins 6 interventions.
+ta_head('Ma journée — '.company_name(), ' data-filtre data-filtre-items=".ta-job" data-filtre-groupes=".none" data-filtre-cible=".ta-main"');
 ?>
 <header class="ta-top">
   <?= ta_logo() ?>
@@ -151,7 +163,16 @@ ta_head('Ma journée — '.company_name());
     <?php if (!$todayList): ?>
       <div class="ta-empty"><b>Rien de prévu aujourd'hui</b>Les nouvelles interventions apparaîtront ici dès que le dispatcher vous les attribue.</div>
     <?php endif; ?>
-    <?php foreach ($todayList as $iv) ta_job_card($iv, $today, false); ?>
+    <?php
+    $lastSection = null;
+    foreach ($todayList as $iv):
+      $section = day_section_label($iv['scheduled_date'] ?? null, $today);
+      if ($section !== $lastSection):
+        $lastSection = $section; ?>
+        <div class="ta-day"><?= e($section) ?></div>
+      <?php endif;
+      ta_job_card($iv, $today, false);
+    endforeach; ?>
 
     <?php if ($tasks): ?>
       <div class="ta-h2">Rappels du dispatcher <span><?= count($tasks) ?></span></div>

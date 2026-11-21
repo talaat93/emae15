@@ -562,6 +562,12 @@ HTML;
                    . ($iv['payment_status'] === 'payé' ? 'réglé' . (!empty($iv['payment_method']) ? ' (' . $this->e($iv['payment_method']) . ')' : '') : 'non réglé')
                    . '</div>';
         }
+        if (!empty($iv['payment_note'])) {
+            $html .= '<div style="font-size:7.5pt;color:#555;margin-top:2px;">Remarque : ' . $this->e($iv['payment_note']) . '</div>';
+        }
+        if (!empty($iv['invoice_number'])) {
+            $html .= '<div style="font-size:7.5pt;color:#555;margin-top:2px;">Facture n° ' . $this->e($iv['invoice_number']) . '</div>';
+        }
         return $html;
     }
 

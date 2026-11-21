@@ -253,6 +253,7 @@ Il couvre la vie d'une intervention, de l'appel à la facture encaissée :
 | Grille tarifaire et TVA | `includes/pricing.php`, `price_grid_seed.php` |
 | Qualification de l'appel assistée par Claude | `includes/qualification.php`, `claude.php` |
 | Assignation, technicien suggéré | `includes/assignment.php` |
+| Fin estimée par le technicien sur place | `includes/assignment.php` (`eta_*`), `tech/disp_intervention.php` |
 | Rapport du technicien, chiffré par la grille | `tech/`, `includes/review.php` |
 | Relecture et brouillon de facture | `includes/review.php`, `invoicing.php` |
 | Comptabilité Pennylane | `includes/pennylane.php`, `cron/pennylane_sync.php` |
@@ -356,6 +357,204 @@ niveau suggéré 1 à 3), `finance_top_debtors()`, `finance_monthly()`,
 Conventions : TTC ; brouillons et annulées exclus ; « encaissé » = factures
 payées à leur date de paiement (un paiement partiel n'apparaît que dans le
 reste dû).
+
+### Application technicien — lisibilité (`tech/dashboard.php`, `tech/disp_intervention.php`)
+
+- « Aujourd'hui » rangé par journée : `day_section_label()` / `day_section_key()`
+  (`includes/helpers.php`) ; une intervention sans date ou commencée en avance
+  est rangée avec aujourd'hui. Chaque carte affiche `created_label()`.
+- Fiche : bloc « La panne » en tête (`type_label`, `fault_reported`,
+  `description`, date de création) ; e-mail du client modifiable par le
+  technicien (feuille « Modifier ») ; « Remarques sur le client » écrites dans
+  `client_notes` avec l'auteur « Nom (technicien) ». Le technicien ne voit que
+  les remarques des techniciens (les notes du bureau peuvent être internes) ;
+  le bureau les voit toutes sur la fiche client.
+
+### Référentiel : appareils, marques, modèles, pannes, phrases — `includes/referentiel.php`
+
+Rangé dans `preset_items` (types `equipement`, `marque`, `modele`, `panne`,
+`phrase_diag`, `phrase_travaux`), donc modifiable dans « Listes prédéfinies ».
+Liste de départ : `includes/referentiel_seed.php`, chargée une seule fois par la
+migration v15.49 (`ref_seed_db()`, un type déjà rempli n'est pas touché) ;
+modifier ce fichier ensuite ne change plus rien en base.
+
+- Dispatcher : `ref_picker_html()` sur la saisie manuelle, la modification d'une
+  intervention et la qualification d'appel. Appareil → marque → modèle remplit
+  « Type d'installation » (`Appareil · Marque · Modèle`) ; un clic sur un type
+  de panne l'ajoute à la panne signalée (ou remplace le « Type de panne » court
+  de la qualification). La qualification enregistre l'appareil dans
+  `installation_type` (avant : toujours vide).
+- Technicien : `ref_phrases_html()` sous « Diagnostic » et « Travaux réalisés »,
+  phrases du métier de l'intervention ; un appui ajoute la phrase, modifiable.
+  L'appareil est rappelé dans le bloc « La panne ».
+
+### Prestations : import Pennylane et grille élargie — `includes/pricing.php`, `dispatcher/tarifs.php`
+
+- « Importer mes produits Pennylane » (Tarifs) : `pennylane_products_for_import()`
+  lit `GET /products` (lecture seule), `pennylane_product_for_grid()` met chaque
+  produit au format de la grille (code = référence, sinon `PL-<id>` ; TVA depuis
+  le code `FR_xxx` ; unité ; métier deviné par `price_guess_category()`). Les
+  noms contenant « VVV » sont décochés d'office (choix du propriétaire,
+  17/11/2026), les produits déjà liés ou de même code ne sont pas proposés.
+  Liste gardée en session le temps du choix ; `price_grid_import_products()`
+  ajoute les lignes cochées avec `pennylane_product_id`, pour que
+  `pennylane_sync_products()` ne crée pas de doublon.
+- Migration v15.50 : 54 prestations de plus (`price_grid_extra_seed.php`),
+  prix HT de départ = milieu des fourchettes de sites de prix de travaux, à
+  vérifier par le propriétaire. Seuls les codes absents sont ajoutés.
+
+### Validation avec ou sans facture — `includes/review.php`
+
+- Les prestations sont facultatives : ni le technicien (`tech/disp_intervention.php`),
+  ni la relecture (`review_rule_missing()`) ne bloquent sans prestation ; la
+  relecture l'indique dans les incohérences.
+- `review_invoice_auto()` (Réglages → Pennylane → « Facture automatique »,
+  `integration_setting('facture_auto')`, activée par défaut) : rapport complet
+  avec prestations → brouillon de facture tout de suite. Désactivée, ou sans
+  prestation → « Rapport vérifié », le dispatcher décide.
+- Fiche intervention : case « Facture Pennylane automatique » + bouton.
+  `review_accept(..., $withInvoice = false)` passe la fiche en « Clôturée »,
+  annule un brouillon local éventuel (un brouillon déjà poussé dans Pennylane
+  y reste) et ne touche jamais une facture validée ou envoyée. Depuis
+  « Facture à valider » : bouton « Clôturer sans facture ».
+
+### Plusieurs techniciens sur une intervention — `includes/team.php`
+
+- Le principal reste `interventions.technician_id` et garde tout (acceptation,
+  statuts, rapport, photos, signature, paiement, prestations). Les renforts sont
+  dans `intervention_team` (migration v15.51), avec leur propre rapport :
+  diagnostic, travaux, heures, remarques, `submitted_at`.
+- `interventions.report_mode` : `principal` (un seul rapport, par défaut) ou
+  `chacun` (chaque renfort rédige le sien). Choisi sur la fiche dispatcher,
+  ligne « Renforts » (ajout, retrait, mode). Un renfort ajouté est prévenu
+  (`team_notify_added()`, mêmes réglages que les notifications technicien).
+- Technicien : un renfort voit l'intervention (badge « Renfort »), ne pilote
+  aucun statut ; en mode `chacun`, « Mon rapport » jusqu'à la facture validée
+  (`team_report_open()`). Toute autre action est refusée côté serveur.
+- Dispatcher : carte « Rapports des renforts » ; rapport PDF : les rapports des
+  renforts sont ajoutés après les travaux du principal ; un renfort peut ouvrir
+  le PDF.
+
+### Aide au technicien (Claude Code sur le PC du propriétaire) — `includes/assist.php`
+
+- Fiche technicien : carte « Besoin d'aide ? » (`tech/assist.php`, JSON :
+  poser une question, suivre la réponse toutes les 5 s). Principal et renforts.
+- File `assist_requests` (migration v15.56). Le PC du propriétaire vient
+  chercher les questions : `api/assist.php` (`Authorization: Bearer <clé>`,
+  clé `assist_token` créée dans Réglages → Aide, montrée une seule fois),
+  `?action=next&format=plain` puis `POST ?action=answer`. Script du PC :
+  `outils/aide-locale/aide.sh` + `LISEZMOI.md` (exclus du déploiement, accès
+  web refusé) ; Claude Code y tourne en **réponse seule**
+  (`claude -p --tools "" --strict-mcp-config`), choix du propriétaire
+  17/11/2026 : ne jamais lui donner d'outils.
+- `assist_prompt()` : consignes (sécurité, pas d'invention), contexte technique,
+  question encadrée comme une donnée ; ni nom, ni téléphone, ni adresse.
+- Relais (`assist_process_overdue()`, au suivi par le technicien) : après
+  `assist_relay_seconds` (120 s), réponse par l'API Claude ; sinon
+  « sans réponse », notification « aide » et e-mail au dispatcher. Le bureau
+  peut répondre depuis la fiche (carte « Demandes d'aide du technicien »).
+
+### Notifications du dispatcher — `includes/disp_notify.php`, `dispatcher/notifications.php`
+
+Table `disp_notifications` (migration v15.55), un seul fil pour le bureau.
+`disp_notify(type, titre, texte, lien interne, intervention, clé)` ; la clé
+évite les doublons. Menu « Notifications » avec compteur des non lues ; ouvrir
+une alerte la marque lue et mène à la fiche (`disp_notif_safe_url()` refuse
+tout lien extérieur). Branchées : devis à faire (`devis_from_tech`), rapport
+rendu (`notify_report_submitted`), refus (`notify_dispatcher_refusal`),
+réponse à un devis (`devis_notify_dispatcher`), paiement constaté dans
+Pennylane (`pennylane_sync_intervention_status`), fin estimée dépassée de
+plus de 30 min (`disp_notif_check_eta()`, à chaque page dispatcher), demande
+d'aide sans réponse (livraison 12). Les urgentes partent aussi par e-mail.
+
+### Devis à faire pour plus tard — `devis_from_tech()` (`includes/yousign.php`)
+
+Case « Un devis est à faire pour plus tard ? » dans les Contrôles du rapport
+(`interventions.tech_quote_needed`, `tech_quote_text`, migration v15.54).
+À la remise du rapport : brouillon `devis` sans ligne (`source = 'technicien'`,
+numéro DEV-année-id), e-mail au dispatcher ; une nouvelle remise met à jour le
+même brouillon. Fiche dispatcher : « Demandé par le technicien », formulaire
+« Compléter le devis » (même `devis_save()`), envoi impossible tant qu'il n'a
+pas de ligne. La migration v15.54 pose son témoin après le travail (si la base
+tombe pendant la mise à jour, elle est rejouée).
+
+### Rapport corrigé par Claude — `includes/correction.php`
+
+- Lancé en arrière-plan à la remise du rapport, avant la relecture
+  (`review_run_after_response()`), relançable par le dispatcher. Corrige
+  diagnostic et travaux : orthographe, français, vocabulaire du métier.
+- Le texte du technicien n'est jamais réécrit : versions corrigées dans
+  `tech_diagnostic_corrige` / `tech_report_corrige` (migration v15.53),
+  `correction_source` = `claude` ou `dispatcher`. `correction_text()` donne
+  la version corrigée sinon l'original : écrans dispatcher et technicien,
+  rapport PDF.
+- Garde-fous (`correction_acceptable()`) : correction écartée si un nombre
+  apparaît, disparaît ou change, ou si la longueur varie trop ; le texte
+  d'origine reste alors utilisé et l'historique le signale.
+- Dispatcher : texte d'origine consultable, « Modifier la version corrigée »,
+  « Relancer la correction », « Revenir au texte d'origine ». Technicien :
+  notification (si activée) et « Mon texte d'origine » sur sa fiche.
+- Sans clé Claude : aucune correction. Les rapports des renforts ne sont pas
+  corrigés.
+
+### Rechercher au lieu de défiler — `assets/js/filtre.js`
+
+Chargé par `dispatcher/partials/footer.php` et `tech/_ui.php` (`ta_head()`).
+- Listes : une page pose `$listFilter = true` (lignes des tableaux `.d-table`)
+  ou `['items' => sélecteur, 'groups' => blocs masqués s'ils sont vides]` avant
+  `header.php` ; une case « Rechercher » apparaît dès 6 éléments. Tous les mots
+  tapés, sans majuscules ni accents, valeurs des champs comprises (tarifs).
+  Masquage par la classe `emae-cache` : ne jamais filtrer en changeant le style,
+  les chips des listes prédéfinies dépendent de leur `display:inline`.
+  Pages : interventions, clients, factures, finances, techniciens, tâches,
+  tarifs, listes prédéfinies ; technicien : « Aujourd'hui ».
+- Menus déroulants de plus de 15 choix (ou `data-recherche`) : case
+  « Rechercher… » au-dessus ; `window.emaeSelectRecherche(select)` pour un menu
+  créé après coup (prestations du rapport technicien).
+
+### Paiement : remarque et facture reliée après coup — `includes/invoicing.php`
+
+- `interventions.payment_note` (migration v15.52) : saisie par le technicien
+  (carte Paiement, raccourcis `payment_note_presets()`) et par le dispatcher
+  à tout moment (carte Financier). Reprise dans le rapport PDF.
+- « Relier une facture Pennylane » (fiche dispatcher, après remise du rapport,
+  tant qu'aucune vraie facture n'est liée) : `invoice_link_number()` cherche
+  le numéro dans le cache local `invoices` ; absent → `pennylane_sync_run('liaison')`
+  puis nouvelle recherche. Aucun filtre ni écriture Pennylane (pas de route non
+  vérifiée). Refus : brouillon, déjà reliée ailleurs, intervention ayant déjà
+  une vraie facture. Payée → « Payée » puis « Clôturée » ; sinon « Facture
+  envoyée », et la synchronisation clôture au paiement. Un brouillon préparé
+  par le site est annulé. `invoice_unlink()` ne détache que les factures
+  reliées à la main (`review_id` vide). Le technicien voit numéro, montant et
+  état ; le numéro figure dans le PDF.
+
+### Carte de l'intervention (fiche technicien) — `includes/zone_map.php`
+
+`render_tech_zone_map()` reprend les tracés de la carte du site (21, 39, 25),
+sans liens, avec un point rouge à l'adresse et « À environ N km de <ville> »
+(`zone_map_nearest_city()`). Les tracés n'ayant pas de coordonnées GPS,
+`zone_map_project()` est une correspondance linéaire calculée sur 8 villes
+(écart ≤ 4 unités sur 400) ; à recalculer si les tracés sont regénérés.
+Hors carte : point au bord, « Hors zone habituelle ». La position vient de
+`interventions.latitude/longitude` ; si elle manque, la fiche la calcule une
+fois (`geocode_address()`) et la garde (0/0 = introuvable, plus de carte).
+
+### Fin estimée par le technicien sur place — `includes/assignment.php`
+
+Une fois « Sur place », le technicien indique dans la barre « Quand pensez-vous
+finir ? » son avancement (début, milieu, fin) et le temps restant (15 min à
+3 h et +). Colonnes `interventions.tech_eta_end`, `tech_eta_at`,
+`tech_progress` (migration v15.48). Chaque estimation est aussi notée dans
+l'historique de l'intervention.
+
+| Fonction | Rôle |
+|---|---|
+| `eta_status($iv, $now)` | texte « milieu — libre vers 15 h 40 » ou « fin prévue 15 h 40, dépassée de 25 min » ; null hors « Sur place » |
+| `eta_busy_end($job, $now)` | fin d'occupation utilisée par `assign_suggestions()` ; estimation dépassée = maintenant + 15 min |
+
+Affichée au dispatcher dans le planning du jour (sous le nom du technicien,
+orange si dépassée), sur la fiche de l'intervention et dans les suggestions
+de technicien. Aucune notification : l'information se lit à l'écran.
 
 ### Écrans
 
@@ -519,10 +718,10 @@ Elles viennent du propriétaire du site et ont été confirmées plusieurs fois.
 bash tests/run.sh
 ```
 
-1087 assertions, aucune base de données nécessaire : chaque test remplace
+1426 assertions, aucune base de données nécessaire : chaque test remplace
 `db_fetch` / `db_fetch_all` / `db_execute` par une base en mémoire, puis
 charge les vrais fichiers de `includes/`. Le lanceur enchaîne avec `php -l`
-sur les 196 fichiers PHP.
+sur les 231 fichiers PHP.
 
 | Fichier | Ce qu'il protège |
 |---|---|
@@ -544,9 +743,22 @@ sur les 196 fichiers PHP.
 | `test_croissance.php` | outils de conversion : numéro WhatsApp, horaires du bandeau, note Google jamais inventée, SMS automatiques, créneaux de rendez-vous, pages panne, 404, signature Stripe, échéances d'entretien, espace client, suivi |
 | `test_agent.php` | agent relation client : lecture des mails (encodages, pièces jointes, réponses citées), tri sans IA, garde-fou prix / dates / délais, coût, boutons Telegram selon le mode, **aucun envoi en mode test ni en double** |
 | `test_finances.php` | calculs du tableau de bord financier (chiffres clés, ancienneté, relances à faire, débiteurs, 12 mois, délai de paiement) |
+| `test_fin_estimee.php` | fin estimée du technicien : texte affiché, retard, créneaux libres proposés à l'assignation |
+| `test_dates_tech.php` | application technicien : séparations Aujourd'hui / Hier / Avant-hier / date, « Créée hier à 18 h 12 » |
+| `test_referentiel.php` | référentiel de départ : tient dans `preset_items`, marques et modèles rattachés à un appareil, structure envoyée aux écrans |
+| `test_import_produits.php` | import des produits Pennylane (TVA, unité, métier deviné, « VVV » écartés, déjà présents) et prestations ajoutées pour tous les métiers |
+| `test_validation.php` | validation sans prestation, « valider sans facture » (clôture, brouillon annulé, facture partie jamais touchée), facture automatique |
+| `test_renforts.php` | plusieurs techniciens : mode de rapport, état du rapport d'un renfort, ajout refusé (principal, inactif, doublon), rapport enregistré ou envoyé |
+| `test_carte_tech.php` | carte de l'intervention (fiche technicien) : GPS → carte, ville repère la plus proche, hors zone |
+| `test_facture_liee.php` | facture Pennylane reliée après coup (recherche par numéro, refus, suivi du paiement, brouillon remplacé, lien retiré), remarques de paiement |
+| `test_recherche.php` | recherche dans les listes : pages qui l'activent, script chargé (dispatcher et technicien) |
+| `test_correction.php` | rapport corrigé par Claude : garde-fous (nombres, longueur), texte d'origine jamais réécrit, correction écartée signalée |
+| `test_devis_tech.php` | devis à faire demandé par le technicien : brouillon sans prix, numéro, pas de doublon, dispatcher prévenu |
+| `test_notifications_disp.php` | notifications du dispatcher : ajout, dédoublonnage, liens sûrs, fin estimée dépassée |
+| `test_aide.php` | aide au technicien : texte envoyé à Claude (sans données personnelles, question encadrée), clé du PC, file d'attente, relais, bureau prévenu |
 
 Le reste du circuit d'intervention automatisé (§4bis : qualification,
-assignation, relecture, Yousign) n'est pas encore couvert.
+assignation hors fin estimée, relecture, Yousign) n'est pas encore couvert.
 
 **Rendu visuel.** Chromium et Playwright sont installés
 (`/opt/node22/lib/node_modules/playwright`, ne pas lancer
@@ -710,6 +922,9 @@ Du plus récent au plus ancien.
 
 | Commit | Objet |
 |---|---|
+| *(voir `git log`)* | Fin estimée 3 — affichage dispatcher : planning, fiche, suggestions |
+| `6f1c48d` | Fin estimée 2 — barre « Quand pensez-vous finir ? » côté technicien |
+| `22edcaf` | Fin estimée 1 — colonnes, calculs, prise en compte dans l'assignation |
 | *(voir `git log`)* | Mise en cohérence (§4sexies) : bandeau cookies et consentement v2, plus de collecte sans clic, rappel express, promesses non sourcées filtrées, avis avec provenance, JSON-LD réparé, mentions légales, WhatsApp incomplet masqué, rendez-vous lundi-samedi hors fériés, ancienne page « Électricité » redirigée, sitemap, polices locales. Migration `.mig_v15_coherence` |
 | *(voir `git log`)* | Mention du logo plus discrète ; cartes volets et portails retirées de la page électricité (ils ont leur page métier) ; anciennes listes de prestations enregistrées par l'admin reconnues par `service_offer_legacy()` (elles s'affichaient sans texte ni dessin) ; page Réalisations filtrable par métier (`?metier=electricite`, pastilles dessinées), le bouton d'une page métier y mène filtré |
 | *(voir `git log`)* | Pages métier : « Nos interventions » supprimé (doublon de « Notre offre ») ; prestations en cartes défilantes (dessin + titre + texte court, `offer_items` = `[dessin, titre, texte]`, `service_offer_cards()` lit aussi l'ancien format phrase) ; dessins PNG au trait orange dans `assets/img/icons/` (Tabler Icons, licence MIT, + dessins maison), liste dans `service_icons()` ; cartes volets, portails et chauffe-eau dessinées ; bandeau défilant des marques (`svc_<métier>_brands`, `_brands_title`, `_brands_on`), rempli pour chauffage et climatisation, noms en texte, sans logos de fabricants. Logo EMAE : mention en texte sous « EMAE » (`assets/img/logo-emae-mark.png`, `site_logo_is_emae()`). Corrigé au passage : les tuiles débordaient de l'écran sur téléphone, ce qui faisait dézoomer toute la page |

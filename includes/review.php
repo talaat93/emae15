@@ -101,7 +101,8 @@ function review_rule_missing(array $iv): array
     $miss = [];
     if (trim((string)($iv['tech_diagnostic'] ?? '')) === '' && trim((string)($iv['tech_report'] ?? '')) === '') $miss[] = 'Diagnostic manquant';
     if (trim((string)($iv['tech_report'] ?? '')) === '')   $miss[] = 'Travaux réalisés non décrits';
-    if (!tech_report_lines($iv))                             $miss[] = 'Aucune prestation déclarée';
+    // Une intervention sans prestation peut être validée (garantie, contrat, geste commercial…) :
+    // ce n'est plus un manque bloquant, seulement un avertissement dans la relecture.
     if (count(intervention_photo_paths($iv)) < 2)            $miss[] = 'Moins de 2 photos';
     if (empty($iv['client_signature']))                      $miss[] = 'Signature du client absente';
     if (trim((string)($iv['tech_client_name'] ?? '')) === '') $miss[] = 'Nom du signataire absent';
@@ -166,6 +167,16 @@ function review_payload(array $iv, ?array $client): array
  * $trigger : 'technicien', 'dispatcher' ou 'system' (pour l'historique).
  * Retour : ['ok' => bool, 'complete' => bool, 'source' => 'claude'|'regles', 'notice' => ?string, 'status' => string]
  */
+/**
+ * Facture automatique : quand la relecture trouve le rapport complet, le brouillon de facture
+ * est préparé tout de suite (et envoyé en brouillon dans Pennylane). Désactivée, le rapport
+ * attend la décision du dispatcher (valider avec ou sans facture). Réglages → Pennylane.
+ */
+function review_invoice_auto(): bool
+{
+    return integration_setting('facture_auto', '1') !== '0';
+}
+
 function review_run(int $ivId, string $trigger = 'system', ?array $actor = null): array
 {
     review_tables();
@@ -244,6 +255,8 @@ function review_run(int $ivId, string $trigger = 'system', ?array $actor = null)
         $res['inconsistencies'][] = 'Les prestations proposées par Claude ('.money_fr($proposed['total_ttc']).' TTC) diffèrent de celles déclarées par le technicien ('.money_fr($declared['total_ttc']).' TTC).';
     }
     if ($declared['has_free']) $res['inconsistencies'][] = 'Matériel hors grille facturé : prix saisis par le technicien, à vérifier.';
+    $hasLines = (bool)tech_report_lines($iv);
+    if (!$hasLines) $res['inconsistencies'][] = 'Aucune prestation déclarée : aucune facture préparée automatiquement. Validez avec ou sans facture.';
 
     $notice = $fromClaude ? null : ($r['error'] ?? 'Claude indisponible').' Relecture faite avec les contrôles standard.';
     db_execute('INSERT INTO report_reviews (intervention_id, source, model, complete, result, notice, triggered_by) VALUES (?,?,?,?,?,?,?)', [
@@ -260,6 +273,12 @@ function review_run(int $ivId, string $trigger = 'system', ?array $actor = null)
         notify_tech_report_incomplete($ivId, $msg);
         return ['ok' => true, 'complete' => false, 'source' => $fromClaude ? 'claude' : 'regles', 'notice' => $notice, 'status' => 'a_revoir'];
     }
+    // Sans prestation, ou facture automatique désactivée : le dispatcher décide (avec ou sans facture).
+    if (!$hasLines || !review_invoice_auto()) {
+        wf_set_status($ivId, 'rapport_verifie', $actorType, 0, $actorName,
+            'Rapport complet, à valider par le dispatcher'.(!$hasLines ? ' (aucune prestation déclarée)' : ''), ['review_message' => null]);
+        return ['ok' => true, 'complete' => true, 'source' => $fromClaude ? 'claude' : 'regles', 'notice' => $notice, 'status' => 'rapport_verifie'];
+    }
     review_accept($ivId, $reviewId, $actorType, 0, $actorName);
     return ['ok' => true, 'complete' => true, 'source' => $fromClaude ? 'claude' : 'regles', 'notice' => $notice, 'status' => 'facture_brouillon'];
 }
@@ -268,11 +287,21 @@ function review_run(int $ivId, string $trigger = 'system', ?array $actor = null)
  * Rapport vérifié : prépare le brouillon de facture (prestations déclarées et signées sur place,
  * chiffrées par la grille) puis passe la fiche en « Facture à valider ».
  */
-function review_accept(int $ivId, ?int $reviewId, string $actorType, int $actorId, string $actorName, string $note = ''): ?int
+function review_accept(int $ivId, ?int $reviewId, string $actorType, int $actorId, string $actorName, string $note = '', bool $withInvoice = true): ?int
 {
     review_tables();
     $iv = db_fetch('SELECT * FROM interventions WHERE id = ?', [$ivId]);
     if (!$iv) return null;
+    // Validation sans facture : l'intervention est clôturée, rien n'est préparé ni envoyé à Pennylane.
+    if (!$withInvoice) {
+        $existing = invoice_for_intervention($ivId);
+        if ($existing && $existing['status'] !== 'brouillon') return (int)$existing['id'];   // facture déjà partie : on n'y touche pas
+        // Brouillon local préparé plus tôt : annulé ici (un brouillon déjà poussé dans Pennylane y reste, à supprimer à la main).
+        if ($existing) db_execute("UPDATE invoices SET status = 'annulee', updated_at = NOW() WHERE id = ?", [(int)$existing['id']]);
+        wf_set_status($ivId, 'cloturee', $actorType, $actorId, $actorName, 'Validée sans facture'.($note !== '' ? ' — '.$note : ''), ['review_message' => null]);
+        integration_log('audit', 'intervention validée sans facture', ['intervention' => $ivId, 'acteur' => $actorType]);
+        return null;
+    }
     wf_set_status($ivId, 'rapport_verifie', $actorType, $actorId, $actorName, $note !== '' ? $note : 'Rapport vérifié', ['review_message' => null]);
 
     $existing = invoice_for_intervention($ivId);
@@ -319,6 +348,9 @@ function review_run_after_response(int $ivId): void
         elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
         @ignore_user_abort(true);
         @set_time_limit(180);
+        // D'abord la correction du texte (orthographe, vocabulaire technique), puis la relecture.
+        try { if (function_exists('correction_run')) correction_run($ivId, 'technicien'); }
+        catch (Throwable $e) { integration_log('claude', 'correction #'.$ivId.' : '.$e->getMessage()); }
         try { review_run($ivId, 'technicien'); }
         catch (Throwable $e) { integration_log('review', 'relecture #'.$ivId.' : '.$e->getMessage()); }
     });
