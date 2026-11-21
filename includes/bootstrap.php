@@ -1025,6 +1025,16 @@ if (!file_exists($_mf47)) {
     unset($_me);
 }
 unset($_mf47);
+// Auto-migration v15.48 (21/11/2026) : fourchettes de prix des grilles climatisation, VMC, portail et
+// automatismes. Seulement les grilles sans aucun prix saisi ; l'ancienne valeur est sauvegardée.
+$_mf48 = __DIR__.'/../storage/.mig_v15_tarifs_fourchettes';
+if (!file_exists($_mf48)) {
+    @file_put_contents($_mf48, date('c'));
+    try { tarifs_fill_empty_grids(tarifs_fourchettes_rows()); }
+    catch (Throwable $_me) { error_log('Migration v15.48 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf48);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

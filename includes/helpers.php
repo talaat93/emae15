@@ -725,6 +725,8 @@ function tarifs_default_rows(): array
     $out = array_map(static fn(array $labels): array => array_map(static fn(string $l): array => [$l, '', ''], $labels), $rows);
     // Fourchette donnée par le propriétaire (11/11/2026).
     $out['chauffage'][1] = ['Entretien annuel de chaudière', '109 € à 239 € TTC', ENTRETIEN_CHAUDIERE_PRECISION];
+    // Fourchettes demandées par le propriétaire (21/11/2026), « comme Depanneo ».
+    $out = array_replace($out, tarifs_fourchettes_rows());
     $out['base'] = [
         ['Déplacement — intervention programmée, du lundi au samedi', '52,80 € TTC', '44 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Déplacement — urgence, du lundi au samedi', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
@@ -741,7 +743,81 @@ function tarifs_default_rows(): array
     return $out;
 }
 
-const ENTRETIEN_CHAUDIERE_PRECISION = 'Déplacement en plus (voir la page Tarifs). Selon l\'appareil (gaz, fioul, condensation…) et son accès ; le prix exact vous est annoncé avant le rendez-vous.';
+/**
+ * Grilles chiffrées en fourchettes (novembre 2026) : climatisation et CVC, VMC et ventilation,
+ * portail et visiophone, automatismes et électroménager. Prix TTC hors déplacement, comme
+ * l'entretien de chaudière ; le prix exact est annoncé avant l'intervention.
+ */
+function tarifs_fourchettes_rows(): array
+{
+    $hd = 'Hors déplacement.';
+    $fp = 'Fourniture et pose, hors déplacement.';
+    return [
+        'climatisation' => [
+            ['Diagnostic de panne (climatiseur, PAC air-air)', '90 € à 150 € TTC', $hd],
+            ['Dépannage de climatiseur', '150 € à 300 € TTC', 'Réparation courante, hors déplacement. Pièce à remplacer : prix annoncé avant.'],
+            ['Entretien de climatisation', '120 € à 200 € TTC', 'Nettoyage, filtres, contrôle. Selon le nombre d\'unités intérieures, hors déplacement.'],
+            ['Recherche de fuite de fluide frigorigène', '150 € à 300 € TTC', $hd],
+            ['Recharge en fluide frigorigène', '150 € à 350 € TTC', 'Selon la quantité de fluide, après réparation de la fuite. Hors déplacement.'],
+            ['Installation de climatisation monosplit', '1 500 € à 3 000 € TTC', 'Une pièce. '.$fp],
+            ['Installation multisplit ou gainable', 'À partir de 3 000 € TTC', 'Devis gratuit après visite.'],
+        ],
+        'vmc' => [
+            ['Dépannage de VMC', '120 € à 250 € TTC', 'Moteur, commande, bouches. Hors déplacement.'],
+            ['Remplacement du moteur de VMC simple flux', '250 € à 500 € TTC', $fp],
+            ['Nettoyage des bouches et des gaines', '150 € à 300 € TTC', 'Selon le nombre de bouches et la longueur des gaines. Hors déplacement.'],
+            ['Entretien annuel et contrôle des débits', '150 € à 220 € TTC', $hd],
+            ['Entretien de VMC double flux', '180 € à 280 € TTC', 'Filtres compris. Hors déplacement.'],
+            ['Pose d\'un extracteur d\'air (salle de bain, cuisine)', '150 € à 350 € TTC', $fp],
+            ['Installation de VMC simple flux', '400 € à 900 € TTC', $fp],
+            ['Installation de VMC double flux', 'À partir de 2 000 € TTC', 'Devis gratuit après visite.'],
+        ],
+        'portail' => [
+            ['Dépannage de portail bloqué', '120 € à 250 € TTC', 'Portail motorisé battant ou coulissant. Hors déplacement.'],
+            ['Réglage ou remplacement des cellules photoélectriques', '120 € à 250 € TTC', $hd],
+            ['Remplacement de la carte électronique', '250 € à 500 € TTC', $fp],
+            ['Programmation de télécommande', '50 € à 90 € TTC', 'Télécommande fournie en plus si besoin. Hors déplacement.'],
+            ['Motorisation de portail', '800 € à 2 000 € TTC', 'Battant ou coulissant. '.$fp],
+            ['Installation de visiophone', '250 € à 600 € TTC', 'Maison individuelle. '.$fp],
+            ['Dépannage d\'interphone, de visiophone ou de digicode', '120 € à 250 € TTC', $hd],
+            ['Installation de digicode ou de clavier à code', '250 € à 500 € TTC', $fp],
+        ],
+        'automatisme' => [
+            ['Dépannage de volet roulant', '120 € à 250 € TTC', 'Volet bloqué, sangle, moteur. Hors déplacement.'],
+            ['Remplacement de sangle ou de manivelle', '90 € à 180 € TTC', $fp],
+            ['Remplacement de moteur de volet roulant', '300 € à 600 € TTC', $fp],
+            ['Motorisation de volet ou de store', '400 € à 900 € TTC', 'Par volet. '.$fp],
+            ['Dépannage d\'électroménager', '90 € à 200 € TTC', 'Lave-linge, lave-vaisselle, four, plaques… Hors déplacement, pièces en plus.'],
+        ],
+    ];
+}
+
+/**
+ * Remplit une grille de la page Tarifs (globale et grilles de zone) avec ses fourchettes, seulement
+ * si aucun prix n'y est saisi : un prix entré dans l'admin n'est jamais écrasé. L'ancienne valeur
+ * est sauvegardée (geo_sauvegarde). Renvoie le nombre de grilles remplacées.
+ */
+function tarifs_fill_empty_grids(array $grids): int
+{
+    $n = 0;
+    $lot = 'tarifs-fourchettes-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+    foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE '%tarifs\\_%'") as $r) {
+        $key = (string)$r['setting_key'];
+        if (!preg_match('/^(?:z:[^:]+:)?tarifs_([a-z]+)$/', $key, $m) || !isset($grids[$m[1]])) continue;
+        $rows = json_decode((string)$r['setting_value'], true);
+        if (!is_array($rows)) continue;
+        foreach ($rows as $row) {
+            if (trim((string)(array_values((array)$row)[1] ?? '')) !== '') continue 2;
+        }
+        if ($n === 0) geo_sauvegarde_table();
+        geo_sauvegarder($lot, 'setting:'.$key, (string)$r['setting_value']);
+        geo_ecrire_brut($key, json_encode($grids[$m[1]], JSON_UNESCAPED_UNICODE));
+        $n++;
+    }
+    return $n;
+}
+
+const ENTRETIEN_CHAUDIERE_PRECISION ='Déplacement en plus (voir la page Tarifs). Selon l\'appareil (gaz, fioul, condensation…) et son accès ; le prix exact vous est annoncé avant le rendez-vous.';
 
 /**
  * Prestations qu'un bouton « Prendre RDV » peut présélectionner : clé d'adresse →
