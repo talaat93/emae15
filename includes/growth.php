@@ -61,6 +61,8 @@ function growth_defaults(): array
         'google_place_id'    => '',
         'google_rating'      => '',
         'google_review_count'=> '',
+        // Compteur d'avis masqué partout tant que le total (Google + site) est sous ce seuil.
+        'reviews_min_display'=> '5',
         // WhatsApp
         'whatsapp_message'   => 'Bonjour, j\'ai besoin d\'un dépannage. Voici une photo de mon installation :',
         // Message automatique au client après sa demande

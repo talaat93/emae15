@@ -42,6 +42,13 @@ check('liste vide', reviews_merged(), []);
 
 echo "\n2. Note saisie à la main (fiche Google, 1 avis)\n";
 set('google_reviews_url', 'https://g.page/r/test/review'); set('google_rating', '5'); set('google_review_count', '1');
+check('seuil par défaut : 5 avis', review_summary_min(), 5);
+check('1 avis, sous le seuil : compteur masqué', review_summary(), null);
+check('1 avis, sous le seuil : badge G masqué', render_google_badge(), '');
+check('1 avis, sous le seuil : absent du bandeau', in_array('star', array_column(trust_band_items(), 0), true), false);
+set('google_review_count', '5');
+check('5 avis : compteur affiché', review_summary()['label'] ?? null, '5 avis Google');
+set('google_review_count', '1'); set('reviews_min_display', '1');
 $rs = review_summary();
 check('1 avis Google', [$rs['count'], $rs['label'], $rs['google_count'], $rs['site_count']], [1, '1 avis Google', 1, 0]);
 check('lien vers Google tant qu\'il n\'y a pas d\'avis du site', $rs['url'], 'https://g.page/r/test/review');

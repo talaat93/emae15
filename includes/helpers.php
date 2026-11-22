@@ -493,10 +493,17 @@ function legal_info(): array
 /**
  * Compteur d'avis : note et nombre réels, avis Google (note et total de la fiche, relevés chaque
  * jour, ou saisis dans l'admin) + avis clients publiés sur le site (provenance notée).
- * Moyenne pondérée par le nombre d'avis. null s'il n'y a aucun avis : aucun chiffre affiché.
+ * Moyenne pondérée par le nombre d'avis. null s'il n'y a aucun avis, ou moins que le seuil réglé
+ * dans l'admin (reviews_min_display, 5 par défaut) : aucun chiffre affiché.
  * url : la page Avis du site dès qu'elle montre des avis du site, sinon la fiche Google.
  * @return array{rating:float,count:int,google_count:int,site_count:int,url:string,google_url:string,updated:string,label:string}|null
  */
+function review_summary_min(): int
+{
+    $v = function_exists('growth_get') ? trim(growth_get('reviews_min_display')) : '';
+    return $v === '' ? 5 : max(1, (int)$v);
+}
+
 function review_summary(): ?array
 {
     $g    = function_exists('google_rating') ? google_rating() : null;
@@ -504,7 +511,7 @@ function review_summary(): ?array
     $gc   = (int)($g['count'] ?? 0);
     $sc   = count($site);
     $tot  = $gc + $sc;
-    if ($tot === 0) return null;
+    if ($tot === 0 || $tot < review_summary_min()) return null;   // trop peu d'avis : aucun compteur affiché
     $sum  = (float)($g['rating'] ?? 0) * $gc;
     foreach ($site as $r) $sum += max(1, min(5, (int)$r['rating']));
     $u = trim(global_setting('google_rating_updated_at', ''));

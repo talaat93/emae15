@@ -27,6 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($k === 'avail_days') $v = implode(',', array_map('intval', (array)($_POST['avail_days_list'] ?? [])));
         if (in_array($k, ['avail_start', 'avail_end'], true) && !preg_match('/^\d{2}:\d{2}$/', $v)) $v = $d[$k];
         if (in_array($k, ['auto_sms_daily_cap', 'review_request_delay_h', 'alert_unanswered_minutes', 'quote_photos_keep_months', 'booking_capacity', 'booking_days_ahead'], true)) $v = (string)max(0, (int)$v);
+        if ($k === 'reviews_min_display') $v = (string)max(1, min(100, (int)$v));
         if ($k === 'google_rating') $v = str_replace(',', '.', $v);
         if ($k === 'google_reviews_url' && $v !== '' && !preg_match('#^https://#i', $v)) { flash('error', 'Le lien Google doit commencer par https://'); $v = ''; }
         growth_save($k, $v);
@@ -102,6 +103,8 @@ $smsOk = sms_configured();
       <label class="admin-field"><span>Note (ex : 4,8)</span><input type="text" name="google_rating" value="<?= e($g('google_rating')) ?>" inputmode="decimal"></label>
       <label class="admin-field"><span>Nombre d'avis</span><input type="number" name="google_review_count" value="<?= e($g('google_review_count')) ?>" min="0"></label>
     </div>
+    <label class="admin-field" style="max-width:340px;"><span>Afficher le compteur à partir de (avis)</span><input type="number" name="reviews_min_display" value="<?= e($g('reviews_min_display')) ?>" min="1" max="100">
+      <small style="color:#888;">En dessous, la note et le nombre d'avis sont masqués partout (badge G, bandeau, accueil, page Avis). Les avis eux-mêmes restent visibles sur la page Avis.<?php $_rt = (int)(google_rating()['count'] ?? 0) + count(all_published_reviews()); ?> Aujourd'hui : <?= $_rt ?> avis<?= $_rt < review_summary_min() ? ' — compteur masqué' : ' — compteur affiché' ?>.</small></label>
     <details style="margin-top:.5rem;"><summary style="cursor:pointer;font-weight:600;">Mise à jour automatique de la note (facultatif)</summary>
       <p style="font-size:.85rem;color:#555;line-height:1.6;">Avec une clé Google Places API et l'identifiant de votre fiche (« Place ID »), la note, le nombre d'avis et 5 avis (choisis par Google) se mettent à jour une fois par jour et s'affichent sur la page Avis. Pour <strong>tous</strong> les avis : <a href="<?= e(url_for('admin/google.php')) ?>">connexion Google (API Business Profile)</a>. Sans clé, gardez la saisie manuelle ci-dessus.</p>
       <div class="admin-form-grid admin-form-grid--2">
