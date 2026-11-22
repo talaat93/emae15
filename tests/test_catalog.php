@@ -26,7 +26,7 @@ function check(string $l, mixed $g, mixed $w): void { global $pass,$fail;
 
 // Tout le code qui rend le site public.
 $public = '';
-foreach (['index.php','includes/render.php','includes/helpers.php','includes/content_pages.php','includes/pages_extra.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
+foreach (['index.php','includes/render.php','includes/helpers.php','includes/content_pages.php','includes/pages_extra.php','includes/city_trade_pages.php'] as $f) $public .= file_get_contents($ROOT.'/'.$f);
 
 echo "\n1. Aucun champ fantôme sur l'ensemble du site\n";
 $ghosts = [];

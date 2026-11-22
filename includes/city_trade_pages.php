@@ -119,7 +119,6 @@ function render_city_trade_page(array $c, string $tslug): void
     render_header(route_url($trade));
     $cards  = service_cards_v14();
     $signs  = array_values(array_filter(array_map(static fn($s) => trim(is_array($s) ? (string)($s['v'] ?? reset($s)) : (string)$s), (array)$tpl['signs']), 'strlen'));
-    $offres = array_slice(service_offer_cards((array)$tpl['offer_items']), 0, 6);
     $faq = [];
     if ($txt) {
         // Page rédigée : prix (depuis la page Tarifs), délai, questions propres au métier et à la ville, assurance.
@@ -136,7 +135,14 @@ function render_city_trade_page(array $c, string $tslug): void
             $faq[] = ['Êtes-vous assurés pour ces travaux ?', 'Oui : '.$L['assurance'].' L\'attestation est envoyée sur simple demande.'];
     }
     $faq[] = ['Intervenez-vous '.$c['a'].' ?', 'Oui, '.$c['a'].' et dans les communes voisines : '.geo_enumerer(array_slice($c['voisines'], 0, 6)).'. Votre adresse n\'est pas citée ? Appelez-nous pour vérifier.'];
-    if (!$txt) foreach ($tpl['faq'] as [$q, $a]) $faq[] = [(string)$q, faq_answer_fix((string)$q, (string)$a)];
+    // FAQ générale du métier (la même que sur la page métier), ajoutée à toutes les pages ville.
+    $_seen = array_map(static fn(array $f): string => mb_strtolower(trim($f[0]), 'UTF-8'), $faq);
+    foreach ($tpl['faq'] as [$q, $a]) {
+        $q = trim((string)$q); $a = faq_answer_fix($q, (string)$a);
+        if ($q === '' || trim($a) === '' || in_array(mb_strtolower($q, 'UTF-8'), $_seen, true)) continue;
+        $faq[] = [$q, $a]; $_seen[] = mb_strtolower($q, 'UTF-8');
+    }
+    unset($_seen);
     $pannes = array_values(array_filter((array)($txt['pannes'] ?? []), static fn($p) => !claim_unsupported((string)$p)));
     $local  = array_values(array_filter((array)($txt['local'] ?? []), static fn($l) => !claim_unsupported(implode(' ', (array)$l))));
     $steps = [1 => ['Diagnostic sur place', 'Le technicien recherche la cause de la panne et vous l\'explique simplement.'],
@@ -209,30 +215,22 @@ function render_city_trade_page(array $c, string $tslug): void
 </div></section>
 <?php endif; ?>
 
-<?php if ($signs && !$pannes): ?>
+<?php if ($signs): ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
   <div class="svc-label"><?= e(setting('svc_signs_label', 'Signes d\'alerte')) ?></div>
   <h2 class="section-title"><?= e($tpl['signs_title']) ?></h2>
   <ul class="sign-list"><?php foreach ($signs as $s): ?><li><?= e($s) ?></li><?php endforeach; ?></ul>
+  <div class="btn-row" style="margin-top:1.5rem;">
+    <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
+    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé</a>
+  </div>
 </div></section>
 <?php endif; ?>
 
-<?php if ($offres && !$pannes): ?>
 <section class="sec sec-card"><div class="wrap">
-  <div class="svc-label">Nos interventions <?= e($c['a']) ?></div>
-  <h2 class="section-title"><?= e($tpl['offer_title']) ?></h2>
-  <div class="city-grid">
-    <?php foreach ($offres as $o): ?>
-    <div class="city-card">
-      <img src="<?= e(service_icon_url((string)$o['icon'])) ?>" alt="" width="40" height="40" loading="lazy">
-      <h3><?= e($o['title']) ?></h3>
-      <?php if (trim((string)$o['text']) !== ''): ?><p style="margin:0;color:var(--t2);font-size:.9rem;"><?= e($o['text']) ?></p><?php endif; ?>
-    </div>
-    <?php endforeach; ?>
-  </div>
+  <?php render_service_offer_block($tpl, $trade, !$prix); ?>
   <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(route_url($trade)) ?>">Toutes nos prestations en <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> →</a><?php if (tarifs_enabled()): ?> · <a href="<?= e(route_url('tarifs')) ?>">Nos tarifs (déplacement, main-d'œuvre) →</a><?php endif; ?></p>
 </div></section>
-<?php endif; ?>
 
 <section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
   <div class="prox-grid"><div>
@@ -290,6 +288,12 @@ function render_city_trade_page(array $c, string $tslug): void
   <div class="sfaq-list" style="margin-top:1.5rem;">
     <?php foreach ($faq as [$q, $a]): ?><details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details><?php endforeach; ?>
   </div>
+  <?php $_pn_list = pannes_for_trade($trade); if ($_pn_list): ?>
+  <div class="svc-label" style="margin-top:2.25rem;">Pannes fréquentes : que faire ?</div>
+  <div class="px-chips">
+    <?php foreach ($_pn_list as $_pn): ?><a class="px-chip" href="<?= e(route_url($_pn['slug'])) ?>"><?= e($_pn['icon'].' '.$_pn['h1']) ?></a><?php endforeach; ?>
+  </div>
+  <?php endif; unset($_pn_list, $_pn); ?>
   <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(static fn(array $f): array => ['@type' => 'Question', 'name' => $f[0], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f[1]]], $faq)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
   <p style="margin-top:1.5rem;font-size:.9rem;color:var(--t2);line-height:1.8;">
     Aussi <?= e($c['a']) ?> : <?php $l = []; foreach (city_trades() as $ts => [, $pp]) if ($ts !== $tslug) $l[] = '<a href="'.e(url_for('intervention/'.$c['slug'].'/'.$ts)).'">'.e($pp).'</a>'; echo implode(' · ', $l); ?>
@@ -297,6 +301,68 @@ function render_city_trade_page(array $c, string $tslug): void
     <?= e($pro) ?> ailleurs : <?php $l = []; foreach (array_keys(city_pages()) as $s) if ($s !== $c['slug']) { $x = city_page($s); $l[] = '<a href="'.e(url_for('intervention/'.$s.'/'.$tslug)).'">'.e($x['nom']).'</a>'; } echo implode(' · ', $l); ?>
   </p>
 </div></section>
+
+<section class="sec sec-card"><div class="wrap" style="max-width:700px;">
+  <div class="svc-label"><?= e(setting('svc_form_label', 'Devis gratuit')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> <?= e($c['a']) ?></div>
+  <div class="qs-card">
+    <div class="hero-card-tag">📋 <?= e(setting('svc_form_tag', 'Votre technicien')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?></div>
+    <h2 style="font-family:var(--font-h);font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:1.35rem;"><?= e(setting('svc_form_title', 'Devis gratuit')) ?></h2>
+    <?php render_quote_form($cards, 'service_'.$trade); ?>
+  </div>
+</div></section>
 <?php
     render_footer();
+}
+
+/** Offre du métier (cartes en plus, encadré Enedis, prestations, RDV entretien) : commune à la page métier et aux pages ville × métier. */
+function render_service_offer_block(array $tpl, string $sk, bool $rdv = true): void
+{
+    ?>
+  <?php
+  // Bloc propre à un métier : prestation recherchée sur Google (chauffe-eau).
+  // et filtre des coupures réseau, qui relèvent d'Enedis et non d'un électricien.
+  $svcExtras = [
+      'chauffage' => [
+          ['chauffe-eau', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
+                 setting('svc_chauffage_ecs_text', 'Plus d\'eau chaude ? Nous dépannons et remplaçons les chauffe-eau électriques, les ballons d\'eau chaude et la production d\'eau chaude des chaudières : résistance, thermostat, groupe de sécurité, fuite du ballon. Remplacement complet si l\'appareil est hors d\'usage, avec mise en service le jour même quand c\'est possible.')],
+      ],
+  ][$sk] ?? [];
+  ?>
+  <?php if ($svcExtras): ?>
+  <div class="ofr-extras">
+    <?php foreach ($svcExtras as [$ico, $t, $d]): ?>
+    <div class="ofr-card"><span class="ofr-ico"><img src="<?= e(service_icon_url($ico)) ?>" alt="" width="64" height="64" loading="lazy"></span><h3 class="ofr-h"><?= e($t) ?></h3><p class="ofr-p"><?= e($d) ?></p></div>
+    <?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+  <?php if ($sk === 'electricite'): ?>
+  <div class="svc-intro" style="border-left:4px solid var(--primary);padding:.9rem 1.1rem;margin:0 0 2rem;">
+    <p style="margin:0;"><strong><?= e(setting('svc_electricite_enedis_title', 'Coupure dans tout le quartier ou le village ?')) ?></strong>
+    <?= e(setting('svc_electricite_enedis_text', 'Si vos voisins n\'ont plus de courant non plus, la panne vient du réseau public : appelez Enedis au 09 72 67 50 suivi du numéro de votre département (21, 25, 39…), gratuit 24h/24. Si vous êtes le seul sans électricité, c\'est votre installation : appelez-nous.')) ?></p>
+  </div>
+  <?php endif; ?>
+  <div class="svc-label"><?= e(setting('svc_offer_label','Notre offre')) ?></div>
+  <h2 class="section-title"><?= e($tpl['offer_title']) ?></h2>
+  <p class="section-lead svc-lead"><?= e(setting('svc_offer_lead','Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.')) ?></p>
+  <?php $svcOffers = service_offer_cards((array)$tpl['offer_items']); ?>
+  <div class="ofr" data-ofr>
+    <div class="ofr-scroller" tabindex="0" role="region" aria-label="<?= e($tpl['offer_title']) ?>">
+      <?php foreach ($svcOffers as $o): ?>
+      <article class="ofr-card">
+        <span class="ofr-ico"><img src="<?= e(service_icon_url($o['icon'])) ?>" alt="" width="64" height="64" loading="lazy"></span>
+        <h3 class="ofr-h"><?= e($o['title']) ?></h3>
+        <?php if ($o['text'] !== ''): ?><p class="ofr-p"><?= e($o['text']) ?></p><?php endif; ?>
+      </article>
+      <?php endforeach; unset($o); ?>
+    </div>
+    <?php if (count($svcOffers) > 1): ?>
+    <div class="ofr-nav">
+      <span class="ofr-hint">Faites défiler <span aria-hidden="true">→</span></span>
+      <button type="button" class="ofr-btn" data-ofr-prev aria-label="Prestations précédentes">←</button>
+      <button type="button" class="ofr-btn" data-ofr-next aria-label="Prestations suivantes">→</button>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php if ($rdv && $sk === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
+<?php
 }

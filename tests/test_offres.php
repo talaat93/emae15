@@ -41,7 +41,7 @@ foreach (service_trade_defaults() as $t => $d) {
 }
 
 echo "\n3. Cartes propres à un métier\n";
-$idx = file_get_contents($R.'/index.php');
+$idx = file_get_contents($R.'/index.php').file_get_contents($R.'/includes/city_trade_pages.php');
 check('électricité : cartes volets et portails retirées', [str_contains($idx, "svc_electricite_volets"), str_contains($idx, "svc_electricite_acces")], [false, false]);
 check('chauffage : carte chauffe-eau dessinée', str_contains($idx, "['chauffe-eau', setting("), true);
 check('la section « Nos interventions » a disparu', str_contains($idx, "svc_interv_"), false);

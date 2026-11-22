@@ -1347,52 +1347,7 @@ if ($tpl !== null || $page) {
     <?php foreach (preg_split('/\R\s*\R/', trim($tpl['intro'])) ?: [] as $para): ?><p><?= e(trim($para)) ?></p><?php endforeach; ?>
   </div>
   <?php endif; ?>
-  <?php
-  // Bloc propre à un métier : prestation recherchée sur Google (chauffe-eau).
-  // et filtre des coupures réseau, qui relèvent d'Enedis et non d'un électricien.
-  $svcExtras = [
-      'chauffage' => [
-          ['chauffe-eau', setting('svc_chauffage_ecs_title', 'Chauffe-eau et ballon d\'eau chaude'),
-                 setting('svc_chauffage_ecs_text', 'Plus d\'eau chaude ? Nous dépannons et remplaçons les chauffe-eau électriques, les ballons d\'eau chaude et la production d\'eau chaude des chaudières : résistance, thermostat, groupe de sécurité, fuite du ballon. Remplacement complet si l\'appareil est hors d\'usage, avec mise en service le jour même quand c\'est possible.')],
-      ],
-  ][$sk] ?? [];
-  ?>
-  <?php if ($svcExtras): ?>
-  <div class="ofr-extras">
-    <?php foreach ($svcExtras as [$ico, $t, $d]): ?>
-    <div class="ofr-card"><span class="ofr-ico"><img src="<?= e(service_icon_url($ico)) ?>" alt="" width="64" height="64" loading="lazy"></span><h3 class="ofr-h"><?= e($t) ?></h3><p class="ofr-p"><?= e($d) ?></p></div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
-  <?php if ($sk === 'electricite'): ?>
-  <div class="svc-intro" style="border-left:4px solid var(--primary);padding:.9rem 1.1rem;margin:0 0 2rem;">
-    <p style="margin:0;"><strong><?= e(setting('svc_electricite_enedis_title', 'Coupure dans tout le quartier ou le village ?')) ?></strong>
-    <?= e(setting('svc_electricite_enedis_text', 'Si vos voisins n\'ont plus de courant non plus, la panne vient du réseau public : appelez Enedis au 09 72 67 50 suivi du numéro de votre département (21, 25, 39…), gratuit 24h/24. Si vous êtes le seul sans électricité, c\'est votre installation : appelez-nous.')) ?></p>
-  </div>
-  <?php endif; ?>
-  <div class="svc-label"><?= e(setting('svc_offer_label','Notre offre')) ?></div>
-  <h2 class="section-title"><?= e($tpl['offer_title']) ?></h2>
-  <p class="section-lead svc-lead"><?= e(setting('svc_offer_lead','Urgence, entretien ou projet : voici les prestations que nous réalisons le plus souvent. Pour toute autre demande, décrivez-nous votre besoin, nous vous disons rapidement si nous pouvons intervenir.')) ?></p>
-  <?php $svcOffers = service_offer_cards((array)$tpl['offer_items']); ?>
-  <div class="ofr" data-ofr>
-    <div class="ofr-scroller" tabindex="0" role="region" aria-label="<?= e($tpl['offer_title']) ?>">
-      <?php foreach ($svcOffers as $o): ?>
-      <article class="ofr-card">
-        <span class="ofr-ico"><img src="<?= e(service_icon_url($o['icon'])) ?>" alt="" width="64" height="64" loading="lazy"></span>
-        <h3 class="ofr-h"><?= e($o['title']) ?></h3>
-        <?php if ($o['text'] !== ''): ?><p class="ofr-p"><?= e($o['text']) ?></p><?php endif; ?>
-      </article>
-      <?php endforeach; unset($o); ?>
-    </div>
-    <?php if (count($svcOffers) > 1): ?>
-    <div class="ofr-nav">
-      <span class="ofr-hint">Faites défiler <span aria-hidden="true">→</span></span>
-      <button type="button" class="ofr-btn" data-ofr-prev aria-label="Prestations précédentes">←</button>
-      <button type="button" class="ofr-btn" data-ofr-next aria-label="Prestations suivantes">→</button>
-    </div>
-    <?php endif; ?>
-  </div>
-  <?php if ($sk === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
+  <?php render_service_offer_block($tpl, $sk); ?>
 </div></section>
 
 <?php $_signs = array_values(array_filter(array_map(static fn($s) => trim(is_array($s) ? (string)($s['v'] ?? reset($s)) : (string)$s), (array)$tpl['signs']), 'strlen')); if ($_signs): ?>
