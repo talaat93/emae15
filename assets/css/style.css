@@ -1497,6 +1497,13 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
   .brands-list[aria-hidden]{display:none;}
 }
 
+/* ── Bandeau défilant lent des appareils (dessin + nom) ── */
+.equip{border-top:1px solid var(--line);}
+.equip-track{animation-duration:90s;}
+.equip-list li{display:flex;align-items:center;gap:.7rem;font-size:1rem;padding:0 1.8rem;}
+.equip-list li img{width:46px;height:46px;flex:none;padding:7px;border-radius:12px;background:linear-gradient(145deg,rgba(240,123,29,.16),rgba(240,123,29,.05));border:1px solid rgba(240,123,29,.24);}
+@media(min-width:1024px){ .equip-track{animation-duration:110s;} .equip-list li{font-size:1.1rem;padding:0 2.4rem;} }
+
 /* ── Réalisations : filtres par métier (dessins des métiers) ── */
 .rf{display:flex;gap:.5rem;overflow-x:auto;scrollbar-width:none;margin:0 -1.25rem 1.75rem;padding:0 1.25rem .2rem;}
 .rf::-webkit-scrollbar{display:none;}

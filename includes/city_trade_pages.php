@@ -163,10 +163,15 @@ function render_city_trade_page(array $c, string $tslug): void
     <p class="ph-lead"><?= e(claim_clean(geo_replace((string)$tpl['desc']), $tpl['label'].' : dépannage, entretien et installation.')) ?> Nous intervenons <?= e($c['a']) ?> et dans les communes voisines ; le prix vous est annoncé avant tout déplacement.</p>
     <?php endif; ?>
     <p class="ph-lead" style="font-size:.92rem;opacity:.85;"><?= e(hours_text()) ?></p>
+    <div class="ph-badges">
+      <?php foreach ((array)$tpl['badges'] as $b): ?><span class="ph-badge hl"><?= e($b) ?></span><?php endforeach; ?>
+      <span class="ph-badge"><?= e(company_hours()) ?></span>
+    </div>
     <div class="btn-row" style="margin-top:1.5rem;">
       <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
       <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé</a>
     </div>
+    <?= render_google_badge() ?>
   </div>
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
@@ -177,12 +182,15 @@ function render_city_trade_page(array $c, string $tslug): void
   </div>
 </div></section>
 <?= render_trust_band($trade) ?>
+<?= render_service_brands($tpl) ?>
 
 <?php if ($txt && claim_clean((string)($txt['intro'] ?? ''), '') !== ''): ?>
 <section class="sec sec-card"><div class="wrap" style="max-width:860px;">
   <p class="section-lead" style="margin:0;"><?= e((string)$txt['intro']) ?></p>
 </div></section>
 <?php endif; ?>
+
+<?= render_service_equipment($trade) ?>
 
 <?php if ($prix): ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
@@ -365,4 +373,66 @@ function render_service_offer_block(array $tpl, string $sk, bool $rdv = true): v
   </div>
   <?php if ($rdv && $sk === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
 <?php
+}
+
+/** Bandeau défilant des marques du métier (page métier et pages ville × métier). */
+function render_service_brands(array $tpl): string
+{
+    $brands = array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen'));
+    if (!$brands || !$tpl['brands_on']) return '';
+    ob_start(); ?>
+<!-- Marques : bandeau défilant (texte, pas de logos de fabricants) -->
+<section class="brands" aria-label="<?= e($tpl['brands_title']) ?>">
+  <div class="wrap"><p class="brands-h"><?= e($tpl['brands_title']) ?></p></div>
+  <div class="brands-band">
+    <div class="brands-track">
+      <?php for ($i = 0; $i < 2; $i++): ?>
+      <ul class="brands-list"<?= $i ? ' aria-hidden="true"' : '' ?>>
+        <?php foreach ($brands as $b): ?><li><?= e($b) ?></li><?php endforeach; ?>
+      </ul>
+      <?php endfor; unset($i, $b); ?>
+    </div>
+  </div>
+  <div class="wrap"><p class="brands-note"><?= e(setting('svc_brands_note', 'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.')) ?></p></div>
+</section>
+<?php
+    return (string)ob_get_clean();
+}
+
+/** Appareils pris en charge, par métier : [dessin, nom]. */
+function service_equipment_items(string $sk): array
+{
+    return [
+        'chauffage' => [
+            ['pac', 'Pompe à chaleur air/eau'], ['clim', 'Pompe à chaleur air/air'],
+            ['chaudiere', 'Chaudière gaz'], ['chaudiere', 'Chaudière à condensation'],
+            ['chaudiere', 'Chaudière fioul'], ['flamme', 'Chaudière bois (bûches)'],
+            ['flamme', 'Chaudière à granulés (pellets)'], ['eclair', 'Chaudière électrique'],
+            ['chauffe-eau', 'Chauffe-eau électrique (cumulus)'], ['chauffe-eau', "Ballon d'eau chaude"],
+            ['pac', 'Chauffe-eau thermodynamique'], ['flamme', 'Chauffe-eau gaz'],
+            ['radiateur', 'Radiateurs et plancher chauffant'], ['thermometre', 'Thermostat et régulation'],
+        ],
+    ][$sk] ?? [];
+}
+
+/** Bandeau défilant lent des appareils pris en charge (dessin + nom). */
+function render_service_equipment(string $sk): string
+{
+    $items = service_equipment_items($sk);
+    if (!$items) return '';
+    ob_start(); ?>
+<section class="brands equip" aria-label="Appareils pris en charge">
+  <div class="wrap"><p class="brands-h">Les appareils que nous dépannons et entretenons</p></div>
+  <div class="brands-band">
+    <div class="brands-track equip-track">
+      <?php for ($i = 0; $i < 2; $i++): ?>
+      <ul class="brands-list equip-list"<?= $i ? ' aria-hidden="true"' : '' ?>>
+        <?php foreach ($items as [$ico, $nom]): ?><li><img src="<?= e(service_icon_url($ico)) ?>" alt="" width="44" height="44" loading="lazy"><span><?= e($nom) ?></span></li><?php endforeach; ?>
+      </ul>
+      <?php endfor; ?>
+    </div>
+  </div>
+</section>
+<?php
+    return (string)ob_get_clean();
 }

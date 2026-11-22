@@ -1322,23 +1322,8 @@ if ($tpl !== null || $page) {
 </section>
 <?= render_trust_band($sk) ?>
 
-<?php $svcBrands = array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen'));
-      if ($svcBrands && $tpl['brands_on']): ?>
-<!-- Marques : bandeau défilant (texte, pas de logos de fabricants) -->
-<section class="brands" aria-label="<?= e($tpl['brands_title']) ?>">
-  <div class="wrap"><p class="brands-h"><?= e($tpl['brands_title']) ?></p></div>
-  <div class="brands-band">
-    <div class="brands-track">
-      <?php for ($_bi = 0; $_bi < 2; $_bi++): ?>
-      <ul class="brands-list"<?= $_bi ? ' aria-hidden="true"' : '' ?>>
-        <?php foreach ($svcBrands as $_b): ?><li><?= e($_b) ?></li><?php endforeach; ?>
-      </ul>
-      <?php endfor; unset($_bi, $_b); ?>
-    </div>
-  </div>
-  <div class="wrap"><p class="brands-note"><?= e(setting('svc_brands_note', 'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.')) ?></p></div>
-</section>
-<?php endif; ?>
+<?= render_service_brands($tpl) ?>
+<?= render_service_equipment($sk) ?>
 
 <!-- Ce que nous proposons -->
 <section class="sec sec-navy"><div class="wrap">
