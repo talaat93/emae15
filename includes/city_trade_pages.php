@@ -88,40 +88,46 @@ function city_trade_price_answer(): string
  *   vehicule     (A) après « Pourquoi EMAE à … »  : véhicule floqué, secteur ;
  *   intervention (B) dans « Intervention en 3 étapes » : technicien, équipement ;
  *   equipe       (C) avant le formulaire de devis final : équipe, chantier.
- * Fichiers dans assets/img/terrain/, du plus précis au plus général (.webp, sinon .jpg) :
- *   {emplacement}-{métier}-{ville}.webp  ex. vehicule-electricite-beaune.webp
- *   {emplacement}-{métier}.webp          ex. intervention-plomberie.webp
- *   {emplacement}.webp                   ex. equipe.webp
- * Sans fichier : rien n'est affiché (jamais d'image cassée ni de photo d'illustration).
- * Conseillé : 1200 × 750 px (16/10), WebP, moins de 150 Ko.
+ * Photos envoyées depuis l'admin (Contenus › Photos des pages ville, admin/terrain_photos.php) :
+ *   ct_photo_{emplacement}_{métier}  photo propre au métier, prioritaire ;
+ *   ct_photo_{emplacement}           photo pour toutes les pages.
+ * Sans photo : rien n'est affiché (jamais d'image cassée ni de photo d'illustration).
+ * L'image servie est une copie réduite à 1200 px (+ WebP) quand le serveur sait la produire.
  */
-function city_trade_photo(string $slot, string $trade, string $city, ?string $dir = null): ?array
+function city_trade_photo_slots(): array
 {
-    $dir ??= dirname(__DIR__).'/assets/img/terrain';
-    foreach ([$slot.'-'.$trade.'-'.$city, $slot.'-'.$trade, $slot] as $base) {
-        foreach (['webp', 'jpg'] as $ext) {
-            $f = $dir.'/'.$base.'.'.$ext;
-            if (!is_file($f)) continue;
-            $sz = @getimagesize($f);
-            if (!$sz || $sz[0] < 1 || $sz[1] < 1) continue;
-            return ['src' => asset_url('assets/img/terrain/'.$base.'.'.$ext).'?v='.filemtime($f), 'w' => $sz[0], 'h' => $sz[1]];
-        }
+    return [
+        'vehicule'     => ['A', 'Véhicule floqué, secteur', 'sous « Pourquoi EMAE à … »'],
+        'intervention' => ['B', 'Technicien en intervention, équipement pro', 'sous « Intervention en 3 étapes »'],
+        'equipe'       => ['C', 'Équipe, chantier', 'juste avant le formulaire de devis final'],
+    ];
+}
+
+/** Photo d'un emplacement : ['path', 'key'] (métier d'abord, sinon toutes les pages), ou null. */
+function city_trade_photo(string $slot, string $trade): ?array
+{
+    foreach (['ct_photo_'.$slot.'_'.$trade, 'ct_photo_'.$slot] as $k) {
+        $path = ltrim(setting_plain($k), '/');
+        if ($path !== '' && !str_contains($path, '..') && is_file(dirname(__DIR__).'/'.$path)) return ['path' => $path, 'key' => $k];
     }
     return null;
 }
 
-/** <figure> d'un emplacement photo ('' sans fichier) : dimensions réelles + ratio fixe (pas de CLS), chargement différé. */
-function render_city_trade_photo(string $slot, array $c, string $trade, string $metier, ?string $dir = null): string
+/** <figure> d'un emplacement photo ('' sans photo) : dimensions réelles + ratio fixe (pas de CLS), chargement différé. */
+function render_city_trade_photo(string $slot, array $c, string $trade, string $metier): string
 {
-    $p = city_trade_photo($slot, $trade, (string)$c['slug'], $dir);
+    $p = city_trade_photo($slot, $trade);
     if (!$p) return '';
+    $small = image_resized_variant($p['path'], 1200);
+    $sz = $small ? [$small['w'], $small['h']] : @getimagesize(dirname(__DIR__).'/'.$p['path']);
+    if (!$sz || $sz[0] < 1 || $sz[1] < 1) return '';
     $label = mb_strtolower(service_template($trade)['label'], 'UTF-8');
     [$alt, $cap] = match ($slot) {
         'vehicule'     => ['Véhicule d\'intervention EMAE, '.$metier.' '.$c['a'].' et dans les communes voisines', 'Véhicule d\'intervention EMAE'],
         'intervention' => ['Technicien EMAE en intervention ('.$label.'), dépannage et installation '.$c['a'], 'Technicien EMAE en intervention'],
         default        => ['L\'équipe EMAE, '.$metier.' '.$c['a'].' ('.$c['dep_code'].')', 'L\'équipe EMAE'],
     };
-    return '<figure class="ct-photo"><img src="'.e($p['src']).'" width="'.$p['w'].'" height="'.$p['h'].'" alt="'.e($alt).'" loading="lazy" decoding="async">'
+    return '<figure class="ct-photo">'.picture_html($p['path'], $alt, ['width' => $sz[0], 'height' => $sz[1], 'loading' => 'lazy', 'decoding' => 'async'])
          .'<figcaption>'.e($cap).'</figcaption></figure>';
 }
 

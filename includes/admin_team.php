@@ -34,6 +34,7 @@ function admin_screens(): array
         'Contenus' => [
             'reviews.php'      => ['⭐ Avis clients'],
             'realisations.php' => ['📷 Réalisations'],
+            'terrain_photos.php' => ['📸 Photos des pages ville'],
             'faq_contact.php'  => ['❓ Questions fréquentes'],
             'pages.php'        => ['📄 Pages libres'],
             'gallery.php'      => ['🖼️ Galerie médias'],
