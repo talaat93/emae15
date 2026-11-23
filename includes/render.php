@@ -109,11 +109,11 @@ function render_consent_banner(): void
 <div class="ck-banner" id="ck-banner" role="dialog" aria-labelledby="ck-title" aria-describedby="ck-text" hidden>
   <div class="ck-in">
     <p class="ck-title" id="ck-title">Vos choix sur les cookies</p>
-    <p class="ck-text" id="ck-text">Avec votre accord, nous utilisons des cookies Google<?= $t['ga'] !== '' ? ' pour mesurer l\'audience du site' : '' ?><?= $t['ga'] !== '' && $t['ads'] !== '' ? ' et' : '' ?><?= $t['ads'] !== '' ? ' pour mesurer l\'efficacité de nos annonces Google Ads' : '' ?>. Refuser n'empêche ni d'appeler ni d'envoyer une demande. Vous pouvez changer d'avis à tout moment (« Gestion des cookies » en bas de page). <a href="<?= e(route_url('mentions-legales')) ?>#cookies">En savoir plus</a></p>
+    <p class="ck-text" id="ck-text">Avec votre accord, nous utilisons des cookies Google pour mesurer <?= $t['ga'] !== '' ? 'l\'audience du site' : '' ?><?= $t['ga'] !== '' && $t['ads'] !== '' ? ' et ' : '' ?><?= $t['ads'] !== '' ? 'l\'efficacité de nos annonces' : '' ?>. <a href="<?= e(route_url('mentions-legales')) ?>#cookies">En savoir plus</a></p>
     <div class="ck-opts" id="ck-opts" hidden>
       <?php if ($t['ga'] !== ''): ?><label class="ck-opt"><input type="checkbox" id="ck-stats"> <span><strong>Mesure d'audience</strong> (Google Analytics) : pages vues, parcours.</span></label><?php endif; ?>
       <?php if ($t['ads'] !== ''): ?><label class="ck-opt"><input type="checkbox" id="ck-ads"> <span><strong>Publicité</strong> (Google Ads) : savoir si une visite venue d'une annonce aboutit à un appel ou une demande.</span></label><?php endif; ?>
-      <p class="ck-note">Toujours actifs, sans accord : la session et la protection des formulaires, et la mémorisation de ce choix.</p>
+      <p class="ck-note">Refuser n'empêche ni d'appeler ni d'envoyer une demande. Toujours actifs, sans accord : la session et la protection des formulaires, et la mémorisation de ce choix. Vous pouvez changer d'avis à tout moment (« Gestion des cookies » en bas de page).</p>
     </div>
     <div class="ck-btns">
       <button type="button" class="ck-btn" data-ck="refuse">Tout refuser</button>

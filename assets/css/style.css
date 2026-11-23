@@ -1518,29 +1518,29 @@ a.px-card:hover{border-color:rgba(240,123,29,.35);transform:translateY(-3px);}
 @media(min-width:640px){ .rf{flex-wrap:wrap;overflow:visible;margin:0 0 2rem;padding:0;} }
 
 /* ── Bandeau cookies (choix Accepter / Refuser / Paramétrer, mêmes boutons) ── */
-.ck-banner{position:fixed;left:0;right:0;bottom:0;z-index:10050;background:#0b1641;border-top:1px solid rgba(255,255,255,.14);box-shadow:0 -12px 32px rgba(0,0,0,.45);padding:1rem 1rem calc(1rem + env(safe-area-inset-bottom));color:#E8ECF5;}
+.ck-banner{position:fixed;left:0;right:0;bottom:0;z-index:10050;background:#0b1641;border-top:1px solid rgba(255,255,255,.14);box-shadow:0 -8px 24px rgba(0,0,0,.4);padding:.6rem 1rem calc(.6rem + env(safe-area-inset-bottom));color:#E8ECF5;}
 .ck-banner[hidden]{display:none;}
-.ck-in{max-width:960px;margin:0 auto;}
-.ck-title{font-weight:700;font-size:1rem;margin:0 0 .35rem;color:#fff;}
-.ck-text{font-size:.86rem;line-height:1.55;margin:0 0 .75rem;color:#C9D0E2;}
+.ck-in{max-width:1180px;margin:0 auto;display:flex;flex-wrap:wrap;align-items:center;gap:.5rem 1.25rem;}
+.ck-title{display:none;}
+.ck-text{flex:1 1 320px;font-size:.82rem;line-height:1.45;margin:0;color:#C9D0E2;}
 .ck-text a{color:#F7A55E;text-decoration:underline;}
-.ck-opts{display:grid;gap:.5rem;margin:0 0 .75rem;font-size:.86rem;}
+.ck-opts{flex:1 1 100%;order:3;display:grid;gap:.5rem;margin:0;font-size:.84rem;}
 .ck-opts[hidden]{display:none;}
 .ck-opt{display:flex;gap:.55rem;align-items:flex-start;cursor:pointer;line-height:1.45;}
 .ck-opt input{margin-top:.2rem;width:18px;height:18px;flex-shrink:0;accent-color:#F07B1D;}
 .ck-note{margin:0;font-size:.78rem;color:#A0A8BF;}
-.ck-btns{display:flex;flex-wrap:wrap;gap:.5rem;}
-.ck-btn{flex:1 1 140px;min-height:44px;padding:.6rem 1rem;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:#152555;color:#fff;font-weight:700;font-size:.88rem;cursor:pointer;}
+.ck-btns{display:flex;flex-wrap:wrap;gap:.4rem;flex:0 0 auto;}
+.ck-btn{flex:0 0 auto;min-height:36px;padding:.4rem .85rem;border-radius:8px;border:1px solid rgba(255,255,255,.35);background:#152555;color:#fff;font-weight:700;font-size:.8rem;cursor:pointer;}
 .ck-btn[hidden]{display:none;}
 .ck-btn:hover{background:#1e3370;}
 /* Téléphone : bandeau compact posé AU-DESSUS de la barre « Appeler / Devis » (68px),
    qui reste visible et cliquable tant que le visiteur n'a pas choisi. Refuser reste aussi simple qu'accepter. */
 @media(max-width:639px){
-  .ck-banner{bottom:68px;padding:.6rem .75rem;box-shadow:0 -6px 18px rgba(0,0,0,.35);}
-  .ck-title{display:none;}
-  .ck-text{font-size:.76rem;line-height:1.4;margin:0 0 .45rem;}
-  .ck-btns{flex-wrap:nowrap;gap:.35rem;}
-  .ck-btn{flex:1 1 0;min-height:38px;padding:.35rem .4rem;font-size:.76rem;}
+  .ck-banner{bottom:68px;padding:.45rem .6rem;box-shadow:0 -6px 18px rgba(0,0,0,.35);}
+  .ck-in{gap:.35rem;}
+  .ck-text{flex-basis:100%;font-size:.72rem;line-height:1.35;}
+  .ck-btns{flex:1 1 100%;flex-wrap:nowrap;gap:.3rem;}
+  .ck-btn{flex:1 1 0;min-height:34px;padding:.25rem .3rem;font-size:.72rem;}
   .ck-banner:has(.ck-opts:not([hidden])) .ck-btns{flex-wrap:wrap;}
 }
 .ck-btn:focus-visible,.f-input:focus-visible,.cf-input:focus-visible,.btn:focus-visible,.mob-bar a:focus-visible{outline:3px solid #F7A55E;outline-offset:2px;}
