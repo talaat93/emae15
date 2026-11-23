@@ -70,7 +70,8 @@ function city_trade_price_answer(): string
     foreach (city_trade_price_rows() as [$l, $p]) {
         $v = $num($p); if ($v === null) continue;
         $ll = text_ascii_lower($l);
-        if (str_starts_with($ll, 'deplacement')) $dep[] = $v;
+        // La ligne Déplacement est une fourchette « 52,80 € à 124,80 € TTC » : on garde les deux bornes.
+        if (str_starts_with($ll, 'deplacement')) { preg_match_all('/\d+(?:[.,]\d+)?/', $p, $all); foreach ($all[0] as $x) $dep[] = (float)str_replace(',', '.', $x); }
         elseif (str_starts_with($ll, 'diagnostic')) $diag[] = $v;
         elseif (str_starts_with($ll, 'main')) $mo[] = $v;
     }

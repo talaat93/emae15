@@ -65,5 +65,18 @@ check('ancienne valeur sauvegardée', $SAUV['setting:tarifs_vmc'] ?? null, $vide
 check('relancée : plus rien à remplacer', tarifs_fill_empty_grids(tarifs_fourchettes_rows()), 0);
 check('migration branchée dans bootstrap', str_contains((string)file_get_contents($R.'/includes/bootstrap.php'), 'tarifs_fill_empty_grids(tarifs_fourchettes_rows())'), true);
 
+echo "\n4. Déplacement : une seule ligne en fourchette sur la page publique\n";
+$DB['settings'] = ['tarifs_enabled' => '1']; settings_cache(true);
+$base = tarifs_groups()[0]['rows'];
+$dep = array_values(array_filter($base, fn($r) => str_starts_with($r[0], 'Déplacement')));
+check('une seule ligne Déplacement', count($dep), 1);
+check('fourchette du moins cher au plus cher', $dep[0][1], '52,80 € à 124,80 € TTC');
+check('chaque cas reste écrit en petit', str_contains($dep[0][2], 'Nuit 22 h-8 h, urgence : 124,80 €') && str_contains($dep[0][2], 'Semaine, sur rendez-vous : 52,80 €') && str_contains($dep[0][2], 'Dimanche/férié, sur rendez-vous : 76,80 €'), true);
+check('à la place de la première ligne, le reste dans l\'ordre', array_column($base, 0)[0].' | '.array_column($base, 0)[1], 'Déplacement | Diagnostic');
+check('l\'admin garde les 5 montants séparés', count(array_filter(tarifs_default_rows()['base'], fn($r) => str_starts_with($r[0], 'Déplacement'))), 5);
+check('grille saisie : montants modifiés repris', tarifs_regrouper_deplacement([['Déplacement — semaine', '50 € TTC', ''], ['Déplacement — nuit', '130 € TTC', ''], ['Diagnostic', '70 € TTC', '']])[0][1], '50 € à 130 € TTC');
+check('prix illisible : grille inchangée', count(tarifs_regrouper_deplacement([['Déplacement — semaine', 'Sur devis', ''], ['Déplacement — nuit', '130 € TTC', '']])), 2);
+check('page ville × métier : même fourchette', (require_once $R.'/includes/city_trade_pages.php') && str_contains(city_trade_price_answer(), 'de 52,80 € à 124,80 € TTC'), true);
+
 echo "\n".($fail === 0 ? "$pass assertions PASSENT" : "$fail ÉCHECS sur ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

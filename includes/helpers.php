@@ -915,8 +915,45 @@ function tarifs_groups(): array
         $out[] = [
             'label' => $trade === 'base' ? 'Déplacement et main-d\'œuvre' : service_template($trade)['label'],
             'icon'  => $trade === 'base' ? '🧾' : $trades[$trade]['icon_svc'],
-            'rows'  => (is_array($rows) && $rows !== []) ? $rows : $defaults[$trade],
+            'rows'  => $trade === 'base' ? tarifs_regrouper_deplacement((is_array($rows) && $rows !== []) ? $rows : $defaults[$trade])
+                                         : ((is_array($rows) && $rows !== []) ? $rows : $defaults[$trade]),
         ];
+    }
+    return $out;
+}
+
+/**
+ * Lignes « Déplacement — … » regroupées en une seule ligne en fourchette (souhait du propriétaire,
+ * 23/11/2026). Les montants restent réglés un par un dans l'admin ; le cas de chaque montant reste
+ * écrit en petit sous la fourchette (arrêté du 24 janvier 2017 : frais de déplacement affichés).
+ * Un prix illisible : grille rendue telle quelle.
+ */
+function tarifs_regrouper_deplacement(array $rows): array
+{
+    $dep = []; $pos = null;
+    foreach ($rows as $i => $r) {
+        [$l, $p] = array_pad(array_values((array)$r), 2, '');
+        if (!preg_match('/^D[ée]placement\s*[—–-]\s*(.+)$/u', trim((string)$l), $m)) continue;
+        if (!preg_match('/(\d+(?:,\d{1,2})?)\s*€/u', str_replace([' ', "\u{202F}", "\u{A0}"], '', (string)$p), $n)) return $rows;
+        $dep[$i] = [trim($m[1]), $n[1], (float)str_replace(',', '.', $n[1])];
+        $pos ??= $i;
+    }
+    if (count($dep) < 2) return $rows;
+    $tri = array_values($dep);
+    usort($tri, static fn(array $a, array $b): int => $a[2] <=> $b[2]);
+    $min = $tri[0]; $max = $tri[count($tri) - 1];
+    $prix = $min[2] === $max[2] ? $min[1].' € TTC' : $min[1].' € à '.$max[1].' € TTC';
+    $court = ['intervention programmée, du lundi au samedi' => 'semaine, sur rendez-vous', 'urgence, du lundi au samedi' => 'semaine, urgence',
+              'dimanche ou jour férié' => 'dimanche/férié', 'programmé' => 'sur rendez-vous', 'nuit (22 h - 8 h)' => 'nuit 22 h-8 h'];
+    $cas = array_map(static function (array $d) use ($court): string {
+        $c = strtr(mb_strtolower($d[0]), $court);
+        return mb_strtoupper(mb_substr($c, 0, 1)).mb_substr($c, 1).' : '.$d[1].' €';
+    }, array_values($dep));
+    $detail = implode(' · ', $cas).'. Prix annoncé avant de venir. TVA 20 % incluse (10 % pour un logement de plus de 2 ans, sur attestation).';
+    $out = [];
+    foreach ($rows as $i => $r) {
+        if ($i === $pos) $out[] = ['Déplacement', $prix, $detail];
+        elseif (!isset($dep[$i])) $out[] = $r;
     }
     return $out;
 }
