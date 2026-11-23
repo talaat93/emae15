@@ -1616,6 +1616,11 @@ h3.step-h{margin:0;font-size:inherit;}
 .ct-prix li:nth-child(odd){background:rgba(255,255,255,.03);}
 .ct-prix strong{white-space:nowrap;color:#fff;}
 @media (max-width:520px){.ct-prix li{flex-direction:column;gap:.15rem;}}
+/* Photos de terrain, pages ville × métier : ratio fixe 16/10 (pas de décalage), aucun texte sur la photo */
+.ct-photo{margin:1.75rem auto 0;max-width:860px;}
+.ct-photo img{display:block;width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;border-radius:var(--r3);background:rgba(255,255,255,.04);}
+.ct-photo figcaption{margin-top:.45rem;font-size:.8rem;color:var(--t2);text-align:center;}
+.sec-card .wrap > .ct-photo:first-child{margin:0 auto 1.75rem;}
 
 /* ─── BANDEAU DE RÉASSURANCE (sous le haut de page) : marine #16243F, accent orange du logo ─── */
 .tband{background:#16243F;border-top:1px solid rgba(240,123,29,.35);border-bottom:1px solid rgba(240,123,29,.35);padding:1.1rem 0;}

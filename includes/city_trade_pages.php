@@ -83,6 +83,48 @@ function city_trade_price_answer(): string
     return $s.' Le montant pour votre cas vous est annoncé au téléphone, avant le départ ; les pièces et travaux font l\'objet d\'un devis gratuit.';
 }
 
+/**
+ * Photos de terrain des pages ville × métier, trois emplacements sous la ligne de flottaison :
+ *   vehicule     (A) après « Pourquoi EMAE à … »  : véhicule floqué, secteur ;
+ *   intervention (B) dans « Intervention en 3 étapes » : technicien, équipement ;
+ *   equipe       (C) avant le formulaire de devis final : équipe, chantier.
+ * Fichiers dans assets/img/terrain/, du plus précis au plus général (.webp, sinon .jpg) :
+ *   {emplacement}-{métier}-{ville}.webp  ex. vehicule-electricite-beaune.webp
+ *   {emplacement}-{métier}.webp          ex. intervention-plomberie.webp
+ *   {emplacement}.webp                   ex. equipe.webp
+ * Sans fichier : rien n'est affiché (jamais d'image cassée ni de photo d'illustration).
+ * Conseillé : 1200 × 750 px (16/10), WebP, moins de 150 Ko.
+ */
+function city_trade_photo(string $slot, string $trade, string $city, ?string $dir = null): ?array
+{
+    $dir ??= dirname(__DIR__).'/assets/img/terrain';
+    foreach ([$slot.'-'.$trade.'-'.$city, $slot.'-'.$trade, $slot] as $base) {
+        foreach (['webp', 'jpg'] as $ext) {
+            $f = $dir.'/'.$base.'.'.$ext;
+            if (!is_file($f)) continue;
+            $sz = @getimagesize($f);
+            if (!$sz || $sz[0] < 1 || $sz[1] < 1) continue;
+            return ['src' => asset_url('assets/img/terrain/'.$base.'.'.$ext).'?v='.filemtime($f), 'w' => $sz[0], 'h' => $sz[1]];
+        }
+    }
+    return null;
+}
+
+/** <figure> d'un emplacement photo ('' sans fichier) : dimensions réelles + ratio fixe (pas de CLS), chargement différé. */
+function render_city_trade_photo(string $slot, array $c, string $trade, string $metier, ?string $dir = null): string
+{
+    $p = city_trade_photo($slot, $trade, (string)$c['slug'], $dir);
+    if (!$p) return '';
+    $label = mb_strtolower(service_template($trade)['label'], 'UTF-8');
+    [$alt, $cap] = match ($slot) {
+        'vehicule'     => ['Véhicule d\'intervention EMAE, '.$metier.' '.$c['a'].' et dans les communes voisines', 'Véhicule d\'intervention EMAE'],
+        'intervention' => ['Technicien EMAE en intervention ('.$label.'), dépannage et installation '.$c['a'], 'Technicien EMAE en intervention'],
+        default        => ['L\'équipe EMAE, '.$metier.' '.$c['a'].' ('.$c['dep_code'].')', 'L\'équipe EMAE'],
+    };
+    return '<figure class="ct-photo"><img src="'.e($p['src']).'" width="'.$p['w'].'" height="'.$p['h'].'" alt="'.e($alt).'" loading="lazy" decoding="async">'
+         .'<figcaption>'.e($cap).'</figcaption></figure>';
+}
+
 /** Intitulé de la page : « Électricien à Dole », « Climatisation à Dole ». */
 function city_trade_title(array $c, string $tslug): string
 {
@@ -144,6 +186,7 @@ function render_city_trade_page(array $c, string $tslug): void
         $faq[] = [$q, $a]; $_seen[] = mb_strtolower($q, 'UTF-8');
     }
     unset($_seen);
+    $photoA = render_city_trade_photo('vehicule', $c, $trade, $metier);
     $pannes = array_values(array_filter((array)($txt['pannes'] ?? []), static fn($p) => !claim_unsupported((string)$p)));
     $local  = array_values(array_filter((array)($txt['local'] ?? []), static fn($l) => !claim_unsupported(implode(' ', (array)$l))));
     $steps = [1 => ['Diagnostic sur place', 'Le technicien recherche la cause de la panne et vous l\'explique simplement.'],
@@ -221,7 +264,10 @@ function render_city_trade_page(array $c, string $tslug): void
   <div class="assur-grid">
     <?php foreach ($local as [$lt, $lx]): ?><div class="assur-card"><h3><?= e((string)$lt) ?></h3><p><?= e((string)$lx) ?></p></div><?php endforeach; ?>
   </div>
+  <?= $photoA /* A : ancrage local */ ?>
 </div></section>
+<?php elseif ($photoA !== ''): ?>
+<section class="sec sec-navy"><div class="wrap"><?= $photoA ?></div></section>
 <?php endif; ?>
 
 <?php if ($signs): ?>
@@ -278,6 +324,7 @@ function render_city_trade_page(array $c, string $tslug): void
     <div class="step-card"><div class="step-num"><?= $i ?></div><div><h3 class="step-h"><?= e(setting('svc_method_'.$i.'_title', $st)) ?></h3><p class="step-p"><?= e(claim_clean(setting('svc_method_'.$i.'_text', $sx))) ?></p></div></div>
     <?php endforeach; ?>
   </div>
+  <?= render_city_trade_photo('intervention', $c, $trade, $metier) /* B : preuve technique */ ?>
 </div></section>
 
 <section class="cta-band"><div class="wrap cta-band-in">
@@ -312,6 +359,7 @@ function render_city_trade_page(array $c, string $tslug): void
 </div></section>
 
 <section class="sec sec-card"><div class="wrap" style="max-width:700px;">
+  <?= render_city_trade_photo('equipe', $c, $trade, $metier) /* C : confiance finale, avant le contact */ ?>
   <div class="svc-label"><?= e(setting('svc_form_label', 'Devis gratuit')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> <?= e($c['a']) ?></div>
   <div class="qs-card">
     <div class="hero-card-tag">📋 <?= e(setting('svc_form_tag', 'Votre technicien')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?></div>
