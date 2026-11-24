@@ -302,7 +302,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <?php if ($realsLocal): ?>
   <h2 class="section-title">Chantiers près de <em><?= e($nom) ?></em></h2>
   <?php else: ?>
-  <h2 class="section-title">Nos chantiers <em>en <?= e(mb_strtolower(explode(' & ', $tpl['label'])[0], 'UTF-8')) ?></em></h2>
+  <h2 class="section-title">Nos chantiers <em>en <?= e(['electricite' => 'électricité', 'plomberie' => 'plomberie', 'chauffage' => 'chauffage', 'climatisation' => 'climatisation'][$trade]) ?></em></h2>
   <?php endif; ?>
   <div class="reals-grid" style="margin-top:1.75rem;">
     <?php foreach ($reals as $r): ?>
