@@ -459,11 +459,18 @@ function callback_delay(): string
 /** « Rappel sous 5 minutes », ou « Rappel rapide » si aucun délai n'est publié. */
 function callback_promise_short(): string { $d = callback_delay(); return $d !== '' ? 'Rappel sous '.$d : 'Rappel rapide'; }
 
-/** Titre de l'encart « Être rappelé » + délai réglé : « Être rappelé en moins de 5 minutes ». Titre qui donne déjà un délai : inchangé. */
+/**
+ * Titre de l'encart « Être rappelé » + délai réglé : « Être rappelé en moins de 5 minutes ».
+ * Titre qui ne parle pas de rappel (« Besoin d'un technicien ») : « Besoin d'un technicien ? Rappel en
+ * moins de 5 minutes » — le délai porte sur le rappel, jamais sur l'arrivée du technicien.
+ * Titre qui donne déjà un délai : inchangé.
+ */
 function callback_card_title(string $t): string
 {
+    $t = trim((string)preg_replace('/\s+/u', ' ', $t));
     $d = callback_delay();
-    return ($d === '' || preg_match('/\d|minute/iu', $t)) ? $t : rtrim($t).' en moins de '.$d;
+    if ($d === '' || preg_match('/\d|minute/iu', $t)) return $t;
+    return preg_match('/rappel/iu', $t) ? $t.' en moins de '.$d : rtrim($t, ' ?').' ? Rappel en moins de '.$d;
 }
 
 /** Phrase unique sur la disponibilité et le délai d'arrivée : aucun délai chiffré sans donnée réelle. */

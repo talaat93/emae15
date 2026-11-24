@@ -89,6 +89,7 @@ ob_start(); render_quote_form([], 'hero', 'rappel'); $f = (string)ob_get_clean()
 check('pas d\'envoi en tâche de fond', str_contains($f, 'data-partial') || str_contains($f, 'partial_token'), false);
 check('bouton explicite', str_contains($f, 'Demande d\'appel gratuit'), true);
 check('titre avec le délai réglé', callback_card_title('Être rappelé'), 'Être rappelé en moins de '.callback_delay());
+check('titre sans « rappel » : le délai porte sur le rappel', callback_card_title('Besoin d\'un technicien  '), 'Besoin d\'un technicien ? Rappel en moins de '.callback_delay());
 check('titre qui donne déjà un délai : inchangé', callback_card_title('Rappel en 10 minutes'), 'Rappel en 10 minutes');
 check('titre accepté par le filtre des promesses', claim_unsupported(callback_card_title('Être rappelé')), false);
 check('téléphone obligatoire, saisie téléphone', (bool)preg_match('/name="phone"[^>]*autocomplete="tel"[^>]*inputmode="tel"[^>]*required/', $f), true);
