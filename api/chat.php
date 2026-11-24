@@ -24,7 +24,7 @@ if (!setting_bool('chatbot_enabled', false)) {
     exit(json_encode(['reply' => 'Service indisponible. Appelez le '.company_phone().'.']));
 }
 
-$apiKey = setting('claude_api_key', '');
+$apiKey = integration_secret('claude_api_key');   // clé des Réglages → Claude (même clé que le reste du site)
 if ($apiKey === '') {
     http_response_code(503);
     exit(json_encode(['reply' => 'Chatbot non configuré. Appelez le '.company_phone().'.']));

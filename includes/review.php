@@ -177,7 +177,20 @@ function review_invoice_auto(): bool
     return integration_setting('facture_auto', '1') !== '0';
 }
 
-function review_run(int $ivId, string $trigger = 'system', ?array $actor = null): array
+/** Consignes de relecture (identiques pour la clé API et pour le PC du bureau). */
+function review_system_prompt(): string
+{
+    return "Tu relis le rapport d'un technicien de dépannage (électricité, plomberie, chauffage…) avant facturation. Tu assistes le dispatcher : tu ne décides rien seul.\n"
+            ."- complete : false s'il manque une information indispensable pour facturer ou comprendre l'intervention (diagnostic, travaux, prestations, photos, signature) ; liste-les dans missing.\n"
+            ."- inconsistencies : incohérences entre la demande, le diagnostic, les travaux, les prestations, le matériel et les photos (ex. : prestation déclarée sans travaux correspondants, quantité anormale, photo sans rapport, heure de fin avant l'arrivée).\n"
+            ."- message_to_technician : si complete est false, message court et poli (tutoiement interdit) indiquant précisément quoi compléter ; sinon chaîne vide.\n"
+            ."- client_summary : 2 à 4 phrases claires pour la facture du client, sans jargon ni prix.\n"
+            ."- lines : prestations à facturer, UNIQUEMENT avec des codes exacts de la grille fournie et des quantités ; ne calcule aucun prix, n'invente aucun code. Le matériel hors grille est géré à part.\n"
+            ."- vat_rate : 10 pour un particulier dont le logement a plus de 2 ans (travaux d'entretien/réparation), sinon 20 ; explique dans vat_reason.\n"
+            ."- total_ttc_estimate : ton estimation indicative, qui sera recalculée par le logiciel.";
+}
+
+function review_run(int $ivId, string $trigger = 'system', ?array $actor = null, bool $allowPc = true): array
 {
     review_tables();
     $iv = db_fetch('SELECT * FROM interventions WHERE id = ?', [$ivId]);
@@ -203,22 +216,44 @@ function review_run(int $ivId, string $trigger = 'system', ?array $actor = null)
         ."\n\nGrille tarifaire du métier (code — désignation — unité — prix) :\n".implode("\n", $grid)
         .($content ? "\n\nLes images ci-dessus sont les photos prises par le technicien." : '')];
 
+    // PC du bureau connecté : la relecture lui est confiée (texte seul, sans les photos) ;
+    // le résultat revient par api/assist.php, sinon la clé API prend le relais (includes/pc_jobs.php).
+    if ($allowPc && function_exists('pc_jobs_enabled') && pc_jobs_enabled()) {
+        $textOnly = end($content)['text'];
+        pc_job_create('relecture', $ivId, review_system_prompt()."\n\n".$textOnly
+            ."\n\n(Les photos ne sont pas jointes : ne les juge pas, ne les compte pas comme manquantes si le rapport en indique.)"
+            ."\n\nRéponds UNIQUEMENT par un objet JSON, sans texte autour, avec exactement ces clés : "
+            .'complete (booléen), missing (liste de textes), inconsistencies (liste de textes), message_to_technician (texte), '
+            .'client_summary (texte), lines (liste d\'objets {"code": texte, "qty": nombre}), vat_rate (texte parmi "5.5", "10", "20"), vat_reason (texte), total_ttc_estimate (nombre).', $trigger);
+        return ['ok' => true, 'complete' => false, 'pending' => true, 'source' => 'pc', 'notice' => 'Relecture confiée au PC du bureau : résultat dans une à deux minutes.', 'status' => (string)$iv['status']];
+    }
     $r = claude_structured([
         'purpose'    => 'relecture-rapport',
-        'system'     => "Tu relis le rapport d'un technicien de dépannage (électricité, plomberie, chauffage…) avant facturation. Tu assistes le dispatcher : tu ne décides rien seul.\n"
-            ."- complete : false s'il manque une information indispensable pour facturer ou comprendre l'intervention (diagnostic, travaux, prestations, photos, signature) ; liste-les dans missing.\n"
-            ."- inconsistencies : incohérences entre la demande, le diagnostic, les travaux, les prestations, le matériel et les photos (ex. : prestation déclarée sans travaux correspondants, quantité anormale, photo sans rapport, heure de fin avant l'arrivée).\n"
-            ."- message_to_technician : si complete est false, message court et poli (tutoiement interdit) indiquant précisément quoi compléter ; sinon chaîne vide.\n"
-            ."- client_summary : 2 à 4 phrases claires pour la facture du client, sans jargon ni prix.\n"
-            ."- lines : prestations à facturer, UNIQUEMENT avec des codes exacts de la grille fournie et des quantités ; ne calcule aucun prix, n'invente aucun code. Le matériel hors grille est géré à part.\n"
-            ."- vat_rate : 10 pour un particulier dont le logement a plus de 2 ans (travaux d'entretien/réparation), sinon 20 ; explique dans vat_reason.\n"
-            ."- total_ttc_estimate : ton estimation indicative, qui sera recalculée par le logiciel.",
+        'system'     => review_system_prompt(),
         'messages'   => [['role' => 'user', 'content' => $content]],
         'schema'     => review_schema(),
         'effort'     => 'medium',
         'max_tokens' => 6000,
         'timeout'    => 90,
     ]);
+    return review_finish($ivId, $r, $trigger);
+}
+
+/**
+ * Applique le résultat d'une relecture (Claude par la clé API, Claude Code du PC du bureau, ou
+ * contrôles standard si $r n'est pas exploitable). Relit la fiche : si elle n'attend plus de
+ * relecture (validée entre-temps par le dispatcher), rien n'est modifié.
+ */
+function review_finish(int $ivId, array $r, string $trigger = 'system'): array
+{
+    review_tables();
+    $iv = db_fetch('SELECT * FROM interventions WHERE id = ?', [$ivId]);
+    if (!$iv || !in_array((string)$iv['status'], ['rapport_rendu', 'a_revoir'], true)) {
+        return ['ok' => false, 'complete' => false, 'source' => 'regles', 'notice' => 'Le rapport n\'est plus en attente de relecture.', 'status' => (string)($iv['status'] ?? '')];
+    }
+    $client = !empty($iv['client_id']) ? get_client_by_id((int)$iv['client_id']) : null;
+    $vat = iv_vat_rate($iv, $client);
+    $ruleMissing = review_rule_missing($iv);
 
     $fromClaude = $r['ok'] && !$r['simulated'];
     if ($fromClaude) {

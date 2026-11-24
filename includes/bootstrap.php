@@ -30,6 +30,7 @@ require_once __DIR__ . '/correction.php';
 require_once __DIR__ . '/disp_notify.php';
 require_once __DIR__ . '/assist.php';
 require_once __DIR__ . '/review.php';
+require_once __DIR__ . '/pc_jobs.php';
 require_once __DIR__ . '/invoicing.php';
 require_once __DIR__ . '/yousign.php';
 require_once __DIR__ . '/client360.php';
@@ -1159,6 +1160,14 @@ if (!file_exists($_mf59)) {
     unset($_me);
 }
 unset($_mf59);
+// Auto-migration v15.60 — travaux confiés au PC du bureau (correction et relecture des rapports).
+// Témoin posé après le travail.
+$_mf60 = __DIR__.'/../storage/.mig_v15_pc_jobs';
+if (!file_exists($_mf60)) {
+    try { pc_jobs_table(); @file_put_contents($_mf60, date('c')); } catch (Throwable $_me) {}
+    unset($_me);
+}
+unset($_mf60);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

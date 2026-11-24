@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Assistant d'aide EMAE — à lancer sur le PC où Claude Code est installé.
 #
-# Va chercher les questions des techniciens sur le site (aucun port à ouvrir chez vous), les
+# Va chercher les questions des techniciens et les rapports à corriger ou relire sur le site (aucun port à ouvrir chez vous), les
 # fait répondre par Claude Code en mode « réponse seule » — aucun outil, aucun serveur MCP :
 # il ne peut rien exécuter ni modifier sur l'ordinateur — puis renvoie la réponse au site.
 #
@@ -20,7 +20,7 @@ cd "$DIR" || exit 1   # dossier neutre : aucun fichier de projet chargé par Cla
 
 echo "Assistant EMAE démarré pour $SITE (passage toutes les ${PAUSE} s). Ctrl+C pour arrêter."
 while true; do
-  REP="$(curl -sS -m 30 -w $'\n%{http_code}' -H "Authorization: Bearer $CLE" "$SITE/api/assist.php?action=next&format=plain" 2>/dev/null)" || { sleep "$PAUSE"; continue; }
+  REP="$(curl -sS -m 30 -w $'\n%{http_code}' -H "Authorization: Bearer $CLE" "$SITE/api/assist.php?action=next&format=plain&v=2" 2>/dev/null)" || { sleep "$PAUSE"; continue; }
   CODE="${REP##*$'\n'}"
   CORPS="${REP%$'\n'*}"
   case "$CODE" in
@@ -29,17 +29,18 @@ while true; do
     200) ;;
     *)   echo "$(date '+%H:%M:%S') réponse inattendue du site (code $CODE)"; sleep "$PAUSE"; continue ;;
   esac
-  ID="$(printf '%s\n' "$CORPS" | head -n 1 | tr -cd '0-9')"
-  [ -n "$ID" ] || { sleep "$PAUSE"; continue; }
+  # Identifiant : « aide-12 » (question d'un technicien) ou « travail-7 » (correction ou relecture d'un rapport).
+  ID="$(printf '%s\n' "$CORPS" | head -n 1 | tr -cd 'a-z0-9-')"
+  case "$ID" in aide-[0-9]*|travail-[0-9]*|[0-9]*) ;; *) sleep "$PAUSE"; continue ;; esac
   printf '%s\n' "$CORPS" | tail -n +2 > "$DIR/.question.txt"
-  echo "$(date '+%H:%M:%S') question n° $ID"
+  echo "$(date '+%H:%M:%S') $ID"
   # Réponse seule : --tools "" (aucun outil) et --strict-mcp-config sans configuration (aucun serveur MCP).
   if claude -p --tools "" --strict-mcp-config --output-format text < "$DIR/.question.txt" > "$DIR/.reponse.txt" 2> "$DIR/.erreur.txt" && [ -s "$DIR/.reponse.txt" ]; then
-    if curl -sS -m 30 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
+    if curl -sS -m 200 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
          --data-urlencode "id=$ID" --data-urlencode "answer@$DIR/.reponse.txt" "$SITE/api/assist.php?action=answer" | grep -q '^200$'; then
       echo "  → réponse envoyée"
     else
-      echo "  → réponse non acceptée (déjà répondue par le relais ou par le bureau)"
+      echo "  → réponse non acceptée (déjà traitée par le relais ou par le bureau, ou illisible)"
     fi
   else
     echo "  → Claude Code n'a pas répondu : $(head -c 300 "$DIR/.erreur.txt")"
