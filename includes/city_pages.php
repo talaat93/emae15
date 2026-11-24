@@ -131,7 +131,7 @@ function render_city_page(array $c): void
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
       <div class="hero-card-tag">Rappel gratuit</div>
-      <h2>Être rappelé</h2>
+      <h2><?= e(callback_card_title('Être rappelé')) ?></h2>
       <?php render_quote_form($cards, 'ville_'.$c['slug'], 'rappel'); ?>
     </div>
   </div>

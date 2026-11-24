@@ -227,7 +227,7 @@ if ($route === '' || $route === 'home') {
     <div class="hero-form">
       <div class="hero-card">
         <div class="hero-card-tag"><?= e(claim_clean(setting('home_quote_eyebrow', 'Rappel gratuit'), 'Rappel gratuit')) ?></div>
-        <h2><?= e(setting('home_quote_title','Être rappelé')) ?></h2>
+        <h2><?= e(callback_card_title(setting('home_quote_title','Être rappelé'))) ?></h2>
         <?php render_quote_form($cards, 'hero', 'rappel'); ?>
       </div>
     </div>
@@ -1314,7 +1314,7 @@ if ($tpl !== null || $page) {
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
       <div class="hero-card-tag"><?= e(claim_clean(setting('svc_quote_eyebrow','Rappel gratuit'), 'Rappel gratuit')) ?></div>
-      <h2><?= e(setting('svc_quote_title','Être rappelé gratuitement')) ?></h2>
+      <h2><?= e(callback_card_title(setting('svc_quote_title','Être rappelé gratuitement'))) ?></h2>
       <?php render_quote_form($cards, 'service_'.$sk, 'rappel'); ?>
     </div>
   </div>

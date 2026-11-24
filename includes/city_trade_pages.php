@@ -226,7 +226,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <div class="hero-form" id="etre-rappele">
     <div class="hero-card">
       <div class="hero-card-tag">Rappel gratuit</div>
-      <h2>Être rappelé</h2>
+      <h2><?= e(callback_card_title('Être rappelé')) ?></h2>
       <?php render_quote_form($cards, 'service_'.$trade, 'rappel'); ?>
     </div>
   </div>

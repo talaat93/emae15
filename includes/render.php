@@ -612,7 +612,7 @@ function render_quote_form(array $cards, string $source = 'form', string $type =
   </div>
   <label class="f-field"><span class="f-label">Votre besoin en quelques mots <span style="font-weight:400;opacity:.7;">(facultatif)</span></span><input class="f-input" type="text" name="message" maxlength="300" placeholder="Ex : plus de courant dans la cuisine" value="<?= e((string)($prefill['message'] ?? '')) ?>"></label>
   <label class="f-field"><span class="f-label">Nom <span style="font-weight:400;opacity:.7;">(facultatif)</span></span><input class="f-input" type="text" name="full_name" placeholder="Votre nom" autocomplete="name" maxlength="120"></label>
-  <button class="btn btn-p btn-lg btn-block" type="submit">Demander à être rappelé</button>
+  <button class="btn btn-p btn-lg btn-block" type="submit">Demande d'appel gratuit</button>
   <p class="f-hint">Votre numéro sert uniquement à vous rappeler au sujet de cette demande. <?= e(callback_promise_short()) ?></p>
 </form>
 <?php return; }
