@@ -453,6 +453,22 @@ modifier ce fichier ensuite ne change plus rien en base.
   `assist_relay_seconds` (120 s), réponse par l'API Claude ; sinon
   « sans réponse », notification « aide » et e-mail au dispatcher. Le bureau
   peut répondre depuis la fiche (carte « Demandes d'aide du technicien »).
+- **Livraison 13 — correction et relecture par le PC** (`includes/pc_jobs.php`,
+  table `pc_jobs`, migration v15.60) : si `pc_jobs_enabled()` (case
+  `assist_pc_jobs` cochée, clé du PC créée, script à jour — paramètre `v=2` —
+  passé il y a moins de 2 min), `correction_run()` et `review_run()` créent un
+  travail texte seul (sans photo ni coordonnées) au lieu d'appeler l'API, et
+  renvoient `pending`. `api/assist.php` sert d'abord les questions (`aide-N`),
+  puis les travaux (`travail-N`, seulement avec `v=2` : un ancien script les
+  prendrait pour des questions). Réponse du PC : JSON extrait
+  (`pc_json_extract()`), vérifié par `json_schema_errors()` contre le même
+  schéma que l'API, puis `correction_apply()` ou `review_finish()`. Illisible,
+  ou pas de réponse en 3 min (`pc_jobs_process_overdue()` : tâche automatique
+  « pc » et fin des pages dispatcher) : relais par l'API (`$allowPc = false`).
+  Une relecture devenue inutile (rapport déjà validé) est abandonnée.
+- `api/chat.php` (chatbot du site) lit maintenant la clé des Réglages →
+  Claude (`integration_secret('claude_api_key')`) : l'ancien emplacement est
+  vidé à chaque enregistrement de la clé.
 
 ### Notifications du dispatcher — `includes/disp_notify.php`, `dispatcher/notifications.php`
 

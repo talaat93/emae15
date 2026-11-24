@@ -55,6 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flash('success', 'Clé supprimée : le PC ne peut plus récupérer les questions.');
         } else {
             set_integration_setting('assist_relay_seconds', (string)max(0, min(900, (int)($_POST['assist_relay_seconds'] ?? 120))));
+            set_integration_setting('assist_pc_jobs', !empty($_POST['assist_pc_jobs']) ? '1' : '0');
             flash('success', 'Réglages de l\'aide enregistrés.');
         }
     } elseif ($tab === 'claude') {
@@ -242,6 +243,13 @@ function settings_secret_field(string $name, string $label, string $placeholder,
             <?php endforeach; ?>
           </select>
           <div style="font-size:.8rem;color:var(--d-t2);margin-bottom:.5rem;">Le relais répond avec la clé API Claude (onglet Claude)<?= claude_is_configured() ? '' : ' — <b>aucune clé configurée</b> : sans elle, le bureau est prévenu' ?>.</div>
+          <label style="display:flex;gap:.5rem;align-items:flex-start;margin:.2rem 0 .3rem;font-weight:600;">
+            <input type="checkbox" name="assist_pc_jobs" value="1" <?= pc_jobs_setting() ? 'checked' : '' ?> style="margin-top:.25rem;">
+            <span>Confier aussi au PC la correction et la relecture des rapports</span>
+          </label>
+          <div style="font-size:.8rem;color:var(--d-t2);margin-bottom:.5rem;">Économise la clé API : le PC reçoit le texte du rapport (sans photos ni coordonnées du client). S'il ne répond pas en 3 minutes, la clé API prend le relais.
+            <?php $pcLast = pc_jobs_last_poll(); ?>
+            <?= $pcLast !== null && time() - $pcLast < 120 ? '<span style="color:var(--d-success);">Le PC est à jour et prend ces travaux.</span>' : ($lastPoll !== null ? '<b>Le script du PC est ancien</b> : redemandez à votre Claude Code d\'installer la dernière version du LISEZMOI.' : '') ?></div>
           <button type="submit" class="d-btn d-btn--sm">Enregistrer</button>
         </form>
       </div>

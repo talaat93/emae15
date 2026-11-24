@@ -19,6 +19,23 @@ reste allumé. Il n'est pas servi par le site (accès web refusé).
 Si le PC ne répond pas à temps (2 minutes par défaut), le site répond lui-même avec l'API
 Claude, ou prévient le bureau. Ce délai se règle dans Réglages → Aide (Claude Code).
 
+## Correction et relecture des rapports (depuis la livraison 13)
+
+Le même script fait aussi, quand la case « Confier aussi au PC la correction et la relecture des
+rapports » est cochée dans Réglages → Aide :
+
+- la **correction** du rapport (orthographe, vocabulaire technique) ;
+- la **relecture** du rapport (manques, incohérences, prestations).
+
+Le site envoie seulement le texte du rapport (ni photo, ni nom, téléphone ou adresse du client)
+et demande une réponse en JSON, qu'il vérifie avant de l'utiliser. Identifiants reçus : `aide-12`
+pour une question, `travail-7` pour une correction ou une relecture. Si le PC ne répond pas en
+3 minutes, ou répond mal, le site fait le travail avec la clé API Claude.
+
+**Mise à jour d'une installation existante :** remplacer `aide.sh` par la nouvelle version (garder
+`cle.txt`), puis relancer le script. Un ancien script continue de répondre aux questions mais ne
+reçoit pas les rapports ; Réglages → Aide l'indique (« Le script du PC est ancien »).
+
 ## Installation (instructions pour Claude Code local)
 
 Claude Code, voici comment installer l'assistant pour le propriétaire. Ne t'écarte pas de ces
