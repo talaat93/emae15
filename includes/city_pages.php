@@ -56,7 +56,7 @@ function render_city_index(): void
     foreach (array_keys(city_pages()) as $s) { $c = city_page($s); $parDep[$c['dep'].' ('.$c['dep_code'].')'][] = $c; }
     ?>
 <section class="page-hero"><div class="wrap">
-  <div class="ph-eyebrow">// Nos villes</div>
+  <div class="ph-eyebrow">Nos villes</div>
   <h1 class="ph-h1">Électricien, plombier, chauffagiste <em>près de chez vous</em></h1>
   <p class="ph-lead">Nous intervenons en Côte-d'Or, dans le Jura et le Doubs, depuis notre base de Dole. Choisissez votre ville.</p>
 </div></section>
@@ -116,7 +116,7 @@ function render_city_page(array $c): void
     ?>
 <section class="page-hero"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
-    <div class="ph-eyebrow">// <?= e($c['dep']) ?> (<?= e($c['dep_code']) ?>) — urgences 7j/7</div>
+    <div class="ph-eyebrow"><?= e($c['dep']) ?> (<?= e($c['dep_code']) ?>) — urgences 7j/7</div>
     <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>
     <h1 class="ph-h1"><?= e((string)$txt['h1']) ?></h1>
     <?php else: ?>

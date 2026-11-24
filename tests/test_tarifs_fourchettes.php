@@ -78,5 +78,13 @@ check('grille saisie : montants modifiés repris', tarifs_regrouper_deplacement(
 check('prix illisible : grille inchangée', count(tarifs_regrouper_deplacement([['Déplacement — semaine', 'Sur devis', ''], ['Déplacement — nuit', '130 € TTC', '']])), 2);
 check('page ville × métier : même fourchette', (require_once $R.'/includes/city_trade_pages.php') && str_contains(city_trade_price_answer(), 'de 52,80 € à 124,80 € TTC'), true);
 
+echo "\n5. TVA et décompte à la demi-heure écrits une seule fois sous la grille\n";
+[$rows, $note] = tarifs_mentions_communes(tarifs_groups()[0]['rows']);
+check('plus aucune ligne ne répète la TVA', count(array_filter($rows, fn($r) => str_contains($r[2], 'TVA'))), 0);
+check('plus aucune ligne ne répète la demi-heure', count(array_filter($rows, fn($r) => str_contains($r[2], 'demi-heure'))), 0);
+check('HT gardé sur la ligne', array_values(array_filter($rows, fn($r) => $r[0] === 'Diagnostic'))[0][2], '64 € HT.');
+check('mention commune', $note, 'Prix TTC : TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir). Main-d\'œuvre décomptée par demi-heure.');
+check('grille sans TVA répétée : pas de mention', tarifs_mentions_communes(tarifs_default_rows()['vmc'])[1], '');
+
 echo "\n".($fail === 0 ? "$pass assertions PASSENT" : "$fail ÉCHECS sur ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);

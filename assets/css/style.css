@@ -636,8 +636,9 @@ body.nav-open .hero-card{-webkit-backdrop-filter:none!important;backdrop-filter:
 }
 .page-hero::before{content:'';position:absolute;inset:0;background-image:radial-gradient(circle,rgba(240,123,29,.12) 1px,transparent 1px);background-size:28px 28px;mask-image:radial-gradient(ellipse 80% 80% at 50% 50%,black 20%,transparent 80%);pointer-events:none;}
 .ph-eyebrow{font-size:.68rem;font-weight:700;letter-spacing:.15em;text-transform:uppercase;color:var(--p);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem;}
-.ph-eyebrow::before{content:'//';opacity:.35;font-size:.7rem;}
+.ph-eyebrow::before{content:none;}
 .ph-h1{font-family:var(--font-h);font-size:clamp(2rem,5vw,3rem);font-weight:800;color:#fff;margin-bottom:.75rem;line-height:1.06;letter-spacing:-.025em;}
+.ph-h1 em{font-style:normal;color:var(--p);}
 .ph-lead{font-size:.95rem;font-weight:300;color:var(--t2);max-width:60ch;line-height:1.75;}
 .ph-badges{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:1.25rem;}
 .ph-badge{padding:.35rem .8rem;border-radius:999px;font-size:.74rem;font-weight:500;background:var(--card);border:1px solid var(--line);color:var(--t2);}
@@ -1679,3 +1680,5 @@ h3.step-h{margin:0;font-size:inherit;}
 .city-travel > svg{color:#F07B1D;font-size:1.35rem;margin-top:.1rem;}
 .city-travel strong{display:block;color:#fff;font-size:.95rem;}
 .city-travel span{display:block;color:var(--t2);font-size:.8rem;line-height:1.5;margin-top:.2rem;}
+/* Page Tarifs : TVA et décompte à la demi-heure écrits une fois sous la grille */
+.tarif-card-note{margin:.75rem 0 0;font-size:.8rem;line-height:1.5;color:var(--t2);}

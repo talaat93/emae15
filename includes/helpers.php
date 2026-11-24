@@ -611,6 +611,24 @@ function faq_answer_fix(string $q, string $a): string
 }
 
 /**
+ * Affichage de la page FAQ (jamais enregistré) : la question générale sur les zones reçoit la base et
+ * les villes réellement desservies (pages ville), au lieu d'un texte qui oubliait Dole et
+ * Lons-le-Saunier ; espaces avant les virgules retirés (24/11/2026).
+ */
+function faq_answer_display(string $q, string $a): string
+{
+    $qn = function_exists('text_ascii_lower') ? text_ascii_lower($q) : mb_strtolower($q);
+    if (preg_match('/quelles? (sont )?(vos )?zones|ou intervenez|quelles villes/', $qn) && !(function_exists('zone_context') && zone_context())
+        && function_exists('city_pages') && function_exists('geo_enumerer')) {
+        $base = trim((string)(legal_info()['base'] ?? ''));
+        $villes = array_map(static fn(string $s): string => (string)city_page($s)['nom'], array_keys(city_pages()));
+        return geo_replace('Nous intervenons {en_region}'.($base !== '' ? ', depuis notre base de '.$base : '').' : '.geo_enumerer($villes)
+            .' et les communes voisines. La liste complète est sur la page Zones d\'intervention ; votre commune n\'est pas citée ? Appelez-nous pour vérifier.');
+    }
+    return (string)preg_replace('/\s+([,.])/u', '$1', $a);   // « Jura , Doubs » → « Jura, Doubs »
+}
+
+/**
  * Texte libre d'une page (saisi dans l'admin) sans les ressources tierces qu'un copier-coller
  * y a laissées : feuille Google Fonts, scripts externes. Elles transmettraient l'adresse IP du
  * visiteur à un tiers avant tout consentement. Le texte enregistré n'est pas modifié.
@@ -937,6 +955,30 @@ function tarifs_groups(): array
 }
 
 /**
+ * Page Tarifs : la règle de TVA et le décompte à la demi-heure, répétés sur chaque ligne de la grille,
+ * sont retirés des lignes et écrits une seule fois sous la grille (24/11/2026).
+ * Retour : [lignes, mention commune ('' s'il n'y en a pas)].
+ */
+function tarifs_mentions_communes(array $rows): array
+{
+    $tva = '/\s*TVA 20\s?% incluse\s*;\s*10\s?% pour des travaux dans un logement de plus de 2 ans \(attestation à remplir\)\.?/u';
+    $dh  = '/,\s*décompte par demi-heure/u';
+    $nTva = 0; $nDh = 0;
+    foreach ($rows as $i => $r) {
+        $r = array_pad(array_values((array)$r), 3, '');
+        $d = (string)$r[2];
+        $d = (string)preg_replace($tva, '', $d, -1, $a); $nTva += $a;
+        $d = (string)preg_replace($dh, '', $d, -1, $b); $nDh += $b;
+        $r[2] = trim($d);
+        $rows[$i] = $r;
+    }
+    $note = [];
+    if ($nTva) $note[] = 'Prix TTC : TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).';
+    if ($nDh)  $note[] = 'Main-d\'œuvre décomptée par demi-heure.';
+    return [$rows, implode(' ', $note)];
+}
+
+/**
  * Lignes « Déplacement — … » regroupées en une seule ligne en fourchette (souhait du propriétaire,
  * 23/11/2026). Les montants restent réglés un par un dans l'admin ; le cas de chaque montant reste
  * écrit en petit sous la fourchette (arrêté du 24 janvier 2017 : frais de déplacement affichés).
@@ -963,7 +1005,7 @@ function tarifs_regrouper_deplacement(array $rows): array
         $c = strtr(mb_strtolower($d[0]), $court);
         return mb_strtoupper(mb_substr($c, 0, 1)).mb_substr($c, 1).' : '.$d[1].' €';
     }, array_values($dep));
-    $detail = implode(' · ', $cas).'. Prix annoncé avant de venir. TVA 20 % incluse (10 % pour un logement de plus de 2 ans, sur attestation).';
+    $detail = implode(' · ', $cas).'. Prix annoncé avant de venir. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).';
     $out = [];
     foreach ($rows as $i => $r) {
         if ($i === $pos) $out[] = ['Déplacement', $prix, $detail];

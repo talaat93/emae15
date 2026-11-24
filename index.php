@@ -523,7 +523,7 @@ if ($route === 'zones') {
 ?>
 <section class="page-hero">
   <div class="wrap">
-    <div class="ph-eyebrow">// <?= e($zones['eyebrow']) ?></div>
+    <div class="ph-eyebrow"><?= e($zones['eyebrow']) ?></div>
     <h1 class="ph-h1"><?= e($zones['title']) ?> <em><?= e($zones['title_hl']) ?></em></h1>
     <p class="ph-lead"><?= e(claim_clean($zones['lead'], 'Électricité, plomberie, chauffage et climatisation dans nos zones. '.intervention_terms_text())) ?></p>
     <div class="ph-badges">
@@ -621,7 +621,7 @@ if ($route === 'avis') {
 ?>
 <section class="page-hero">
   <div class="wrap">
-    <div class="ph-eyebrow">// Avis clients</div>
+    <div class="ph-eyebrow">Avis clients</div>
     <h1 class="ph-h1"><?= e(setting('avis_title','Ce que disent')) ?> <em><?= e(setting('avis_title_hl','nos clients')) ?></em></h1>
     <p class="ph-lead"><?= e(claim_clean(setting('avis_lead','Les témoignages de nos clients.'), 'Les témoignages de nos clients.')) ?></p>
     <?php if ($rs || $gmbUrl !== ''): ?>
@@ -826,7 +826,7 @@ if ($route === 'landing') {
 <!-- HERO LANDING -->
 <section class="page-hero" style="padding:3rem 0 2.5rem;">
   <div class="wrap">
-    <div class="ph-eyebrow">// <?= e($metier_data['icon']) ?> <?= e($metier_data['label']) ?> — <?= e($dept_data['region']) ?></div>
+    <div class="ph-eyebrow"><?= e($metier_data['icon']) ?> <?= e($metier_data['label']) ?> — <?= e($dept_data['region']) ?></div>
     <h1 class="ph-h1"><?= e($h1) ?></h1>
     <p class="ph-lead"><?= e($metier_data['desc']) ?> Disponible <?= e(company_hours()) ?>.</p>
     <div class="ph-badges">
@@ -936,7 +936,7 @@ if ($route === 'faq') {
     $faq  = faq_page_settings();
     // Réponses mises en cohérence (zones, horaires, délais) avant l'affichage ET les données structurées.
     foreach ($faq['groups'] as $_gi => $_g) foreach (($_g['items'] ?? []) as $_ii => $_it) {
-        $faq['groups'][$_gi]['items'][$_ii]['a'] = faq_answer_fix((string)($_it['q'] ?? ''), (string)($_it['a'] ?? ''));
+        $faq['groups'][$_gi]['items'][$_ii]['a'] = faq_answer_display((string)($_it['q'] ?? ''), faq_answer_fix((string)($_it['q'] ?? ''), (string)($_it['a'] ?? '')));
     }
     unset($_gi, $_g, $_ii, $_it);
     $meta = ['title'=>setting('faq_meta_title','FAQ | '.company_name()),'description'=>setting('faq_meta_description','Questions fréquentes.'),'canonical'=>route_url('faq')];
@@ -1152,7 +1152,7 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
 </div></section>
 <section class="sec sec-navy"><div class="wrap">
   <div class="tarif-grid">
-    <?php foreach (tarifs_groups() as $g): ?>
+    <?php foreach (tarifs_groups() as $g): [$g['rows'], $_tnote] = tarifs_mentions_communes($g['rows']); ?>
     <div class="tarif-card">
       <h2 class="tarif-card-h"><span aria-hidden="true"><?= e($g['icon']) ?></span> <?= e($g['label']) ?></h2>
       <ul class="tarif-list">
@@ -1166,8 +1166,9 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
         </li>
         <?php endforeach; ?>
       </ul>
+      <?php if ($_tnote !== ''): ?><p class="tarif-card-note"><?= e($_tnote) ?></p><?php endif; ?>
     </div>
-    <?php endforeach; ?>
+    <?php endforeach; unset($_tnote); ?>
   </div>
   <p class="tarif-note"><?= e(setting('tarifs_note','Tarifs donnés à titre indicatif. Le prix définitif est confirmé par un devis gratuit avant toute intervention.')) ?></p>
   <div class="faq-cta">
@@ -1296,7 +1297,7 @@ if ($tpl !== null || $page) {
   <?php if ($hasHeroImg): ?><div class="svc-hero-overlay"></div><?php endif; ?>
   <div class="wrap svc-hero-grid" style="position:relative;z-index:1;">
   <div class="svc-hero-content">
-  <div class="ph-eyebrow">// <?= e($tpl['label']) ?></div>
+  <div class="ph-eyebrow"><?= e($tpl['label']) ?></div>
   <h1 class="ph-h1"><?= e($tpl['h1']) ?></h1>
   <p class="ph-lead"><?= e($tpl['desc']) ?></p>
   <div class="ph-badges">

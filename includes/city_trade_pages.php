@@ -201,7 +201,7 @@ function render_city_trade_page(array $c, string $tslug): void
     ?>
 <section class="page-hero"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
-    <div class="ph-eyebrow">// <?= e($tpl['label']) ?> — <?= e($nom) ?> (<?= e($c['cp']) ?>)</div>
+    <div class="ph-eyebrow"><?= e($tpl['label']) ?> — <?= e($nom) ?> (<?= e($c['cp']) ?>)</div>
     <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>
     <h1 class="ph-h1"><?= e((string)$txt['h1']) ?></h1>
     <?php else: ?>
