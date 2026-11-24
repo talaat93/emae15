@@ -41,6 +41,18 @@ function city_trade_reals(array $c, string $trade, int $limit = 3): array
     return array_slice(array_values($rows), 0, $limit);
 }
 
+/**
+ * Chantiers montrés sur la page : ceux du métier, les plus proches d'abord, puis ceux faits ailleurs
+ * (chaque carte affiche sa vraie ville). Ne sert qu'à l'affichage : l'ouverture à Google ne compte
+ * que les chantiers locaux (city_trade_reals).
+ */
+function city_trade_reals_shown(array $c, string $trade, int $limit = 3): array
+{
+    $rows = array_filter(realisations_local(1000, $c['nom'], $c['voisines']), static fn(array $r): bool =>
+        in_array($trade, realisation_trades((string)($r['service_type'] ?? '')), true));
+    return array_slice(array_values($rows), 0, $limit);
+}
+
 /** Ouverte à Google : chantiers du métier dans le secteur, ou contenu rédigé pour la page. */
 function city_trade_indexable(array $c, string $tslug): bool
 {
@@ -143,7 +155,9 @@ function render_city_trade_page(array $c, string $tslug): void
     $clim  = $trade === 'climatisation';
     $metier = $clim ? 'technicien climatisation' : mb_strtolower($pro, 'UTF-8');
     $tpl   = service_template($trade);
-    $reals = city_trade_reals($c, $trade);
+    $reals = city_trade_reals_shown($c, $trade);
+    // « Près de {ville} » seulement si tous les chantiers montrés sont vraiment dans le secteur.
+    $realsLocal = $reals !== [] && min(array_column($reals, 'local')) > 0;
     $nom   = $c['nom'];
     $titre = city_trade_title($c, $tslug);
     $txt   = city_trade_content($c['slug'], $tslug) ?? [];
@@ -193,7 +207,7 @@ function render_city_trade_page(array $c, string $tslug): void
     }
     unset($_seen);
     // Ordre des blocs voulu par le propriétaire (24/11/2026) : hero, garanties, prix, pannes + appareils + marques,
-    // ancrage local, méthode, signes d'alerte et sécurité, FAQ (6 questions), devis, maillage.
+    // réalisations du métier, ancrage local, méthode, signes d'alerte et sécurité, FAQ (6 questions), devis, maillage.
     $faqTop = array_slice($faq, 0, 6);
     $equip  = city_trade_equipment($trade);
     $brands = $tpl['brands_on'] ? array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen')) : [];
@@ -282,7 +296,30 @@ function render_city_trade_page(array $c, string $tslug): void
   <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(route_url($trade)) ?>">Toutes nos prestations en <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> →</a></p>
 </div></section>
 
-<?php /* ── 5. Ancrage local ── */ ?>
+<?php /* ── 5. Réalisations du métier ── */ if ($reals): ?>
+<section class="sec sec-navy" id="realisations"><div class="wrap" style="max-width:1040px;">
+  <div class="svc-label"><?= e(setting('svc_reals_label', 'Nos réalisations')) ?></div>
+  <?php if ($realsLocal): ?>
+  <h2 class="section-title">Chantiers près de <em><?= e($nom) ?></em></h2>
+  <?php else: ?>
+  <h2 class="section-title">Nos chantiers <em>en <?= e(mb_strtolower(explode(' & ', $tpl['label'])[0], 'UTF-8')) ?></em></h2>
+  <?php endif; ?>
+  <div class="reals-grid" style="margin-top:1.75rem;">
+    <?php foreach ($reals as $r): ?>
+    <div class="real-card"><?php render_realisation_media($r); ?>
+      <div class="real-body">
+        <h3 class="real-h"><?= e($r['title']) ?></h3>
+        <?php if (trim((string)($r['description'] ?? '')) !== ''): ?><p class="real-p"><?= e(trim((string)$r['description'])) ?></p><?php endif; ?>
+        <?= realisation_meta($r) ?>
+      </div>
+    </div>
+    <?php endforeach; ?>
+  </div>
+  <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(url_with_query(route_url('realisations'), ['metier' => $trade])) ?>"><?= e(setting('reals_btn', 'Voir toutes nos réalisations')) ?> →</a></p>
+</div></section>
+<?php endif; ?>
+
+<?php /* ── 6. Ancrage local ── */ ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:1040px;">
   <div class="svc-label">Proximité</div>
   <h2 class="section-title"><?= e($nom) ?> <em>et ses environs</em></h2>
@@ -303,19 +340,9 @@ function render_city_trade_page(array $c, string $tslug): void
   </div>
   <?php endif; ?>
   <?= render_city_trade_photo('vehicule', $c, $trade, $metier) /* A : ancrage local */ ?>
-  <?php if ($reals): ?>
-  <h3 class="ct-repair-h" style="margin-top:2.25rem;">Chantiers près de <?= e($nom) ?></h3>
-  <div class="reals-grid" style="margin-top:1rem;">
-    <?php foreach ($reals as $r): ?>
-    <div class="real-card"><?php render_realisation_media($r); ?>
-      <div class="real-body"><h4 class="real-h"><?= e($r['title']) ?></h4><?= realisation_meta($r) ?></div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-  <?php endif; ?>
 </div></section>
 
-<?php /* ── 6. Méthode en 3 étapes ── */ ?>
+<?php /* ── 7. Méthode en 3 étapes ── */ ?>
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label"><?= e(setting('svc_process_label', 'Notre méthode')) ?></div>
   <h2 class="section-title">Intervention en <em>3 étapes</em></h2>
@@ -327,7 +354,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <?= render_city_trade_photo('intervention', $c, $trade, $metier) /* B : preuve technique */ ?>
 </div></section>
 
-<?php /* ── 7. Signes d'alerte et sécurité ── */ if ($signs || $alerte !== ''): ?>
+<?php /* ── 8. Signes d'alerte et sécurité ── */ if ($signs || $alerte !== ''): ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
   <div class="svc-label"><?= e(setting('svc_signs_label', 'Signes d\'alerte')) ?></div>
   <h2 class="section-title"><?= e($tpl['signs_title']) ?></h2>
@@ -340,7 +367,7 @@ function render_city_trade_page(array $c, string $tslug): void
 </div></section>
 <?php endif; ?>
 
-<?php /* ── 8. FAQ : les 6 questions clés ── */ ?>
+<?php /* ── 9. FAQ : les 6 questions clés ── */ ?>
 <section class="sec sec-card"><div class="wrap" style="max-width:860px;">
   <div class="svc-label">FAQ</div>
   <h2 class="section-title">Questions <em>fréquentes</em></h2>
@@ -351,7 +378,7 @@ function render_city_trade_page(array $c, string $tslug): void
   <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(static fn(array $f): array => ['@type' => 'Question', 'name' => $f[0], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f[1]]], $faqTop)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
 </div></section>
 
-<?php /* ── 9. Formulaire de devis complet ── */ ?>
+<?php /* ── 10. Formulaire de devis complet ── */ ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:700px;">
   <?= render_city_trade_photo('equipe', $c, $trade, $metier) /* C : confiance finale, avant le contact */ ?>
   <div class="svc-label"><?= e(setting('svc_form_label', 'Devis gratuit')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> <?= e($c['a']) ?></div>
@@ -362,7 +389,7 @@ function render_city_trade_page(array $c, string $tslug): void
   </div>
 </div></section>
 
-<?php /* ── 10. Maillage local (juste avant le pied de page) ── */ ?>
+<?php /* ── 11. Maillage local (juste avant le pied de page) ── */ ?>
 <section class="sec sec-card ct-links"><div class="wrap" style="max-width:960px;">
   <?php $_pn_list = pannes_for_trade($trade); if ($_pn_list): ?>
   <div class="svc-label">Pannes fréquentes : que faire ?</div>

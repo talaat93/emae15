@@ -1,8 +1,9 @@
 <?php
 declare(strict_types=1);
-// Pages ville × métier (24/11/2026) : l'ordre en 10 blocs voulu par le propriétaire, pannes + appareils +
+// Pages ville × métier (24/11/2026) : l'ordre en 11 blocs voulu par le propriétaire, pannes + appareils +
 // marques réunis, FAQ limitée à 6 questions, encadré de sécurité, effet orange de l'accueil sur le hero.
-function db_fetch_all(string $s, array $p = []): array { return []; }
+$GLOBALS['reals'] = [];
+function db_fetch_all(string $s, array $p = []): array { return str_contains($s, 'FROM realisations') ? $GLOBALS['reals'] : []; }
 function db_fetch(string $s, array $p = []): ?array { return null; }
 function db_execute(string $s, array $p = []): void {}
 $_SERVER['SCRIPT_NAME'] = '/index.php';
@@ -18,8 +19,8 @@ function check(string $l, mixed $g, mixed $w): void { global $pass, $fail;
 $src = str_replace("\r\n", "\n", (string)file_get_contents($R.'/includes/city_trade_pages.php'));
 $f = substr($src, (int)strpos($src, 'function render_city_trade_page('), (int)strpos($src, 'function render_service_offer_block(') - (int)strpos($src, 'function render_city_trade_page('));
 
-echo "\n1. Les 10 blocs, dans l'ordre\n";
-$reperes = ['<section class="page-hero hero-glow">', 'render_trust_band($trade)', 'Ce que vous payez', 'Pannes, appareils et marques',
+echo "\n1. Les 11 blocs, dans l'ordre\n";
+$reperes = ['<section class="page-hero hero-glow">', 'render_trust_band($trade)', 'Ce que vous payez', 'Pannes, appareils et marques', 'id="realisations"',
             'et ses environs</em>', 'Intervention en <em>3 étapes', "signs_title']", 'Questions <em>fréquentes', "render_quote_form(\$cards, 'service_'.\$trade); ?>", 'ct-links'];
 $pos = array_map(fn($r) => strpos($f, $r), $reperes);
 check('tous les blocs présents', array_values(array_filter(array_combine($reperes, $pos), fn($p) => $p === false)), []);
@@ -58,6 +59,21 @@ echo "\n5. Effet orange de l'accueil sur les pages métier et ville\n";
 check('page ville', str_contains((string)file_get_contents($R.'/includes/city_pages.php'), 'page-hero hero-glow'), true);
 check('page métier', str_contains((string)file_get_contents($R.'/index.php'), 'page-hero hero-glow'), true);
 check('lueur orange en CSS', str_contains((string)file_get_contents($R.'/assets/css/style.css'), '.page-hero.hero-glow::after{'), true);
+
+echo "\n6. Réalisations avant « Proximité » : locales d'abord, puis celles du métier faites ailleurs\n";
+check('une seule fois dans la page', substr_count($f, 'foreach ($reals as $r)'), 1);
+check('avant « Proximité »', strpos($f, 'foreach ($reals as $r)') < strpos($f, 'Proximité</div>'), true);
+$c = ['nom' => 'Besançon', 'slug' => 'ville-test', 'voisines' => ['Thise']];
+$GLOBALS['reals'] = [
+    ['title' => 'A', 'city' => 'Dijon', 'service_type' => 'PAC'], ['title' => 'B', 'city' => 'Besançon', 'service_type' => 'Électricité'],
+    ['title' => 'C', 'city' => 'Thise', 'service_type' => 'Chauffage'], ['title' => 'D', 'city' => 'Gray', 'service_type' => 'Chauffage'],
+    ['title' => 'E', 'city' => 'Gray', 'service_type' => 'Chauffage'],
+];
+check('chauffage : local en premier, 3 au plus', array_column(city_trade_reals_shown($c, 'chauffage'), 'title'), ['C', 'A', 'D']);
+check('métier sans chantier : rien', city_trade_reals_shown($c, 'plomberie'), []);
+$GLOBALS['reals'] = [['title' => 'A', 'city' => 'Dijon', 'service_type' => 'PAC']];
+check('un chantier lointain est montré', count(city_trade_reals_shown($c, 'chauffage')), 1);
+check('mais ne suffit pas à ouvrir la page à Google (local seulement)', city_trade_reals($c, 'chauffage'), []);
 
 echo "\n".($fail === 0 ? "$pass assertions PASSENT" : "$fail ÉCHECS sur ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
