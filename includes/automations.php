@@ -58,6 +58,7 @@ function automations_run(string $origin = 'page', bool $force = false): array
         'google'    => 'automation_google_daily',
         'contacts'  => 'google_contacts_process',  // contacts Google des demandes (reprise des échecs)
         'images'    => 'automation_images',
+        'pc'        => 'automation_pc_jobs',  // travaux et questions que le PC du bureau n'a pas traités à temps
         'agent'     => 'agent_run',          // agent relation client (désactivé tant qu'il n'est pas mis en marche)
     ] as $name => $fn) {
         try { $out[$name] = $name === 'google' ? $fn($origin) : $fn(); }

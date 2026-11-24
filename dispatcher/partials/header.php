@@ -17,6 +17,17 @@ function disp_is_active(array $files, string $section = ''): string {
 try { $urgentCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE urgency=1 AND status NOT IN (".wf_sql_list(wf_closed()).")")['c']??0); } catch(Throwable $e) { $urgentCount=0; }
 // Notifications du dispatcher : fins estimées dépassées vérifiées à chaque page, puis compteur.
 try { disp_notif_check_eta(); } catch (Throwable $e) {}
+// Travaux confiés au PC du bureau restés sans réponse : relais par l'API après l'affichage de la page.
+try {
+    if (db_fetch("SELECT id FROM pc_jobs WHERE status IN ('en_attente', 'en_cours') AND created_at < ? LIMIT 1", [date('Y-m-d H:i:s', time() - PC_JOB_DELAY)])) {
+        register_shutdown_function(static function (): void {
+            if (function_exists('fastcgi_finish_request')) @fastcgi_finish_request();
+            elseif (function_exists('litespeed_finish_request')) @litespeed_finish_request();
+            @ignore_user_abort(true);
+            try { pc_jobs_process_overdue(1); } catch (Throwable $e) {}
+        });
+    }
+} catch (Throwable $e) {}
 $notifCount = disp_notif_unread_count();
 try { $waitingCount = (int)(db_fetch("SELECT COUNT(*) AS c FROM interventions WHERE status IN ('nouveau','confirmé')")['c']??0); } catch(Throwable $e) { $waitingCount=0; }
 $tasksBadge = dispatcher_pending_tasks_count();

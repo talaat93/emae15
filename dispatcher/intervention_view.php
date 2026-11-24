@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'correction_run') {
         @set_time_limit(120);
         $r = correction_run($id, 'dispatcher');
-        flash($r['ok'] ? 'success' : 'error', $r['ok'] ? 'Rapport corrigé.'.($r['notice'] ? ' '.$r['notice'] : '') : (string)$r['notice']);
+        flash($r['ok'] ? 'success' : 'error', !empty($r['pending']) ? (string)$r['notice'] : ($r['ok'] ? 'Rapport corrigé.'.($r['notice'] ? ' '.$r['notice'] : '') : (string)$r['notice']));
         redirect_to('dispatcher/intervention_view.php?id='.$id);
     }
     if ($action === 'correction_save') {
@@ -136,6 +136,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         @set_time_limit(180);
         $rr = review_run($id, 'dispatcher', $disp);
         if (!$rr['ok']) flash('error', (string)$rr['notice']);
+        elseif (!empty($rr['pending'])) flash('success', (string)$rr['notice'].' Rechargez la page dans un moment.');
         else flash($rr['complete'] ? 'success' : 'error', ($rr['complete'] ? 'Rapport complet : brouillon de facture préparé.' : 'Rapport incomplet : renvoyé au technicien.')
             .($rr['notice'] ? ' '.$rr['notice'] : ''));
         redirect_to('dispatcher/intervention_view.php?id='.$id.'#relecture');
@@ -529,9 +530,10 @@ function fmt_dur(int $mins): string {
             <?php if (!empty($iv['tech_diagnostic']) || !empty($iv['tech_report'])): ?>
             <!-- Version corrigée (Claude) : texte d'origine gardé, modifiable par le dispatcher -->
             <div class="corr-box">
+              <?php if (pc_job_pending($id, 'correction')): ?><div style="font-size:.8rem;color:#1d4ed8;margin-bottom:.4rem;">⏳ Correction en cours sur le PC du bureau (une à deux minutes ; la clé API prend le relais après 3 minutes).</div><?php endif; ?>
               <div style="font-size:.8rem;color:var(--d-t2);">
                 <?php if (correction_has($iv)): ?>
-                  ✓ Texte corrigé <?= ($iv['correction_source'] ?? '') === 'dispatcher' ? 'par le dispatcher' : 'par Claude (orthographe, vocabulaire technique)' ?><?= !empty($iv['correction_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['correction_at']))) : '' ?> · utilisé dans le rapport PDF.
+                  ✓ Texte corrigé <?= ($iv['correction_source'] ?? '') === 'dispatcher' ? 'par le dispatcher' : 'par Claude'.(($iv['correction_source'] ?? '') === 'claude_pc' ? ' sur le PC du bureau' : '').' (orthographe, vocabulaire technique)' ?><?= !empty($iv['correction_at']) ? ' le '.e(date('d/m à H:i', strtotime((string)$iv['correction_at']))) : '' ?> · utilisé dans le rapport PDF.
                 <?php elseif (!empty($iv['correction_at'])): ?>
                   Texte du technicien gardé tel quel (aucune correction utile ou correction écartée par sécurité).
                 <?php else: ?>
@@ -686,10 +688,11 @@ function fmt_dur(int $mins): string {
           <div class="d-card-head">
             <div class="d-card-title">Relecture du rapport</div>
             <?php if ($review): ?>
-              <span style="font-size:.76rem;color:var(--d-t2);"><?= $review['source'] === 'claude' ? 'par Claude' : 'contrôles standard' ?> · <?= e(date('d/m H:i', strtotime((string)$review['created_at']))) ?></span>
+              <span style="font-size:.76rem;color:var(--d-t2);"><?= $review['source'] === 'claude' ? 'par Claude'.(($review['model'] ?? '') === 'PC du bureau' ? ' (PC du bureau)' : '') : 'contrôles standard' ?> · <?= e(date('d/m H:i', strtotime((string)$review['created_at']))) ?></span>
             <?php endif; ?>
           </div>
           <div class="d-card-body">
+            <?php if (pc_job_pending($id, 'relecture')): ?><div class="d-flash" style="background:#eff6ff;border:1px solid #bfdbfe;color:#1d4ed8;margin-bottom:.7rem;">⏳ Relecture en cours sur le PC du bureau (une à deux minutes ; la clé API prend le relais après 3 minutes).</div><?php endif; ?>
             <?php if (!$review): ?>
               <div style="color:var(--d-t2);font-size:.88rem;">Relecture pas encore faite<?= $currentStatus === 'rapport_rendu' ? ' (elle démarre automatiquement à la remise du rapport)' : '' ?>.</div>
             <?php else: ?>
