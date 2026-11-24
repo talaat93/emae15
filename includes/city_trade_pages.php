@@ -463,19 +463,28 @@ function city_trade_safety(string $trade): array
     ][$trade] ?? ['', ''];
 }
 
+/** Logo d'une marque (assets/img/marques/{saunier-duval}.svg|png|webp), ou ''. */
+function brand_logo_path(string $b): string
+{
+    $slug = trim((string)preg_replace('/[^a-z0-9]+/', '-', function_exists('text_ascii_lower') ? text_ascii_lower($b) : strtolower($b)), '-');
+    foreach (['svg', 'png', 'webp'] as $ext) if ($slug !== '' && is_file(dirname(__DIR__).'/assets/img/marques/'.$slug.'.'.$ext)) return 'assets/img/marques/'.$slug.'.'.$ext;
+    return '';
+}
+
 /** Liste des marques (texte ; logos quand le fichier existe dans assets/img/marques/{marque}.svg|png). */
 function render_brand_list(array $brands): string
 {
-    $out = '<ul class="ct-brand-list">';
+    // Logos d'abord (cases de même taille), puis les marques sans logo en une ligne de texte.
+    $logos = ''; $texte = [];
     foreach ($brands as $b) {
-        $slug = trim((string)preg_replace('/[^a-z0-9]+/', '-', function_exists('text_ascii_lower') ? text_ascii_lower($b) : strtolower($b)), '-');
-        $logo = '';
-        foreach (['svg', 'png', 'webp'] as $ext) if (is_file(dirname(__DIR__).'/assets/img/marques/'.$slug.'.'.$ext)) { $logo = 'assets/img/marques/'.$slug.'.'.$ext; break; }
-        $out .= $logo !== ''
-            ? '<li class="has-logo"><img src="'.e(asset_url($logo)).'" alt="'.e($b).'" loading="lazy" decoding="async" height="40"></li>'
-            : '<li>'.e($b).'</li>';
+        $logo = brand_logo_path($b);
+        if ($logo === '') { $texte[] = $b; continue; }
+        $sz = @getimagesize(dirname(__DIR__).'/'.$logo);
+        $logos .= '<li><img src="'.e(asset_url($logo)).'" alt="'.e($b).'"'.($sz ? ' width="'.(int)$sz[0].'" height="'.(int)$sz[1].'"' : '').' loading="lazy" decoding="async"></li>';
     }
-    return $out.'</ul>';
+    if ($logos === '') return '<ul class="ct-brand-list">'.implode('', array_map(static fn(string $b): string => '<li>'.e($b).'</li>', $texte)).'</ul>';
+    return '<ul class="ct-brand-logos">'.$logos.'</ul>'
+         .($texte ? '<p class="ct-brand-more">Et aussi : '.e(implode(', ', $texte)).'.</p>' : '');
 }
 
 /** Bandeau défilant des marques du métier (page métier et pages ville × métier). */
@@ -491,7 +500,7 @@ function render_service_brands(array $tpl): string
     <div class="brands-track">
       <?php for ($i = 0; $i < 2; $i++): ?>
       <ul class="brands-list"<?= $i ? ' aria-hidden="true"' : '' ?>>
-        <?php foreach ($brands as $b): ?><li><?= e($b) ?></li><?php endforeach; ?>
+        <?php foreach ($brands as $b): $_lg = brand_logo_path($b); ?><li<?= $_lg !== '' ? ' class="has-logo"' : '' ?>><?php if ($_lg !== ''): ?><img src="<?= e(asset_url($_lg)) ?>" alt="<?= $i ? '' : e($b) ?>" height="34" loading="lazy" decoding="async"><?php else: ?><?= e($b) ?><?php endif; ?></li><?php endforeach; unset($_lg); ?>
       </ul>
       <?php endfor; unset($i, $b); ?>
     </div>

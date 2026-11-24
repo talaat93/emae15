@@ -48,6 +48,11 @@ check('climatisation : pas d\'encadré', city_trade_safety('climatisation'), [''
 
 echo "\n4. Marques : texte, ou logo quand le fichier existe\n";
 check('sans fichier : texte', render_brand_list(['Marque Test Inexistante']), '<ul class="ct-brand-list"><li>Marque Test Inexistante</li></ul>');
+foreach (['Saunier Duval', 'Frisquet', 'De Dietrich', 'Viessmann', 'Vaillant', 'Chaffoteaux', 'ELM Leblanc', 'Atlantic', 'Bosch', 'Daikin', 'Mitsubishi Electric', 'Fujitsu', 'Hitachi', 'Panasonic'] as $_b)
+    check("logo $_b", brand_logo_path($_b) !== '', true);
+$_h = render_brand_list(['Bosch', 'Ariston']);
+check('logo avec le nom de la marque en texte alternatif', str_contains($_h, 'alt="Bosch"'), true);
+check('marque sans logo : « Et aussi »', str_contains($_h, 'Et aussi : Ariston.'), true);
 
 echo "\n5. Effet orange de l'accueil sur les pages métier et ville\n";
 check('page ville', str_contains((string)file_get_contents($R.'/includes/city_pages.php'), 'page-hero hero-glow'), true);

@@ -1806,3 +1806,11 @@ h3.step-h{margin:0;font-size:inherit;}
 .ct-brands .brands-note{margin:.85rem 0 0;font-size:.78rem;color:var(--t2);}
 .ct-links{padding:2.5rem 0;}
 :is(.sec-card,.sec-navy) .assur-grid + .ct-photo, .prox-grid + .assur-grid{margin-top:1.5rem;}
+/* Logos des marques (fichiers dans assets/img/marques, recolorés en bleu marine) */
+.ct-brand-logos{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.6rem;}
+.ct-brand-logos li{display:flex;align-items:center;justify-content:center;height:72px;padding:.6rem .9rem;background:#fff;border:1px solid #E2E8F0;border-radius:12px;}
+.ct-brand-logos img{max-width:100%;max-height:44px;width:auto;height:auto;object-fit:contain;}
+.ct-brand-more{margin:.85rem 0 0;font-size:.88rem;color:var(--t1);}
+@media(max-width:420px){ .ct-brand-logos{grid-template-columns:repeat(3,1fr);} .ct-brand-logos li{height:60px;padding:.45rem .5rem;} .ct-brand-logos img{max-height:36px;} }
+.brands-list li.has-logo{display:flex;align-items:center;}
+.brands-list li.has-logo img{width:auto;height:auto;max-height:44px;max-width:120px;filter:brightness(0) invert(1);opacity:.85;}
