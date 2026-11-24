@@ -286,7 +286,7 @@ function render_header(string $active = ''): void
 
     <nav class="site-nav" id="main-nav">
       <?php foreach (nav_items() as $item): ?>
-        <a class="<?= $active === $item['url'] ? 'on' : '' ?>" href="<?= e($item['url']) ?>"><?= e($item['label']) ?></a>
+        <a class="<?= trim(($active === $item['url'] ? 'on' : '').(!empty($item['mob']) ? ' nav-mob' : '')) ?>" href="<?= e($item['url']) ?>"><?= e($item['label']) ?></a>
       <?php endforeach; ?>
       <a class="btn--cta" href="<?= e($ctaUrl) ?>"><?= e($ctaLabel) ?></a>
     </nav>

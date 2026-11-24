@@ -1134,6 +1134,21 @@ if (!file_exists($_mf57)) {
     unset($_me);
 }
 unset($_mf57);
+// Auto-migration v15.58 (24/11/2026) : en-tête sur une seule ligne, choix du propriétaire. Le bandeau
+// « Urgence ? » (Conversion & avis › Afficher le bandeau) et la barre téléphone/e-mail (Header & menu ›
+// Afficher la topbar) sont coupés une fois ; tous deux se rallument depuis l'admin.
+$_mf58 = __DIR__.'/../storage/.mig_v15_entete_une_ligne';
+if (!file_exists($_mf58)) {
+    @file_put_contents($_mf58, date('c'));
+    try {
+        foreach (['avail_enabled', 'topbar_visible'] as $_k)
+            db_execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [$_k, '0']);
+        settings_cache(true);
+    }
+    catch (Throwable $_me) { error_log('Migration v15.58 : '.$_me->getMessage()); }
+    unset($_me, $_k);
+}
+unset($_mf58);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

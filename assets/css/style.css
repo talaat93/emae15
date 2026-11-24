@@ -1682,3 +1682,72 @@ h3.step-h{margin:0;font-size:inherit;}
 .city-travel span{display:block;color:var(--t2);font-size:.8rem;line-height:1.5;margin-top:.2rem;}
 /* Page Tarifs : TVA et décompte à la demi-heure écrits une fois sous la grille */
 .tarif-card-note{margin:.75rem 0 0;font-size:.8rem;line-height:1.5;color:var(--t2);}
+
+/* ═══════════════════════════════════════════════════════════════
+   REFONTE LISIBILITÉ (24/11/2026) — choix du propriétaire :
+   titres en Plus Jakarta Sans ; sections de contenu sur fond clair, en alternance blanc (.sec-card)
+   et gris très doux (.sec-navy) ; haut de page, bandeaux d'appel, formulaires et pied de page
+   restent bleu marine.
+═══════════════════════════════════════════════════════════════ */
+:root{ --font-h:'Plus Jakarta Sans','Segoe UI',Arial,sans-serif; --ink:#0B1A3A; }
+.ph-h1{font-size:clamp(1.8rem,4.6vw,2.75rem);font-weight:800;line-height:1.15;letter-spacing:-.02em;}
+.section-title{font-weight:800;line-height:1.2;letter-spacing:-.015em;}
+.step-h{text-transform:none;letter-spacing:0;font-size:1.05rem;font-weight:700;}
+
+.sec-card,.sec-navy{
+  --t1:#24324F; --t2:#56658A; --t3:#7C89A8; --line:rgba(11,26,58,.1);
+  --card:#FFFFFF; --navy:#F8FAFC; --navy-2:#EEF2F8; --navy-3:#E3E9F3;
+  color:var(--t1);
+}
+.sec-card{background:#FFFFFF;}
+.sec-navy{background:#F8FAFC;}
+.sec-card + .sec-card,.sec-navy + .sec-navy{border-top:1px solid #E6EBF2;}
+:is(.sec-card,.sec-navy) :is(h1,h2,h3,h4,h5,strong,b,summary,dt){color:var(--ink);}
+:is(.sec-card,.sec-navy) .section-lead{color:var(--t2);}
+:is(.sec-card,.sec-navy) a:not(.btn):not([class*="chip"]){color:#C4580A;}
+
+/* Îlots qui restent sombres dans une section claire (formulaires, encarts d'appel) */
+:is(.sec-card,.sec-navy) :is(.qs-card,.hero-card,.cta-block,.contact-box,.sp-cta){
+  --t1:#F0F4FF; --t2:#7B92CC; --t3:#3D5A99; --line:rgba(255,255,255,.07);
+  --card:#0A1835; --navy:#061029; --navy-2:#0C1E45; --navy-3:#112559; color:var(--t1);
+}
+:is(.sec-card,.sec-navy) :is(.qs-card,.hero-card,.cta-block,.contact-box,.sp-cta) :is(h1,h2,h3,h4,h5,strong,b,summary,dt){color:#fff;}
+:is(.sec-card,.sec-navy) :is(.qs-card,.hero-card,.cta-block,.contact-box,.sp-cta) a:not(.btn){color:var(--p);}
+/* Orange des petits textes assombri sur fond clair (lisibilité) ; les boutons gardent l'orange vif */
+:is(.sec-card,.sec-navy) :is(.svc-label,.section-title em,.ph-eyebrow){color:#C4580A;}
+:is(.sec-card,.sec-navy) :is(.qs-card,.hero-card,.cta-block,.contact-box,.sp-cta) :is(.svc-label,.section-title em){color:var(--p);}
+:is(.sec-card,.sec-navy) :is(.tarif-price,.ofr-btn){color:#C4580A;}
+:is(.sec-card,.sec-navy) .px-chip{color:#8A3D06;background:#FFF4EA;border-color:rgba(196,88,10,.3);}
+:is(.sec-card,.sec-navy) .px-chip:hover{background:#FFE6D1;}
+:is(.sec-card,.sec-navy) .btn-outline{color:var(--ink);border-color:rgba(11,26,58,.25);}
+:is(.sec-card,.sec-navy) .btn-outline:hover{border-color:rgba(11,26,58,.5);background:rgba(11,26,58,.04);}
+:is(.sec-card,.sec-navy) .rdv-cta-p{color:#F07B1D;}
+:is(.sec-card,.sec-navy) :is(.qs-card,.hero-card,.cta-block,.contact-box,.sp-cta) .btn-outline{color:#fff;border-color:rgba(255,255,255,.22);}
+:is(.sec-card,.sec-navy) :is(.real-h,.rv-name,.c-info-h,.c-info-strong,.sp-title){color:var(--ink);}
+:is(.sec-card,.sec-navy) :is(.real-svc,.faq-group-title,.faq-plus,.city-card-more,.rv-stars,.sp-link){color:#C4580A;}
+:is(.sec-card,.sec-navy) :is(.sp-card,.real-card){background:#FFFFFF;border-color:#E2E8F0;box-shadow:0 1px 3px rgba(11,26,58,.06);}
+:is(.sec-card,.sec-navy) .sp-tag{background:#F1F5F9;border-color:#E2E8F0;color:var(--t2);}
+:is(.sec-card,.sec-navy) .rv-src--site{color:#8A3D06;background:#FFF4EA;}
+:is(.sec-card,.sec-navy) .sp-list li{color:var(--t1);border-bottom-color:var(--line);}
+:is(.sec-card,.sec-navy) .px-card-h{color:var(--ink);}
+:is(.sec-card,.sec-navy) .px-alert{background:#FEF2F2;border-color:#FCA5A5;color:#7F1D1D;}
+:is(.sec-card,.sec-navy) .px-alert strong{color:#991B1B;}
+:is(.sec-card,.sec-navy) .btn-ghost-p{color:#A94A07;background:#FFF4EA;border-color:rgba(196,88,10,.35);}
+
+/* En-tête sur une seule ligne (24/11/2026) : logo · liens · bouton d'appel. Le bandeau « Urgence ? » et la
+   barre téléphone/e-mail du haut sont coupés (réglables dans l'admin) ; le bouton d'appel reste visible partout. */
+@media(min-width:640px){ .header-call{display:inline-flex;} }
+@media(min-width:1024px){
+  .nav-wrap{gap:1.25rem;}
+  .site-nav{order:2;margin-left:auto;gap:.1rem;}
+  .header-call{order:3;font-size:.92rem;min-height:44px;padding:.55rem 1.15rem;}
+  .site-nav a{border:0;background:none;min-height:0;font-size:.92rem;font-weight:600;padding:.5rem .7rem;color:var(--t1);}
+  .site-nav a:hover,.site-nav a.on{background:none;color:var(--p);}
+  .site-nav a.nav-mob{display:none;}
+  .site-nav .btn--cta{margin-left:.5rem;padding:.55rem 1rem;border:1.5px solid rgba(255,255,255,.28);border-radius:var(--r2);background:transparent;min-height:44px;font-size:.92rem;}
+  .site-nav .btn--cta:hover{border-color:rgba(255,255,255,.6);background:rgba(255,255,255,.06);}
+}
+:is(.sec-card,.sec-navy) .ct-prix{background:#FFFFFF;border-color:#E2E8F0;}
+:is(.sec-card,.sec-navy) .ct-prix li{border-top-color:#EDF1F6;}
+:is(.sec-card,.sec-navy) .ct-prix li:nth-child(odd){background:#F8FAFC;}
+:is(.sec-card,.sec-navy) .ct-prix strong{color:var(--ink);}

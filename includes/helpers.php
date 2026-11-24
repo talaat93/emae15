@@ -717,14 +717,16 @@ function schema_local_business(): string
 function nav_items(): array
 {
     return [
-        ['label'=>setting('nav_home','Accueil'),           'url'=>route_url('')],
+        // 'mob' : seulement dans le menu du téléphone. Sur ordinateur, le logo mène à l'accueil et le
+        // bouton d'appel remplace « Contact » : en-tête sur une seule ligne (24/11/2026).
+        ['label'=>setting('nav_home','Accueil'),           'url'=>route_url(''), 'mob'=>true],
         ['label'=>setting('nav_services','Services'),      'url'=>route_url('services')],
         ['label'=>setting('nav_zones','Nos zones'),        'url'=>route_url('zones')],
         ['label'=>setting('nav_avis','Avis clients'),      'url'=>route_url('avis')],
         ['label'=>setting('nav_realisations','Réalisations'), 'url'=>route_url('realisations')],
         ...(tarifs_enabled() ? [['label'=>setting('nav_tarifs','Tarifs'), 'url'=>route_url('tarifs')]] : []),
         ['label'=>setting('nav_faq','FAQ'),                'url'=>route_url('faq')],
-        ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact')],
+        ['label'=>setting('nav_contact','Contact'),        'url'=>route_url('contact'), 'mob'=>true],
     ];
 }
 

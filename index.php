@@ -968,7 +968,7 @@ if ($route === 'faq') {
   </div>
   <?php foreach ($faq['groups'] as $g): ?>
   <div class="faq-group" data-group="<?= e(mb_strtolower($g['category']??'','UTF-8')) ?>">
-    <div class="faq-group-title">// <?= e($g['category']??'') ?></div>
+    <div class="faq-group-title"><?= e($g['category']??'') ?></div>
     <div class="faq-list">
       <?php foreach (($g['items']??[]) as $item): ?>
       <div class="faq-item">
