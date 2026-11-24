@@ -1751,3 +1751,58 @@ h3.step-h{margin:0;font-size:inherit;}
 :is(.sec-card,.sec-navy) .ct-prix li{border-top-color:#EDF1F6;}
 :is(.sec-card,.sec-navy) .ct-prix li:nth-child(odd){background:#F8FAFC;}
 :is(.sec-card,.sec-navy) .ct-prix strong{color:var(--ink);}
+
+/* Effet orange de l'accueil (lueur, lignes fines) repris sur les pages métier, ville et métier × ville (24/11/2026) */
+.page-hero.hero-glow{isolation:isolate;}
+.page-hero.hero-glow:not(.svc-hero-img){
+  background-image:linear-gradient(180deg,transparent,rgba(240,123,29,.25),transparent),
+                   linear-gradient(180deg,transparent,rgba(255,255,255,.05),transparent),
+                   linear-gradient(148deg,var(--hero-from) 0%,var(--hero-to) 100%);
+  background-size:1px 100%,1px 100%,100% 100%;background-position:85% 0,65% 0,0 0;background-repeat:no-repeat;
+}
+.page-hero.hero-glow::before{background-image:radial-gradient(circle,rgba(240,123,29,.15) 1px,transparent 1px);background-size:32px 32px;mask-image:radial-gradient(ellipse 70% 80% at 20% 50%,black 30%,transparent 80%);-webkit-mask-image:radial-gradient(ellipse 70% 80% at 20% 50%,black 30%,transparent 80%);z-index:0;}
+.page-hero.hero-glow::after{content:'';position:absolute;width:600px;height:600px;top:-150px;left:-100px;background:radial-gradient(circle,rgba(240,123,29,.12),transparent 65%);pointer-events:none;z-index:0;}
+.page-hero.hero-glow > .wrap{position:relative;z-index:1;}
+
+/* Page Tarifs : onglets par métier, une carte illustrée par prestation (24/11/2026) */
+.tarif-grid--base{grid-template-columns:1fr;max-width:860px;margin:0 auto;}
+.tf-title{margin-top:3rem;text-align:center;}
+.tf-tabs{display:flex;gap:.5rem;overflow-x:auto;padding:.25rem .1rem .75rem;margin:1.25rem 0 1.5rem;-webkit-overflow-scrolling:touch;scrollbar-width:thin;}
+.tf-tab{flex:0 0 auto;display:inline-flex;align-items:center;gap:.55rem;padding:.6rem 1rem;border-radius:999px;border:1.5px solid #E2E8F0;background:#fff;color:var(--ink,#0B1A3A);font-weight:600;font-size:.9rem;cursor:pointer;transition:border-color .15s,background .15s;}
+.tf-tab img{width:28px;height:28px;}
+.tf-tab:hover{border-color:rgba(196,88,10,.45);}
+.tf-tab[aria-selected="true"]{border-color:#C4580A;background:#FFF4EA;color:#8A3D06;}
+.tf-tab:focus-visible{outline:2px solid #C4580A;outline-offset:2px;}
+.tf-panel-h{font-family:var(--font-h);font-size:1.25rem;font-weight:800;color:var(--ink,#0B1A3A);margin:0 0 1rem;}
+.tf-js .tf-panel-h{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+.tf-panel + .tf-panel{margin-top:2.5rem;}
+.tf-js .tf-panel + .tf-panel{margin-top:0;}
+.tf-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:1rem;}
+.tf-card{background:#fff;border:1px solid #E2E8F0;border-radius:var(--r3);padding:1.25rem;display:flex;flex-direction:column;gap:.45rem;box-shadow:0 1px 3px rgba(11,26,58,.06);}
+.tf-card-ico{width:48px;height:48px;margin-bottom:.25rem;}
+.tf-card-h{font-size:.98rem;font-weight:700;line-height:1.35;color:var(--ink,#0B1A3A);margin:0;}
+.tf-card-p{font-family:var(--font-h);font-size:1.15rem;font-weight:800;color:#C4580A;}
+.tf-card-p.is-quote{font-size:1rem;color:var(--t2);}
+.tf-card-d{font-size:.8rem;line-height:1.5;color:var(--t2);margin:0;}
+.tf-more{margin-top:1rem;font-size:.9rem;}
+@media(max-width:520px){ .tf-cards{grid-template-columns:1fr;gap:.6rem;} .tf-card{display:grid;grid-template-columns:40px 1fr;column-gap:.85rem;row-gap:.2rem;padding:.9rem 1rem;} .tf-card-ico{width:40px;height:40px;grid-row:span 3;margin:0;} .tf-card-h{font-size:.92rem;} .tf-card-p{font-size:1.02rem;} }
+@media(min-width:900px){ .tf-tabs{flex-wrap:wrap;justify-content:center;overflow:visible;} }
+
+/* Pages ville × métier : pannes, appareils et marques réunis dans un seul bloc (24/11/2026) */
+.ct-repair{display:grid;gap:1.25rem;margin-top:1.5rem;}
+@media(min-width:820px){ .ct-repair{grid-template-columns:1fr 1fr;} }
+.ct-repair-col{background:#fff;border:1px solid #E2E8F0;border-radius:var(--r3);padding:1.25rem 1.35rem;}
+.ct-repair-h{font-family:var(--font-h);font-size:1.05rem;font-weight:800;color:var(--ink,#0B1A3A);margin:0 0 .85rem;}
+.ct-repair-col .sign-list{margin:0;}
+.ct-equip{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.6rem .9rem;}
+.ct-equip li{display:flex;align-items:center;gap:.6rem;font-size:.9rem;line-height:1.3;color:var(--t1);}
+.ct-equip img{width:36px;height:36px;flex:0 0 36px;}
+@media(max-width:420px){ .ct-equip{grid-template-columns:1fr;} }
+.ct-brands{margin-top:1.25rem;background:#fff;border:1px solid #E2E8F0;border-radius:var(--r3);padding:1.25rem 1.35rem;}
+.ct-brand-list{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:.5rem;}
+.ct-brand-list li{padding:.35rem .8rem;border-radius:999px;background:#F1F5F9;border:1px solid #E2E8F0;font-size:.85rem;font-weight:600;color:var(--ink,#0B1A3A);}
+.ct-brand-list li.has-logo{padding:.4rem .7rem;background:#0B2A4A;border-color:#0B2A4A;border-radius:10px;}
+.ct-brand-list li.has-logo img{height:40px;width:auto;display:block;}
+.ct-brands .brands-note{margin:.85rem 0 0;font-size:.78rem;color:var(--t2);}
+.ct-links{padding:2.5rem 0;}
+:is(.sec-card,.sec-navy) .assur-grid + .ct-photo, .prox-grid + .assur-grid{margin-top:1.5rem;}

@@ -69,11 +69,11 @@ check('protégé CSRF', str_contains($adm, 'verify_csrf()'), true);
 
 echo "\n5. Gabarit : emplacements sous la ligne de flottaison, aucune image dans l'en-tête\n";
 $src = (string)file_get_contents($R.'/includes/city_trade_pages.php');
-$hero = substr($src, (int)strpos($src, '<section class="page-hero">'), (int)strpos($src, 'render_trust_band($trade)') - (int)strpos($src, '<section class="page-hero">'));
+$hero = substr($src, (int)strpos($src, '<section class="page-hero hero-glow">'), (int)strpos($src, 'render_trust_band($trade)') - (int)strpos($src, '<section class="page-hero hero-glow">'));
 check('aucune image dans l\'en-tête', str_contains($hero, '<img') || str_contains($hero, 'ct-photo') || str_contains($hero, '$photo'), false);
 $pos = fn(string $n) => (int)strpos($src, $n);
-check('A après « Pourquoi EMAE »', $pos('Pourquoi EMAE') < $pos('$photoA /* A'), true);
-check('B dans « Intervention en 3 étapes »', $pos('Intervention en <em>3 étapes') < $pos("render_city_trade_photo('intervention'") && $pos("render_city_trade_photo('intervention'") < $pos('<section class="cta-band">'), true);
+check('A dans « {Ville} et ses environs » (ancrage local)', $pos('Proximité</div>') < $pos("render_city_trade_photo('vehicule'") && $pos("render_city_trade_photo('vehicule'") < $pos('Intervention en <em>3 étapes'), true);
+check('B dans « Intervention en 3 étapes »', $pos('Intervention en <em>3 étapes') < $pos("render_city_trade_photo('intervention'") && $pos("render_city_trade_photo('intervention'") < $pos('7. Signes'), true);
 check('C avant le formulaire final', $pos("render_city_trade_photo('equipe'") < $pos("render_quote_form(\$cards, 'service_'.\$trade); ?>"), true);
 $css = (string)file_get_contents($R.'/assets/css/style.css');
 check('ratio fixe 16/10 en CSS', str_contains($css, '.ct-photo img{display:block;width:100%;height:auto;aspect-ratio:16/10;'), true);

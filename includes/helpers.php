@@ -768,6 +768,7 @@ function tarifs_default_rows(): array
     $out['chauffage'][1] = ['Entretien annuel de chaudière', '109 € à 239 € TTC', ENTRETIEN_CHAUDIERE_PRECISION];
     // Fourchettes demandées par le propriétaire (21/11/2026), « comme Depanneo ».
     $out = array_replace($out, tarifs_fourchettes_rows());
+    foreach (tarifs_lignes_ajoutees() as $_t => $_l) $out[$_t] = array_merge($out[$_t], $_l);
     $out['base'] = [
         ['Déplacement — intervention programmée, du lundi au samedi', '52,80 € TTC', '44 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
         ['Déplacement — urgence, du lundi au samedi', '76,80 € TTC', '64 € HT. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).'],
@@ -853,6 +854,57 @@ function tarifs_fill_empty_grids(array $grids): int
         if ($n === 0) geo_sauvegarde_table();
         geo_sauvegarder($lot, 'setting:'.$key, (string)$r['setting_value']);
         geo_ecrire_brut($key, json_encode($grids[$m[1]], JSON_UNESCAPED_UNICODE));
+        $n++;
+    }
+    return $n;
+}
+
+/**
+ * Prestations ajoutées à la page Tarifs (demande du propriétaire, 24/11/2026) : fourchettes TTC hors
+ * déplacement, à valider par lui avant la mise en ligne. Ajoutées à la fin des grilles électricité,
+ * plomberie et chauffage ; les lignes et prix déjà saisis ne changent pas.
+ */
+function tarifs_lignes_ajoutees(): array
+{
+    $hd = 'Hors déplacement.';
+    return [
+        'electricite' => [
+            ['Remplacement de disjoncteur ou d\'interrupteur différentiel', '90 € à 200 € TTC', 'Pièce comprise selon le modèle. '.$hd],
+            ['Pose ou remplacement de luminaire', '60 € à 150 € TTC', 'Luminaire fourni par vos soins. '.$hd],
+            ['Pose de radiateur électrique', '150 € à 350 € TTC', 'Pose et raccordement, radiateur en plus. '.$hd],
+            ['Recherche de panne électrique (court-circuit, disjonctions)', '90 € à 180 € TTC', 'Réparation chiffrée avant travaux. '.$hd],
+        ],
+        'plomberie' => [
+            ['Remplacement de mécanisme de chasse d\'eau', '80 € à 180 € TTC', 'Mécanisme compris selon le modèle. '.$hd],
+            ['Remplacement du groupe de sécurité du chauffe-eau', '100 € à 200 € TTC', 'Pièce comprise. '.$hd],
+            ['Remplacement de WC', '250 € à 500 € TTC', 'Pose, WC en plus. '.$hd],
+            ['Hydrocurage de canalisation', '250 € à 450 € TTC', 'Quand le furet ne suffit pas. '.$hd],
+        ],
+        'chauffage' => [
+            ['Purge et équilibrage des radiateurs', '80 € à 180 € TTC', 'Selon le nombre de radiateurs. '.$hd],
+            ['Remplacement de thermostat d\'ambiance', '120 € à 300 € TTC', 'Thermostat compris selon le modèle. '.$hd],
+            ['Désembouage du circuit de chauffage', '400 € à 900 € TTC', 'Selon le nombre de radiateurs. '.$hd],
+            ['Remplacement de radiateur (chauffage central)', '250 € à 600 € TTC', 'Fourniture et pose. '.$hd],
+        ],
+    ];
+}
+
+/** Ajoute à chaque grille enregistrée (globale et de zone) les lignes absentes ; ancienne valeur sauvegardée. */
+function tarifs_ajouter_lignes(array $ajouts): int
+{
+    $n = 0;
+    $lot = 'tarifs-ajouts-'.date('Ymd-His').'-'.bin2hex(random_bytes(2));
+    foreach (db_fetch_all("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE '%tarifs\\_%'") as $r) {
+        $key = (string)$r['setting_key'];
+        if (!preg_match('/^(?:z:[^:]+:)?tarifs_([a-z]+)$/', $key, $m) || !isset($ajouts[$m[1]])) continue;
+        $rows = json_decode((string)$r['setting_value'], true);
+        if (!is_array($rows) || $rows === []) continue;
+        $vus = array_map(static fn($x): string => mb_strtolower(trim((string)(array_values((array)$x)[0] ?? ''))), $rows);
+        $neuf = array_values(array_filter($ajouts[$m[1]], static fn(array $l): bool => !in_array(mb_strtolower($l[0]), $vus, true)));
+        if ($neuf === []) continue;
+        if ($n === 0) geo_sauvegarde_table();
+        geo_sauvegarder($lot, 'setting:'.$key, (string)$r['setting_value']);
+        geo_ecrire_brut($key, json_encode(array_merge(array_values($rows), $neuf), JSON_UNESCAPED_UNICODE));
         $n++;
     }
     return $n;
@@ -947,6 +999,7 @@ function tarifs_groups(): array
     foreach (array_keys($defaults) as $trade) {
         $rows = json_decode(setting_plain('tarifs_'.$trade), true);
         $out[] = [
+            'key'   => $trade,
             'label' => $trade === 'base' ? 'Déplacement et main-d\'œuvre' : service_template($trade)['label'],
             'icon'  => $trade === 'base' ? '🧾' : $trades[$trade]['icon_svc'],
             'rows'  => $trade === 'base' ? tarifs_regrouper_deplacement((is_array($rows) && $rows !== []) ? $rows : $defaults[$trade])
@@ -954,6 +1007,38 @@ function tarifs_groups(): array
         ];
     }
     return $out;
+}
+
+/**
+ * Icône (assets/img/icons) d'une prestation de la page Tarifs, d'après son libellé ; sinon celle du
+ * métier. Les mots les plus précis passent avant « entretien », « installation »…
+ */
+function tarif_icon(string $label, string $trade): string
+{
+    $l = function_exists('text_ascii_lower') ? text_ascii_lower($label) : mb_strtolower($label);
+    $map = [
+        'deplacement' => 'carte', 'diagnostic' => 'diagnostic', 'main-d' => 'outil', 'pieces' => 'pieces',
+        'fluide' => 'fluide', 'thermostat' => 'thermometre', 'tableau' => 'tableau', 'disjoncteur' => 'eclair', 'differentiel' => 'eclair',
+        'luminaire' => 'ampoule', 'eclairage' => 'ampoule', 'prise' => 'prise', 'normes' => 'conformite', 'renovation' => 'renovation',
+        'recherche de panne' => 'diagnostic', 'radiateur' => 'radiateur', 'desembouage' => 'reseau', 'purge' => 'reseau',
+        'chauffe-eau' => 'chauffe-eau', 'groupe de securite' => 'chauffe-eau', 'chasse' => 'sanitaires', 'wc' => 'sanitaires',
+        'hydrocurage' => 'debouchage', 'debouchage' => 'debouchage', 'fuite' => 'fuite', 'robinet' => 'robinet',
+        'pompe a chaleur' => 'pac', 'chaudiere' => 'chaudiere', 'climatis' => 'clim', 'split' => 'clim', 'gainable' => 'clim',
+        'extracteur' => 'ventilation', 'bouches' => 'nettoyage', 'vmc' => 'vmc', 'cellules' => 'motorisation', 'carte electronique' => 'pieces',
+        'telecommande' => 'telecommande', 'visiophone' => 'visiophone', 'interphone' => 'interphone', 'digicode' => 'digicode',
+        'motorisation de portail' => 'motorisation', 'portail' => 'portail', 'store' => 'store', 'moteur' => 'moteur', 'volet' => 'volet',
+        'sangle' => 'volet', 'electromenager' => 'lave-linge', 'entretien' => 'entretien', 'installation' => 'installation', 'depannage' => 'urgence',
+    ];
+    foreach ($map as $k => $ico) if (str_contains($l, $k)) return 'assets/img/icons/'.$ico.'.png';
+    return 'assets/img/icons/'.(['electricite' => 'eclair', 'plomberie' => 'robinet', 'chauffage' => 'chaudiere', 'climatisation' => 'clim',
+        'vmc' => 'vmc', 'portail' => 'portail', 'automatisme' => 'volet'][$trade] ?? 'outil').'.png';
+}
+
+/** Icône d'un onglet de métier sur la page Tarifs. */
+function tarif_trade_icon(string $trade): string
+{
+    return 'assets/img/icons/'.(['electricite' => 'eclair', 'plomberie' => 'robinet', 'chauffage' => 'chaudiere', 'climatisation' => 'clim',
+        'vmc' => 'vmc', 'portail' => 'portail', 'automatisme' => 'volet'][$trade] ?? 'outil').'.png';
 }
 
 /**
@@ -988,29 +1073,39 @@ function tarifs_mentions_communes(array $rows): array
  */
 function tarifs_regrouper_deplacement(array $rows): array
 {
-    $dep = []; $pos = null;
+    // Main-d'œuvre en fourchette aussi, comme le déplacement (souhait du propriétaire, 24/11/2026).
+    $rows = tarifs_regrouper($rows, '/^D[ée]placement\s*[—–-]\s*(.+)$/u', 'Déplacement', '');
+    return tarifs_regrouper($rows, '/^Main[- ]d[\'’]\s?(?:œ|oe)uvre\s*[—–-]\s*(.+)$/u', 'Main-d\'œuvre', ', décompte par demi-heure');
+}
+
+/** Lignes « {Libellé} — {cas} » regroupées en une ligne « min à max », chaque cas gardé en petit. */
+function tarifs_regrouper(array $rows, string $rx, string $label, string $suite): array
+{
+    $dep = []; $pos = null; $unite = '';
     foreach ($rows as $i => $r) {
         [$l, $p] = array_pad(array_values((array)$r), 2, '');
-        if (!preg_match('/^D[ée]placement\s*[—–-]\s*(.+)$/u', trim((string)$l), $m)) continue;
-        if (!preg_match('/(\d+(?:,\d{1,2})?)\s*€/u', str_replace([' ', "\u{202F}", "\u{A0}"], '', (string)$p), $n)) return $rows;
+        if (!preg_match($rx, trim((string)$l), $m)) continue;
+        if (!preg_match('/(\d+(?:,\d{1,2})?)\s*€(\/h)?/u', str_replace([' ', "\u{202F}", "\u{A0}"], '', (string)$p), $n)) return $rows;
         $dep[$i] = [trim($m[1]), $n[1], (float)str_replace(',', '.', $n[1])];
+        $unite = $n[2] ?? '';
         $pos ??= $i;
     }
     if (count($dep) < 2) return $rows;
     $tri = array_values($dep);
     usort($tri, static fn(array $a, array $b): int => $a[2] <=> $b[2]);
     $min = $tri[0]; $max = $tri[count($tri) - 1];
-    $prix = $min[2] === $max[2] ? $min[1].' € TTC' : $min[1].' € à '.$max[1].' € TTC';
+    $prix = $min[2] === $max[2] ? $min[1].' €'.$unite.' TTC' : $min[1].' € à '.$max[1].' €'.$unite.' TTC';
     $court = ['intervention programmée, du lundi au samedi' => 'semaine, sur rendez-vous', 'urgence, du lundi au samedi' => 'semaine, urgence',
+              'urgence du lundi au samedi, ou dimanche et jour férié programmé' => 'semaine en urgence, ou dimanche/férié sur rendez-vous',
               'dimanche ou jour férié' => 'dimanche/férié', 'programmé' => 'sur rendez-vous', 'nuit (22 h - 8 h)' => 'nuit 22 h-8 h'];
-    $cas = array_map(static function (array $d) use ($court): string {
+    $cas = array_map(static function (array $d) use ($court, $unite): string {
         $c = strtr(mb_strtolower($d[0]), $court);
-        return mb_strtoupper(mb_substr($c, 0, 1)).mb_substr($c, 1).' : '.$d[1].' €';
+        return mb_strtoupper(mb_substr($c, 0, 1)).mb_substr($c, 1).' : '.$d[1].' €'.$unite;
     }, array_values($dep));
-    $detail = implode(' · ', $cas).'. Prix annoncé avant de venir. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).';
+    $detail = implode(' · ', $cas).'. Prix annoncé avant de venir'.$suite.'. TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir).';
     $out = [];
     foreach ($rows as $i => $r) {
-        if ($i === $pos) $out[] = ['Déplacement', $prix, $detail];
+        if ($i === $pos) $out[] = [$label, $prix, $detail];
         elseif (!isset($dep[$i])) $out[] = $r;
     }
     return $out;

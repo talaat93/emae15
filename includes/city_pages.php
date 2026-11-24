@@ -114,7 +114,7 @@ function render_city_page(array $c): void
     ]);
     $reals = array_values(array_filter(realisations_local(3, $nom, $c['voisines']), static fn(array $r): bool => $r['local'] > 0));
     ?>
-<section class="page-hero"><div class="wrap svc-hero-grid">
+<section class="page-hero hero-glow"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
     <div class="ph-eyebrow"><?= e($c['dep']) ?> (<?= e($c['dep_code']) ?>) — urgences 7j/7</div>
     <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>

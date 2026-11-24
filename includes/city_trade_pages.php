@@ -192,14 +192,21 @@ function render_city_trade_page(array $c, string $tslug): void
         $faq[] = [$q, $a]; $_seen[] = mb_strtolower($q, 'UTF-8');
     }
     unset($_seen);
-    $photoA = render_city_trade_photo('vehicule', $c, $trade, $metier);
+    // Ordre des blocs voulu par le propriétaire (24/11/2026) : hero, garanties, prix, pannes + appareils + marques,
+    // ancrage local, méthode, signes d'alerte et sécurité, FAQ (6 questions), devis, maillage.
+    $faqTop = array_slice($faq, 0, 6);
+    $equip  = city_trade_equipment($trade);
+    $brands = $tpl['brands_on'] ? array_values(array_filter(array_map(fn($b) => trim(is_array($b) ? (string)reset($b) : (string)$b), (array)$tpl['brands']), 'strlen')) : [];
+    [$alerteTitre, $alerte] = city_trade_safety($trade);
+    // La ligne « odeur de gaz » de la liste devient l'encadré de sécurité : pas de doublon.
+    if ($alerte !== '') $signs = array_values(array_filter($signs, static fn(string $s): bool => !preg_match('/odeur de gaz|enedis/iu', $s)));
     $pannes = array_values(array_filter((array)($txt['pannes'] ?? []), static fn($p) => !claim_unsupported((string)$p)));
     $local  = array_values(array_filter((array)($txt['local'] ?? []), static fn($l) => !claim_unsupported(implode(' ', (array)$l))));
     $steps = [1 => ['Diagnostic sur place', 'Le technicien recherche la cause de la panne et vous l\'explique simplement.'],
               2 => ['Devis clair avant travaux', 'Vous connaissez le prix avant toute réparation et vous décidez : rien n\'est fait sans votre accord.'],
               3 => ['Réparation aux normes', 'Réparation ou installation dans les règles de l\'art, puis facture détaillée en fin d\'intervention.']];
     ?>
-<section class="page-hero"><div class="wrap svc-hero-grid">
+<section class="page-hero hero-glow"><div class="wrap svc-hero-grid">
   <div class="svc-hero-content">
     <div class="ph-eyebrow"><?= e($tpl['label']) ?> — <?= e($nom) ?> (<?= e($c['cp']) ?>)</div>
     <?php if (trim((string)($txt['h1'] ?? '')) !== ''): ?>
@@ -231,18 +238,10 @@ function render_city_trade_page(array $c, string $tslug): void
     </div>
   </div>
 </div></section>
+<?php /* ── 2. Garanties clés ── */ ?>
 <?= render_trust_band($trade) ?>
-<?= render_service_brands($tpl) ?>
 
-<?php if ($txt && claim_clean((string)($txt['intro'] ?? ''), '') !== ''): ?>
-<section class="sec sec-card"><div class="wrap" style="max-width:860px;">
-  <p class="section-lead" style="margin:0;"><?= e((string)$txt['intro']) ?></p>
-</div></section>
-<?php endif; ?>
-
-<?= render_service_equipment($trade) ?>
-
-<?php if ($prix): ?>
+<?php /* ── 3. Prix annoncés ── */ if ($prix): ?>
 <section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
   <div class="svc-label">Prix annoncés</div>
   <h2 class="section-title">Ce que vous payez, <em>annoncé avant de partir</em></h2>
@@ -250,78 +249,73 @@ function render_city_trade_page(array $c, string $tslug): void
     <?php foreach ($prix as [$l, $p]): ?><li><span><?= e($l) ?></span><strong><?= e($p) ?></strong></li><?php endforeach; ?>
   </ul>
   <?php if ($trade === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
-  <p class="section-lead" style="margin-top:1rem;font-size:.92rem;">Main-d'œuvre comptée à la demi-heure. Pièces et travaux : devis gratuit et écrit, rien n'est fait sans votre accord. <a href="<?= e(route_url('tarifs')) ?>">Détail des tarifs →</a></p>
+  <p class="section-lead" style="margin-top:1rem;font-size:.92rem;">Main-d'œuvre comptée à la demi-heure. Pièces et travaux : devis gratuit et écrit, rien n'est fait sans votre accord. <a href="<?= e(route_url('tarifs').'#tarifs-'.$trade) ?>">Tous nos prix en <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> →</a></p>
 </div></section>
 <?php endif; ?>
 
-<?php if ($pannes): ?>
-<section class="sec sec-card"><div class="wrap" style="max-width:960px;">
+<?php /* ── 4. Pannes, appareils et marques (une seule grille) ── */ ?>
+<section class="sec sec-card"><div class="wrap" style="max-width:1040px;">
   <div class="svc-label">Nos interventions <?= e($c['a']) ?></div>
-  <h2 class="section-title"><?= e($pro) ?> <?= e($c['a']) ?> : <em>les pannes que nous traitons</em></h2>
-  <ul class="sign-list"><?php foreach ($pannes as $p): ?><li><?= e((string)$p) ?></li><?php endforeach; ?></ul>
+  <h2 class="section-title">Pannes, appareils et marques <em>que nous traitons</em></h2>
+  <div class="ct-repair">
+    <?php if ($pannes): ?>
+    <div class="ct-repair-col">
+      <h3 class="ct-repair-h">Les pannes</h3>
+      <ul class="sign-list"><?php foreach ($pannes as $p): ?><li><?= e((string)$p) ?></li><?php endforeach; ?></ul>
+    </div>
+    <?php endif; ?>
+    <?php if ($equip): ?>
+    <div class="ct-repair-col">
+      <h3 class="ct-repair-h">Les appareils</h3>
+      <ul class="ct-equip"><?php foreach ($equip as [$ico, $nomA]): ?><li><img src="<?= e(service_icon_url($ico)) ?>" alt="" width="36" height="36" loading="lazy"><span><?= e($nomA) ?></span></li><?php endforeach; ?></ul>
+    </div>
+    <?php endif; ?>
+  </div>
+  <?php if ($brands): ?>
+  <div class="ct-brands">
+    <h3 class="ct-repair-h"><?= e($tpl['brands_title']) ?></h3>
+    <?= render_brand_list($brands) ?>
+    <p class="brands-note"><?= e(setting('svc_brands_note', 'Marques citées à titre indicatif : nous sommes un réparateur indépendant, sans lien avec ces fabricants.')) ?></p>
+  </div>
+  <?php endif; ?>
+  <?php if (!$prix && $trade === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
   <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(route_url($trade)) ?>">Toutes nos prestations en <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> →</a></p>
 </div></section>
-<?php endif; ?>
 
-<?php if ($local): ?>
-<section class="sec sec-navy"><div class="wrap">
-  <div class="svc-label">Pourquoi EMAE <?= e($c['a']) ?></div>
-  <h2 class="section-title">Ce que nous savons <em>de <?= e($nom) ?></em></h2>
-  <div class="assur-grid">
-    <?php foreach ($local as [$lt, $lx]): ?><div class="assur-card"><h3><?= e((string)$lt) ?></h3><p><?= e((string)$lx) ?></p></div><?php endforeach; ?>
-  </div>
-  <?= $photoA /* A : ancrage local */ ?>
-</div></section>
-<?php elseif ($photoA !== ''): ?>
-<section class="sec sec-navy"><div class="wrap"><?= $photoA ?></div></section>
-<?php endif; ?>
-
-<?php if ($signs): ?>
-<section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
-  <div class="svc-label"><?= e(setting('svc_signs_label', 'Signes d\'alerte')) ?></div>
-  <h2 class="section-title"><?= e($tpl['signs_title']) ?></h2>
-  <ul class="sign-list"><?php foreach ($signs as $s): ?><li><?= e($s) ?></li><?php endforeach; ?></ul>
-  <div class="btn-row" style="margin-top:1.5rem;">
-    <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
-    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé</a>
-  </div>
-</div></section>
-<?php endif; ?>
-
-<section class="sec sec-card"><div class="wrap">
-  <?php render_service_offer_block($tpl, $trade, !$prix); ?>
-  <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(route_url($trade)) ?>">Toutes nos prestations en <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> →</a><?php if (tarifs_enabled()): ?> · <a href="<?= e(route_url('tarifs')) ?>">Nos tarifs (déplacement, main-d'œuvre) →</a><?php endif; ?></p>
-</div></section>
-
-<section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
-  <div class="prox-grid"><div>
+<?php /* ── 5. Ancrage local ── */ ?>
+<section class="sec sec-navy"><div class="wrap" style="max-width:1040px;">
   <div class="svc-label">Proximité</div>
   <h2 class="section-title"><?= e($nom) ?> <em>et ses environs</em></h2>
-  <p class="section-lead">Notre <?= e($metier) ?> <?= city_near_base($c['slug']) ? 'part de notre base de Dole et intervient' : 'intervient' ?> <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
-  <?= render_city_travel($c) ?>
-  <div class="zone-chips" style="margin-top:1rem;">
-    <span class="zone-chip" style="font-weight:700;">📍 <?= e($nom) ?> (<?= e($c['cp']) ?>)</span>
-    <?php foreach ($c['voisines'] as $v): ?><span class="zone-chip"><?= e($v) ?></span><?php endforeach; ?>
-  </div>
+  <?php if ($txt && claim_clean((string)($txt['intro'] ?? ''), '') !== ''): ?><p class="section-lead"><?= e((string)$txt['intro']) ?></p><?php endif; ?>
+  <div class="prox-grid"><div>
+    <p class="section-lead">Notre <?= e($metier) ?> <?= city_near_base($c['slug']) ? 'part de notre base de Dole et intervient' : 'intervient' ?> <?= e($c['a']) ?> comme dans les communes voisines. <?= e(intervention_terms_text()) ?></p>
+    <?= render_city_travel($c) ?>
+    <div class="zone-chips" style="margin-top:1rem;">
+      <span class="zone-chip" style="font-weight:700;">📍 <?= e($nom) ?> (<?= e($c['cp']) ?>)</span>
+      <?php foreach ($c['voisines'] as $v): ?><span class="zone-chip"><?= e($v) ?></span><?php endforeach; ?>
+    </div>
   </div>
   <?= render_zone_map(['depts' => [$c['dep_code']], 'focus' => $c['slug']]) ?>
   </div>
-</div></section>
-
-<?php if ($reals): ?>
-<section class="sec sec-card"><div class="wrap">
-  <div class="svc-label">Nos réalisations</div>
-  <h2 class="section-title"><?= e($tpl['label']) ?> : chantiers près de <em><?= e($nom) ?></em></h2>
-  <div class="reals-grid" style="margin-top:1.75rem;">
+  <?php if ($local): ?>
+  <div class="assur-grid">
+    <?php foreach ($local as [$lt, $lx]): ?><div class="assur-card"><h3><?= e((string)$lt) ?></h3><p><?= e((string)$lx) ?></p></div><?php endforeach; ?>
+  </div>
+  <?php endif; ?>
+  <?= render_city_trade_photo('vehicule', $c, $trade, $metier) /* A : ancrage local */ ?>
+  <?php if ($reals): ?>
+  <h3 class="ct-repair-h" style="margin-top:2.25rem;">Chantiers près de <?= e($nom) ?></h3>
+  <div class="reals-grid" style="margin-top:1rem;">
     <?php foreach ($reals as $r): ?>
     <div class="real-card"><?php render_realisation_media($r); ?>
-      <div class="real-body"><h3 class="real-h"><?= e($r['title']) ?></h3><?= realisation_meta($r) ?></div>
+      <div class="real-body"><h4 class="real-h"><?= e($r['title']) ?></h4><?= realisation_meta($r) ?></div>
     </div>
     <?php endforeach; ?>
   </div>
+  <?php endif; ?>
 </div></section>
-<?php endif; ?>
 
+<?php /* ── 6. Méthode en 3 étapes ── */ ?>
 <section class="sec sec-card"><div class="wrap">
   <div class="svc-label"><?= e(setting('svc_process_label', 'Notre méthode')) ?></div>
   <h2 class="section-title">Intervention en <em>3 étapes</em></h2>
@@ -333,38 +327,32 @@ function render_city_trade_page(array $c, string $tslug): void
   <?= render_city_trade_photo('intervention', $c, $trade, $metier) /* B : preuve technique */ ?>
 </div></section>
 
-<section class="cta-band"><div class="wrap cta-band-in">
-  <div>
-    <h2 class="cta-band-h">Besoin d'un <?= e($metier) ?> <?= e($c['a']) ?> ?</h2>
-    <p class="cta-band-p">Appelez-nous ou demandez à être rappelé : nous faisons le point avec vous et vous annonçons le prix avant tout déplacement.</p>
-  </div>
-  <div class="cta-band-acts">
+<?php /* ── 7. Signes d'alerte et sécurité ── */ if ($signs || $alerte !== ''): ?>
+<section class="sec sec-navy"><div class="wrap" style="max-width:960px;">
+  <div class="svc-label"><?= e(setting('svc_signs_label', 'Signes d\'alerte')) ?></div>
+  <h2 class="section-title"><?= e($tpl['signs_title']) ?></h2>
+  <?php if ($alerte !== ''): ?><div class="px-alert" role="note"><strong><?= e($alerteTitre) ?></strong><p><?= e($alerte) ?></p></div><?php endif; ?>
+  <?php if ($signs): ?><ul class="sign-list"><?php foreach ($signs as $s): ?><li><?= e($s) ?></li><?php endforeach; ?></ul><?php endif; ?>
+  <div class="btn-row" style="margin-top:1.5rem;">
     <a class="btn btn-p btn-lg" href="<?= e(company_phone_link()) ?>">📞 <?= e(company_phone()) ?></a>
-    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé gratuitement</a>
+    <a class="btn btn-outline btn-lg" href="#etre-rappele">Être rappelé</a>
   </div>
 </div></section>
+<?php endif; ?>
 
-<section class="sec sec-navy"><div class="wrap" style="max-width:860px;">
+<?php /* ── 8. FAQ : les 6 questions clés ── */ ?>
+<section class="sec sec-card"><div class="wrap" style="max-width:860px;">
   <div class="svc-label">FAQ</div>
   <h2 class="section-title">Questions <em>fréquentes</em></h2>
   <div class="sfaq-list" style="margin-top:1.5rem;">
-    <?php foreach ($faq as [$q, $a]): ?><details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details><?php endforeach; ?>
+    <?php foreach ($faqTop as [$q, $a]): ?><details class="sfaq-item"><summary><?= e($q) ?></summary><p><?= e($a) ?></p></details><?php endforeach; ?>
   </div>
-  <?php $_pn_list = pannes_for_trade($trade); if ($_pn_list): ?>
-  <div class="svc-label" style="margin-top:2.25rem;">Pannes fréquentes : que faire ?</div>
-  <div class="px-chips">
-    <?php foreach ($_pn_list as $_pn): ?><a class="px-chip" href="<?= e(route_url($_pn['slug'])) ?>"><?= e($_pn['icon'].' '.$_pn['h1']) ?></a><?php endforeach; ?>
-  </div>
-  <?php endif; unset($_pn_list, $_pn); ?>
-  <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(static fn(array $f): array => ['@type' => 'Question', 'name' => $f[0], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f[1]]], $faq)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
-  <p style="margin-top:1.5rem;font-size:.9rem;color:var(--t2);line-height:1.8;">
-    Aussi <?= e($c['a']) ?> : <?php $l = []; foreach (city_trades() as $ts => [, $pp]) if ($ts !== $tslug) $l[] = '<a href="'.e(url_for('intervention/'.$c['slug'].'/'.$ts)).'">'.e($pp).'</a>'; echo implode(' · ', $l); ?>
-    — <a href="<?= e($c['url']) ?>">tous nos métiers <?= e($c['a']) ?></a><br>
-    <?= e($pro) ?> ailleurs : <?php $l = []; foreach (array_keys(city_pages()) as $s) if ($s !== $c['slug']) { $x = city_page($s); $l[] = '<a href="'.e(url_for('intervention/'.$s.'/'.$tslug)).'">'.e($x['nom']).'</a>'; } echo implode(' · ', $l); ?>
-  </p>
+  <p class="section-lead" style="margin-top:1.25rem;"><a href="<?= e(route_url('faq')) ?>">Toutes nos questions fréquentes →</a></p>
+  <script type="application/ld+json"><?= json_encode(['@context' => 'https://schema.org', '@type' => 'FAQPage', 'mainEntity' => array_map(static fn(array $f): array => ['@type' => 'Question', 'name' => $f[0], 'acceptedAnswer' => ['@type' => 'Answer', 'text' => $f[1]]], $faqTop)], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG) ?></script>
 </div></section>
 
-<section class="sec sec-card"><div class="wrap" style="max-width:700px;">
+<?php /* ── 9. Formulaire de devis complet ── */ ?>
+<section class="sec sec-navy"><div class="wrap" style="max-width:700px;">
   <?= render_city_trade_photo('equipe', $c, $trade, $metier) /* C : confiance finale, avant le contact */ ?>
   <div class="svc-label"><?= e(setting('svc_form_label', 'Devis gratuit')) ?> <?= e(mb_strtolower($tpl['label'], 'UTF-8')) ?> <?= e($c['a']) ?></div>
   <div class="qs-card">
@@ -372,6 +360,21 @@ function render_city_trade_page(array $c, string $tslug): void
     <h2 style="font-family:var(--font-h);font-size:1.4rem;font-weight:800;color:#fff;margin-bottom:1.35rem;"><?= e(setting('svc_form_title', 'Devis gratuit')) ?></h2>
     <?php render_quote_form($cards, 'service_'.$trade); ?>
   </div>
+</div></section>
+
+<?php /* ── 10. Maillage local (juste avant le pied de page) ── */ ?>
+<section class="sec sec-card ct-links"><div class="wrap" style="max-width:960px;">
+  <?php $_pn_list = pannes_for_trade($trade); if ($_pn_list): ?>
+  <div class="svc-label">Pannes fréquentes : que faire ?</div>
+  <div class="px-chips">
+    <?php foreach ($_pn_list as $_pn): ?><a class="px-chip" href="<?= e(route_url($_pn['slug'])) ?>"><?= e($_pn['icon'].' '.$_pn['h1']) ?></a><?php endforeach; ?>
+  </div>
+  <?php endif; unset($_pn_list, $_pn); ?>
+  <p style="margin-top:1.25rem;font-size:.9rem;color:var(--t2);line-height:1.8;">
+    Aussi <?= e($c['a']) ?> : <?php $l = []; foreach (city_trades() as $ts => [, $pp]) if ($ts !== $tslug) $l[] = '<a href="'.e(url_for('intervention/'.$c['slug'].'/'.$ts)).'">'.e($pp).'</a>'; echo implode(' · ', $l); ?>
+    — <a href="<?= e($c['url']) ?>">tous nos métiers <?= e($c['a']) ?></a><br>
+    <?= e($pro) ?> ailleurs : <?php $l = []; foreach (array_keys(city_pages()) as $s) if ($s !== $c['slug']) { $x = city_page($s); $l[] = '<a href="'.e(url_for('intervention/'.$s.'/'.$tslug)).'">'.e($x['nom']).'</a>'; } echo implode(' · ', $l); ?>
+  </p>
 </div></section>
 <?php
     render_footer();
@@ -428,6 +431,51 @@ function render_service_offer_block(array $tpl, string $sk, bool $rdv = true): v
   </div>
   <?php if ($rdv && $sk === 'chauffage') echo render_rdv_prestation_cta('entretien-chaudiere'); ?>
 <?php
+}
+
+/** Appareils pris en charge sur les pages ville × métier : [dessin, nom] (le chauffage reprend la liste de la page métier). */
+function city_trade_equipment(string $trade): array
+{
+    return service_equipment_items($trade) ?: ([
+        'electricite' => [
+            ['tableau', 'Tableau électrique'], ['eclair', 'Disjoncteurs et différentiels'], ['prise', 'Prises et interrupteurs'],
+            ['ampoule', 'Éclairage intérieur et extérieur'], ['cablage', 'Câblage et circuits'], ['radiateur', 'Radiateurs électriques'],
+            ['chauffe-eau', 'Chauffe-eau électrique'], ['interphone', 'Interphone et sonnette'],
+        ],
+        'plomberie' => [
+            ['robinet', 'Robinets et mitigeurs'], ['sanitaires', 'WC, lavabos, douches et baignoires'], ['chauffe-eau', 'Chauffe-eau et ballon d\'eau chaude'],
+            ['fuite', 'Canalisations, raccords et vannes'], ['debouchage', 'Évacuations et siphons'], ['lave-linge', 'Raccordement lave-linge et lave-vaisselle'],
+        ],
+        'climatisation' => [
+            ['clim', 'Climatiseur mural (monosplit)'], ['clim', 'Climatisation multisplit'], ['ventilation', 'Climatisation gainable'],
+            ['pac', 'Pompe à chaleur air/air réversible'], ['fluide', 'Circuit frigorifique et fluide'], ['thermometre', 'Télécommande et régulation'],
+        ],
+    ][$trade] ?? []);
+}
+
+/** Encadré de sécurité du bloc « Signes d'alerte » : [titre, texte], ou ['', '']. */
+function city_trade_safety(string $trade): array
+{
+    return [
+        'chauffage'   => ['Odeur de gaz : le bon réflexe', 'Ne touchez à aucun interrupteur, n\'allumez aucune flamme, ouvrez les fenêtres, fermez le robinet de gaz si vous pouvez le faire sans danger, sortez du logement et appelez Urgence Sécurité Gaz au 0 800 47 33 33 (appel gratuit, 24h/24).'],
+        'electricite' => [setting('svc_electricite_enedis_title', 'Coupure dans tout le quartier ou le village ?'), setting('svc_electricite_enedis_text', 'Si vos voisins n\'ont plus de courant non plus, la panne vient du réseau public : appelez Enedis au 09 72 67 50 suivi du numéro de votre département (21, 25, 39…), gratuit 24h/24. Si vous êtes le seul sans électricité, c\'est votre installation : appelez-nous.')],
+        'plomberie'   => ['Fuite importante : le bon réflexe', 'Fermez le robinet d\'arrivée d\'eau (souvent près du compteur). Si l\'eau touche une prise ou le tableau électrique, coupez le disjoncteur général sans toucher l\'eau, puis appelez-nous.'],
+    ][$trade] ?? ['', ''];
+}
+
+/** Liste des marques (texte ; logos quand le fichier existe dans assets/img/marques/{marque}.svg|png). */
+function render_brand_list(array $brands): string
+{
+    $out = '<ul class="ct-brand-list">';
+    foreach ($brands as $b) {
+        $slug = trim((string)preg_replace('/[^a-z0-9]+/', '-', function_exists('text_ascii_lower') ? text_ascii_lower($b) : strtolower($b)), '-');
+        $logo = '';
+        foreach (['svg', 'png', 'webp'] as $ext) if (is_file(dirname(__DIR__).'/assets/img/marques/'.$slug.'.'.$ext)) { $logo = 'assets/img/marques/'.$slug.'.'.$ext; break; }
+        $out .= $logo !== ''
+            ? '<li class="has-logo"><img src="'.e(asset_url($logo)).'" alt="'.e($b).'" loading="lazy" decoding="async" height="40"></li>'
+            : '<li>'.e($b).'</li>';
+    }
+    return $out.'</ul>';
 }
 
 /** Bandeau défilant des marques du métier (page métier et pages ville × métier). */

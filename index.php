@@ -1151,8 +1151,16 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
   <p class="ph-lead"><?= e(setting('tarifs_lead','Des prix clairs, confirmés avant toute intervention.')) ?></p>
 </div></section>
 <section class="sec sec-navy"><div class="wrap">
-  <div class="tarif-grid">
-    <?php foreach (tarifs_groups() as $g): [$g['rows'], $_tnote] = tarifs_mentions_communes($g['rows']); ?>
+  <?php
+    // Déplacement et main-d'œuvre toujours visibles (affichage obligatoire, arrêté du 24/01/2017) ;
+    // les métiers en onglets, une carte illustrée par prestation (24/11/2026). Sans JavaScript,
+    // tous les onglets s'affichent les uns sous les autres.
+    $_tg = tarifs_groups();
+    $_tbase = array_values(array_filter($_tg, fn($g) => $g['key'] === 'base'));
+    $_ttrades = array_values(array_filter($_tg, fn($g) => $g['key'] !== 'base'));
+  ?>
+  <div class="tarif-grid tarif-grid--base">
+    <?php foreach ($_tbase as $g): [$g['rows'], $_tnote] = tarifs_mentions_communes($g['rows']); ?>
     <div class="tarif-card">
       <h2 class="tarif-card-h"><span aria-hidden="true"><?= e($g['icon']) ?></span> <?= e($g['label']) ?></h2>
       <ul class="tarif-list">
@@ -1170,6 +1178,32 @@ if ($route === 'tarifs' && (tarifs_enabled() || admin_logged_in())) {
     </div>
     <?php endforeach; unset($_tnote); ?>
   </div>
+
+  <h2 class="section-title tf-title">Prix par <em>métier</em></h2>
+  <div class="tf-tabs" role="tablist" aria-label="Tarifs par métier">
+    <?php foreach ($_ttrades as $_i => $g): ?>
+    <button class="tf-tab" type="button" role="tab" id="tab-<?= e($g['key']) ?>" aria-controls="tarifs-<?= e($g['key']) ?>" aria-selected="<?= $_i === 0 ? 'true' : 'false' ?>">
+      <img src="<?= e(asset_url(tarif_trade_icon($g['key']))) ?>" alt="" width="28" height="28" loading="lazy"><span><?= e($g['label']) ?></span>
+    </button>
+    <?php endforeach; ?>
+  </div>
+  <?php foreach ($_ttrades as $g): [$g['rows'], $_tnote] = tarifs_mentions_communes($g['rows']); ?>
+  <div class="tf-panel" id="tarifs-<?= e($g['key']) ?>" role="tabpanel" aria-labelledby="tab-<?= e($g['key']) ?>">
+    <h3 class="tf-panel-h"><?= e($g['label']) ?></h3>
+    <div class="tf-cards">
+      <?php foreach ($g['rows'] as $row): [$label,$price,$detail] = array_pad(array_values((array)$row), 3, ''); if (trim((string)$label) === '') continue; ?>
+      <article class="tf-card">
+        <img class="tf-card-ico" src="<?= e(asset_url(tarif_icon((string)$label, $g['key']))) ?>" alt="" width="48" height="48" loading="lazy">
+        <h4 class="tf-card-h"><?= e((string)$label) ?></h4>
+        <div class="tf-card-p<?= trim((string)$price)==='' ? ' is-quote' : '' ?>"><?= e(trim((string)$price)!=='' ? (string)$price : $quoteLabel) ?></div>
+        <?php if (trim((string)$detail)!==''): ?><p class="tf-card-d"><?= e((string)$detail) ?></p><?php endif; ?>
+      </article>
+      <?php endforeach; ?>
+    </div>
+    <?php if ($_tnote !== ''): ?><p class="tarif-card-note"><?= e($_tnote) ?></p><?php endif; ?>
+    <p class="tf-more"><a href="<?= e(route_url($g['key'])) ?>">Notre service <?= e(mb_strtolower($g['label'], 'UTF-8')) ?> →</a></p>
+  </div>
+  <?php endforeach; unset($_tnote, $_tg, $_tbase, $_ttrades, $_i); ?>
   <p class="tarif-note"><?= e(setting('tarifs_note','Tarifs donnés à titre indicatif. Le prix définitif est confirmé par un devis gratuit avant toute intervention.')) ?></p>
   <div class="faq-cta">
     <h2><?= e(setting('tarifs_cta_title','Besoin d\'un prix précis ?')) ?></h2>
@@ -1293,7 +1327,7 @@ if ($tpl !== null || $page) {
         $heroImg = service_hero_image($sk);
         $hasHeroImg = $heroImg !== '' && file_exists(__DIR__.'/'.ltrim($heroImg,'/'));
 ?>
-<section class="page-hero<?= $hasHeroImg ? ' svc-hero-img' : '' ?>"<?= $hasHeroImg ? ' style="background-image:url('.e(asset_url($heroImg)).');background-size:cover;background-position:center;"' : '' ?>>
+<section class="page-hero hero-glow<?= $hasHeroImg ? ' svc-hero-img' : '' ?>"<?= $hasHeroImg ? ' style="background-image:url('.e(asset_url($heroImg)).');background-size:cover;background-position:center;"' : '' ?>>
   <?php if ($hasHeroImg): ?><div class="svc-hero-overlay"></div><?php endif; ?>
   <div class="wrap svc-hero-grid" style="position:relative;z-index:1;">
   <div class="svc-hero-content">

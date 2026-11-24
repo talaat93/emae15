@@ -1149,6 +1149,16 @@ if (!file_exists($_mf58)) {
     unset($_me, $_k);
 }
 unset($_mf58);
+// Auto-migration v15.59 (24/11/2026) : nouvelles prestations chiffrées ajoutées à la fin des grilles
+// électricité, plomberie et chauffage déjà enregistrées ; lignes et prix existants inchangés, sauvegardés.
+$_mf59 = __DIR__.'/../storage/.mig_v15_tarifs_ajouts';
+if (!file_exists($_mf59)) {
+    @file_put_contents($_mf59, date('c'));
+    try { tarifs_ajouter_lignes(tarifs_lignes_ajoutees()); }
+    catch (Throwable $_me) { error_log('Migration v15.59 : '.$_me->getMessage()); }
+    unset($_me);
+}
+unset($_mf59);
 // Textes des pages ville et métier × ville en base (table city_texts) : les pages des textes
 // d'origine absentes de la base y sont créées ; une page modifiée dans l'admin n'est pas touchée.
 if ((int)global_setting('city_texts_seed_v', '0') < CITY_TEXTS_SEED_V) {

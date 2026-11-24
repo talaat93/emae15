@@ -329,3 +329,32 @@ document.addEventListener('DOMContentLoaded', function () {
     update();
   });
 })();
+
+/* Page Tarifs : un onglet par métier (24/11/2026). Sans JavaScript, tous les métiers restent affichés.
+   L'onglet ouvert suit l'adresse (#tarifs-chauffage) pour pouvoir y renvoyer depuis une autre page. */
+(function () {
+  var bar = document.querySelector('.tf-tabs');
+  if (!bar) return;
+  var tabs = Array.prototype.slice.call(bar.querySelectorAll('.tf-tab'));
+  var show = function (tab, push) {
+    tabs.forEach(function (t) {
+      var on = t === tab, panel = document.getElementById(t.getAttribute('aria-controls'));
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      if (panel) panel.hidden = !on;
+    });
+    if (push && history.replaceState) history.replaceState(null, '', '#' + tab.getAttribute('aria-controls'));
+  };
+  document.documentElement.classList.add('tf-js');
+  var start = tabs.filter(function (t) { return '#' + t.getAttribute('aria-controls') === location.hash; })[0] || tabs[0];
+  show(start, false);
+  tabs.forEach(function (t, i) {
+    t.addEventListener('click', function () { show(t, true); });
+    t.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      e.preventDefault();
+      var n = tabs[(i + d + tabs.length) % tabs.length]; show(n, true); n.focus();
+    });
+  });
+})();

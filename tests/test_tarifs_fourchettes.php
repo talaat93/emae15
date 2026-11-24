@@ -86,5 +86,42 @@ check('HT gardé sur la ligne', array_values(array_filter($rows, fn($r) => $r[0]
 check('mention commune', $note, 'Prix TTC : TVA 20 % incluse ; 10 % pour des travaux dans un logement de plus de 2 ans (attestation à remplir). Main-d\'œuvre décomptée par demi-heure.');
 check('grille sans TVA répétée : pas de mention', tarifs_mentions_communes(tarifs_default_rows()['vmc'])[1], '');
 
+echo "\n6. Main-d'œuvre en fourchette, comme le déplacement (24/11/2026)\n";
+$DB['settings'] = ['tarifs_enabled' => '1']; settings_cache(true);
+$base = tarifs_groups()[0]['rows'];
+$mo = array_values(array_filter($base, fn($r) => str_starts_with($r[0], 'Main-d')));
+check('une seule ligne Main-d\'œuvre', count($mo), 1);
+check('fourchette à l\'heure', $mo[0][1], '70,80 € à 130,80 €/h TTC');
+check('chaque cas reste écrit', str_contains($mo[0][2], 'Nuit 22 h-8 h, urgence : 130,80 €/h'), true);
+check('grille courte : déplacement, diagnostic, main-d\'œuvre, pièces', array_column($base, 0), ['Déplacement', 'Diagnostic', 'Main-d\'œuvre', 'Pièces et travaux']);
+check('demi-heure toujours signalée', str_contains(tarifs_mentions_communes($base)[1], 'Main-d\'œuvre décomptée par demi-heure.'), true);
+
+echo "\n7. Nouvelles prestations ajoutées aux grilles déjà saisies, sans toucher aux prix existants\n";
+$saisie = json_encode([['Dépannage électrique', '120 € à 150 € TTC', ''], ['Pose ou remplacement de luminaire', '99 € TTC', '']], JSON_UNESCAPED_UNICODE);
+$DB['settings'] = ['tarifs_electricite' => $saisie, 'z:jura:tarifs_plomberie' => json_encode([['Débouchage', '130 € TTC', '']], JSON_UNESCAPED_UNICODE)];
+settings_cache(true); $SAUV = [];
+check('2 grilles complétées', tarifs_ajouter_lignes(tarifs_lignes_ajoutees()), 2);
+$el = json_decode($DB['settings']['tarifs_electricite'], true);
+check('prix du propriétaire gardé', $el[0], ['Dépannage électrique', '120 € à 150 € TTC', '']);
+check('ligne déjà présente non dupliquée (et son prix gardé)', count(array_filter($el, fn($r) => $r[0] === 'Pose ou remplacement de luminaire')), 1);
+check('prix saisi de la ligne existante gardé', array_values(array_filter($el, fn($r) => $r[0] === 'Pose ou remplacement de luminaire'))[0][1], '99 € TTC');
+check('lignes ajoutées à la fin', count($el), 2 + count(tarifs_lignes_ajoutees()['electricite']) - 1);
+check('grille de zone complétée aussi', count(json_decode($DB['settings']['z:jura:tarifs_plomberie'], true)), 1 + count(tarifs_lignes_ajoutees()['plomberie']));
+check('ancienne grille sauvegardée', $SAUV['setting:tarifs_electricite'] ?? null, $saisie);
+check('relancée : rien de plus', tarifs_ajouter_lignes(tarifs_lignes_ajoutees()), 0);
+check('migration branchée', str_contains((string)file_get_contents($R.'/includes/bootstrap.php'), 'tarifs_ajouter_lignes(tarifs_lignes_ajoutees())'), true);
+
+echo "\n8. Onglets par métier : une icône par prestation\n";
+check('chaudière', tarif_icon('Dépannage de chaudière', 'chauffage'), 'assets/img/icons/chaudiere.png');
+check('fluide avant fuite', tarif_icon('Recherche de fuite de fluide frigorigène', 'climatisation'), 'assets/img/icons/fluide.png');
+check('pompe à chaleur', tarif_icon('Entretien de pompe à chaleur', 'chauffage'), 'assets/img/icons/pac.png');
+check('icône du métier par défaut', tarif_icon('Autre chose', 'plomberie'), 'assets/img/icons/robinet.png');
+$icones = [];
+foreach (tarifs_default_rows() as $t => $rows) foreach ($rows as $r) $icones[] = tarif_icon($r[0], $t);
+check('toutes les icônes existent', array_values(array_unique(array_filter($icones, fn($f) => !is_file($R.'/'.$f)))), []);
+$idx = (string)file_get_contents($R.'/index.php');
+check('onglets accessibles (tablist)', str_contains($idx, 'role="tablist"') && str_contains($idx, 'role="tabpanel"'), true);
+check('déplacement et main-d\'œuvre hors onglets (toujours visibles)', str_contains($idx, "\$g['key'] === 'base'"), true);
+
 echo "\n".($fail === 0 ? "$pass assertions PASSENT" : "$fail ÉCHECS sur ".($pass + $fail))."\n";
 exit($fail === 0 ? 0 : 1);
