@@ -36,12 +36,15 @@ while true; do
   echo "$(date '+%H:%M:%S') $ID"
   # Réponse seule : --tools "" (aucun outil) et --strict-mcp-config sans configuration (aucun serveur MCP).
   if claude -p --tools "" --strict-mcp-config --output-format text < "$DIR/.question.txt" > "$DIR/.reponse.txt" 2> "$DIR/.erreur.txt" && [ -s "$DIR/.reponse.txt" ]; then
-    if curl -sS -m 200 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
-         --data-urlencode "id=$ID" --data-urlencode "answer@$DIR/.reponse.txt" "$SITE/api/assist.php?action=answer" | grep -q '^200$'; then
-      echo "  → réponse envoyée"
-    else
-      echo "  → réponse non acceptée (déjà traitée par le relais ou par le bureau, ou illisible)"
-    fi
+    # Chemin relatif (le script est déjà dans son dossier) : sous Windows, curl ne lit pas « /c/... ».
+    CODE_REP="$(curl -sS -m 200 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
+         --data-urlencode "id=$ID" --data-urlencode "answer@.reponse.txt" "$SITE/api/assist.php?action=answer")"
+    case "$CODE_REP" in
+      200) echo "  → réponse envoyée" ;;
+      409) echo "  → déjà traitée par le relais ou par le bureau" ;;
+      422) echo "  → réponse illisible : le site fait le travail avec la clé API" ;;
+      *)   echo "  → envoi impossible (code ${CODE_REP:-aucun}) : le site prendra le relais" ;;
+    esac
   else
     echo "  → Claude Code n'a pas répondu : $(head -c 300 "$DIR/.erreur.txt")"
   fi
