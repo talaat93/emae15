@@ -7,7 +7,7 @@ reste allumé. Il n'est pas servi par le site (accès web refusé).
 
 1. Sur sa fiche d'intervention, le technicien appuie sur « Besoin d'aide ? » et écrit sa question.
 2. Toutes les 20 secondes, `aide.sh` demande au site s'il y a une question
-   (`GET https://emaee.fr/api/assist.php?action=next&format=plain`, avec la clé du PC).
+   (`GET https://www.emaee.fr/api/assist.php?action=next&format=plain`, avec la clé du PC).
 3. La question, déjà mise en forme par le site avec le contexte technique de l'intervention,
    est donnée à Claude Code en **mode réponse seule** :
    `claude -p --tools "" --strict-mcp-config --output-format text`.
@@ -72,5 +72,5 @@ règles de sécurité.
 
 ## Réglages possibles
 
-- `EMAE_SITE` : adresse du site (par défaut `https://emaee.fr`).
+- `EMAE_SITE` : adresse du site (par défaut `https://www.emaee.fr`).
 - `EMAE_PAUSE` : secondes entre deux passages (par défaut 20).

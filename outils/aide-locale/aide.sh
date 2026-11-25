@@ -6,11 +6,11 @@
 # il ne peut rien exécuter ni modifier sur l'ordinateur — puis renvoie la réponse au site.
 #
 #   cle.txt (à côté de ce script) : la clé créée dans Dispatcher → Réglages → Aide (Claude Code).
-#   EMAE_SITE  : adresse du site (https://emaee.fr par défaut).
+#   EMAE_SITE  : adresse du site (https://www.emaee.fr par défaut).
 #   EMAE_PAUSE : secondes entre deux passages (20 par défaut).
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
-SITE="${EMAE_SITE:-https://emaee.fr}"
+SITE="${EMAE_SITE:-https://www.emaee.fr}"
 PAUSE="${EMAE_PAUSE:-20}"
 CLE="$(tr -d ' \r\n' < "$DIR/cle.txt" 2>/dev/null || true)"
 [ -n "$CLE" ] || { echo "Clé absente : collez-la dans $DIR/cle.txt (Réglages → Aide (Claude Code))."; exit 1; }
