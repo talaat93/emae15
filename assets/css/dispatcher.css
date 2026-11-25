@@ -300,6 +300,9 @@ span.d-badge { background: var(--d-danger); color: #fff; font-size: .68rem; font
   width: 36px; height: 36px; background: #fff; border: 1px solid var(--d-border-2);
   border-radius: 7px; color: var(--d-t1); font-size: 1.05rem; cursor: pointer; flex-shrink: 0;
 }
+/* Bouton menu écrit avec trois traits (<span>) au lieu du caractère ☰ : les traits dessinés. */
+.d-menu-toggle > span { display: block; width: 16px; height: 2px; margin: 1.5px 0; background: currentColor; border-radius: 1px; }
+.d-menu-toggle:has(> span) { flex-direction: column; }
 
 @media (max-width: 1100px) {
   .d-grid-4 { grid-template-columns: repeat(2, 1fr); }

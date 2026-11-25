@@ -28,6 +28,20 @@ $extraHead = '<link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index
 .today-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: .35rem; }
 .today-title { font-size: .8rem; font-weight: 600; color: var(--d-t1); line-height: 1.35; }
 .today-meta { font-size: .72rem; color: var(--d-t2); margin-top: .15rem; }
+.cal-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1rem; height: calc(100vh - 120px); }
+.cal-title-short, .cal-btn-short { display: none; }
+/* Téléphone et petite tablette : une seule colonne, calendrier d\'abord, « Aujourd\'hui » dessous. */
+@media (max-width: 900px) {
+  .cal-layout { grid-template-columns: minmax(0, 1fr); height: auto; }
+  .cal-main { height: 75vh; min-height: 460px; padding: .6rem !important; }
+  .cal-side { max-height: 60vh; }
+  .cal-title-long, .cal-btn-long { display: none; }
+  .cal-title-short, .cal-btn-short { display: inline; }
+  .fc .fc-toolbar.fc-header-toolbar { flex-wrap: wrap; gap: .45rem; margin-bottom: .6rem; }
+  .fc .fc-toolbar-chunk:nth-child(2) { order: -1; width: 100%; text-align: center; }
+  .fc .fc-toolbar-title { font-size: 1rem; }
+  .fc .fc-button { padding: .3rem .5rem; font-size: .74rem; }
+}
 </style>';
 require __DIR__.'/partials/header.php';
 
@@ -42,20 +56,20 @@ $statusConfig   = intervention_status_config();
     <span></span><span></span><span></span>
   </button>
   <div class="d-topbar-title">
-    <span class="d-topbar-ico"></span> Calendrier des interventions
+    <span class="d-topbar-ico"></span> <span class="cal-title-long">Calendrier des interventions</span><span class="cal-title-short">Planning</span>
   </div>
   <div class="d-topbar-actions">
     <a href="<?= e(url_for('dispatcher/intervention_new.php')) ?>" class="d-btn d-btn-primary d-btn-sm">
-      + Nouvelle intervention
+      + <span class="cal-btn-long">Nouvelle intervention</span><span class="cal-btn-short">Nouvelle</span>
     </a>
   </div>
 </div>
 
 <div class="d-content" style="padding:1rem;">
-  <div style="display:grid;grid-template-columns:1fr 280px;gap:1rem;height:calc(100vh - 120px);">
+  <div class="cal-layout">
 
     <!-- Calendrier principal -->
-    <div style="background:var(--d-card-2);border-radius:12px;padding:1rem;border:1px solid var(--d-border);display:flex;flex-direction:column;overflow:hidden;">
+    <div class="cal-main" style="background:var(--d-card-2);border-radius:12px;padding:1rem;border:1px solid var(--d-border);display:flex;flex-direction:column;overflow:hidden;">
       <div id="calendar" style="flex:1;min-height:0;"></div>
       <!-- Légende catégories -->
       <div style="display:flex;flex-wrap:wrap;gap:.5rem 1rem;padding:.75rem 0 .25rem;border-top:1px solid var(--d-border);margin-top:.5rem;">
@@ -69,7 +83,7 @@ $statusConfig   = intervention_status_config();
     </div>
 
     <!-- Sidebar aujourd'hui -->
-    <div style="background:var(--d-card-2);border-radius:12px;border:1px solid var(--d-border);display:flex;flex-direction:column;overflow:hidden;">
+    <div class="cal-side" style="background:var(--d-card-2);border-radius:12px;border:1px solid var(--d-border);display:flex;flex-direction:column;overflow:hidden;">
       <div style="padding:.85rem 1rem;border-bottom:1px solid var(--d-border);flex-shrink:0;">
         <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--d-t2);">Aujourd'hui</div>
         <?php
@@ -139,16 +153,21 @@ document.addEventListener('DOMContentLoaded', function() {
   var calendarEl = document.getElementById('calendar');
   var dispId = <?= (int)($_SESSION['disp_id'] ?? $_SESSION['admin_id'] ?? 0) ?>;
 
+  // Téléphone : la semaine en liste (7 colonnes d'heures sont illisibles sur un petit écran).
+  var phone = window.matchMedia('(max-width: 900px)').matches;
+
   var calendar = new FullCalendar.Calendar(calendarEl, {
     locale: 'fr',
-    initialView: 'timeGridWeek',
+    initialView: phone ? 'listWeek' : 'timeGridWeek',
     height: '100%',
     expandRows: true,
     headerToolbar: {
       left: 'prev,next today',
       center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay'
+      right: phone ? 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' : 'dayGridMonth,timeGridWeek,timeGridDay'
     },
+    buttonText: { list: 'Liste' },
+    noEventsContent: 'Aucune intervention sur cette période',
     slotDuration: '00:30:00',
     slotMinTime: '06:00:00',
     slotMaxTime: '22:00:00',
