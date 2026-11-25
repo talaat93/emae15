@@ -6,11 +6,11 @@
 # il ne peut rien exécuter ni modifier sur l'ordinateur — puis renvoie la réponse au site.
 #
 #   cle.txt (à côté de ce script) : la clé créée dans Dispatcher → Réglages → Aide (Claude Code).
-#   EMAE_SITE  : adresse du site (https://emaee.fr par défaut).
+#   EMAE_SITE  : adresse du site (https://www.emaee.fr par défaut).
 #   EMAE_PAUSE : secondes entre deux passages (20 par défaut).
 set -u
 DIR="$(cd "$(dirname "$0")" && pwd)"
-SITE="${EMAE_SITE:-https://emaee.fr}"
+SITE="${EMAE_SITE:-https://www.emaee.fr}"
 PAUSE="${EMAE_PAUSE:-20}"
 CLE="$(tr -d ' \r\n' < "$DIR/cle.txt" 2>/dev/null || true)"
 [ -n "$CLE" ] || { echo "Clé absente : collez-la dans $DIR/cle.txt (Réglages → Aide (Claude Code))."; exit 1; }
@@ -36,12 +36,15 @@ while true; do
   echo "$(date '+%H:%M:%S') $ID"
   # Réponse seule : --tools "" (aucun outil) et --strict-mcp-config sans configuration (aucun serveur MCP).
   if claude -p --tools "" --strict-mcp-config --output-format text < "$DIR/.question.txt" > "$DIR/.reponse.txt" 2> "$DIR/.erreur.txt" && [ -s "$DIR/.reponse.txt" ]; then
-    if curl -sS -m 200 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
-         --data-urlencode "id=$ID" --data-urlencode "answer@$DIR/.reponse.txt" "$SITE/api/assist.php?action=answer" | grep -q '^200$'; then
-      echo "  → réponse envoyée"
-    else
-      echo "  → réponse non acceptée (déjà traitée par le relais ou par le bureau, ou illisible)"
-    fi
+    # Chemin relatif (le script est déjà dans son dossier) : sous Windows, curl ne lit pas « /c/... ».
+    CODE_REP="$(curl -sS -m 200 -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLE" \
+         --data-urlencode "id=$ID" --data-urlencode "answer@.reponse.txt" "$SITE/api/assist.php?action=answer")"
+    case "$CODE_REP" in
+      200) echo "  → réponse envoyée" ;;
+      409) echo "  → déjà traitée par le relais ou par le bureau" ;;
+      422) echo "  → réponse illisible : le site fait le travail avec la clé API" ;;
+      *)   echo "  → envoi impossible (code ${CODE_REP:-aucun}) : le site prendra le relais" ;;
+    esac
   else
     echo "  → Claude Code n'a pas répondu : $(head -c 300 "$DIR/.erreur.txt")"
   fi
